@@ -1,6 +1,6 @@
 # Crunchyroll Watchlist Integration Findings
 
-Last verified: 2026-02-21 (US locale), live WebKit session against `https://www.crunchyroll.com/watchlist`.
+Last verified: 2026-02-22 (US locale), live WebKit session against `https://www.crunchyroll.com/watchlist` and `https://www.crunchyroll.com/history`.
 
 ## Core page routes
 
@@ -56,6 +56,7 @@ User/session endpoints:
 Watchlist and content endpoints:
 
 - `GET /content/v2/discover/<account_or_profile_id>/watchlist?order=desc&n=100&locale=en-US`
+- `GET /content/v2/<account_id>/watch-history?page_size=100&page=<n>&preferred_audio_language=en-US&locale=en-US`
 - `GET /content/v2/cms/objects/<comma_separated_series_ids>?ratings=true&preferred_audio_language=en-US&locale=en-US`
 - `GET <panel.streams_link>` (used for hover-preview URL lookup when present in watchlist panel payload)
 
@@ -67,23 +68,36 @@ Series page-related endpoints observed:
 
 ## Data retrieval flow used by the extension
 
-Rating fetch path (in order):
+Curated data fetch path (in order):
 
 1. Load full watchlist from API:
    - Request bearer token (`POST /auth/v1/token`)
    - Paginate `/content/v2/discover/<accountId>/watchlist?...` with `n=100` and `start=0,100,200...`
-   - Collect unique `series_id` values from entries
+   - Collect unique `series_id` values from entries and build normalized curated entries
 2. Batch rating preload for stale cache entries:
    - `GET /content/v2/cms/objects/<comma_separated_series_ids>?ratings=true&preferred_audio_language=en-US&locale=<locale>`
-3. Build curated entries from API payload (title, series slug, availability, audio locale signals, thumbnail, etc.).
+3. Watch-history preload for stale cache entries:
+   - `GET /content/v2/<accountId>/watch-history?page_size=100&page=<n>&preferred_audio_language=en-US&locale=<locale>`
+   - Build latest `date_played` by `series_id`
+4. Join curated entries with latest watch-history-by-series data:
+   - Use `date_played` as primary `Last watched` source
+5. Build curated entries from API payload (title, series slug, availability, audio locale signals, thumbnail, etc.).
    - Collect cover variants from `images.*` and map to:
      - Portrait card cover (prefer `poster_tall`/portrait ratios)
      - Landscape card cover (prefer `poster_wide`/landscape ratios)
-4. Render curated cards from extension-owned data model (not Crunchyroll's virtualized list DOM).
-5. Store normalized `{ rating, votes, distribution, audioLocales, description, episodeCount, seasonCount, genreTags, updatedAt }` back into cache.
-6. Start loading in the background when watchlist page mounts; curated tab shows spinner/loader while inflight.
-7. On curated-card thumbnail hover, resolve stream preview URL from `panel.streams_link` response and render muted inline preview video when available.
-8. On curated-card heart/trash clicks, forward click to matching native watchlist controls (same Crunchyroll handlers) when native row is currently loaded.
+6. Render curated cards from extension-owned data model (not Crunchyroll's virtualized list DOM).
+7. Store normalized rating/watch-history caches back into extension storage.
+8. Start loading in the background when watchlist page mounts; curated tab shows spinner/loader while inflight.
+9. On curated-card thumbnail hover, resolve stream preview URL from `panel.streams_link` response and render muted inline preview video when available.
+10. On curated-card heart/trash clicks, forward click to matching native watchlist controls (same Crunchyroll handlers) when native row is currently loaded.
+
+API-call strategy:
+
+- Default flow is batched/paged only (no one-request-per-show loop in normal preload path).
+- Calls are bounded by page/chunk sizes:
+  - Watchlist: page size `100`
+  - Watch history: page size `100`, max pages `40` (early-stop after `5` consecutive pages with no new watchlist-series matches)
+  - Ratings batch: chunk size `50`
 
 ## Auth flow required for ratings
 
@@ -99,7 +113,7 @@ Direct calls to ratings/content endpoints can return `401` without a bearer toke
 2. Use returned `access_token` as:
    - Header `Authorization: Bearer <access_token>`
 3. Request CMS object ratings using:
-   - `/content/v2/cms/objects/<seriesId>?ratings=true&preferred_audio_language=en-US&locale=en-US`
+   - `/content/v2/cms/objects/<comma_separated_seriesIds>?ratings=true&preferred_audio_language=en-US&locale=en-US`
 
 Ratings are returned in payload shape:
 
@@ -167,7 +181,7 @@ Important `data[]` keys observed:
 
 - `panel` (episode/series panel payload)
 - Timestamps: `date_added`, `updated_at` (used when available for date sorting)
-- Watch progress timestamps: `last_watched`, `watch_history_updated_at` (used when available for dormant/rewatch discovery sorts)
+- Watch progress timestamps in this endpoint were often `null` in live runs (`last_watched`, `watch_history_updated_at`, `playhead_updated_at`, `last_played_at`)
 - Flags: `new`, `is_favorite`, `fully_watched`, `never_watched`
 - `playhead`
 
@@ -185,10 +199,28 @@ Notable `data[].panel` keys:
   - `availability_status`, `availability_starts`, `availability_ends`
   - `subtitle_locales[]`, `tenant_categories[]`, `versions[]`
 
+### `GET /content/v2/<accountId>/watch-history?...` (status `200` with bearer token)
+
+Top-level keys:
+
+- `total`
+- `data[]`
+- `meta`
+
+Important `data[]` keys observed:
+
+- `id`
+- `date_played` (primary reliable last-watched timestamp)
+- `parent_id`, `parent_type`
+- `playhead`
+- `fully_watched`
+- `panel.*` with `episode_metadata.series_id`, `series_title`, `season_number`, `episode_number`
+
 ### Fallback endpoint behavior observed
 
 - `GET /content-reviews/v3/rating/series/<seriesId>` returned `401` in our live tests without separate auth context.
 - `GET /series/<seriesId>/<slug>` HTML did not reliably expose rating metadata on current pages.
+- These per-series fallbacks are not part of the default low-call preload path.
 
 ## Extension storage schema
 
@@ -223,6 +255,26 @@ Ratings cache key: `cw_rating_cache_v2`
 }
 ```
 
+Watch-history cache key: `cw_watch_history_cache_v1`
+
+```json
+{
+  "accountId": "<account_id>",
+  "updatedAt": 1771704720075,
+  "bySeriesId": {
+    "GT00365592": {
+      "datePlayedMs": 1771694203000,
+      "datePlayed": "2026-02-21T17:16:43.000Z",
+      "seasonNumber": 1,
+      "episodeNumber": 5,
+      "episodeTitle": "Cruelty and Camaraderie",
+      "playhead": 1346,
+      "fullyWatched": true
+    }
+  }
+}
+```
+
 Auth device key: `cw_auth_device_id_v1` (UUID-like string used for `/auth/v1/token`)
 
 ## Data volume (measured)
@@ -241,13 +293,14 @@ Implication: storing normalized rating cache locally is small and safe for long-
 - Acquires token via `/auth/v1/token`
 - Preloads all watchlist pages (paginated `start` offsets) to gather full series set up front
 - Prefetches ratings in batches for stale series IDs
-- Fetches per-series rating via CMS objects endpoint
+- Prefetches watch-history pages for stale cache and maps latest `date_played` by `series_id`
 - Caches ratings + distribution + audio locales + description + series totals/category tags in `cw_rating_cache_v2` for 12 hours
+- Caches per-series latest watch-history (`date_played`) map in `cw_watch_history_cache_v1` for 12 hours
 - Renders rating score (`★ X.X`), vote count, and 5-star distribution bars with estimated per-star counts on each curated card
 - Uses selected audio-locale and genre dropdown values for filtering
 - Supports a card-layout toggle (`portrait` / `landscape`) driven by persisted setting state
 - Shows next unwatched episode (`Sx Ey`) from watchlist panel metadata
-- Shows `Last watched` on cards from watch-history timestamps (`last_watched` / `watch_history_updated_at`); shows `unknown` when unavailable
+- Shows `Last watched` on cards from `watch-history.data[].date_played`; shows `unknown` when unavailable and `never` when `never_watched` is true
 - Shows seasons/episodes totals and estimated unwatched-left counts when episode ordering metadata is available
 - Shows category/genre-like tags from `series_metadata.tenant_categories` when present
 - Supports sort by rating ascending/descending, date added, date updated, total rating count, total star points, per-star counts/percentages, plus discovery modes (`hidden_gems`, `consensus_quality`, `controversial`, `quality_floor`, `quick_wins`, `dormant_backlog`, `rewatch_memory`) in the extension-owned curated grid built from full watchlist API data

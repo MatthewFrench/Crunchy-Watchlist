@@ -29,6 +29,7 @@ async function injectExtension(page, settingsOverride = {}, options = {}) {
       JSON.stringify(nextSettings)
     );
     localStorage.removeItem('cw_rating_cache_v2');
+    localStorage.removeItem('cw_watch_history_cache_v1');
   }, settings);
 
   await loadExtensionAssets(page);
@@ -192,6 +193,12 @@ test.describe('Crunchy Watchlist Curator', () => {
     await expect(
       page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__last-watched')
     ).toContainText('Last watched:');
+    await expect(
+      page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__last-watched')
+    ).not.toContainText('unknown');
+    await expect(
+      page.locator('.cw-curated-card[data-cw-curated-title="Low Rated Show"] .cw-curated-card__last-watched')
+    ).not.toContainText('unknown');
     await expect(
       page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__scope')
     ).toContainText('Seasons: 3');

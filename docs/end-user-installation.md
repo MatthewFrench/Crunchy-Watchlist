@@ -8,6 +8,7 @@ This guide covers manual installation for:
 - Safari (macOS)
 
 If official store listings are available, installing from each browser store is recommended over manual installation.
+Store listing placeholders are in `README.md` under `Store install links`.
 
 ## Install files you need
 
