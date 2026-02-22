@@ -1301,14 +1301,22 @@
         row?.panel?.created_at,
         row?.panel?.episode_metadata?.availability_starts
       ]);
+      const lastWatchedMs = pickFirstDateMs([
+        row?.last_watched,
+        row?.last_watched_at,
+        row?.watch_history_updated_at,
+        row?.playhead_updated_at,
+        row?.last_played_at,
+        row?.panel?.last_watched,
+        row?.panel?.episode_metadata?.last_watched
+      ]);
       const dateUpdatedMs = pickFirstDateMs([
+        lastWatchedMs,
         row?.date_updated,
         row?.updated_at,
         row?.modified_at,
         row?.last_modified_at,
         row?.updatedAt,
-        row?.last_watched,
-        row?.watch_history_updated_at,
         row?.panel?.updated_at,
         row?.panel?.last_modified_at,
         row?.panel?.episode_metadata?.availability_ends,
@@ -1333,6 +1341,7 @@
               : "",
         description,
         dateAddedMs,
+        lastWatchedMs,
         dateUpdatedMs,
         episodeCount: null,
         seasonCount: null,
@@ -1908,6 +1917,24 @@
       return left.originalIndex - right.originalIndex;
     }
 
+    if (state.settings.sortMode === "hidden_gems_desc") {
+      const normalizedLeftRating = leftRating == null ? -Infinity : leftRating;
+      const normalizedRightRating = rightRating == null ? -Infinity : rightRating;
+      if (normalizedLeftRating !== normalizedRightRating) {
+        return normalizedRightRating - normalizedLeftRating;
+      }
+
+      const leftVotes = sanitizeVotes(left.votes);
+      const rightVotes = sanitizeVotes(right.votes);
+      const normalizedLeftVotes = leftVotes == null ? Infinity : leftVotes;
+      const normalizedRightVotes = rightVotes == null ? Infinity : rightVotes;
+      if (normalizedLeftVotes !== normalizedRightVotes) {
+        return normalizedLeftVotes - normalizedRightVotes;
+      }
+
+      return left.originalIndex - right.originalIndex;
+    }
+
     const numericSortExtractors = {
       votes_desc: (entry) => sanitizeVotes(entry.votes),
       star_points_desc: (entry) => getTotalStarPoints(entry.votes, entry.distribution),
@@ -1921,6 +1948,12 @@
       star_3_pct_desc: (entry) => getStarPercentageFromDistribution(entry.distribution, 3),
       star_2_pct_desc: (entry) => getStarPercentageFromDistribution(entry.distribution, 2),
       star_1_pct_desc: (entry) => getStarPercentageFromDistribution(entry.distribution, 1),
+      consensus_quality_desc: (entry) => getConsensusQualityScore(entry.distribution),
+      controversial_desc: (entry) => getControversyScore(entry.distribution),
+      quality_floor_asc: (entry) => getQualityFloorScore(entry.distribution),
+      quick_wins_asc: (entry) => getQuickWinScore(entry),
+      dormant_backlog_asc: (entry) => getDormantBacklogScore(entry),
+      rewatch_memory_desc: (entry) => getRewatchMemoryScore(entry),
       date_added_desc: (entry) => parseDateMs(entry.dateAddedMs),
       date_added_asc: (entry) => parseDateMs(entry.dateAddedMs),
       date_updated_desc: (entry) => parseDateMs(entry.dateUpdatedMs),
@@ -2119,6 +2152,33 @@
     }
   }
 
+  function formatLastWatchedValue(value) {
+    const timestamp = parseDateMs(value);
+    if (timestamp == null) {
+      return "unknown";
+    }
+
+    let dateLabel;
+    try {
+      dateLabel = new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric"
+      }).format(timestamp);
+    } catch (_) {
+      dateLabel = new Date(timestamp).toISOString().slice(0, 10);
+    }
+
+    const daysAgo = Math.max(0, Math.floor((Date.now() - timestamp) / (24 * 60 * 60 * 1000)));
+    if (daysAgo === 0) {
+      return `${dateLabel} (today)`;
+    }
+    if (daysAgo === 1) {
+      return `${dateLabel} (1 day ago)`;
+    }
+    return `${dateLabel} (${daysAgo} days ago)`;
+  }
+
   function createLoadingIndicator(text) {
     const loading = document.createElement("span");
     loading.className = "cw-loading";
@@ -2183,6 +2243,111 @@
     }
 
     return hasAny ? total : null;
+  }
+
+  function getConsensusQualityScore(distribution) {
+    const p5 = getStarPercentageFromDistribution(distribution, 5);
+    const p4 = getStarPercentageFromDistribution(distribution, 4);
+    const p2 = getStarPercentageFromDistribution(distribution, 2);
+    const p1 = getStarPercentageFromDistribution(distribution, 1);
+
+    if (p5 == null && p4 == null && p2 == null && p1 == null) {
+      return null;
+    }
+
+    return (p5 ?? 0) + (p4 ?? 0) - (p2 ?? 0) - (p1 ?? 0);
+  }
+
+  function getControversyScore(distribution) {
+    if (!distribution || typeof distribution !== "object") {
+      return null;
+    }
+
+    const buckets = [];
+    for (let star = 1; star <= 5; star += 1) {
+      const percentage = getStarPercentageFromDistribution(distribution, star);
+      if (percentage != null && percentage > 0) {
+        buckets.push({ star, percentage });
+      }
+    }
+
+    const totalPercentage = buckets.reduce((sum, bucket) => sum + bucket.percentage, 0);
+    if (!buckets.length || totalPercentage <= 0) {
+      return null;
+    }
+
+    const mean = buckets.reduce((sum, bucket) => sum + bucket.star * (bucket.percentage / totalPercentage), 0);
+    const variance = buckets.reduce(
+      (sum, bucket) => sum + ((bucket.star - mean) ** 2) * (bucket.percentage / totalPercentage),
+      0
+    );
+    return variance;
+  }
+
+  function getQualityFloorScore(distribution) {
+    const p1 = getStarPercentageFromDistribution(distribution, 1);
+    const p2 = getStarPercentageFromDistribution(distribution, 2);
+    if (p1 == null && p2 == null) {
+      return null;
+    }
+
+    return (p1 ?? 0) * 2 + (p2 ?? 0);
+  }
+
+  function getQuickWinScore(entry) {
+    const unwatchedLeft = estimateUnwatchedEpisodesLeft(entry);
+    const remaining = unwatchedLeft ?? sanitizePositiveInt(entry?.episodeCount);
+    if (remaining == null) {
+      return null;
+    }
+
+    const nonActionablePenalty = entry?.actionable ? 0 : 100000;
+    return nonActionablePenalty + remaining;
+  }
+
+  function getDormantBacklogScore(entry) {
+    const updatedAt =
+      parseDateMs(entry?.lastWatchedMs) ??
+      parseDateMs(entry?.dateUpdatedMs) ??
+      parseDateMs(entry?.dateAddedMs);
+    if (updatedAt == null) {
+      return null;
+    }
+
+    const nonActionablePenalty = entry?.actionable ? 0 : 10000000000000;
+    return nonActionablePenalty + updatedAt;
+  }
+
+  function getRewatchMemoryScore(entry) {
+    const updatedAt =
+      parseDateMs(entry?.lastWatchedMs) ??
+      parseDateMs(entry?.dateUpdatedMs) ??
+      parseDateMs(entry?.dateAddedMs);
+    const episodeCount = sanitizePositiveInt(entry?.episodeCount);
+    if (updatedAt == null || episodeCount == null) {
+      return null;
+    }
+
+    const unwatchedLeft = estimateUnwatchedEpisodesLeft(entry);
+    const watchedEpisodes =
+      unwatchedLeft == null ? null : Math.max(0, episodeCount - Math.max(0, Number(unwatchedLeft) || 0));
+    if (watchedEpisodes == null || watchedEpisodes <= 0) {
+      return null;
+    }
+
+    const watchedRatio = watchedEpisodes / episodeCount;
+    if (!Number.isFinite(watchedRatio) || watchedRatio < 0.2) {
+      return null;
+    }
+
+    const dormantDays = Math.max(0, (Date.now() - updatedAt) / (24 * 60 * 60 * 1000));
+    if (dormantDays < 21) {
+      return null;
+    }
+
+    const lengthFactor = 1 + Math.max(0, episodeCount - 12) / 24;
+    const progressFactor = 0.5 + watchedRatio;
+    return watchedEpisodes * dormantDays * lengthFactor * progressFactor;
   }
 
   function estimateUnwatchedEpisodesLeft(entry) {
@@ -2709,6 +2874,16 @@
     status.className = "cw-curated-card__status";
     status.textContent = entry.statusBase || "Up Next";
 
+    const lastWatched = document.createElement("div");
+    lastWatched.className = "cw-curated-card__last-watched";
+    setLabeledValue(
+      lastWatched,
+      "Last watched",
+      entry.neverWatched
+        ? "never"
+        : formatLastWatchedValue(entry.lastWatchedMs ?? entry.dateUpdatedMs ?? entry.dateAddedMs)
+    );
+
     const nextEpisode = document.createElement("div");
     nextEpisode.className = "cw-curated-card__next";
     if (entry.fullyWatched) {
@@ -2763,6 +2938,7 @@
 
     body.appendChild(description);
     body.appendChild(status);
+    body.appendChild(lastWatched);
     body.appendChild(nextEpisode);
     body.appendChild(scope);
     if (genreValue) {
@@ -3097,6 +3273,13 @@
         { optionValue: "none", title: "Default" },
         { optionValue: "rating_desc", title: "Rating high to low" },
         { optionValue: "rating_asc", title: "Rating low to high" },
+        { optionValue: "hidden_gems_desc", title: "Hidden gems (high rating, fewer ratings)" },
+        { optionValue: "consensus_quality_desc", title: "Consensus quality" },
+        { optionValue: "controversial_desc", title: "Most controversial" },
+        { optionValue: "quality_floor_asc", title: "Quality floor (lowest 1★/2★)" },
+        { optionValue: "quick_wins_asc", title: "Quick wins (few unwatched left)" },
+        { optionValue: "dormant_backlog_asc", title: "Dormant backlog (oldest activity)" },
+        { optionValue: "rewatch_memory_desc", title: "May need re-watch to remember" },
         { optionValue: "date_added_desc", title: "Recently added" },
         { optionValue: "date_added_asc", title: "Oldest added" },
         { optionValue: "date_updated_desc", title: "Recently updated" },

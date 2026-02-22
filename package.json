@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "Playwright + Safari extension tooling for Crunchy Watchlist Curator",
+  "license": "GPL-3.0-only",
   "scripts": {
     "pw:install": "playwright install webkit",
     "test:e2e": "playwright test",
