@@ -1916,6 +1916,11 @@
       star_3_desc: (entry) => getStarCountFromDistribution(entry.votes, entry.distribution, 3),
       star_2_desc: (entry) => getStarCountFromDistribution(entry.votes, entry.distribution, 2),
       star_1_desc: (entry) => getStarCountFromDistribution(entry.votes, entry.distribution, 1),
+      star_5_pct_desc: (entry) => getStarPercentageFromDistribution(entry.distribution, 5),
+      star_4_pct_desc: (entry) => getStarPercentageFromDistribution(entry.distribution, 4),
+      star_3_pct_desc: (entry) => getStarPercentageFromDistribution(entry.distribution, 3),
+      star_2_pct_desc: (entry) => getStarPercentageFromDistribution(entry.distribution, 2),
+      star_1_pct_desc: (entry) => getStarPercentageFromDistribution(entry.distribution, 1),
       date_added_desc: (entry) => parseDateMs(entry.dateAddedMs),
       date_added_asc: (entry) => parseDateMs(entry.dateAddedMs),
       date_updated_desc: (entry) => parseDateMs(entry.dateUpdatedMs),
@@ -2159,6 +2164,10 @@
     return Math.round((normalizedVotes * percentage) / 100);
   }
 
+  function getStarPercentageFromDistribution(distribution, starLevel) {
+    return sanitizePercentage(distribution?.[String(starLevel)]);
+  }
+
   function getTotalStarPoints(votes, distribution) {
     let total = 0;
     let hasAny = false;
@@ -2323,8 +2332,33 @@
     item.className = "cw-curated-card";
     item.dataset.cwSeriesId = entry.seriesId;
     item.dataset.cwCuratedTitle = entry.fixtureTitle || entry.title;
+    const cardHref = resolveApiHref(entry.href || "");
     if (entry.dimNonActionable) {
       item.classList.add("cw-curated-card--non-actionable");
+    }
+    if (cardHref) {
+      item.classList.add("cw-curated-card--clickable");
+      item.addEventListener("click", (event) => {
+        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+          return;
+        }
+
+        const target = event.target;
+        if (!(target instanceof Element)) {
+          return;
+        }
+
+        if (target.closest("a, button, input, select, textarea, label, [role='button']")) {
+          return;
+        }
+
+        const selection = window.getSelection();
+        if (selection && selection.type === "Range") {
+          return;
+        }
+
+        window.location.assign(cardHref);
+      });
     }
 
     const titleLink = document.createElement("a");
@@ -3073,7 +3107,12 @@
         { optionValue: "star_4_desc", title: "Most 4-star ratings" },
         { optionValue: "star_3_desc", title: "Most 3-star ratings" },
         { optionValue: "star_2_desc", title: "Most 2-star ratings" },
-        { optionValue: "star_1_desc", title: "Most 1-star ratings" }
+        { optionValue: "star_1_desc", title: "Most 1-star ratings" },
+        { optionValue: "star_5_pct_desc", title: "Most 5-star ratings (%)" },
+        { optionValue: "star_4_pct_desc", title: "Most 4-star ratings (%)" },
+        { optionValue: "star_3_pct_desc", title: "Most 3-star ratings (%)" },
+        { optionValue: "star_2_pct_desc", title: "Most 2-star ratings (%)" },
+        { optionValue: "star_1_pct_desc", title: "Most 1-star ratings (%)" }
       ]
     );
 

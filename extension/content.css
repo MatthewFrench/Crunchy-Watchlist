@@ -226,15 +226,21 @@
   width: 100%;
   max-width: none;
   aspect-ratio: 16 / 9;
+  margin-inline: auto;
 }
 
 .cw-host[data-cw-card-layout="landscape"] .cw-curated-card__media {
   width: 100%;
   max-width: none;
+  align-items: center;
 }
 
 .cw-curated-card--non-actionable {
   opacity: 0.72;
+}
+
+.cw-curated-card--clickable {
+  cursor: pointer;
 }
 
 .cw-curated-card__thumb {
@@ -311,6 +317,11 @@
   flex-direction: column;
   gap: 8px;
   align-self: start;
+}
+
+.cw-host[data-cw-card-layout="portrait"] .cw-curated-card__media {
+  align-self: stretch;
+  justify-content: center;
 }
 
 .cw-curated-card__title {
