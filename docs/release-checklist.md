@@ -28,6 +28,7 @@ Use this checklist for each public release across Chrome, Edge, Firefox, and Saf
 
 - [ ] Ensure `.github/workflows/build-extensions.yml` passes on the target commit.
 - [ ] Verify CI uploaded artifacts: `extension-chrome`, `extension-edge`, `extension-firefox`, `extension-safari`.
+- [ ] Verify CI published a release to GitHub Releases for the `main` commit.
 - [ ] Verify artifact contents: browser packages have expected `manifest.json`, `content.js`, `content.css`, and `icons/`.
 - [ ] Verify artifact contents: Firefox package includes `browser_specific_settings.gecko.id`.
 - [ ] Verify artifact contents: Safari package includes app wrapper build output.
@@ -52,6 +53,15 @@ Use this checklist for each public release across Chrome, Edge, Firefox, and Saf
 - [ ] Firefox AMO: upload signed package flow, verify ID continuity, submit.
 - [ ] Safari/macOS: sign and notarize app wrapper, upload via App Store Connect or chosen distribution path.
 
+Safari/macOS hardening:
+
+- [ ] Confirm Apple Developer membership and App Store Connect app record are active.
+- [ ] Confirm app and extension bundle IDs match planned production values.
+- [ ] Build archived/macOS App Store package in Xcode (`Product > Archive`) from the macOS scheme.
+- [ ] Export and notarize a signed package suitable for distribution.
+- [ ] Upload package, complete extension metadata, and set up a TestFlight or store review build.
+- [ ] Verify extension controls and `Curated` tab in the signed artifact before requesting review.
+
 ## 8) Post-release validation
 
 - [ ] Install released build from each channel in a clean profile.
@@ -69,6 +79,7 @@ Use this checklist for each public release across Chrome, Edge, Firefox, and Saf
 
 ## 10) Optional automation improvements
 
-- [ ] Add tag-based release workflow to auto-build + publish draft release notes.
+- [ ] Promote main-branch release artifacts to browser store channels when approved.
+- [ ] Add release notes automation for GitHub release metadata and browser store drafts.
 - [ ] Add checksums/signature metadata for distributed artifacts.
 - [ ] Add automated smoke script for store-delivered packages (not only fixture-injected tests).

@@ -16,7 +16,7 @@ import SafariServices
 typealias PlatformViewController = NSViewController
 #endif
 
-let extensionBundleIdentifier = "com.yourCompany.Crunchy-Watchlist-Curator.Extension"
+let extensionBundleIdentifier = "dev.matthewfrench.CrunchyWatchlistCurator.Extension"
 
 class ViewController: PlatformViewController, WKNavigationDelegate, WKScriptMessageHandler {
 

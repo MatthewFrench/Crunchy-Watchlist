@@ -11,15 +11,22 @@
   const SETTINGS_KEY = "cw_settings_v1";
   const RATING_CACHE_KEY = "cw_rating_cache_v2";
   const WATCH_HISTORY_CACHE_KEY = "cw_watch_history_cache_v1";
+  const WATCHLIST_CACHE_KEY = "cw_watchlist_cache_v1";
   const RATING_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
   const WATCH_HISTORY_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+  const WATCHLIST_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   const PROCESS_DEBOUNCE_MS = 180;
   const WATCHLIST_PAGE_SIZE = 100;
   const WATCHLIST_MAX_PAGES = 30;
+  const WATCHLIST_REVALIDATE_COOLDOWN_MS = 90 * 1000;
   const WATCH_HISTORY_PAGE_SIZE = 100;
   const WATCH_HISTORY_MAX_PAGES = 40;
   const WATCH_HISTORY_NO_MATCH_PAGE_LIMIT = 5;
   const RATING_BATCH_SIZE = 50;
+  const FETCH_TIMEOUT_MS = 12000;
+  const FETCH_MAX_ATTEMPTS = 3;
+  const FETCH_BACKOFF_BASE_MS = 400;
+  const FETCH_BACKOFF_JITTER_MS = 220;
   const AUTH_CLIENT_BASIC = "Basic bm9haWhkZXZtXzZpeWcwYThsMHE6";
   const AUTH_DEVICE_KEY = "cw_auth_device_id_v1";
   const AUTH_TOKEN_SKEW_MS = 60 * 1000;
@@ -42,6 +49,7 @@
     processTimer: null,
     saveRatingsTimer: null,
     saveWatchHistoryTimer: null,
+    saveWatchlistCacheTimer: null,
     settings: { ...DEFAULT_SETTINGS },
     ratingCache: {},
     ratingInflight: new Map(),
@@ -49,6 +57,12 @@
       accountId: "",
       updatedAt: 0,
       bySeriesId: {}
+    },
+    watchHistoryStatus: "idle",
+    watchlistCache: {
+      accountId: "",
+      updatedAt: 0,
+      rows: []
     },
     watchHistoryInflight: null,
     previewCache: {},
@@ -60,6 +74,7 @@
     curatedSource: "none",
     curatedInflight: null,
     curatedObservedPromise: null,
+    curatedLastRevalidateAt: 0,
     mutationMuted: false,
     hostEl: null,
     tabCrunchyrollEl: null,
@@ -249,6 +264,15 @@
     clearTimeout(state.saveWatchHistoryTimer);
     state.saveWatchHistoryTimer = window.setTimeout(() => {
       storageSet(WATCH_HISTORY_CACHE_KEY, state.watchHistoryCache).catch(() => {
+        // no-op
+      });
+    }, 250);
+  }
+
+  function scheduleSaveWatchlistCache() {
+    clearTimeout(state.saveWatchlistCacheTimer);
+    state.saveWatchlistCacheTimer = window.setTimeout(() => {
+      storageSet(WATCHLIST_CACHE_KEY, state.watchlistCache).catch(() => {
         // no-op
       });
     }, 250);
@@ -664,6 +688,50 @@
     };
   }
 
+  function normalizeStoredWatchlistCache(raw) {
+    if (!raw || typeof raw !== "object") {
+      return {
+        accountId: "",
+        updatedAt: 0,
+        rows: []
+      };
+    }
+
+    const rows = Array.isArray(raw.rows)
+      ? raw.rows.filter((row) => row && typeof row === "object")
+      : [];
+
+    return {
+      accountId: typeof raw.accountId === "string" ? raw.accountId : "",
+      updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : 0,
+      rows
+    };
+  }
+
+  function isWatchlistCacheValid(cache, accountId) {
+    if (!cache || typeof cache !== "object") {
+      return false;
+    }
+
+    if (!Array.isArray(cache.rows)) {
+      return false;
+    }
+
+    if (typeof cache.updatedAt !== "number") {
+      return false;
+    }
+
+    if (typeof accountId === "string" && accountId && cache.accountId && cache.accountId !== accountId) {
+      return false;
+    }
+
+    if (!cache.rows.length) {
+      return false;
+    }
+
+    return Date.now() - cache.updatedAt < WATCHLIST_CACHE_TTL_MS;
+  }
+
   function getCachedWatchHistory(seriesId) {
     if (!seriesId || !state.watchHistoryCache || typeof state.watchHistoryCache !== "object") {
       return null;
@@ -676,6 +744,285 @@
 
     const entry = normalizeWatchHistoryEntry(bySeriesId[seriesId]);
     return entry || null;
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, Math.max(0, Number(ms) || 0));
+    });
+  }
+
+  function parseRetryAfterMs(response) {
+    try {
+      const raw = response?.headers?.get("retry-after");
+      if (!raw) {
+        return null;
+      }
+
+      const seconds = Number(raw);
+      if (Number.isFinite(seconds) && seconds >= 0) {
+        return Math.min(30000, Math.round(seconds * 1000));
+      }
+
+      const when = Date.parse(raw);
+      if (Number.isFinite(when)) {
+        return Math.min(30000, Math.max(0, when - Date.now()));
+      }
+    } catch (_) {
+      // no-op
+    }
+
+    return null;
+  }
+
+  function computeFetchRetryDelayMs(attemptNumber, response) {
+    const retryAfterMs = parseRetryAfterMs(response);
+    if (retryAfterMs != null) {
+      return retryAfterMs;
+    }
+
+    const exponent = Math.max(0, Number(attemptNumber) - 1);
+    const exponential = FETCH_BACKOFF_BASE_MS * (2 ** exponent);
+    const jitter = Math.round(Math.random() * FETCH_BACKOFF_JITTER_MS);
+    return Math.min(10000, exponential + jitter);
+  }
+
+  function shouldRetryStatus(statusCode) {
+    const status = Number(statusCode);
+    return status === 429 || (status >= 500 && status < 600);
+  }
+
+  function makeApiContractError(endpointName, message, extra = {}) {
+    runtimeEvent("api-contract-error", {
+      endpoint: endpointName,
+      message,
+      ...extra
+    });
+    return new Error(`Crunchyroll API contract changed for ${endpointName}: ${message}`);
+  }
+
+  function emitApiContractWarning(endpointName, message, extra = {}) {
+    runtimeEvent("api-contract-warning", {
+      endpoint: endpointName,
+      message,
+      ...extra
+    });
+  }
+
+  function requirePayloadDataArray(endpointName, payload) {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload) || !Array.isArray(payload.data)) {
+      throw makeApiContractError(endpointName, "expected a JSON object with a data[] array");
+    }
+    return payload.data;
+  }
+
+  function auditWatchlistRowsContract(rows) {
+    let missingPanelCount = 0;
+    let missingSeriesCount = 0;
+    let missingEpisodeMetaCount = 0;
+
+    rows.forEach((row) => {
+      if (!row || typeof row !== "object") {
+        missingPanelCount += 1;
+        return;
+      }
+
+      if (!row.panel || typeof row.panel !== "object") {
+        missingPanelCount += 1;
+        return;
+      }
+
+      if (!row.panel.episode_metadata || typeof row.panel.episode_metadata !== "object") {
+        missingEpisodeMetaCount += 1;
+      }
+
+      if (!getWatchlistSeriesId(row)) {
+        missingSeriesCount += 1;
+      }
+    });
+
+    if (missingPanelCount || missingEpisodeMetaCount || missingSeriesCount) {
+      emitApiContractWarning("watchlist", "rows are missing expected fields", {
+        rowCount: rows.length,
+        missingPanelCount,
+        missingEpisodeMetaCount,
+        missingSeriesCount
+      });
+    }
+  }
+
+  function auditWatchHistoryRowsContract(rows) {
+    let missingSeriesCount = 0;
+    let missingDatePlayedCount = 0;
+
+    rows.forEach((row) => {
+      if (!getWatchHistorySeriesId(row)) {
+        missingSeriesCount += 1;
+      }
+      if (parseDateMs(row?.date_played) == null) {
+        missingDatePlayedCount += 1;
+      }
+    });
+
+    if (missingSeriesCount || missingDatePlayedCount) {
+      emitApiContractWarning("watch-history", "rows are missing expected fields", {
+        rowCount: rows.length,
+        missingSeriesCount,
+        missingDatePlayedCount
+      });
+    }
+  }
+
+  function auditCmsObjectContract(records) {
+    let missingIdCount = 0;
+    let missingSeriesMetadataCount = 0;
+    let missingRatingCount = 0;
+
+    records.forEach((record) => {
+      if (!record || typeof record !== "object") {
+        missingIdCount += 1;
+        missingSeriesMetadataCount += 1;
+        missingRatingCount += 1;
+        return;
+      }
+
+      if (typeof record.id !== "string" || !record.id) {
+        missingIdCount += 1;
+      }
+      if (!record.series_metadata || typeof record.series_metadata !== "object") {
+        missingSeriesMetadataCount += 1;
+      }
+      if (!record.rating || typeof record.rating !== "object") {
+        missingRatingCount += 1;
+      }
+    });
+
+    if (missingIdCount || missingSeriesMetadataCount) {
+      emitApiContractWarning("cms-objects", "records are missing expected fields", {
+        recordCount: records.length,
+        missingIdCount,
+        missingSeriesMetadataCount,
+        missingRatingCount
+      });
+    }
+  }
+
+  function createAuthRefreshHandler(tokenEntry) {
+    return async () => {
+      const refreshed = await getAccessToken(true);
+      if (!refreshed?.accessToken) {
+        return "";
+      }
+
+      if (tokenEntry && typeof tokenEntry === "object") {
+        tokenEntry.accessToken = refreshed.accessToken;
+        tokenEntry.expiresAt = refreshed.expiresAt;
+        if (typeof refreshed.accountId === "string" && refreshed.accountId) {
+          tokenEntry.accountId = refreshed.accountId;
+        }
+      }
+
+      return refreshed.accessToken;
+    };
+  }
+
+  async function fetchWithResilience(url, init = {}, options = {}) {
+    const label = typeof options.label === "string" && options.label.trim() ? options.label.trim() : "request";
+    const timeoutMs = sanitizePositiveInt(options.timeoutMs) ?? FETCH_TIMEOUT_MS;
+    const maxAttempts = Math.max(1, sanitizePositiveInt(options.maxAttempts) ?? FETCH_MAX_ATTEMPTS);
+    const retryNetworkErrors = options.retryNetworkErrors !== false;
+
+    let attempt = 0;
+    let lastErrorMessage = "";
+    let hasTriedRefresh = false;
+    let bearerToken = typeof options.bearerToken === "string" ? options.bearerToken : "";
+
+    while (attempt < maxAttempts) {
+      attempt += 1;
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      const timeoutId = controller
+        ? window.setTimeout(() => {
+            try {
+              controller.abort();
+            } catch (_) {
+              // no-op
+            }
+          }, timeoutMs)
+        : null;
+
+      try {
+        const headers = new Headers(init.headers || {});
+        if (bearerToken) {
+          headers.set("authorization", `Bearer ${bearerToken}`);
+        }
+
+        const response = await fetch(url, {
+          ...init,
+          headers,
+          signal: controller ? controller.signal : init.signal
+        });
+
+        if (timeoutId != null) {
+          clearTimeout(timeoutId);
+        }
+
+        if (response.status === 401 && !hasTriedRefresh && typeof options.refreshBearerToken === "function") {
+          hasTriedRefresh = true;
+          try {
+            const refreshed = await options.refreshBearerToken();
+            if (typeof refreshed === "string" && refreshed) {
+              bearerToken = refreshed;
+              runtimeEvent("fetch-auth-refresh", { label, attempt });
+              continue;
+            }
+          } catch (_) {
+            // no-op
+          }
+        }
+
+        if (response.ok) {
+          return response;
+        }
+
+        if (attempt < maxAttempts && shouldRetryStatus(response.status)) {
+          const delayMs = computeFetchRetryDelayMs(attempt, response);
+          runtimeEvent("fetch-retry", {
+            label,
+            attempt,
+            status: response.status,
+            delayMs
+          });
+          await sleep(delayMs);
+          continue;
+        }
+
+        throw new Error(`${label} failed: ${response.status}`);
+      } catch (error) {
+        if (timeoutId != null) {
+          clearTimeout(timeoutId);
+        }
+
+        const aborted = error?.name === "AbortError";
+        const message = aborted ? "timeout" : error?.message || "network failure";
+        lastErrorMessage = message;
+
+        if (attempt < maxAttempts && retryNetworkErrors && !/failed:\s*\d{3}\b/.test(String(message))) {
+          const delayMs = computeFetchRetryDelayMs(attempt, null);
+          runtimeEvent("fetch-retry", {
+            label,
+            attempt,
+            reason: message,
+            delayMs
+          });
+          await sleep(delayMs);
+          continue;
+        }
+
+        throw new Error(`${label} failed: ${message}`);
+      }
+    }
+
+    throw new Error(`${label} failed: ${lastErrorMessage || "exhausted retries"}`);
   }
 
   function generateDeviceId() {
@@ -746,15 +1093,22 @@
       grant_type: "etp_rt_cookie"
     });
 
-    const response = await fetch(resolveApiHref("/auth/v1/token"), {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        authorization: AUTH_CLIENT_BASIC,
-        "content-type": "application/x-www-form-urlencoded"
+    const response = await fetchWithResilience(
+      resolveApiHref("/auth/v1/token"),
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          authorization: AUTH_CLIENT_BASIC,
+          "content-type": "application/x-www-form-urlencoded"
+        },
+        body: body.toString()
       },
-      body: body.toString()
-    });
+      {
+        label: "auth token request",
+        maxAttempts: 2
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`auth token request failed: ${response.status}`);
@@ -831,7 +1185,8 @@
     return "en-US";
   }
 
-  async function fetchWatchlistPage(accountId, accessToken, start) {
+  async function fetchWatchlistPage(tokenEntry, start) {
+    const accountId = tokenEntry?.accountId;
     const params = new URLSearchParams({
       order: "desc",
       n: String(WATCHLIST_PAGE_SIZE),
@@ -844,19 +1199,25 @@
     }
 
     const url = resolveApiHref(`/content/v2/discover/${encodeURIComponent(accountId)}/watchlist?${params.toString()}`);
-    const response = await fetch(url, {
-      credentials: "include",
-      headers: {
-        authorization: `Bearer ${accessToken}`
+    const response = await fetchWithResilience(
+      url,
+      {
+        credentials: "include"
+      },
+      {
+        label: "watchlist page request",
+        bearerToken: tokenEntry?.accessToken,
+        refreshBearerToken: createAuthRefreshHandler(tokenEntry)
       }
-    });
+    );
 
     if (!response.ok) {
       throw new Error(`watchlist page request failed: ${response.status}`);
     }
 
     const payload = await response.json();
-    const rows = Array.isArray(payload?.data) ? payload.data : [];
+    const rows = requirePayloadDataArray("watchlist", payload);
+    auditWatchlistRowsContract(rows);
     const total = Number(payload?.total || rows.length);
 
     return {
@@ -877,7 +1238,7 @@
 
     while (pages < WATCHLIST_MAX_PAGES) {
       pages += 1;
-      const page = await fetchWatchlistPage(tokenEntry.accountId, tokenEntry.accessToken, start);
+      const page = await fetchWatchlistPage(tokenEntry, start);
 
       if (total == null) {
         total = page.total;
@@ -897,7 +1258,8 @@
     return allRows;
   }
 
-  async function fetchWatchHistoryPage(accountId, accessToken, pageNumber) {
+  async function fetchWatchHistoryPage(tokenEntry, pageNumber) {
+    const accountId = tokenEntry?.accountId;
     const params = new URLSearchParams({
       page_size: String(WATCH_HISTORY_PAGE_SIZE),
       preferred_audio_language: getPreferredAudioLanguage(),
@@ -909,19 +1271,25 @@
     }
 
     const url = resolveApiHref(`/content/v2/${encodeURIComponent(accountId)}/watch-history?${params.toString()}`);
-    const response = await fetch(url, {
-      credentials: "include",
-      headers: {
-        authorization: `Bearer ${accessToken}`
+    const response = await fetchWithResilience(
+      url,
+      {
+        credentials: "include"
+      },
+      {
+        label: "watch history page request",
+        bearerToken: tokenEntry?.accessToken,
+        refreshBearerToken: createAuthRefreshHandler(tokenEntry)
       }
-    });
+    );
 
     if (!response.ok) {
       throw new Error(`watch history page request failed: ${response.status}`);
     }
 
     const payload = await response.json();
-    const rows = Array.isArray(payload?.data) ? payload.data : [];
+    const rows = requirePayloadDataArray("watch-history", payload);
+    auditWatchHistoryRowsContract(rows);
     const total = Number(payload?.total || rows.length);
 
     return {
@@ -957,7 +1325,7 @@
     };
   }
 
-  async function fetchRatingsBatch(accessToken, seriesIds) {
+  async function fetchRatingsBatch(tokenEntry, seriesIds) {
     if (!Array.isArray(seriesIds) || !seriesIds.length) {
       return [];
     }
@@ -968,19 +1336,25 @@
         `&locale=${encodeURIComponent(getLocale())}`
     );
 
-    const response = await fetch(cmsUrl, {
-      credentials: "include",
-      headers: {
-        authorization: `Bearer ${accessToken}`
+    const response = await fetchWithResilience(
+      cmsUrl,
+      {
+        credentials: "include"
+      },
+      {
+        label: "rating batch request",
+        bearerToken: tokenEntry?.accessToken,
+        refreshBearerToken: createAuthRefreshHandler(tokenEntry)
       }
-    });
+    );
 
     if (!response.ok) {
       throw new Error(`rating batch request failed: ${response.status}`);
     }
 
     const payload = await response.json();
-    const records = Array.isArray(payload?.data) ? payload.data : [];
+    const records = requirePayloadDataArray("cms-objects", payload);
+    auditCmsObjectContract(records);
 
     return records
       .map((record) => parseCmsObjectRecord(record))
@@ -1009,20 +1383,26 @@
       };
     }
 
-    const attempt = async (accessToken) => {
-      const response = await fetch(cmsUrl, {
-        credentials: "include",
-        headers: {
-          authorization: `Bearer ${accessToken}`
+    const attempt = async () => {
+      const response = await fetchWithResilience(
+        cmsUrl,
+        {
+          credentials: "include"
+        },
+        {
+          label: "cms ratings request",
+          bearerToken: tokenEntry?.accessToken,
+          refreshBearerToken: createAuthRefreshHandler(tokenEntry)
         }
-      });
+      );
 
       if (!response.ok) {
         throw new Error(`cms ratings request failed: ${response.status}`);
       }
 
       const payload = await response.json();
-      const records = Array.isArray(payload?.data) ? payload.data : [];
+      const records = requirePayloadDataArray("cms-objects", payload);
+      auditCmsObjectContract(records);
       const record = records.find((row) => row && row.id === seriesId) || records[0] || null;
       if (record) {
         const parsed = parseCmsObjectRecord(record);
@@ -1052,49 +1432,18 @@
     };
 
     try {
-      return await attempt(tokenEntry.accessToken);
-    } catch (error) {
-      if (!String(error?.message || "").includes("401")) {
-        return {
-          rating: null,
-          votes: null,
-          distribution: null,
-          description: "",
-          audioLocales: [],
-          episodeCount: null,
-          seasonCount: null,
-          genreTags: []
-        };
-      }
-
-      tokenEntry = await getAccessToken(true);
-      if (!tokenEntry?.accessToken) {
-        return {
-          rating: null,
-          votes: null,
-          distribution: null,
-          description: "",
-          audioLocales: [],
-          episodeCount: null,
-          seasonCount: null,
-          genreTags: []
-        };
-      }
-
-      try {
-        return await attempt(tokenEntry.accessToken);
-      } catch (_) {
-        return {
-          rating: null,
-          votes: null,
-          distribution: null,
-          description: "",
-          audioLocales: [],
-          episodeCount: null,
-          seasonCount: null,
-          genreTags: []
-        };
-      }
+      return await attempt();
+    } catch (_) {
+      return {
+        rating: null,
+        votes: null,
+        distribution: null,
+        description: "",
+        audioLocales: [],
+        episodeCount: null,
+        seasonCount: null,
+        genreTags: []
+      };
     }
   }
 
@@ -1104,7 +1453,11 @@
       throw new Error("series page url missing");
     }
 
-    const response = await fetch(seriesUrl, { credentials: "include" });
+    const response = await fetchWithResilience(
+      seriesUrl,
+      { credentials: "include" },
+      { label: "series page fetch", maxAttempts: 2 }
+    );
     if (!response.ok) {
       throw new Error(`series page fetch failed: ${response.status}`);
     }
@@ -1147,7 +1500,11 @@
 
     const ratingUrl = resolveApiHref(`/content-reviews/v3/rating/series/${encodeURIComponent(seriesId)}`);
     try {
-      const response = await fetch(ratingUrl, { credentials: "include" });
+      const response = await fetchWithResilience(
+        ratingUrl,
+        { credentials: "include" },
+        { label: "legacy rating request", maxAttempts: 2 }
+      );
       if (response.ok) {
         const payload = await response.json();
         const parsed = parseRatingPayload(payload);
@@ -1592,7 +1949,7 @@
       const chunks = chunkArray(staleSeriesIds, RATING_BATCH_SIZE);
       for (const chunk of chunks) {
         try {
-          const records = await fetchRatingsBatch(tokenEntry.accessToken, chunk);
+          const records = await fetchRatingsBatch(tokenEntry, chunk);
           records.forEach(
             ({
               seriesId,
@@ -1640,10 +1997,12 @@
 
   async function preloadWatchHistoryForEntries(entries, tokenEntry, force = false) {
     if (!tokenEntry?.accessToken || !tokenEntry?.accountId) {
+      state.watchHistoryStatus = "unavailable";
       return;
     }
 
     if (!force && isWatchHistoryCacheValid(state.watchHistoryCache, tokenEntry.accountId)) {
+      state.watchHistoryStatus = "ready";
       return;
     }
 
@@ -1662,6 +2021,7 @@
     const remainingSeriesIds = new Set(candidateSeriesIds);
 
     const inflight = (async () => {
+      state.watchHistoryStatus = "loading";
       const bySeriesId = {};
       let pages = 0;
       let totalRows = null;
@@ -1670,7 +2030,7 @@
 
       while (pages < WATCH_HISTORY_MAX_PAGES) {
         pages += 1;
-        const page = await fetchWatchHistoryPage(tokenEntry.accountId, tokenEntry.accessToken, pages);
+        const page = await fetchWatchHistoryPage(tokenEntry, pages);
         let matchedOnPage = 0;
 
         if (totalRows == null) {
@@ -1724,6 +2084,7 @@
         updatedAt: Date.now(),
         bySeriesId
       };
+      state.watchHistoryStatus = "ready";
       scheduleSaveWatchHistory();
 
       runtimeEvent("watch-history-preload", {
@@ -1736,6 +2097,7 @@
       });
     })()
       .catch((error) => {
+        state.watchHistoryStatus = "failed";
         runtimeEvent("watch-history-preload-failed", {
           message: error?.message || "unknown"
         });
@@ -1751,10 +2113,6 @@
   }
 
   function loadCuratedEntries(force = false) {
-    if (!force && state.curatedEntries.length) {
-      return Promise.resolve(state.curatedEntries);
-    }
-
     if (state.curatedInflight) {
       return state.curatedInflight;
     }
@@ -1768,6 +2126,19 @@
         throw new Error("Unable to load curated watchlist: Crunchyroll API auth is unavailable.");
       }
 
+      if (
+        state.watchlistCache?.accountId &&
+        tokenEntry.accountId &&
+        state.watchlistCache.accountId !== tokenEntry.accountId
+      ) {
+        state.watchlistCache = {
+          accountId: "",
+          updatedAt: 0,
+          rows: []
+        };
+        scheduleSaveWatchlistCache();
+      }
+
       const rows = await fetchAllWatchlistRows(tokenEntry);
       const entries = normalizeEntriesFromApiRows(rows);
 
@@ -1776,8 +2147,17 @@
         preloadWatchHistoryForEntries(entries, tokenEntry, force)
       ]);
 
+      state.watchlistCache = {
+        accountId: tokenEntry.accountId,
+        updatedAt: Date.now(),
+        rows
+      };
+      scheduleSaveWatchlistCache();
+
       state.curatedEntries = entries;
       state.curatedSource = "api";
+      state.curatedError = null;
+      state.curatedLastRevalidateAt = Date.now();
 
       runtimeEvent("curated-load-done", {
         source: "api",
@@ -1787,13 +2167,18 @@
       return entries;
     })()
       .catch((error) => {
-        state.curatedEntries = [];
-        state.curatedSource = "none";
-        state.curatedError = error?.message || "Unable to load curated watchlist from Crunchyroll API.";
+        const hadCachedOrExistingEntries = state.curatedEntries.length > 0;
+        if (!hadCachedOrExistingEntries) {
+          state.curatedEntries = [];
+          state.curatedSource = "none";
+        }
+        state.curatedError = hadCachedOrExistingEntries
+          ? "Showing cached data; latest refresh failed."
+          : error?.message || "Unable to load curated watchlist from Crunchyroll API.";
         runtimeEvent("curated-load-failed", {
-          message: state.curatedError
+          message: error?.message || state.curatedError
         });
-        return [];
+        return state.curatedEntries;
       })
       .finally(() => {
         state.curatedInflight = null;
@@ -1803,28 +2188,53 @@
     return inflight;
   }
 
+  function shouldBackgroundRevalidateCurated() {
+    if (state.curatedInflight || !state.curatedEntries.length) {
+      return false;
+    }
+
+    const now = Date.now();
+    if (state.curatedSource === "cache") {
+      return now - state.curatedLastRevalidateAt > 1000;
+    }
+
+    return now - state.curatedLastRevalidateAt > WATCHLIST_REVALIDATE_COOLDOWN_MS;
+  }
+
+  function observeCuratedLoadPromise(promise) {
+    if (!promise || typeof promise.finally !== "function") {
+      return;
+    }
+
+    if (state.curatedObservedPromise === promise) {
+      return;
+    }
+
+    state.curatedObservedPromise = promise;
+    promise.finally(() => {
+      if (state.curatedObservedPromise === promise) {
+        state.curatedObservedPromise = null;
+      }
+
+      if (!state.mounted || !isWatchlistPath(window.location.pathname)) {
+        return;
+      }
+
+      renderCuratedPanel();
+    });
+  }
+
   function ensureCuratedDataLoad(force = false) {
-    const shouldLoad = force || !state.curatedEntries.length || Boolean(state.curatedInflight);
-    if (!shouldLoad) {
+    if (!force && state.curatedEntries.length) {
+      if (shouldBackgroundRevalidateCurated()) {
+        const backgroundPromise = loadCuratedEntries(false);
+        observeCuratedLoadPromise(backgroundPromise);
+      }
       return Promise.resolve(state.curatedEntries);
     }
 
     const promise = loadCuratedEntries(force);
-    if (state.curatedObservedPromise !== promise) {
-      state.curatedObservedPromise = promise;
-      promise.finally(() => {
-        if (state.curatedObservedPromise === promise) {
-          state.curatedObservedPromise = null;
-        }
-
-        if (!state.mounted || !isWatchlistPath(window.location.pathname)) {
-          return;
-        }
-
-        renderCuratedPanel();
-      });
-    }
-
+    observeCuratedLoadPromise(promise);
     return promise;
   }
 
@@ -2139,42 +2549,28 @@
     }
 
     const inflight = (async () => {
-      const requestPreview = async (accessToken) => {
-        const headers = {};
-        if (typeof accessToken === "string" && accessToken.trim()) {
-          headers.authorization = `Bearer ${accessToken}`;
-        }
-
-        const response = await fetch(streamsUrl, {
-          credentials: "include",
-          headers
-        });
-
-        if (!response.ok) {
-          throw new Error(`preview request failed: ${response.status}`);
-        }
-
-        const payload = await response.json();
-        return parsePreviewUrlFromPayload(payload);
-      };
-
       let previewUrl = null;
-      let tokenEntry = await getAccessToken(false);
+      const tokenEntry = await getAccessToken(false);
 
       try {
-        previewUrl = await requestPreview(tokenEntry?.accessToken);
-      } catch (error) {
-        const isUnauthorized = String(error?.message || "").includes("401");
-        if (isUnauthorized) {
-          tokenEntry = await getAccessToken(true);
-          try {
-            previewUrl = await requestPreview(tokenEntry?.accessToken);
-          } catch (_) {
-            previewUrl = null;
+        const response = await fetchWithResilience(
+          streamsUrl,
+          {
+            credentials: "include"
+          },
+          {
+            label: "preview request",
+            bearerToken: tokenEntry?.accessToken,
+            refreshBearerToken: createAuthRefreshHandler(tokenEntry)
           }
-        } else {
-          previewUrl = null;
+        );
+
+        if (response.ok) {
+          const payload = await response.json();
+          previewUrl = parsePreviewUrlFromPayload(payload);
         }
+      } catch (_) {
+        previewUrl = null;
       }
 
       state.previewCache[seriesId] = previewUrl || null;
@@ -2495,7 +2891,7 @@
   function formatLastWatchedValue(value) {
     const timestamp = getPlausiblePastTimestamp(value);
     if (timestamp == null) {
-      return "unknown";
+      return null;
     }
 
     let dateLabel;
@@ -2517,6 +2913,42 @@
       return `${dateLabel} (1 day ago)`;
     }
     return `${dateLabel} (${daysAgo} days ago)`;
+  }
+
+  function getLastWatchedPresentation(entry) {
+    if (entry?.neverWatched) {
+      return {
+        state: "never",
+        text: "never"
+      };
+    }
+
+    const formatted = formatLastWatchedValue(entry?.lastWatchedMs);
+    if (formatted) {
+      return {
+        state: "dated",
+        text: formatted
+      };
+    }
+
+    if (state.watchHistoryStatus === "ready") {
+      return {
+        state: "retained-miss",
+        text: "not in retained history"
+      };
+    }
+
+    if (state.watchHistoryStatus === "failed") {
+      return {
+        state: "history-unavailable",
+        text: "history unavailable"
+      };
+    }
+
+    return {
+      state: "unknown",
+      text: "unknown"
+    };
   }
 
   function createLoadingIndicator(text) {
@@ -3254,13 +3686,9 @@
 
     const lastWatched = document.createElement("div");
     lastWatched.className = "cw-curated-card__last-watched";
-    setLabeledValue(
-      lastWatched,
-      "Last watched",
-      entry.neverWatched
-        ? "never"
-        : formatLastWatchedValue(entry.lastWatchedMs)
-    );
+    const lastWatchedPresentation = getLastWatchedPresentation(entry);
+    lastWatched.dataset.cwLastWatchedState = lastWatchedPresentation.state;
+    setLabeledValue(lastWatched, "Last watched", lastWatchedPresentation.text);
 
     const nextEpisode = document.createElement("div");
     nextEpisode.className = "cw-curated-card__next";
@@ -3499,7 +3927,7 @@
       if (!visible.length) {
         const empty = document.createElement("div");
         empty.className = "cw-empty";
-        if (state.curatedError) {
+        if (state.curatedError && total === 0) {
           empty.textContent = state.curatedError;
         } else if (loading && total === 0) {
           const loadingContent = createLoadingIndicator("Loading curated watchlist from Crunchyroll API...");
@@ -3518,10 +3946,17 @@
         state.gridEl.appendChild(fragment);
       }
 
-      if (state.curatedError) {
+      if (state.curatedError && total === 0) {
         state.statsEl.textContent = "API load failed";
       } else if (loading && total === 0) {
         state.statsEl.textContent = "Loading...";
+      } else if (loading && total > 0) {
+        const base = mode === "hide"
+          ? `Showing ${visible.length} of ${total}`
+          : `${total} shows`;
+        state.statsEl.textContent = `${base} (refreshing...)`;
+      } else if (state.curatedError) {
+        state.statsEl.textContent = state.curatedError;
       } else {
         state.statsEl.textContent = mode === "hide"
           ? `Showing ${visible.length} of ${total}`
@@ -3738,6 +4173,7 @@
         updatedAt: 0,
         bySeriesId: {}
       };
+      state.watchHistoryStatus = "idle";
       state.watchHistoryInflight = null;
       await storageSet(RATING_CACHE_KEY, state.ratingCache);
       await storageSet(WATCH_HISTORY_CACHE_KEY, state.watchHistoryCache);
@@ -4000,8 +4436,26 @@
       state.watchHistoryCache = normalizeStoredWatchHistoryCache(rawWatchHistoryCache);
     }
 
+    state.watchHistoryStatus = isWatchHistoryCacheValid(state.watchHistoryCache) ? "ready" : "idle";
+
+    const rawWatchlistCache = await storageGet(WATCHLIST_CACHE_KEY, null);
+    if (rawWatchlistCache && typeof rawWatchlistCache === "object") {
+      state.watchlistCache = normalizeStoredWatchlistCache(rawWatchlistCache);
+    }
+
+    if (isWatchlistCacheValid(state.watchlistCache)) {
+      state.curatedEntries = normalizeEntriesFromApiRows(state.watchlistCache.rows);
+      state.curatedSource = "cache";
+      state.curatedLastRevalidateAt = state.watchlistCache.updatedAt;
+      runtimeEvent("curated-cache-hydrated", {
+        total: state.curatedEntries.length,
+        updatedAt: state.watchlistCache.updatedAt
+      });
+    }
+
     runtimeEvent("state-load-done", {
-      tab: state.settings.activeTab
+      tab: state.settings.activeTab,
+      cachedCurated: state.curatedEntries.length
     });
   }
 

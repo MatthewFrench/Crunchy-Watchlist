@@ -22,15 +22,19 @@ async function injectExtension(page, settingsOverride = {}, options = {}) {
   const waitForLoaded = options.waitForLoaded !== false;
   const expectCuratedVisible =
     typeof options.expectCuratedVisible === 'boolean' ? options.expectCuratedVisible : settings.activeTab === 'curated';
+  const preserveCaches = options.preserveCaches === true;
 
-  await page.evaluate((nextSettings) => {
+  await page.evaluate(({ nextSettings, keepCaches }) => {
     localStorage.setItem(
       'cw_settings_v1',
       JSON.stringify(nextSettings)
     );
-    localStorage.removeItem('cw_rating_cache_v2');
-    localStorage.removeItem('cw_watch_history_cache_v1');
-  }, settings);
+    if (!keepCaches) {
+      localStorage.removeItem('cw_rating_cache_v2');
+      localStorage.removeItem('cw_watch_history_cache_v1');
+      localStorage.removeItem('cw_watchlist_cache_v1');
+    }
+  }, { nextSettings: settings, keepCaches: preserveCaches });
 
   await loadExtensionAssets(page);
   await expect(page.locator('.cw-host')).toBeVisible();
@@ -337,6 +341,148 @@ test.describe('Crunchy Watchlist Curator', () => {
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
     await page.getByRole('button', { name: 'Curated' }).click();
     await expect(page.locator('.cw-curated-card').first()).toBeVisible({ timeout: 500 });
+  });
+
+  test('hydrates from watchlist cache immediately and revalidates in background', async ({ page }) => {
+    await injectExtension(page);
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
+
+    let watchlistCalls = 0;
+    await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
+      watchlistCalls += 1;
+      await page.waitForTimeout(700);
+      await route.continue();
+    });
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await injectExtension(page, { activeTab: 'curated' }, { waitForLoaded: false, preserveCaches: true });
+
+    await expect(page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"]')).toBeVisible();
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
+    await expect(page.locator('.cw-loading-indicator')).toBeVisible();
+    await expect(page.locator('.cw-controls__stats')).toContainText('refreshing');
+    await expect(page.locator('.cw-loading-indicator')).toBeHidden();
+    expect(watchlistCalls).toBeGreaterThan(0);
+  });
+
+  test('retries transient 5xx watchlist failures', async ({ page }) => {
+    let watchlistCalls = 0;
+    await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
+      watchlistCalls += 1;
+      if (watchlistCalls === 1) {
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json; charset=utf-8',
+          body: JSON.stringify({ error: 'upstream unavailable' })
+        });
+        return;
+      }
+
+      await route.continue();
+    });
+
+    await injectExtension(page);
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
+    expect(watchlistCalls).toBeGreaterThanOrEqual(2);
+  });
+
+  test('refreshes auth token once and retries after a 401 watchlist response', async ({ page }) => {
+    let watchlistCalls = 0;
+    let authCalls = 0;
+
+    await page.route('**/auth/v1/token', async (route) => {
+      authCalls += 1;
+      await route.continue();
+    });
+
+    await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
+      watchlistCalls += 1;
+      if (watchlistCalls === 1) {
+        await route.fulfill({
+          status: 401,
+          contentType: 'application/json; charset=utf-8',
+          body: JSON.stringify({ error: 'unauthorized' })
+        });
+        return;
+      }
+
+      await route.continue();
+    });
+
+    await injectExtension(page);
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
+    expect(watchlistCalls).toBeGreaterThanOrEqual(2);
+    expect(authCalls).toBeGreaterThanOrEqual(2);
+  });
+
+  test('surfaces watchlist contract drift when data[] is missing', async ({ page }) => {
+    await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json; charset=utf-8',
+        body: JSON.stringify({ total: 4, items: [] })
+      });
+    });
+
+    await injectExtension(page, { activeTab: 'curated' }, { waitForLoaded: false });
+    await expect(page.locator('.cw-controls__stats')).toContainText('API load failed');
+    await expect(page.locator('.cw-empty')).toContainText('contract changed for watchlist');
+
+    const runtime = await page.evaluate(() => window.__CW_WATCHLIST_CURATOR_RUNTIME__ || null);
+    const hasContractError = Boolean(
+      runtime?.events?.some(
+        (entry) => entry.event === 'api-contract-error' && entry.data?.endpoint === 'watchlist'
+      )
+    );
+    expect(hasContractError).toBeTruthy();
+  });
+
+  test('degrades gracefully when watch-history contract changes', async ({ page }) => {
+    await page.route('**/content/v2/**/watch-history*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json; charset=utf-8',
+        body: JSON.stringify({ total: 3, items: [] })
+      });
+    });
+
+    await injectExtension(page);
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
+    await expect(
+      page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__last-watched')
+    ).toContainText('history unavailable');
+
+    const runtime = await page.evaluate(() => window.__CW_WATCHLIST_CURATOR_RUNTIME__ || null);
+    const hasHistoryContractError = Boolean(
+      runtime?.events?.some(
+        (entry) => entry.event === 'api-contract-error' && entry.data?.endpoint === 'watch-history'
+      )
+    );
+    expect(hasHistoryContractError).toBeTruthy();
+  });
+
+  test('degrades gracefully when cms object contract changes', async ({ page }) => {
+    await page.route('**/content/v2/cms/objects/*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json; charset=utf-8',
+        body: JSON.stringify({ total: 4, items: [] })
+      });
+    });
+
+    await injectExtension(page);
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
+    await expect(
+      page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-rating-badge')
+    ).toHaveText('NR');
+
+    const runtime = await page.evaluate(() => window.__CW_WATCHLIST_CURATOR_RUNTIME__ || null);
+    const hasCmsContractError = Boolean(
+      runtime?.events?.some(
+        (entry) => entry.event === 'api-contract-error' && entry.data?.endpoint === 'cms-objects'
+      )
+    );
+    expect(hasCmsContractError).toBeTruthy();
   });
 
   test('persists selected dropdown filters across reload', async ({ page }) => {

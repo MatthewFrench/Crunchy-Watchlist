@@ -219,6 +219,11 @@ Artifact names uploaded by CI:
 - `extension-firefox`
 - `extension-safari`
 
+Pushes to `main` now also publish a release package to GitHub Releases using:
+
+- `v<manifest-version>-main.<run number>.<run attempt>` as the release tag.
+- `Crunchy Watchlist Curator <version> (main <run number>.<run attempt>)` as release title.
+
 ## Release process
 
 Use `/Users/matthewfrench/GitHub/Crunchy-Watchlist/docs/release-checklist.md` before publishing a new version.
