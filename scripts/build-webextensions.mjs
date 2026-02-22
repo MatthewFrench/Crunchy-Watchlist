@@ -40,14 +40,20 @@ function extensionIcons() {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
     "48": "icons/icon-48.png",
-    "128": "icons/icon-128.png"
+    "64": "icons/icon-64.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png",
+    "256": "icons/icon-256.png",
+    "1024": "icons/icon-1024.png"
   };
 }
 
 function actionIcons() {
   return {
     "16": "icons/icon-16.png",
-    "32": "icons/icon-32.png"
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "64": "icons/icon-64.png"
   };
 }
 

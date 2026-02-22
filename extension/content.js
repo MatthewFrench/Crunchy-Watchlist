@@ -52,6 +52,7 @@
   const PREVIEW_HOVER_DELAY_MS = 220;
   const DEFAULT_SORT_MODE = "consensus_quality_desc";
   const VALID_SORT_MODES = new Set([
+    "none",
     "rating_desc",
     "rating_asc",
     "hidden_gems_desc",
@@ -81,7 +82,7 @@
 
   const DEFAULT_SETTINGS = {
     activeTab: "curated",
-    actionabilityMode: "hide",
+    watchReadyFilterMode: "hide",
     audioLocaleFilter: "any",
     genreFilter: "any",
     cardLayout: "portrait",
@@ -1841,7 +1842,83 @@
     return normalizeAudioLocales(locales);
   }
 
-  function deriveBaseActionable(statusBase, availabilityStatus, fullyWatched) {
+  function parseWatchReadyBoolean(value) {
+    if (typeof value === "boolean") {
+      return value;
+    }
+
+    if (typeof value === "number") {
+      if (!Number.isFinite(value)) {
+        return null;
+      }
+      return value !== 0;
+    }
+
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "") {
+        return null;
+      }
+      if (["true", "1", "yes", "on", "y"].includes(normalized)) {
+        return true;
+      }
+      if (["false", "0", "no", "off", "n"].includes(normalized)) {
+        return false;
+      }
+    }
+
+    return null;
+  }
+
+  function resolveWatchReadyFromApi(row) {
+    if (!row || typeof row !== "object") {
+      return null;
+    }
+
+    const meta = row?.panel?.episode_metadata || {};
+
+    const candidates = [
+      { value: row?.non_actionable, watchReadyMeaning: false },
+      { value: row?.nonActionable, watchReadyMeaning: false },
+      { value: row?.is_non_actionable, watchReadyMeaning: false },
+      { value: row?.isNonActionable, watchReadyMeaning: false },
+      { value: row?.watch_ready, watchReadyMeaning: true },
+      { value: row?.watchReady, watchReadyMeaning: true },
+      { value: row?.actionable, watchReadyMeaning: true },
+      { value: row?.is_actionable, watchReadyMeaning: true },
+      { value: row?.isActionable, watchReadyMeaning: true },
+      { value: row?.watchable, watchReadyMeaning: true },
+      { value: row?.is_watchable, watchReadyMeaning: true },
+      { value: meta?.non_actionable, watchReadyMeaning: false },
+      { value: meta?.nonActionable, watchReadyMeaning: false },
+      { value: meta?.is_non_actionable, watchReadyMeaning: false },
+      { value: meta?.isNonActionable, watchReadyMeaning: false },
+      { value: meta?.watch_ready, watchReadyMeaning: true },
+      { value: meta?.watchReady, watchReadyMeaning: true },
+      { value: meta?.actionable, watchReadyMeaning: true },
+      { value: meta?.is_actionable, watchReadyMeaning: true },
+      { value: meta?.isActionable, watchReadyMeaning: true },
+      { value: meta?.watchable, watchReadyMeaning: true },
+      { value: meta?.is_watchable, watchReadyMeaning: true }
+    ];
+
+    for (const candidate of candidates) {
+      const parsed = parseWatchReadyBoolean(candidate.value);
+      if (parsed === null) {
+        continue;
+      }
+      return candidate.watchReadyMeaning ? parsed : !parsed;
+    }
+
+    return null;
+  }
+
+  function deriveBaseWatchReady(row, statusBase, availabilityStatus, fullyWatched) {
+    const explicitWatchReady = resolveWatchReadyFromApi(row);
+    if (explicitWatchReady !== null) {
+      return explicitWatchReady;
+    }
+
     if (/watch again|rewatch|coming soon|unavailable/i.test(statusBase || "")) {
       return false;
     }
@@ -1880,7 +1957,7 @@
       const hasEnglishAudio = hasEnUsAudio(audioLocales);
       const fullyWatched = Boolean(row?.fully_watched);
       const neverWatched = Boolean(row?.never_watched);
-      const baseActionable = deriveBaseActionable(statusBase, meta?.availability_status, fullyWatched);
+      const watchReadyBase = deriveBaseWatchReady(row, statusBase, meta?.availability_status, fullyWatched);
       const title = meta?.series_title || row?.panel?.title || seriesId;
       const slug = meta?.series_slug_title || "";
       const href = slug ? `/series/${seriesId}/${slug}` : `/series/${seriesId}`;
@@ -1957,7 +2034,7 @@
         isFavorite: Boolean(row?.is_favorite),
         audioLocales,
         hasEnglishAudio,
-        baseActionable,
+        watchReadyBase,
         originalIndex: index,
         fixtureTitle: null
       });
@@ -2630,8 +2707,8 @@
     return inflight;
   }
 
-  function isEntryActionable(entry) {
-    return Boolean(entry.baseActionable);
+  function isEntryWatchReady(entry) {
+    return Boolean(entry.watchReadyBase);
   }
 
   function compareRenderableEntries(left, right) {
@@ -3116,8 +3193,8 @@
       return null;
     }
 
-    const nonActionablePenalty = entry?.actionable ? 0 : 100000;
-    return nonActionablePenalty + remaining;
+    const watchReadyPenalty = entry?.watchReady ? 0 : 100000;
+    return watchReadyPenalty + remaining;
   }
 
   function getWatchedEpisodeEstimate(entry) {
@@ -3172,8 +3249,8 @@
       return null;
     }
 
-    const nonActionablePenalty = entry?.actionable ? 0 : 10000000000000;
-    return nonActionablePenalty + updatedAt;
+    const watchReadyPenalty = entry?.watchReady ? 0 : 10000000000000;
+    return watchReadyPenalty + updatedAt;
   }
 
   function getRewatchMemoryScore(entry) {
@@ -3351,8 +3428,8 @@
     item.dataset.cwSeriesId = entry.seriesId;
     item.dataset.cwCuratedTitle = entry.fixtureTitle || entry.title;
     const cardHref = resolveApiHref(entry.href || "");
-    if (entry.dimNonActionable) {
-      item.classList.add("cw-curated-card--non-actionable");
+    if (entry.dimNotWatchReady) {
+      item.classList.add("cw-curated-card--not-watch-ready");
     }
     if (cardHref) {
       item.classList.add("cw-curated-card--clickable");
@@ -3859,17 +3936,17 @@
         rating,
         votes
       };
-      const actionable = isEntryActionable(mergedEntry);
+      const watchReady = isEntryWatchReady(mergedEntry);
 
       return {
         ...mergedEntry,
-        actionable
+        watchReady
       };
     });
 
     let filtered = merged.slice();
-    const mode = ["none", "dim", "hide"].includes(state.settings.actionabilityMode)
-      ? state.settings.actionabilityMode
+    const watchReadyFilterMode = ["none", "dim", "hide"].includes(state.settings.watchReadyFilterMode)
+      ? state.settings.watchReadyFilterMode
       : "hide";
     const audioValues = Array.from(
       new Set(
@@ -3905,19 +3982,19 @@
       );
     }
 
-    if (mode === "hide") {
-      filtered = filtered.filter((entry) => entry.actionable);
+    if (watchReadyFilterMode === "hide") {
+      filtered = filtered.filter((entry) => entry.watchReady);
     }
 
     const decorated = filtered.map((entry) => ({
       ...entry,
-      dimNonActionable: mode === "dim" && !entry.actionable
+      dimNotWatchReady: watchReadyFilterMode === "dim" && !entry.watchReady
     }));
 
     decorated.sort(compareRenderableEntries);
 
     return {
-      mode,
+      mode: watchReadyFilterMode,
       total: merged.length,
       visible: decorated,
       audioOptions: [
@@ -3947,7 +4024,7 @@
     applyCardLayoutUi();
 
     const {
-      mode,
+      mode: watchReadyFilterMode,
       total,
       visible,
       audioOptions,
@@ -3994,14 +4071,14 @@
       } else if (loading && total === 0) {
         state.statsEl.textContent = "Loading...";
       } else if (loading && total > 0) {
-        const base = mode === "hide"
+        const base = watchReadyFilterMode === "hide"
           ? `Showing ${visible.length} of ${total}`
           : `${total} shows`;
         state.statsEl.textContent = `${base} (refreshing...)`;
       } else if (state.curatedError) {
         state.statsEl.textContent = state.curatedError;
       } else {
-        state.statsEl.textContent = mode === "hide"
+        state.statsEl.textContent = watchReadyFilterMode === "hide"
           ? `Showing ${visible.length} of ${total}`
           : `${total} shows`;
       }
@@ -4096,14 +4173,14 @@
     const controlsRow = document.createElement("div");
     controlsRow.className = "cw-controls__row";
 
-    const actionabilityControl = createSelectField(
-      "cw-actionability-mode",
-      "Non-actionable:",
-      state.settings.actionabilityMode,
+    const watchReadyFilterControl = createSelectField(
+      "cw-watch-ready-mode",
+      "Watch-ready filter:",
+      state.settings.watchReadyFilterMode,
       [
         { optionValue: "none", title: "None" },
-        { optionValue: "dim", title: "Dim non-actionable" },
-        { optionValue: "hide", title: "Hide non-actionable" }
+        { optionValue: "dim", title: "Dim not watch-ready" },
+        { optionValue: "hide", title: "Hide not watch-ready" }
       ]
     );
 
@@ -4160,7 +4237,7 @@
       ]
     );
 
-    [actionabilityControl.field, audioFilterControl.field, genreFilterControl.field, sortControl.field].forEach((field) => {
+    [watchReadyFilterControl.field, audioFilterControl.field, genreFilterControl.field, sortControl.field].forEach((field) => {
       field.classList.add("cw-controls__field--grow");
     });
 
@@ -4177,8 +4254,8 @@
     loadingIndicator.classList.add("cw-loading-indicator");
     loadingIndicator.style.display = "none";
 
-    actionabilityControl.select.addEventListener("change", async () => {
-      state.settings.actionabilityMode = actionabilityControl.select.value;
+    watchReadyFilterControl.select.addEventListener("change", async () => {
+      state.settings.watchReadyFilterMode = watchReadyFilterControl.select.value;
       await persistSettings();
       renderCuratedPanel();
     });
@@ -4226,7 +4303,7 @@
       debounceProcess();
     });
 
-    controlsRow.appendChild(actionabilityControl.field);
+    controlsRow.appendChild(watchReadyFilterControl.field);
     controlsRow.appendChild(cardLayoutControl.field);
     controlsRow.appendChild(audioFilterControl.field);
     controlsRow.appendChild(genreFilterControl.field);
@@ -4457,15 +4534,16 @@
       state.settings.cardLayout = "portrait";
     }
 
-    if (
-      typeof state.settings.actionabilityMode !== "string" &&
-      typeof storedSettings?.hideNonActionable === "boolean"
-    ) {
-      state.settings.actionabilityMode = storedSettings.hideNonActionable ? "hide" : "none";
+    if (typeof storedSettings?.watchReadyFilterMode === "string") {
+      state.settings.watchReadyFilterMode = storedSettings.watchReadyFilterMode;
+    } else if (typeof storedSettings?.actionabilityMode === "string") {
+      state.settings.watchReadyFilterMode = storedSettings.actionabilityMode;
+    } else if (typeof storedSettings?.hideNonActionable === "boolean") {
+      state.settings.watchReadyFilterMode = storedSettings.hideNonActionable ? "hide" : "none";
     }
 
-    if (!["none", "dim", "hide"].includes(state.settings.actionabilityMode)) {
-      state.settings.actionabilityMode = "hide";
+    if (!["none", "dim", "hide"].includes(state.settings.watchReadyFilterMode)) {
+      state.settings.watchReadyFilterMode = "hide";
     }
 
     if (!VALID_SORT_MODES.has(state.settings.sortMode)) {

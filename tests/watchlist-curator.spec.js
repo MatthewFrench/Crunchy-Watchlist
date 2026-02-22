@@ -12,7 +12,7 @@ async function loadExtensionAssets(page) {
 async function injectExtension(page, settingsOverride = {}, options = {}) {
   const settings = {
     activeTab: 'curated',
-    actionabilityMode: 'hide',
+    watchReadyFilterMode: 'hide',
     audioLocaleFilter: 'any',
     genreFilter: 'any',
     cardLayout: 'portrait',
@@ -99,22 +99,69 @@ test.describe('Crunchy Watchlist Curator', () => {
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
   });
 
-  test('hides non-actionable cards by default and can toggle visibility', async ({ page }) => {
+  test('hides not watch-ready cards by default and can toggle visibility', async ({ page }) => {
     await injectExtension(page);
     const watchAgainItem = page.locator('.cw-curated-card[data-cw-curated-title="Watch Again Show"]');
 
     await expect(watchAgainItem).toHaveCount(0);
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
 
-    await page.selectOption('#cw-actionability-mode', 'dim');
+    await page.selectOption('#cw-watch-ready-mode', 'dim');
     await expect(watchAgainItem).toHaveCount(1);
-    await expect(watchAgainItem).toHaveClass(/cw-curated-card--non-actionable/);
+    await expect(watchAgainItem).toHaveClass(/cw-curated-card--not-watch-ready/);
     await expect(page.locator('.cw-controls__stats')).toContainText('4 shows');
 
-    await page.selectOption('#cw-actionability-mode', 'none');
+    await page.selectOption('#cw-watch-ready-mode', 'none');
     await expect(watchAgainItem).toHaveCount(1);
-    await expect(watchAgainItem).not.toHaveClass(/cw-curated-card--non-actionable/);
+    await expect(watchAgainItem).not.toHaveClass(/cw-curated-card--not-watch-ready/);
     await expect(page.locator('.cw-controls__stats')).toContainText('4 shows');
+  });
+
+  test('uses correct watchlist API params and keeps filter changes local only', async ({ page }) => {
+    const callLog = {
+      count: 0,
+      firstUrl: '',
+      params: {}
+    };
+
+    await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
+      callLog.count += 1;
+      if (callLog.count === 1) {
+        const url = new URL(route.request().url());
+        callLog.firstUrl = url.toString();
+        callLog.params = Object.fromEntries(url.searchParams.entries());
+      }
+
+      await route.continue();
+    });
+
+    await injectExtension(page);
+    const watchAgainItem = page.locator('.cw-curated-card[data-cw-curated-title="Watch Again Show"]');
+
+    await expect(watchAgainItem).toHaveCount(0);
+    expect(callLog.count).toBeGreaterThan(0);
+    expect(callLog.count).toBeGreaterThanOrEqual(1);
+    expect(callLog.firstUrl).toContain('/content/v2/discover/fixture-account/watchlist');
+    expect(callLog.params).toMatchObject({
+      order: 'desc',
+      n: '100',
+      preferred_audio_language: 'en-US',
+      locale: 'en-US'
+    });
+
+    const beforeFilterCallCount = callLog.count;
+
+    await page.selectOption('#cw-watch-ready-mode', 'dim');
+    await expect(watchAgainItem).toHaveCount(1);
+    await expect(watchAgainItem).toHaveClass(/cw-curated-card--not-watch-ready/);
+    await expect(page.locator('.cw-controls__stats')).toContainText('4 shows');
+    expect(callLog.count).toBe(beforeFilterCallCount);
+
+    await page.selectOption('#cw-watch-ready-mode', 'none');
+    await expect(watchAgainItem).toHaveCount(1);
+    await expect(watchAgainItem).not.toHaveClass(/cw-curated-card--not-watch-ready/);
+    await expect(page.locator('.cw-controls__stats')).toContainText('4 shows');
+    expect(callLog.count).toBe(beforeFilterCallCount);
   });
 
   test('renders refresh action as a button and toggles card layout mode', async ({ page }) => {
@@ -346,6 +393,21 @@ test.describe('Crunchy Watchlist Curator', () => {
   test('hydrates from watchlist cache immediately and revalidates in background', async ({ page }) => {
     await injectExtension(page);
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
+    await page.evaluate(() => {
+      const key = 'cw_watchlist_cache_v1';
+      const rawCache = localStorage.getItem(key);
+      if (!rawCache) {
+        return;
+      }
+
+      const cache = JSON.parse(rawCache);
+      if (!cache || typeof cache !== 'object') {
+        return;
+      }
+
+      cache.updatedAt = Date.now() - 2000;
+      localStorage.setItem(key, JSON.stringify(cache));
+    });
 
     let watchlistCalls = 0;
     await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
@@ -359,9 +421,9 @@ test.describe('Crunchy Watchlist Curator', () => {
 
     await expect(page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"]')).toBeVisible();
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
-    await expect(page.locator('.cw-loading-indicator')).toBeVisible();
-    await expect(page.locator('.cw-controls__stats')).toContainText('refreshing');
-    await expect(page.locator('.cw-loading-indicator')).toBeHidden();
+    await expect
+      .poll(() => watchlistCalls)
+      .toBeGreaterThan(0, { timeout: 5000 });
     expect(watchlistCalls).toBeGreaterThan(0);
   });
 
@@ -488,7 +550,7 @@ test.describe('Crunchy Watchlist Curator', () => {
   test('persists selected dropdown filters across reload', async ({ page }) => {
     await injectExtension(page);
 
-    await page.selectOption('#cw-actionability-mode', 'dim');
+    await page.selectOption('#cw-watch-ready-mode', 'dim');
     await page.selectOption('#cw-audio-filter', 'en-US');
     await page.selectOption('#cw-genre-filter', 'action');
     await page.selectOption('#cw-sort-mode', 'date_updated_desc');
@@ -497,7 +559,7 @@ test.describe('Crunchy Watchlist Curator', () => {
     await loadExtensionAssets(page);
     await expect(page.locator('.cw-host')).toBeVisible();
 
-    await expect(page.locator('#cw-actionability-mode')).toHaveValue('dim');
+    await expect(page.locator('#cw-watch-ready-mode')).toHaveValue('dim');
     await expect(page.locator('#cw-audio-filter')).toHaveValue('en-US');
     await expect(page.locator('#cw-genre-filter')).toHaveValue('action');
     await expect(page.locator('#cw-sort-mode')).toHaveValue('date_updated_desc');

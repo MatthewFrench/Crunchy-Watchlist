@@ -35,6 +35,8 @@
 		C85B096F2F4A30030074A3BE /* content.css in Resources */ = {isa = PBXBuildFile; fileRef = C85B09692F4A30030074A3BE /* content.css */; };
 		C85B09702F4A30030074A3BE /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = C85B096A2F4A30030074A3BE /* manifest.json */; };
 		C85B09712F4A30030074A3BE /* content.js in Resources */ = {isa = PBXBuildFile; fileRef = C85B096B2F4A30030074A3BE /* content.js */; };
+		C85B09752F4A30030074A3BE /* icons in Resources */ = {isa = PBXBuildFile; fileRef = C85B09742F4A30030074A3BE /* icons */; };
+		C85B09762F4A30030074A3BE /* icons in Resources */ = {isa = PBXBuildFile; fileRef = C85B09742F4A30030074A3BE /* icons */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -104,6 +106,7 @@
 		C85B09692F4A30030074A3BE /* content.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; name = content.css; path = ../../extension/content.css; sourceTree = "<group>"; };
 		C85B096A2F4A30030074A3BE /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = manifest.json; path = ../../extension/manifest.json; sourceTree = "<group>"; };
 		C85B096B2F4A30030074A3BE /* content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = content.js; path = ../../extension/content.js; sourceTree = "<group>"; };
+		C85B09742F4A30030074A3BE /* icons */ = {isa = PBXFileReference; lastKnownFileType = folder; name = icons; path = ../../extension/icons; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -236,6 +239,7 @@
 				C85B09692F4A30030074A3BE /* content.css */,
 				C85B096A2F4A30030074A3BE /* manifest.json */,
 				C85B096B2F4A30030074A3BE /* content.js */,
+				C85B09742F4A30030074A3BE /* icons */,
 			);
 			name = Resources;
 			path = "Shared (Extension)";
@@ -403,6 +407,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C85B09712F4A30030074A3BE /* content.js in Resources */,
+				C85B09752F4A30030074A3BE /* icons in Resources */,
 				C85B09702F4A30030074A3BE /* manifest.json in Resources */,
 				C85B096F2F4A30030074A3BE /* content.css in Resources */,
 			);
@@ -413,6 +418,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C85B096E2F4A30030074A3BE /* content.js in Resources */,
+				C85B09762F4A30030074A3BE /* icons in Resources */,
 				C85B096D2F4A30030074A3BE /* manifest.json in Resources */,
 				C85B096C2F4A30030074A3BE /* content.css in Resources */,
 			);

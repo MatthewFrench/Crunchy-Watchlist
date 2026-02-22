@@ -1,292 +1,163 @@
-# Crunchy Watchlist Curator (Cross-Browser Web Extension)
+# <img src="iconset/icon64.png" width="32" height="32" alt="Crunchy Watchlist Curator icon" /> Crunchy Watchlist Curator <img src="iconset/icon64.png" width="32" height="32" alt="Crunchy Watchlist Curator icon" />
 
-Crunchy Watchlist Curator turns Crunchyroll's watchlist into a decision-ready queue so you can pick what to watch next in seconds instead of endless scrolling.
+Turn Crunchyroll’s “watch later” chaos into a clean, decision-ready queue.
+
+Crunchy Watchlist Curator injects a curated companion tab into your Crunchyroll watchlist so you can choose what to watch next in seconds, not minutes.
 
 ![Crunchy Watchlist Curator in action](docs/images/crunchy-watchlist-curator-in-action.png)
 
-## Why use it
+## Why this exists
 
-- Clean up noisy watchlists packed with already-watched or currently non-actionable shows so you can focus on what is actually worth watching next.
-- Surface the right next show faster with smart sort modes like `Hidden gems`, `Quick wins`, `Dormant backlog`, and `May need re-watch to remember`.
-- Focus only on what matters with non-actionable filtering, audio/genre filters, portrait/landscape card toggles, and English-audio-only filtering (`en-US`) when you want it.
-- Make better watch decisions with rich card context: ratings, vote volume, watch recency, next-episode progress, and genre metadata.
+People open their watchlists, see too many titles, and end up re-sorting mentally every time. This extension automates that first pass.
 
-## Everything it adds
+- Removes noise from the list (`already-watched`, `finished`, and titles that are not currently watch-ready)
+- Surfaces “what now?” choices fast with smart sort modes
+- Keeps context visible (`rating`, `next episode`, genre, last activity, ratings volume)
+- Lets you tune the list for your exact viewing mood (`audio`, `genre`, card layout, filters)
 
-This extension improves `https://www.crunchyroll.com/watchlist` by adding:
+## At a glance
 
-- A separate `Curated` tab (leaves Crunchyroll's native tab content untouched)
-- A 3-way non-actionable mode selector: `None` / `Dim non-actionable` / `Hide non-actionable`
-- An `Audio` dropdown filter (from available `audio_locales`, including `en-US`)
-- A `Genre` dropdown filter (from available series category/genre tags)
-- A `Landscape cards` toggle to switch between portrait and landscape card layouts
-- Rich rating UI on curated cards (score, rating count, 5-star histogram)
-- Layout-aware cover art selection (portrait cards prefer tall posters; landscape cards prefer wide posters)
-- Small per-show description snippet on each curated card
-- `Last watched` line on each card (with relative age)
-- Next unwatched episode line (`Sx Ey`) plus series totals (`seasons`, `episodes`, and estimated `unwatched left` when calculable)
-- Genre/category line when available from Crunchyroll metadata
-- A `Sort` selector for rating/date/rating-volume metrics plus discovery modes: `Hidden gems`, `Consensus quality`, `Controversial`, `Quality floor`, `Quick wins`, `Dormant backlog`, and `May need re-watch to remember` (`Consensus quality` is the default)
-- Native action buttons on curated cards (`Favorite` heart and `Remove` trash)
-- Hover preview on curated thumbnails when a stream preview URL is available
+- **Works on**: Chromium, Edge, Firefox, Safari (via macOS wrapper)
+- **Goal**: Make watchlist browsing fast and intentional
+- **Mode**: Browser extension (`content.js` + `content.css`)
+- **License**: GPL-3.0-only
+- **Type**: Unofficial community project (not affiliated with Crunchyroll)
 
-## Files
+## ✨ Highlights
 
-- `extension/manifest.json`
-- `extension/content.js`
-- `extension/content.css`
-- `docs/end-user-installation.md` (manual installation guide for Chrome, Edge, Firefox, Safari)
-- `docs/release-checklist.md` (publish readiness checklist for all target browsers)
-- `docs/crunchyroll-watchlist-findings.md` (live selectors, API/auth endpoints, reverse-engineering notes)
+- Dedicated **Curated** tab (native Crunchyroll tab stays untouched)
+- **Watch-ready filtering** (UI label: `Watch-ready filter`): `None`, `Dim`, `Hide`
 
-## End-user installation
+Not-watch-ready titles include entries Crunchyroll marks as `watch again`, `rewatch`, `coming soon`, `unavailable`, or already fully watched.
+- **Filters**: audio locale (including `en-US`) and genres
+- **Card layout modes**: portrait and landscape
+- Rich card metadata: scores, vote count, histogram, genre metadata, description
+- **Sort options** for discovery and quality signals:
+  - Consensus quality
+  - Hidden gems
+  - Quick wins
+  - Dormant backlog
+  - Controversial
+  - Quality floor
+  - May need re-watch to remember
+- Episode progress quickly visible: `last watched`, `next unwatched`, totals, remaining estimate
+- Native actions from card UI (`Favorite`, `Remove`) with no behavior changes
+- Hover preview where available
 
-See `docs/end-user-installation.md` for browser-specific steps.
+## Quick start (new users)
 
-Quick summary:
+1. Install/unpack for your browser (see section below)
+2. Open `https://www.crunchyroll.com/watchlist`
+3. Switch to the **Curated** tab
+4. Pick a `Sort` mode + set filters
+5. Start watching with confidence instead of endless scrolling
 
-- Chrome: load the unpacked `dist/chrome/unpacked` bundle (developer/unofficial install).
-- Edge: load the unpacked `dist/edge/unpacked` bundle (developer/unofficial install).
-- Firefox: use Temporary Add-on from `dist/firefox/unpacked` (developer/unofficial install; reset on restart).
-- Safari: run the macOS wrapper from `dist/safari/...`, enable in Safari settings, and explicitly allow `www.crunchyroll.com` in extension website access (developer/unofficial testing build).
+> If this is your first time, start with `Consensus quality` + `Genre` filters, then switch to `Quick wins` for immediate options.
 
-Until each browser listing is live, installs are development-only and should be treated as unofficial.
+## Installation
 
-## Store install links
+### Browser builds (developer/unofficial)
 
-Add official listing links here once published:
+If no store listing is published yet, use manual install paths.
 
-- Chrome Web Store: `TBD`
-- Edge Add-ons: `TBD`
-- Firefox Add-ons (AMO): `TBD`
-- Mac App Store (Safari wrapper app): `TBD`
-
-If none are published yet, use the browser-specific developer/unofficial installation instructions below.
-
-## Load in Chrome, Edge, and Firefox (Developer/Unsigned)
-
-This workflow is for local and CI test artifacts until the extensions are published in each browser store.
-
-Safari requires an additional signed/notarized wrapper app for public release.
-
-1. Build browser-specific unpacked bundles:
-
-   ```bash
-   npm run build:webext
-   ```
-
-2. Load the right unpacked folder in each browser:
-
- - Chrome: `dist/chrome/unpacked`
- - Edge: `dist/edge/unpacked`
- - Firefox: `dist/firefox/unpacked`
-
-Notes:
-
-- Chrome and Edge: open extensions in developer mode; these are unpacked/unofficial builds and will show standard unsigned warnings.
-- Firefox: temporary add-ons are expected to be removed on restart and should not be used for permanent user distribution.
-- Firefox AMO users should use a signed `.xpi` package once this extension is published.
-
-## Build distributables
-
-Build all web-extension distributables:
+| Browser | Build artifact | How to install |
+| --- | --- | --- |
+| Chrome | `dist/chrome/unpacked` | Enable developer mode in extensions, load unpacked |
+| Edge | `dist/edge/unpacked` | Enable developer mode in extensions, load unpacked |
+| Firefox | `dist/firefox/unpacked` | Temporary Add-on from this folder |
+| Safari | `dist/safari/...` | Open Safari wrapper project in Xcode and enable website access |
 
 ```bash
 npm run build:webext
 ```
 
-Build one browser at a time:
+Then load:
+- `dist/chrome/unpacked`
+- `dist/edge/unpacked`
+- `dist/firefox/unpacked`
 
-```bash
-npm run build:webext:chrome
-npm run build:webext:edge
-npm run build:webext:firefox
-```
-
-Outputs:
-
-- `dist/chrome/crunchy-watchlist-curator-chrome.zip`
-- `dist/edge/crunchy-watchlist-curator-edge.zip`
-- `dist/firefox/crunchy-watchlist-curator-firefox.zip`
-- `dist/firefox/crunchy-watchlist-curator-firefox.xpi`
-
-Firefox package IDs can be overridden with:
-
-```bash
-FIREFOX_EXTENSION_ID=your-addon-id@example.com npm run build:webext:firefox
-```
-
-## Load in Safari (Xcode Wrapper)
-
-Safari does not support a direct unpacked install model for this project; it uses a macOS app wrapper.
-
-For local dev/unofficial testing:
-
-1. Open Safari > Settings > Advanced and enable **Show Develop menu in menu bar**.
-2. In Develop > **Allow Unsigned Extensions**.
-3. Open the existing Xcode project in `Crunchy Watchlist Curator/`.
-4. Build and run the **Crunchy Watchlist Curator (macOS)** scheme.
-5. In Safari, enable the extension in:
-   `Safari > Settings > Extensions`.
-6. In the extension entry, set `Website Access` to `Always Allow` for `www.crunchyroll.com` (or `All Websites`).
-
-Safari release builds should be signed/notarized and distributed through App Store Connect.
-
-### Xcode Target Note (iOS vs macOS)
-
-The converter creates both iOS and macOS wrapper targets by default. For Safari on Mac, run:
-
-- Scheme: `Crunchy Watchlist Curator (macOS)`
-- Destination: `My Mac`
-- Extension target used: `Crunchy Watchlist Curator Extension (macOS)`
-
-You can ignore iOS targets unless you also want Safari on iOS support.
-
-Build an unsigned Safari artifact bundle locally:
+Safari local dev/test flow:
 
 ```bash
 npm run build:safari
 ```
 
-Outputs:
+Then follow the existing Safari wrapper steps in the docs.
 
-- `dist/safari/crunchy-watchlist-curator-safari-macos-app.zip`
-- `dist/safari/crunchy-watchlist-curator-safari-webextension-source.zip`
+For complete installation instructions by browser (including Safari wrapper caveats and local testing workflow), see `docs/end-user-installation.md`.
 
-## Playwright Setup (Cross-Engine Validation)
+### Distribution and validation docs
 
-This repo includes Playwright tooling to test the same content-script behavior in Chromium, Firefox, and WebKit.
+Chrome, Edge, Firefox AMO, and Safari signing workflows are documented and kept in the release checklist.
 
-1. Install dependencies:
+- `docs/end-user-installation.md`
+- `docs/release-checklist.md`
+- `docs/testing.md`
 
-   ```bash
-   npm install
-   ```
+Run `docs/testing.md` for Playwright + local browser validation instructions.
 
-2. Install Playwright runtimes:
-
-   ```bash
-   npm run pw:install
-   ```
-
-3. Run automated fixture tests in all engines:
-
-   ```bash
-   npm run test:e2e
-   ```
-
-4. (Optional) Run per-engine:
-
-   ```bash
-   npm run test:e2e:chromium
-   npm run test:e2e:firefox
-   npm run test:e2e:webkit
-   ```
-
-5. (Optional) Run with Playwright UI:
-
-   ```bash
-   npm run test:e2e:ui
-   ```
-
-## Live WebKit Visual Session
-
-For manual visual checks on the real Crunchyroll watchlist (WebKit browser, not Safari):
+## Build commands
 
 ```bash
-npm run pw:live
+npm install
+npm run pw:install
+npm run build:webext        # all web-extension packages
+npm run build:webext:chrome # Chrome only
+npm run build:webext:edge   # Edge only
+npm run build:webext:firefox # Firefox only
+npm run build:safari       # Safari artifacts
 ```
-
-This opens a persistent WebKit profile and injects `extension/content.js` + `extension/content.css` into `https://www.crunchyroll.com/watchlist`.
-
-Use this for quick interactive checks. Final extension behavior still needs Safari/Xcode validation.
-
-`pw:live` keeps injection active across login/redirect navigation, enables hot reload by default, and prints status lines like:
-
-- `[startup] /watchlist nativeCards=... curatedCards=... controls=yes`
-- `[watchlist-nav] /watchlist nativeCards=... curatedCards=... controls=yes`
-
-Hot reload only reloads when file content actually changes (no-op for noisy watch events).
-
-To disable hot reload explicitly:
 
 ```bash
-CW_PW_HOT_RELOAD=0 npm run pw:live
+npm run test:e2e                 # cross-engine Playwright smoke/e2e
+npm run test:e2e:chromium
+npm run test:e2e:firefox
+npm run test:e2e:webkit
+npm run pw:live                  # interactive WebKit watchlist session
+npm run lint:firefox             # Firefox manifest + package lint
 ```
 
-Edits to `extension/content.js` or `extension/content.css` trigger:
+## How it works
 
-- `[hot-reload] Reloading page and applying latest extension files...`
+The extension takes control of your watchlist UI using a background metadata layer:
 
-## Firefox publish validation
+- Fetches watchlist items via API pagination
+- Fetches ratings and watch history in batched requests
+- Caches enriched data for 12 hours
+- Builds a full curated list in-browser so sorting/filtering is deterministic
+- Preserves native actions by forwarding existing Crunchyroll controls
 
-Run Firefox-focused linting on the browser-specific manifest package:
+This means sorting stays stable and fast even with large lists.
 
-```bash
-npm run lint:firefox
-```
+## Files that matter
 
-## CI artifacts
+- `extension/manifest.json`
+- `extension/content.js`
+- `extension/content.css`
+- `scripts/*` (build / release tooling)
+- `tests/*` (e2e + fixtures)
+- `docs/*` (installation, release, and findings)
 
-GitHub Actions workflow `.github/workflows/build-extensions.yml` verifies portability and uploads artifacts for:
+## Troubleshooting (fast)
 
-- Chrome package
-- Edge package
-- Firefox package (`.zip` + `.xpi`)
-- Safari macOS wrapper build output
+- If the Curated tab stays empty: refresh ratings/history cache with `Refresh ratings`.
+- If a show action fails: native watchlist controls may not be loaded yet due to virtualization.
+- If login state is stale: sign out/in on Crunchyroll, then reopen watchlist.
+- Firefox temporary add-on users: extension resets on restart by design.
 
-Artifact names uploaded by CI:
+## Release and contributors
 
-- `extension-chrome`
-- `extension-edge`
-- `extension-firefox`
-- `extension-safari`
+### CI and verification
 
-Pushes to `main` now also publish a release package to GitHub Releases using:
+GitHub Actions validates Chromium/Firefox/WebKit and publishes release artifacts for Chrome, Edge, Firefox, and Safari artifacts under the current workflow config.
 
-- `v<manifest-version>-main.<run number>.<run attempt>` as the release tag.
-- `Crunchy Watchlist Curator <version> (main <run number>.<run attempt>)` as release title.
+### Contributing
 
-## Release process
+1. Open an issue with expected behavior and repro steps
+2. Add/update a test in `tests/` when behavior changes
+3. Build and run relevant commands before opening PR
 
-Use `/Users/matthewfrench/GitHub/Crunchy-Watchlist/docs/release-checklist.md` before publishing a new version.
+## Legal
 
-## Use (Real Site)
-
-1. Open [https://www.crunchyroll.com/watchlist](https://www.crunchyroll.com/watchlist).
-2. Use the tabs:
-   - `Crunchyroll`: native watchlist (untouched)
-   - `Curated`: extension-managed view
-3. In `Curated`, use the toggles/selects to filter, sort, and switch card orientation.
-4. Use `Refresh ratings` if you want to clear cached metadata (`ratings` and `watch-history`) and refetch.
-
-## Behavior Notes
-
-- `Non-actionable`, `Audio`, `Genre`, `Sort`, and `Landscape cards` selections all persist in extension storage so your view stays consistent across reloads.
-- `Curated` is API-driven: it fetches all watchlist pages up front via Crunchyroll API pagination, preloads ratings in batch CMS calls, and preloads watch history in paged account-level calls.
-- Ratings and watch-history data are cached locally for 12 hours.
-- `Last watched` is sourced from `date_played` in `/content/v2/<accountId>/watch-history`, joined by `series_id`; if no match exists, cards show `unknown` (or `never` when Crunchyroll marks series as never watched).
-- API-call strategy is bounded and avoids one-request-per-show loops in normal flow.
-- Typical cold-load call pattern:
-  - 1x `POST /auth/v1/token`
-  - 1-3x watchlist pagination calls (`n=100`)
-  - 1-Nx rating batch calls (`/content/v2/cms/objects/<comma_separated_ids>`, chunked)
-  - 1-Nx watch-history page calls (`/content/v2/<accountId>/watch-history?page_size=100&page=...`, early-stop after several no-match pages)
-- If API auth/loading fails, `Curated` shows an explicit API error instead of falling back to partial DOM-loaded rows.
-- `Curated` shows a spinner while loading, and data preload starts in the background as soon as the watchlist page is ready.
-- Crunchyroll native watchlist uses virtualization; `Curated` renders its own full-data list, so sorting/filtering is controlled entirely by the extension UI.
-- Curated `Favorite`/`Remove` buttons forward clicks to Crunchyroll's native controls; nothing is triggered automatically.
-- Because native watchlist is virtualized, action forwarding requires that native controls for that show have been loaded at least once in the native tab.
-
-## Local fixture data
-
-Automated tests use a local fixture server (`tests/server.mjs`) and fixture page (`tests/fixtures/watchlist-fixture.html`) so UI logic can be validated quickly without account/login dependencies.
-
-## License
-
-This project is licensed under the GNU General Public License v3.0 only (`GPL-3.0-only`). See `LICENSE`.
-
-## Legal Notice
-
-- Crunchy Watchlist Curator is an independent, unofficial project and is not affiliated with, endorsed by, or sponsored by Crunchyroll, LLC, Sony Group Corporation, or their affiliates.
-- The GPL license in this repository applies only to the original code and assets included in this project. It does not grant any rights to Crunchyroll trademarks, logos, branding, or third-party content and services.
+- Crunchy Watchlist Curator is an independent, unofficial project and is not affiliated with, sponsored by, or endorsed by Crunchyroll, LLC, Sony Group Corporation, or any affiliates.
+- The project’s GPL-3.0-only license applies to repository code and assets only. It does not grant rights to Crunchyroll marks, logos, or services.

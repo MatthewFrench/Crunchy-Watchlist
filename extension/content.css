@@ -236,7 +236,7 @@
   align-items: center;
 }
 
-.cw-curated-card--non-actionable {
+.cw-curated-card--not-watch-ready {
   opacity: 0.72;
 }
 
