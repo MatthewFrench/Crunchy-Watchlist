@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Watchlist Fixture</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: #0f1015;
+        color: #f8f8fb;
+      }
+
+      .page {
+        max-width: 1320px;
+        margin: 0 auto;
+        padding: 18px;
+      }
+
+      .erc-watchlist {
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .watchlist-header {
+        display: block;
+        padding: 4px 0 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .watchlist-title {
+        margin: 0;
+        font-size: 20px;
+      }
+
+      .watchlist-body {
+        padding-top: 12px;
+      }
+
+      .erc-watchlist-virtual-list-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(280px, 1fr));
+        gap: 12px;
+      }
+
+      .erc-my-lists-item {
+        min-height: 158px;
+      }
+
+      [data-t='watch-list-card'] {
+        position: relative;
+        display: grid;
+        grid-template-columns: 110px 1fr;
+        gap: 12px;
+        padding: 12px;
+        border-radius: 9px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: #151722;
+      }
+
+      .watchlist-card__content-link--Ujiaq {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+      }
+
+      .watchlist-card-image {
+        border-radius: 8px;
+        background: linear-gradient(135deg, #2e3249, #121521);
+        width: 100%;
+        height: 132px;
+      }
+
+      .watchlist-card-title--o1sAO {
+        font-weight: 700;
+        color: #ffffff;
+        text-decoration: none;
+      }
+
+      .watchlist-card-subtitle--IROsU,
+      .meta-tags {
+        margin-top: 6px;
+        color: #d0d3e2;
+        font-size: 13px;
+      }
+
+      .watchlist-card-actions {
+        margin-top: 8px;
+        display: inline-flex;
+        gap: 8px;
+        position: relative;
+        z-index: 2;
+      }
+
+      .watchlist-card-action {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #f8f8fb;
+        min-width: 28px;
+        height: 24px;
+        line-height: 1;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="erc-watchlist">
+        <header class="watchlist-header">
+          <h1 class="watchlist-title">My Watchlist</h1>
+        </header>
+
+        <div class="watchlist-body">
+          <div class="erc-watchlist-virtual-list-row">
+            <div class="erc-my-lists-item">
+              <article data-t="watch-list-card" data-cw-fixture-title="Low Rated Show">
+                <a class="watchlist-card__content-link--Ujiaq" href="/series/GLOW123/low-rated-show" aria-label="Low Rated Show"></a>
+                <div class="watchlist-card-image"></div>
+                <div>
+                  <a class="watchlist-card-title--o1sAO" href="/series/GLOW123/low-rated-show">Low Rated Show</a>
+                  <div class="watchlist-card-subtitle--IROsU">Continue: S1 E3</div>
+                  <div class="meta-tags" data-t="meta-tags">Sub</div>
+                  <div class="watchlist-card-actions">
+                    <button type="button" class="watchlist-card-action" data-cw-native-action="favorite" aria-label="Favorite">♡</button>
+                    <button type="button" class="watchlist-card-action" data-cw-native-action="remove" aria-label="Remove">🗑</button>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <div class="erc-my-lists-item">
+              <article data-t="watch-list-card" data-cw-fixture-title="High Rated Show">
+                <a class="watchlist-card__content-link--Ujiaq" href="/series/GHIGH456/high-rated-show" aria-label="High Rated Show"></a>
+                <div class="watchlist-card-image"></div>
+                <div>
+                  <a class="watchlist-card-title--o1sAO" href="/series/GHIGH456/high-rated-show">High Rated Show</a>
+                  <div class="watchlist-card-subtitle--IROsU">Up Next: S2 E5</div>
+                  <div class="meta-tags" data-t="meta-tags">Sub | Dub</div>
+                  <div class="watchlist-card-actions">
+                    <button type="button" class="watchlist-card-action" data-cw-native-action="favorite" aria-label="Favorite">♡</button>
+                    <button type="button" class="watchlist-card-action" data-cw-native-action="remove" aria-label="Remove">🗑</button>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <div class="erc-my-lists-item">
+              <article data-t="watch-list-card" data-cw-fixture-title="Watch Again Show">
+                <a class="watchlist-card__content-link--Ujiaq" href="/series/GWATCH999/watch-again-show" aria-label="Watch Again Show"></a>
+                <div class="watchlist-card-image"></div>
+                <div>
+                  <a class="watchlist-card-title--o1sAO" href="/series/GWATCH999/watch-again-show">Watch Again Show</a>
+                  <div class="watchlist-card-subtitle--IROsU">Watch Again: S1 E12</div>
+                  <div class="meta-tags" data-t="meta-tags">Sub | Dub</div>
+                  <div class="watchlist-card-actions">
+                    <button type="button" class="watchlist-card-action" data-cw-native-action="favorite" aria-label="Favorite">♡</button>
+                    <button type="button" class="watchlist-card-action" data-cw-native-action="remove" aria-label="Remove">🗑</button>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <div class="erc-my-lists-item">
+              <article data-t="watch-list-card" data-cw-fixture-title="No Rating Show">
+                <a class="watchlist-card__content-link--Ujiaq" href="/series/GNONE789/no-rating-show" aria-label="No Rating Show"></a>
+                <div class="watchlist-card-image"></div>
+                <div>
+                  <a class="watchlist-card-title--o1sAO" href="/series/GNONE789/no-rating-show">No Rating Show</a>
+                  <div class="watchlist-card-subtitle--IROsU">Continue: S1 E2</div>
+                  <div class="meta-tags" data-t="meta-tags">Sub | Dub</div>
+                  <div class="watchlist-card-actions">
+                    <button type="button" class="watchlist-card-action" data-cw-native-action="favorite" aria-label="Favorite">♡</button>
+                    <button type="button" class="watchlist-card-action" data-cw-native-action="remove" aria-label="Remove">🗑</button>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script>
+      window.__cwFixtureActionLog = [];
+      document.addEventListener('click', (event) => {
+        const actionButton = event.target.closest('[data-cw-native-action]');
+        if (!actionButton) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const card = actionButton.closest('[data-t="watch-list-card"]');
+        const link = card?.querySelector('a[href*="/series/"]');
+        const href = link?.getAttribute('href') || '';
+        const match = href.match(/\/series\/([^/]+)/i);
+        const seriesId = match ? decodeURIComponent(match[1]) : 'unknown';
+        const action = actionButton.getAttribute('data-cw-native-action') || 'unknown';
+
+        window.__cwFixtureActionLog.push({
+          action,
+          seriesId,
+          at: Date.now()
+        });
+      });
+    </script>
+  </body>
+</html>
