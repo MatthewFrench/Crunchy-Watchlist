@@ -4,13 +4,23 @@
   "version": "0.1.0",
   "description": "Adds actionable filtering and rating-based sorting helpers to Crunchyroll watchlists.",
   "permissions": ["storage"],
-  "host_permissions": ["https://www.crunchyroll.com/*"],
+  "host_permissions": [
+    "https://www.crunchyroll.com/watchlist*",
+    "https://www.crunchyroll.com/*/watchlist*",
+    "https://www.crunchyroll.com/auth/v1/token",
+    "https://www.crunchyroll.com/content/v2/*",
+    "https://www.crunchyroll.com/content-reviews/v3/rating/series/*",
+    "https://www.crunchyroll.com/series/*"
+  ],
   "action": {
     "default_title": "Crunchy Watchlist Curator"
   },
   "content_scripts": [
     {
-      "matches": ["https://www.crunchyroll.com/*"],
+      "matches": [
+        "https://www.crunchyroll.com/watchlist*",
+        "https://www.crunchyroll.com/*/watchlist*"
+      ],
       "js": ["content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"

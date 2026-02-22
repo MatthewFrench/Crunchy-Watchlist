@@ -5,12 +5,22 @@
   "description": "Playwright + Safari extension tooling for Crunchy Watchlist Curator",
   "license": "GPL-3.0-only",
   "scripts": {
-    "pw:install": "playwright install webkit",
+    "pw:install": "playwright install chromium firefox webkit",
+    "build:webext": "node scripts/build-webextensions.mjs",
+    "build:webext:chrome": "node scripts/build-webextensions.mjs --browser chrome",
+    "build:webext:edge": "node scripts/build-webextensions.mjs --browser edge",
+    "build:webext:firefox": "node scripts/build-webextensions.mjs --browser firefox",
+    "build:safari": "bash scripts/build-safari-macos.sh",
     "test:e2e": "playwright test",
+    "test:e2e:chromium": "playwright test --project=chromium",
+    "test:e2e:firefox": "playwright test --project=firefox",
+    "test:e2e:webkit": "playwright test --project=webkit",
     "test:e2e:ui": "playwright test --ui",
+    "lint:firefox": "npm run build:webext:firefox && web-ext lint --source-dir dist/firefox/unpacked",
     "pw:live": "node scripts/live-webkit-watchlist.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.53.0"
+    "@playwright/test": "^1.53.0",
+    "web-ext": "^8.8.0"
   }
 }

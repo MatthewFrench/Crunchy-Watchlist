@@ -1,0 +1,112 @@
+name: Build Browser Extensions
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  verify-webextensions:
+    name: Verify Chromium + Firefox
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium firefox
+
+      - name: Firefox manifest lint
+        run: npm run lint:firefox
+
+      - name: Chromium tests
+        run: npm run test:e2e:chromium
+
+      - name: Firefox tests
+        run: npm run test:e2e:firefox
+
+  verify-webkit:
+    name: Verify WebKit
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright WebKit
+        run: npx playwright install webkit
+
+      - name: WebKit tests
+        run: npm run test:e2e:webkit
+
+  build-webextensions:
+    name: Build ${{ matrix.browser }} Package
+    needs:
+      - verify-webextensions
+      - verify-webkit
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        browser: [chrome, edge, firefox]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build package
+        run: npm run build:webext:${{ matrix.browser }}
+        env:
+          FIREFOX_EXTENSION_ID: crunchy-watchlist-curator@matthewfrench.dev
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-${{ matrix.browser }}
+          path: dist/${{ matrix.browser }}
+          if-no-files-found: error
+
+  build-safari:
+    name: Build Safari Package
+    needs:
+      - verify-webkit
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Safari artifacts
+        run: bash scripts/build-safari-macos.sh
+
+      - name: Upload Safari artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-safari
+          path: dist/safari
+          if-no-files-found: error

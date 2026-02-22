@@ -247,7 +247,7 @@ Implication: storing normalized rating cache locally is small and safe for long-
 - Uses selected audio-locale and genre dropdown values for filtering
 - Supports a card-layout toggle (`portrait` / `landscape`) driven by persisted setting state
 - Shows next unwatched episode (`Sx Ey`) from watchlist panel metadata
-- Shows `Last watched` on cards (prefers `last_watched` / `watch_history_updated_at`; falls back to update/add timestamps)
+- Shows `Last watched` on cards from watch-history timestamps (`last_watched` / `watch_history_updated_at`); shows `unknown` when unavailable
 - Shows seasons/episodes totals and estimated unwatched-left counts when episode ordering metadata is available
 - Shows category/genre-like tags from `series_metadata.tenant_categories` when present
 - Supports sort by rating ascending/descending, date added, date updated, total rating count, total star points, per-star counts/percentages, plus discovery modes (`hidden_gems`, `consensus_quality`, `controversial`, `quality_floor`, `quick_wins`, `dormant_backlog`, `rewatch_memory`) in the extension-owned curated grid built from full watchlist API data

@@ -1,4 +1,4 @@
-# Crunchy Watchlist Curator (Safari Web Extension)
+# Crunchy Watchlist Curator (Cross-Browser Web Extension)
 
 This extension improves `https://www.crunchyroll.com/watchlist` by adding:
 
@@ -22,19 +22,68 @@ This extension improves `https://www.crunchyroll.com/watchlist` by adding:
 - `extension/manifest.json`
 - `extension/content.js`
 - `extension/content.css`
+- `docs/end-user-installation.md` (manual installation guide for Chrome, Edge, Firefox, Safari)
 - `docs/crunchyroll-watchlist-findings.md` (live selectors, API/auth endpoints, reverse-engineering notes)
 
-## Load in Safari
+## End-user installation
 
-1. Convert the WebExtension into an Xcode Safari extension project:
+See `docs/end-user-installation.md` for browser-specific steps.
+
+Quick summary:
+
+- Chrome: install unpacked extension from `dist/chrome/unpacked`
+- Edge: install unpacked extension from `dist/edge/unpacked`
+- Firefox: load temporary add-on from `dist/firefox/unpacked` or use signed `.xpi`
+- Safari: install the packaged app build and enable extension in Safari settings
+
+## Load in Chrome, Edge, and Firefox (Dev)
+
+1. Build browser-specific unpacked bundles:
 
    ```bash
-   xcrun safari-web-extension-converter /Users/matthewfrench/GitHub/Crunchy-Watchlist/extension
+   npm run build:webext
    ```
 
-2. Open the generated Xcode project.
-3. Build and run the extension target.
-4. In Safari, enable the extension in:
+2. Load the right unpacked folder in each browser:
+
+   - Chrome: `dist/chrome/unpacked`
+   - Edge: `dist/edge/unpacked`
+   - Firefox: `dist/firefox/unpacked`
+
+## Build distributables
+
+Build all web-extension distributables:
+
+```bash
+npm run build:webext
+```
+
+Build one browser at a time:
+
+```bash
+npm run build:webext:chrome
+npm run build:webext:edge
+npm run build:webext:firefox
+```
+
+Outputs:
+
+- `dist/chrome/crunchy-watchlist-curator-chrome.zip`
+- `dist/edge/crunchy-watchlist-curator-edge.zip`
+- `dist/firefox/crunchy-watchlist-curator-firefox.zip`
+- `dist/firefox/crunchy-watchlist-curator-firefox.xpi`
+
+Firefox package IDs can be overridden with:
+
+```bash
+FIREFOX_EXTENSION_ID=your-addon-id@example.com npm run build:webext:firefox
+```
+
+## Load in Safari (Xcode Wrapper)
+
+1. Open the existing Xcode project in `Crunchy Watchlist Curator/`.
+2. Build and run the extension target.
+3. In Safari, enable the extension in:
    `Safari > Settings > Extensions`.
 
 ### Xcode Target Note (iOS vs macOS)
@@ -47,17 +96,20 @@ The converter creates both iOS and macOS wrapper targets by default. For Safari 
 
 You can ignore iOS targets unless you also want Safari on iOS support.
 
-### Should the converted Xcode project be temporary?
+Build an unsigned Safari artifact bundle locally:
 
-Treat the generated Xcode wrapper project as **permanent** and check it into git:
+```bash
+npm run build:safari
+```
 
-- Keep it after the first conversion and continue editing/signing it in Xcode
-- Regenerate only when you intentionally want to replace wrapper scaffolding
-- Daily extension iteration should happen by editing files in `extension/` and rebuilding the existing macOS scheme
+Outputs:
 
-## Playwright Setup (Fast WebKit Validation)
+- `dist/safari/crunchy-watchlist-curator-safari-macos-app.zip`
+- `dist/safari/crunchy-watchlist-curator-safari-webextension-source.zip`
 
-This repo now includes Playwright tooling to quickly test the same content-script behavior in WebKit before Safari/Xcode validation.
+## Playwright Setup (Cross-Engine Validation)
+
+This repo includes Playwright tooling to test the same content-script behavior in Chromium, Firefox, and WebKit.
 
 1. Install dependencies:
 
@@ -65,19 +117,27 @@ This repo now includes Playwright tooling to quickly test the same content-scrip
    npm install
    ```
 
-2. Install Playwright WebKit runtime:
+2. Install Playwright runtimes:
 
    ```bash
    npm run pw:install
    ```
 
-3. Run automated fixture tests:
+3. Run automated fixture tests in all engines:
 
    ```bash
    npm run test:e2e
    ```
 
-4. (Optional) Run with Playwright UI:
+4. (Optional) Run per-engine:
+
+   ```bash
+   npm run test:e2e:chromium
+   npm run test:e2e:firefox
+   npm run test:e2e:webkit
+   ```
+
+5. (Optional) Run with Playwright UI:
 
    ```bash
    npm run test:e2e:ui
@@ -111,6 +171,30 @@ CW_PW_HOT_RELOAD=0 npm run pw:live
 Edits to `extension/content.js` or `extension/content.css` trigger:
 
 - `[hot-reload] Reloading page and applying latest extension files...`
+
+## Firefox publish validation
+
+Run Firefox-focused linting on the browser-specific manifest package:
+
+```bash
+npm run lint:firefox
+```
+
+## CI artifacts
+
+GitHub Actions workflow `.github/workflows/build-extensions.yml` verifies portability and uploads artifacts for:
+
+- Chrome package
+- Edge package
+- Firefox package (`.zip` + `.xpi`)
+- Safari macOS wrapper build output
+
+Artifact names uploaded by CI:
+
+- `extension-chrome`
+- `extension-edge`
+- `extension-firefox`
+- `extension-safari`
 
 ## Use (Real Site)
 

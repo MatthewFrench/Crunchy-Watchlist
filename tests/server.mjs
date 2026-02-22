@@ -244,6 +244,12 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (url.pathname === '/browse') {
+      const html = await readFixture('non-watchlist-fixture.html');
+      text(res, 200, html, 'text/html; charset=utf-8');
+      return;
+    }
+
     if (url.pathname === '/auth/v1/token' && req.method === 'POST') {
       json(res, 200, {
         access_token: ACCESS_TOKEN,
