@@ -10,6 +10,8 @@ This guide covers manual installation for:
 If official store listings are available, installing from each browser store is recommended over manual installation.
 Store listing placeholders are in `README.md` under `Store install links`.
 
+Until then, all browser installation methods below are unofficial/dev installs.
+
 ## Install files you need
 
 Use one of these sources:
@@ -31,7 +33,7 @@ Relevant outputs:
 - `dist/firefox/crunchy-watchlist-curator-firefox.xpi`
 - `dist/safari/crunchy-watchlist-curator-safari-macos-app.zip`
 
-## Chrome (manual unpacked install)
+## Chrome (manual unpacked install - unofficial/dev)
 
 1. Open `chrome://extensions`.
 2. Enable `Developer mode` (top-right).
@@ -45,7 +47,7 @@ To update manually after a new build:
 2. Open `chrome://extensions`.
 3. Click `Reload` on Crunchy Watchlist Curator.
 
-## Edge (manual unpacked install)
+## Edge (manual unpacked install - unofficial/dev)
 
 1. Open `edge://extensions`.
 2. Enable `Developer mode` (left sidebar).
@@ -59,11 +61,11 @@ To update manually after a new build:
 2. Open `edge://extensions`.
 3. Click `Reload` on Crunchy Watchlist Curator.
 
-## Firefox
+## Firefox (temp/signed install)
 
 ### Option A: Temporary install (developer mode)
 
-This is best for local testing and usually resets after Firefox restart.
+Temporary install is best for local testing and usually resets after Firefox restart.
 
 1. Open `about:debugging#/runtime/this-firefox`.
 2. Click `Load Temporary Add-on...`.
@@ -78,15 +80,20 @@ Unsigned `.xpi` files are typically blocked in standard Firefox releases.
 1. Open Firefox Add-ons Manager (`about:addons`) or drag-and-drop the signed `.xpi` into Firefox.
 2. Approve installation prompts.
 
-## Safari (macOS)
+## Safari (macOS) - unofficial dev wrapper
 
 Safari web extensions are distributed through a macOS app wrapper.
 
-1. Build or download `dist/safari/crunchy-watchlist-curator-safari-macos-app.zip`.
-2. Unzip and move `Crunchy Watchlist Curator.app` to `Applications`.
-3. Open the app once.
-4. Open Safari, then go to `Safari > Settings > Extensions`.
-5. Enable `Crunchy Watchlist Curator`.
+For local unsigned testing:
+
+1. In Safari, go to `Safari > Settings > Advanced` and enable `Show Develop menu in menu bar`.
+2. In `Develop` choose `Allow Unsigned Extensions`.
+3. Build or download `dist/safari/crunchy-watchlist-curator-safari-macos-app.zip`.
+4. Unzip and move `Crunchy Watchlist Curator.app` to `Applications`.
+5. Open the app once.
+6. Open Safari, then go to `Safari > Settings > Extensions`.
+7. Enable `Crunchy Watchlist Curator`.
+8. In extension `Website Access`, set `Always Allow` for `www.crunchyroll.com` (or allow all websites if needed).
 
 Notes:
 
@@ -124,8 +131,8 @@ For development testing on macOS:
    ```
 
 5. In Safari, go to `Safari > Settings > Extensions` and enable the extension.
-
-6. Open `https://www.crunchyroll.com/watchlist` and verify the `Curated` tab.
+6. In extension `Website Access`, set `Always Allow` for `www.crunchyroll.com` (or allow all websites if needed).
+7. Open `https://www.crunchyroll.com/watchlist` and verify the `Curated` tab.
 
 For faster iteration without re-running manual install every time, open the Xcode project and run the `Crunchy Watchlist Curator (macOS)` scheme directly:
 
@@ -143,6 +150,23 @@ Use Console.app and Safari Extensions logs for runtime debugging when behavior d
 2. Confirm `Curated` tab is visible.
 3. Switch between `Crunchyroll` and `Curated` tabs.
 4. Verify filters and sort controls appear and respond.
+
+## Safari troubleshooting (no UI changes)
+
+If the extension is enabled but you see no `Curated` tab:
+
+- In Safari, open `Develop > Show Extension Builder` and confirm the Crunchy Watchlist extension is installed from the latest app build.
+- Confirm website access includes `https://www.crunchyroll.com`.
+- Confirm you are not using a Private Browsing window unless the extension is allowed there.
+- Remove older copies of `Crunchy Watchlist Curator.app` from `/Applications`, rebuild/install the latest unsigned build, and relaunch Safari.
+- In the watchlist page console, run:
+
+```js
+window.__CW_WATCHLIST_CURATOR_RUNTIME__?.events?.slice(-10)
+document.querySelector(".cw-watchlist-frame")
+```
+
+If both are `undefined`, the content script is not being injected on that domain.
 
 ## Uninstall
 

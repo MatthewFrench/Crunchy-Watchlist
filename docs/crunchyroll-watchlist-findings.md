@@ -233,7 +233,7 @@ Settings key: `cw_settings_v1`
   "audioLocaleFilter": "any | en-US | ...",
   "genreFilter": "any | action | fantasy | ...",
   "cardLayout": "portrait | landscape",
-  "sortMode": "none | rating_desc | rating_asc | hidden_gems_desc | consensus_quality_desc | controversial_desc | quality_floor_asc | quick_wins_asc | dormant_backlog_asc | rewatch_memory_desc | date_added_desc | date_added_asc | date_updated_desc | date_updated_asc | votes_desc | star_points_desc | star_5_desc | star_4_desc | star_3_desc | star_2_desc | star_1_desc | star_5_pct_desc | star_4_pct_desc | star_3_pct_desc | star_2_pct_desc | star_1_pct_desc"
+  "sortMode": "rating_desc | rating_asc | hidden_gems_desc | consensus_quality_desc | controversial_desc | quality_floor_asc | quick_wins_asc | dormant_backlog_asc | rewatch_memory_desc | date_added_desc | date_added_asc | date_updated_desc | date_updated_asc | votes_desc | star_points_desc | star_5_desc | star_4_desc | star_3_desc | star_2_desc | star_1_desc | star_5_pct_desc | star_4_pct_desc | star_3_pct_desc | star_2_pct_desc | star_1_pct_desc"
 }
 ```
 
