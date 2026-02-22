@@ -1,15 +1,21 @@
 {
   "images" : [
     {
+      "filename" : "icon-1x.png",
       "idiom" : "universal",
+      "size" : "32x32",
       "scale" : "1x"
     },
     {
+      "filename" : "icon-2x.png",
       "idiom" : "universal",
+      "size" : "64x64",
       "scale" : "2x"
     },
     {
+      "filename" : "icon-3x.png",
       "idiom" : "universal",
+      "size" : "96x96",
       "scale" : "3x"
     }
   ],

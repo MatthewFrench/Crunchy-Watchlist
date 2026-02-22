@@ -24,14 +24,24 @@ Use this checklist for each public release across Chrome, Edge, Firefox, and Saf
 - [ ] `npm run build:webext`
 - [ ] `npm run build:safari` (on macOS with Xcode)
 
-## 4) CI quality gates
+## 4) CI and release quality gates
 
 - [ ] Ensure `.github/workflows/build-extensions.yml` passes on the target commit.
 - [ ] Verify CI uploaded artifacts: `extension-chrome`, `extension-edge`, `extension-firefox`, `extension-safari`.
 - [ ] Verify CI published a release to GitHub Releases for the `main` commit.
-- [ ] Verify artifact contents: browser packages have expected `manifest.json`, `content.js`, `content.css`, and `icons/`.
-- [ ] Verify artifact contents: Firefox package includes `browser_specific_settings.gecko.id`.
-- [ ] Verify artifact contents: Safari package includes app wrapper build output.
+- [ ] Verify GitHub release naming follows repo convention.
+- [ ] Expected release tag: `v<manifest-version>-main.<run>.<attempt>`.
+- [ ] Expected release title: `Crunchy Watchlist Curator <version> (main <run>.<attempt>)`.
+- [ ] Verify browser packages include expected `manifest.json`, `content.js`, `content.css`, and `icons/`.
+- [ ] Verify Firefox package includes `browser_specific_settings.gecko.id`.
+- [ ] Verify Safari package includes app wrapper build output.
+- [ ] Verify generated web-extension artifacts exist and contain expected icons:
+  - `dist/chrome/crunchy-watchlist-curator-chrome.zip`
+  - `dist/edge/crunchy-watchlist-curator-edge.zip`
+  - `dist/firefox/crunchy-watchlist-curator-firefox.zip`
+  - `dist/firefox/crunchy-watchlist-curator-firefox.xpi`
+  - `dist/safari/crunchy-watchlist-curator-safari-macos-app.zip`
+  - `dist/safari/crunchy-watchlist-curator-safari-webextension-source.zip`
 
 ## 5) Security, privacy, and policy
 
@@ -45,6 +55,7 @@ Use this checklist for each public release across Chrome, Edge, Firefox, and Saf
 - [ ] Prepare listing assets (icon, screenshots, promo text, detailed description).
 - [ ] Prepare release notes for this version.
 - [ ] Prepare support/contact channel.
+- [ ] Confirm store listing placeholder links in docs are replaced with live store links once available.
 
 ## 7) Publish by browser
 

@@ -31,9 +31,9 @@ Extension UI container:
 - Curated card native-action buttons: `.cw-card-action[data-cw-action="favorite|remove"]`
 - Curated card hover preview node: `.cw-curated-card__preview`
 
-## Actionability heuristic
+## Watch-ready heuristic
 
-Current non-actionable status patterns:
+Current not-watch-ready status patterns:
 
 - `watch again`
 - `rewatch`
@@ -229,7 +229,7 @@ Settings key: `cw_settings_v1`
 ```json
 {
   "activeTab": "curated | crunchyroll",
-  "actionabilityMode": "none | dim | hide",
+  "watchReadyFilterMode": "none | dim | hide",
   "audioLocaleFilter": "any | en-US | ...",
   "genreFilter": "any | action | fantasy | ...",
   "cardLayout": "portrait | landscape",
@@ -311,8 +311,8 @@ Discovery sort definitions:
 - `consensus_quality_desc`: maximize `(5★% + 4★%) - (2★% + 1★%)`.
 - `controversial_desc`: maximize distribution variance across star buckets.
 - `quality_floor_asc`: minimize `2 * 1★% + 2★%`.
-- `quick_wins_asc`: prioritize actionable entries with the fewest unwatched episodes left.
-- `dormant_backlog_asc`: oldest `last_watched` (fallback `updated`) timestamp first, with actionable entries prioritized.
+- `quick_wins_asc`: prioritize watch-ready entries with the fewest unwatched episodes left.
+- `dormant_backlog_asc`: oldest `last_watched` (fallback `updated`) timestamp first, with watch-ready entries prioritized.
 - `rewatch_memory_desc`: prioritize shows with meaningful watch progress (>=20%), at least ~3 weeks dormant, and larger episode counts.
 - Adds curated-card heart/trash controls that forward to native Crunchyroll watchlist actions
 - Adds curated thumbnail hover preview via stream metadata when preview URL is available

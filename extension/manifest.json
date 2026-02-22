@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Crunchy Watchlist Curator",
   "version": "0.1.0",
-  "description": "Adds actionable filtering and rating-based sorting helpers to Crunchyroll watchlists.",
+  "description": "Adds watch-ready filtering and rating-based sorting helpers to Crunchyroll watchlists.",
   "permissions": ["storage"],
   "host_permissions": [
     "https://www.crunchyroll.com/watchlist*",
@@ -13,7 +13,26 @@
     "https://www.crunchyroll.com/series/*"
   ],
   "action": {
-    "default_title": "Crunchy Watchlist Curator"
+    "default_title": "Crunchy Watchlist Curator",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "64": "icons/icon-64.png",
+      "96": "icons/icon-96.png",
+      "128": "icons/icon-128.png",
+      "256": "icons/icon-256.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "64": "icons/icon-64.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png",
+    "256": "icons/icon-256.png",
+    "1024": "icons/icon-1024.png"
   },
   "content_scripts": [
     {

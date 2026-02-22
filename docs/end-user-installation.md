@@ -8,7 +8,12 @@ This guide covers manual installation for:
 - Safari (macOS)
 
 If official store listings are available, installing from each browser store is recommended over manual installation.
-Store listing placeholders are in `README.md` under `Store install links`.
+Store listing placeholders are currently:
+
+- Chrome Web Store: `TBD`
+- Edge Add-ons: `TBD`
+- Firefox AMO: `TBD`
+- Mac App Store (Safari wrapper): `TBD`
 
 Until then, all browser installation methods below are unofficial/dev installs.
 
@@ -32,6 +37,30 @@ Relevant outputs:
 - `dist/firefox/unpacked`
 - `dist/firefox/crunchy-watchlist-curator-firefox.xpi`
 - `dist/safari/crunchy-watchlist-curator-safari-macos-app.zip`
+- `dist/safari/crunchy-watchlist-curator-safari-webextension-source.zip`
+- `dist/chrome/crunchy-watchlist-curator-chrome.zip`
+- `dist/edge/crunchy-watchlist-curator-edge.zip`
+- `dist/firefox/crunchy-watchlist-curator-firefox.zip`
+
+Build all web-extension bundles:
+
+```bash
+npm run build:webext
+```
+
+Build a single web-extension target:
+
+```bash
+npm run build:webext:chrome
+npm run build:webext:edge
+npm run build:webext:firefox
+```
+
+Set a custom Firefox gecko ID for a specific release pipeline when needed:
+
+```bash
+FIREFOX_EXTENSION_ID=your-addon-id@matthewfrench.dev npm run build:webext:firefox
+```
 
 ## Chrome (manual unpacked install - unofficial/dev)
 
@@ -143,6 +172,13 @@ open "Crunchy Watchlist Curator/Crunchy Watchlist Curator.xcodeproj"
 Build and run from Xcode on `My Mac`, then use Safari extension toggles to pick up each build.
 
 Use Console.app and Safari Extensions logs for runtime debugging when behavior differs from test expectations.
+
+### Xcode target note (iOS vs macOS)
+
+The converter creates both iOS and macOS wrapper targets by default.
+
+- macOS: `Crunchy Watchlist Curator (macOS)`
+- iOS targets are available for completion only and can usually be ignored unless you are intentionally testing Safari on iOS.
 
 ## Verify installation
 
