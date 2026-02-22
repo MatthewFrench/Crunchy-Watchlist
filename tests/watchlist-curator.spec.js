@@ -120,6 +120,16 @@ test.describe('Crunchy Watchlist Curator', () => {
     expect(actionLog.some((entry) => entry.action === 'remove' && entry.seriesId === 'GLOW123')).toBeTruthy();
   });
 
+  test('navigates to series page when clicking non-interactive card body area', async ({ page }) => {
+    await injectExtension(page);
+
+    await page
+      .locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__description')
+      .click();
+
+    await expect(page).toHaveURL(/\/series\/GHIGH456\/high-rated-show$/);
+  });
+
   test('shows ratings and sorts loaded cards by rating', async ({ page }) => {
     await injectExtension(page);
     await expect(
@@ -176,6 +186,12 @@ test.describe('Crunchy Watchlist Curator', () => {
 
     const afterFiveStar = await visibleFixtureOrder(page);
     expect(afterFiveStar[0]).toBe('High Rated Show');
+
+    await page.selectOption('#cw-sort-mode', 'star_1_pct_desc');
+    await page.waitForTimeout(250);
+
+    const afterOneStarPct = await visibleFixtureOrder(page);
+    expect(afterOneStarPct[0]).toBe('Low Rated Show');
 
     await page.selectOption('#cw-sort-mode', 'date_added_desc');
     await page.waitForTimeout(250);

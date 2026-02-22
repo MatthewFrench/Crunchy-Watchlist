@@ -200,7 +200,7 @@ Settings key: `cw_settings_v1`
   "audioLocaleFilter": "any | en-US | ...",
   "genreFilter": "any | action | fantasy | ...",
   "cardLayout": "portrait | landscape",
-  "sortMode": "none | rating_desc | rating_asc | date_added_desc | date_added_asc | date_updated_desc | date_updated_asc | votes_desc | star_points_desc | star_5_desc | star_4_desc | star_3_desc | star_2_desc | star_1_desc"
+  "sortMode": "none | rating_desc | rating_asc | date_added_desc | date_added_asc | date_updated_desc | date_updated_asc | votes_desc | star_points_desc | star_5_desc | star_4_desc | star_3_desc | star_2_desc | star_1_desc | star_5_pct_desc | star_4_pct_desc | star_3_pct_desc | star_2_pct_desc | star_1_pct_desc"
 }
 ```
 
@@ -248,7 +248,7 @@ Implication: storing normalized rating cache locally is small and safe for long-
 - Shows next unwatched episode (`Sx Ey`) from watchlist panel metadata
 - Shows seasons/episodes totals and estimated unwatched-left counts when episode ordering metadata is available
 - Shows category/genre-like tags from `series_metadata.tenant_categories` when present
-- Supports sort by rating ascending/descending, date added, date updated, total rating count, total star points, and per-star counts in the extension-owned curated grid built from full watchlist API data
+- Supports sort by rating ascending/descending, date added, date updated, total rating count, total star points, per-star counts, and per-star percentages in the extension-owned curated grid built from full watchlist API data
 - Adds curated-card heart/trash controls that forward to native Crunchyroll watchlist actions
 - Adds curated thumbnail hover preview via stream metadata when preview URL is available
 - Uses portrait cover art for portrait cards and wide cover art for landscape cards (with ratio-based fallbacks when only one variant exists)

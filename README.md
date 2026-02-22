@@ -12,7 +12,7 @@ This extension improves `https://www.crunchyroll.com/watchlist` by adding:
 - Small per-show description snippet on each curated card
 - Next unwatched episode line (`Sx Ey`) plus series totals (`seasons`, `episodes`, and estimated `unwatched left` when calculable)
 - Genre/category line when available from Crunchyroll metadata
-- A `Sort` selector for rating, `date added`, `date updated`, total rating count, total star points, and per-star counts (`5★` to `1★`)
+- A `Sort` selector for rating, `date added`, `date updated`, total rating count, total star points, per-star counts (`5★` to `1★`), and per-star percentages (`5★%` to `1★%`)
 - Native action buttons on curated cards (`Favorite` heart and `Remove` trash)
 - Hover preview on curated thumbnails when a stream preview URL is available
 
