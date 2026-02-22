@@ -26,7 +26,7 @@ This extension improves `https://www.crunchyroll.com/watchlist` by adding:
 - `Last watched` line on each card (with relative age)
 - Next unwatched episode line (`Sx Ey`) plus series totals (`seasons`, `episodes`, and estimated `unwatched left` when calculable)
 - Genre/category line when available from Crunchyroll metadata
-- A `Sort` selector for rating/date/rating-volume metrics plus discovery modes: `Hidden gems`, `Consensus quality`, `Controversial`, `Quality floor`, `Quick wins`, `Dormant backlog`, and `May need re-watch to remember`
+- A `Sort` selector for rating/date/rating-volume metrics plus discovery modes: `Hidden gems`, `Consensus quality`, `Controversial`, `Quality floor`, `Quick wins`, `Dormant backlog`, and `May need re-watch to remember` (`Consensus quality` is the default)
 - Native action buttons on curated cards (`Favorite` heart and `Remove` trash)
 - Hover preview on curated thumbnails when a stream preview URL is available
 
@@ -45,10 +45,12 @@ See `docs/end-user-installation.md` for browser-specific steps.
 
 Quick summary:
 
-- Chrome: install unpacked extension from `dist/chrome/unpacked`
-- Edge: install unpacked extension from `dist/edge/unpacked`
-- Firefox: load temporary add-on from `dist/firefox/unpacked` or use signed `.xpi`
-- Safari: install the packaged app build and enable extension in Safari settings
+- Chrome: load the unpacked `dist/chrome/unpacked` bundle (developer/unofficial install).
+- Edge: load the unpacked `dist/edge/unpacked` bundle (developer/unofficial install).
+- Firefox: use Temporary Add-on from `dist/firefox/unpacked` (developer/unofficial install; reset on restart).
+- Safari: run the macOS wrapper from `dist/safari/...`, enable in Safari settings, and explicitly allow `www.crunchyroll.com` in extension website access (developer/unofficial testing build).
+
+Until each browser listing is live, installs are development-only and should be treated as unofficial.
 
 ## Store install links
 
@@ -59,7 +61,13 @@ Add official listing links here once published:
 - Firefox Add-ons (AMO): `TBD`
 - Mac App Store (Safari wrapper app): `TBD`
 
-## Load in Chrome, Edge, and Firefox (Dev)
+If none are published yet, use the browser-specific developer/unofficial installation instructions below.
+
+## Load in Chrome, Edge, and Firefox (Developer/Unsigned)
+
+This workflow is for local and CI test artifacts until the extensions are published in each browser store.
+
+Safari requires an additional signed/notarized wrapper app for public release.
 
 1. Build browser-specific unpacked bundles:
 
@@ -69,9 +77,15 @@ Add official listing links here once published:
 
 2. Load the right unpacked folder in each browser:
 
-   - Chrome: `dist/chrome/unpacked`
-   - Edge: `dist/edge/unpacked`
-   - Firefox: `dist/firefox/unpacked`
+ - Chrome: `dist/chrome/unpacked`
+ - Edge: `dist/edge/unpacked`
+ - Firefox: `dist/firefox/unpacked`
+
+Notes:
+
+- Chrome and Edge: open extensions in developer mode; these are unpacked/unofficial builds and will show standard unsigned warnings.
+- Firefox: temporary add-ons are expected to be removed on restart and should not be used for permanent user distribution.
+- Firefox AMO users should use a signed `.xpi` package once this extension is published.
 
 ## Build distributables
 
@@ -104,10 +118,19 @@ FIREFOX_EXTENSION_ID=your-addon-id@example.com npm run build:webext:firefox
 
 ## Load in Safari (Xcode Wrapper)
 
-1. Open the existing Xcode project in `Crunchy Watchlist Curator/`.
-2. Build and run the extension target.
-3. In Safari, enable the extension in:
+Safari does not support a direct unpacked install model for this project; it uses a macOS app wrapper.
+
+For local dev/unofficial testing:
+
+1. Open Safari > Settings > Advanced and enable **Show Develop menu in menu bar**.
+2. In Develop > **Allow Unsigned Extensions**.
+3. Open the existing Xcode project in `Crunchy Watchlist Curator/`.
+4. Build and run the **Crunchy Watchlist Curator (macOS)** scheme.
+5. In Safari, enable the extension in:
    `Safari > Settings > Extensions`.
+6. In the extension entry, set `Website Access` to `Always Allow` for `www.crunchyroll.com` (or `All Websites`).
+
+Safari release builds should be signed/notarized and distributed through App Store Connect.
 
 ### Xcode Target Note (iOS vs macOS)
 

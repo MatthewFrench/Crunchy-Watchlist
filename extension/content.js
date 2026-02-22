@@ -1,8 +1,27 @@
 (() => {
-  if (window.__CW_WATCHLIST_CURATOR_LOADED__) {
+  const getExtensionVersion = () => {
+    try {
+      if (typeof browser !== "undefined" && browser.runtime && typeof browser.runtime.getManifest === "function") {
+        return browser.runtime.getManifest().version || "0";
+      }
+      if (typeof chrome !== "undefined" && chrome.runtime && typeof chrome.runtime.getManifest === "function") {
+        return chrome.runtime.getManifest().version || "0";
+      }
+    } catch (_) {
+      return "0";
+    }
+    return "0";
+  };
+
+  const extensionVersion = getExtensionVersion();
+  const previousLoad = window.__CW_WATCHLIST_CURATOR_LOADED__;
+
+  if (previousLoad && typeof previousLoad === "object" && previousLoad.version === extensionVersion) {
     return;
   }
-  window.__CW_WATCHLIST_CURATOR_LOADED__ = true;
+  window.__CW_WATCHLIST_CURATOR_LOADED__ = {
+    version: extensionVersion
+  };
 
   if (window.top !== window) {
     return;
@@ -31,6 +50,34 @@
   const AUTH_DEVICE_KEY = "cw_auth_device_id_v1";
   const AUTH_TOKEN_SKEW_MS = 60 * 1000;
   const PREVIEW_HOVER_DELAY_MS = 220;
+  const DEFAULT_SORT_MODE = "consensus_quality_desc";
+  const VALID_SORT_MODES = new Set([
+    "rating_desc",
+    "rating_asc",
+    "hidden_gems_desc",
+    "consensus_quality_desc",
+    "controversial_desc",
+    "quality_floor_asc",
+    "quick_wins_asc",
+    "dormant_backlog_asc",
+    "rewatch_memory_desc",
+    "date_added_desc",
+    "date_added_asc",
+    "date_updated_desc",
+    "date_updated_asc",
+    "votes_desc",
+    "star_points_desc",
+    "star_5_desc",
+    "star_4_desc",
+    "star_3_desc",
+    "star_2_desc",
+    "star_1_desc",
+    "star_5_pct_desc",
+    "star_4_pct_desc",
+    "star_3_pct_desc",
+    "star_2_pct_desc",
+    "star_1_pct_desc"
+  ]);
 
   const DEFAULT_SETTINGS = {
     activeTab: "curated",
@@ -38,7 +85,7 @@
     audioLocaleFilter: "any",
     genreFilter: "any",
     cardLayout: "portrait",
-    sortMode: "none"
+    sortMode: DEFAULT_SORT_MODE
   };
 
   const state = {
@@ -2588,10 +2635,6 @@
   }
 
   function compareRenderableEntries(left, right) {
-    if (state.settings.sortMode === "none") {
-      return left.originalIndex - right.originalIndex;
-    }
-
     const leftRating = left.rating == null ? null : Number(left.rating);
     const rightRating = right.rating == null ? null : Number(right.rating);
 
@@ -4089,11 +4132,10 @@
       "Sort:",
       state.settings.sortMode,
       [
-        { optionValue: "none", title: "Default" },
+        { optionValue: "consensus_quality_desc", title: "Consensus quality (default)" },
         { optionValue: "rating_desc", title: "Rating high to low" },
         { optionValue: "rating_asc", title: "Rating low to high" },
         { optionValue: "hidden_gems_desc", title: "Hidden gems (high rating, fewer ratings)" },
-        { optionValue: "consensus_quality_desc", title: "Consensus quality" },
         { optionValue: "controversial_desc", title: "Most controversial" },
         { optionValue: "quality_floor_asc", title: "Quality floor (lowest 1★/2★)" },
         { optionValue: "quick_wins_asc", title: "Quick wins (few unwatched left)" },
@@ -4424,6 +4466,10 @@
 
     if (!["none", "dim", "hide"].includes(state.settings.actionabilityMode)) {
       state.settings.actionabilityMode = "hide";
+    }
+
+    if (!VALID_SORT_MODES.has(state.settings.sortMode)) {
+      state.settings.sortMode = DEFAULT_SORT_MODE;
     }
 
     const rawRatingCache = await storageGet(RATING_CACHE_KEY, {});
