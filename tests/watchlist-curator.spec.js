@@ -2,6 +2,7 @@ const path = require('node:path');
 const { test, expect } = require('@playwright/test');
 
 const FIXTURE_URL = 'http://127.0.0.1:4173/watchlist';
+const NON_WATCHLIST_URL = 'http://127.0.0.1:4173/browse';
 
 async function loadExtensionAssets(page) {
   await page.addStyleTag({ path: path.join(process.cwd(), 'extension', 'content.css') });
@@ -55,6 +56,42 @@ async function visibleFixtureOrder(page) {
 test.describe('Crunchy Watchlist Curator', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(FIXTURE_URL, { waitUntil: 'domcontentloaded' });
+  });
+
+  test('does not mount or call watchlist APIs on non-watchlist pages', async ({ page }) => {
+    let watchlistRequestCount = 0;
+    await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
+      watchlistRequestCount += 1;
+      await route.continue();
+    });
+
+    await page.goto(NON_WATCHLIST_URL, { waitUntil: 'domcontentloaded' });
+    await loadExtensionAssets(page);
+    await page.waitForTimeout(300);
+
+    await expect(page.locator('.cw-host')).toHaveCount(0);
+    await expect(page.locator('.cw-watchlist-frame')).toHaveCount(0);
+
+    const runtime = await page.evaluate(() => window.__CW_WATCHLIST_CURATOR_RUNTIME__ || null);
+    expect(runtime?.events?.some((entry) => entry.event === 'mounted')).toBeFalsy();
+    expect(watchlistRequestCount).toBe(0);
+  });
+
+  test('updates mount state via history route events without polling', async ({ page }) => {
+    await injectExtension(page);
+    await expect(page.locator('.cw-host')).toBeVisible();
+
+    await page.evaluate(() => {
+      history.pushState({}, '', '/browse');
+    });
+    await expect(page.locator('.cw-host')).toHaveCount(0);
+    await expect(page.locator('.cw-watchlist-frame')).toHaveCount(0);
+
+    await page.evaluate(() => {
+      history.pushState({}, '', '/watchlist');
+    });
+    await expect(page.locator('.cw-host')).toBeVisible();
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
   });
 
   test('hides non-actionable cards by default and can toggle visibility', async ({ page }) => {

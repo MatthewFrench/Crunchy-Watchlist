@@ -32,7 +32,8 @@
   const state = {
     mounted: false,
     observer: null,
-    routeInterval: null,
+    routeWatcherStarted: false,
+    routeSyncTimer: null,
     processTimer: null,
     saveRatingsTimer: null,
     settings: { ...DEFAULT_SETTINGS },
@@ -59,8 +60,7 @@
     statsEl: null,
     gridEl: null,
     framedRootEl: null,
-    nativeHiddenNodes: [],
-    lastPathname: window.location.pathname
+    nativeHiddenNodes: []
   };
 
   const runtime = (() => {
@@ -600,6 +600,29 @@
     }
   }
 
+  function getAuthDeviceType() {
+    const userAgent = typeof navigator.userAgent === "string" ? navigator.userAgent : "";
+    const platform = typeof navigator.platform === "string" && navigator.platform.trim() ? navigator.platform.trim() : "Unknown";
+
+    if (/\bEdg\//.test(userAgent)) {
+      return `Edge on ${platform}`;
+    }
+
+    if (/\bFirefox\//.test(userAgent)) {
+      return `Firefox on ${platform}`;
+    }
+
+    if (/\bChrome\//.test(userAgent) || /\bChromium\//.test(userAgent)) {
+      return `Chrome on ${platform}`;
+    }
+
+    if (/\bSafari\//.test(userAgent)) {
+      return `Safari on ${platform}`;
+    }
+
+    return `Browser on ${platform}`;
+  }
+
   function isAuthTokenValid(tokenEntry) {
     return (
       tokenEntry &&
@@ -614,11 +637,11 @@
   async function requestAccessToken() {
     const body = new URLSearchParams({
       device_id: getOrCreateDeviceId(),
-      device_type: "Safari on macOS",
+      device_type: getAuthDeviceType(),
       grant_type: "etp_rt_cookie"
     });
 
-    const response = await fetch("/auth/v1/token", {
+    const response = await fetch(resolveApiHref("/auth/v1/token"), {
       method: "POST",
       credentials: "include",
       headers: {
@@ -715,7 +738,7 @@
       params.set("start", String(start));
     }
 
-    const url = `/content/v2/discover/${encodeURIComponent(accountId)}/watchlist?${params.toString()}`;
+    const url = resolveApiHref(`/content/v2/discover/${encodeURIComponent(accountId)}/watchlist?${params.toString()}`);
     const response = await fetch(url, {
       credentials: "include",
       headers: {
@@ -774,10 +797,11 @@
       return [];
     }
 
-    const cmsUrl =
+    const cmsUrl = resolveApiHref(
       `/content/v2/cms/objects/${seriesIds.map((id) => encodeURIComponent(id)).join(",")}` +
-      `?ratings=true&preferred_audio_language=${encodeURIComponent(getPreferredAudioLanguage())}` +
-      `&locale=${encodeURIComponent(getLocale())}`;
+        `?ratings=true&preferred_audio_language=${encodeURIComponent(getPreferredAudioLanguage())}` +
+        `&locale=${encodeURIComponent(getLocale())}`
+    );
 
     const response = await fetch(cmsUrl, {
       credentials: "include",
@@ -800,10 +824,11 @@
   }
 
   async function fetchRatingFromCmsObjects(seriesId) {
-    const cmsUrl =
+    const cmsUrl = resolveApiHref(
       `/content/v2/cms/objects/${encodeURIComponent(seriesId)}` +
-      `?ratings=true&preferred_audio_language=${encodeURIComponent(getPreferredAudioLanguage())}` +
-      `&locale=${encodeURIComponent(getLocale())}`;
+        `?ratings=true&preferred_audio_language=${encodeURIComponent(getPreferredAudioLanguage())}` +
+        `&locale=${encodeURIComponent(getLocale())}`
+    );
 
     let tokenEntry = await getAccessToken(false);
     if (!tokenEntry?.accessToken) {
@@ -909,7 +934,12 @@
   }
 
   async function fetchRatingFromSeriesPage(seriesHref) {
-    const response = await fetch(seriesHref, { credentials: "include" });
+    const seriesUrl = resolveApiHref(seriesHref);
+    if (!seriesUrl) {
+      throw new Error("series page url missing");
+    }
+
+    const response = await fetch(seriesUrl, { credentials: "include" });
     if (!response.ok) {
       throw new Error(`series page fetch failed: ${response.status}`);
     }
@@ -950,7 +980,7 @@
       }
     }
 
-    const ratingUrl = `/content-reviews/v3/rating/series/${encodeURIComponent(seriesId)}`;
+    const ratingUrl = resolveApiHref(`/content-reviews/v3/rating/series/${encodeURIComponent(seriesId)}`);
     try {
       const response = await fetch(ratingUrl, { credentials: "include" });
       if (response.ok) {
@@ -1319,9 +1349,9 @@
         row?.updatedAt,
         row?.panel?.updated_at,
         row?.panel?.last_modified_at,
-        row?.panel?.episode_metadata?.availability_ends,
         dateAddedMs
       ]);
+      const playheadMs = Number(row?.playhead || 0) > 0 ? Number(row.playhead) : 0;
 
       dedup.set(seriesId, {
         source: "api",
@@ -1352,6 +1382,7 @@
         seasonNumber,
         episodeNumber,
         absoluteEpisodeNumber,
+        playheadMs,
         fullyWatched,
         neverWatched,
         isFavorite: Boolean(row?.is_favorite),
@@ -1935,6 +1966,47 @@
       return left.originalIndex - right.originalIndex;
     }
 
+    if (state.settings.sortMode === "rewatch_memory_desc") {
+      const leftScore = getRewatchMemoryScore(left);
+      const rightScore = getRewatchMemoryScore(right);
+      const normalizedLeftScore = leftScore == null ? -Infinity : leftScore;
+      const normalizedRightScore = rightScore == null ? -Infinity : rightScore;
+      if (normalizedLeftScore !== normalizedRightScore) {
+        return normalizedRightScore - normalizedLeftScore;
+      }
+
+      // When the rewatch score is unavailable, prefer entries with more existing progress.
+      const leftWatched = getWatchedEpisodeEstimate(left);
+      const rightWatched = getWatchedEpisodeEstimate(right);
+      const normalizedLeftWatched = leftWatched == null ? -Infinity : leftWatched;
+      const normalizedRightWatched = rightWatched == null ? -Infinity : rightWatched;
+      if (normalizedLeftWatched !== normalizedRightWatched) {
+        return normalizedRightWatched - normalizedLeftWatched;
+      }
+
+      const leftEpisodes = sanitizePositiveInt(left.episodeCount) ?? -Infinity;
+      const rightEpisodes = sanitizePositiveInt(right.episodeCount) ?? -Infinity;
+      if (leftEpisodes !== rightEpisodes) {
+        return rightEpisodes - leftEpisodes;
+      }
+
+      const leftActivityMs =
+        getRewatchActivityTimestamp(left) ??
+        getPlausiblePastTimestamp(left.dateUpdatedMs) ??
+        getPlausiblePastTimestamp(left.dateAddedMs);
+      const rightActivityMs =
+        getRewatchActivityTimestamp(right) ??
+        getPlausiblePastTimestamp(right.dateUpdatedMs) ??
+        getPlausiblePastTimestamp(right.dateAddedMs);
+      const normalizedLeftActivity = leftActivityMs == null ? Infinity : leftActivityMs;
+      const normalizedRightActivity = rightActivityMs == null ? Infinity : rightActivityMs;
+      if (normalizedLeftActivity !== normalizedRightActivity) {
+        return normalizedLeftActivity - normalizedRightActivity;
+      }
+
+      return left.originalIndex - right.originalIndex;
+    }
+
     const numericSortExtractors = {
       votes_desc: (entry) => sanitizeVotes(entry.votes),
       star_points_desc: (entry) => getTotalStarPoints(entry.votes, entry.distribution),
@@ -1953,7 +2025,6 @@
       quality_floor_asc: (entry) => getQualityFloorScore(entry.distribution),
       quick_wins_asc: (entry) => getQuickWinScore(entry),
       dormant_backlog_asc: (entry) => getDormantBacklogScore(entry),
-      rewatch_memory_desc: (entry) => getRewatchMemoryScore(entry),
       date_added_desc: (entry) => parseDateMs(entry.dateAddedMs),
       date_added_asc: (entry) => parseDateMs(entry.dateAddedMs),
       date_updated_desc: (entry) => parseDateMs(entry.dateUpdatedMs),
@@ -2153,7 +2224,7 @@
   }
 
   function formatLastWatchedValue(value) {
-    const timestamp = parseDateMs(value);
+    const timestamp = getPlausiblePastTimestamp(value);
     if (timestamp == null) {
       return "unknown";
     }
@@ -2305,11 +2376,54 @@
     return nonActionablePenalty + remaining;
   }
 
+  function getWatchedEpisodeEstimate(entry) {
+    const totalEpisodes = sanitizePositiveInt(entry?.episodeCount);
+    if (totalEpisodes == null) {
+      return null;
+    }
+
+    const unwatchedLeft = estimateUnwatchedEpisodesLeft(entry);
+    if (unwatchedLeft == null) {
+      return null;
+    }
+
+    return Math.max(0, totalEpisodes - Math.max(0, Number(unwatchedLeft) || 0));
+  }
+
+  function getPlausiblePastTimestamp(value) {
+    const parsed = parseDateMs(value);
+    if (parsed == null) {
+      return null;
+    }
+
+    // Ignore sentinel/future timestamps (e.g. availability window far-future values).
+    const latestAllowed = Date.now() + 2 * 24 * 60 * 60 * 1000;
+    if (parsed > latestAllowed) {
+      return null;
+    }
+
+    return parsed;
+  }
+
+  function getRewatchActivityTimestamp(entry) {
+    const lastWatched = getPlausiblePastTimestamp(entry?.lastWatchedMs);
+    if (lastWatched != null) {
+      return lastWatched;
+    }
+
+    const watchedEpisodes = getWatchedEpisodeEstimate(entry);
+    if (watchedEpisodes == null || watchedEpisodes <= 0) {
+      return null;
+    }
+
+    return getPlausiblePastTimestamp(entry?.dateUpdatedMs) ?? getPlausiblePastTimestamp(entry?.dateAddedMs);
+  }
+
   function getDormantBacklogScore(entry) {
     const updatedAt =
-      parseDateMs(entry?.lastWatchedMs) ??
-      parseDateMs(entry?.dateUpdatedMs) ??
-      parseDateMs(entry?.dateAddedMs);
+      getRewatchActivityTimestamp(entry) ??
+      getPlausiblePastTimestamp(entry?.dateUpdatedMs) ??
+      getPlausiblePastTimestamp(entry?.dateAddedMs);
     if (updatedAt == null) {
       return null;
     }
@@ -2319,18 +2433,13 @@
   }
 
   function getRewatchMemoryScore(entry) {
-    const updatedAt =
-      parseDateMs(entry?.lastWatchedMs) ??
-      parseDateMs(entry?.dateUpdatedMs) ??
-      parseDateMs(entry?.dateAddedMs);
+    const updatedAt = getRewatchActivityTimestamp(entry);
     const episodeCount = sanitizePositiveInt(entry?.episodeCount);
     if (updatedAt == null || episodeCount == null) {
       return null;
     }
 
-    const unwatchedLeft = estimateUnwatchedEpisodesLeft(entry);
-    const watchedEpisodes =
-      unwatchedLeft == null ? null : Math.max(0, episodeCount - Math.max(0, Number(unwatchedLeft) || 0));
+    const watchedEpisodes = getWatchedEpisodeEstimate(entry);
     if (watchedEpisodes == null || watchedEpisodes <= 0) {
       return null;
     }
@@ -2881,7 +2990,7 @@
       "Last watched",
       entry.neverWatched
         ? "never"
-        : formatLastWatchedValue(entry.lastWatchedMs ?? entry.dateUpdatedMs ?? entry.dateAddedMs)
+        : formatLastWatchedValue(entry.lastWatchedMs)
     );
 
     const nextEpisode = document.createElement("div");
@@ -3498,11 +3607,6 @@
 
   function syncRoute() {
     const pathname = window.location.pathname;
-    if (pathname === state.lastPathname) {
-      return;
-    }
-
-    state.lastPathname = pathname;
 
     if (isWatchlistPath(pathname)) {
       mount();
@@ -3513,14 +3617,51 @@
     unmount();
   }
 
-  function startRouteWatcher() {
-    if (state.routeInterval) {
-      clearInterval(state.routeInterval);
+  function scheduleRouteSync() {
+    if (state.routeSyncTimer != null) {
+      return;
     }
 
-    state.routeInterval = window.setInterval(syncRoute, 500);
-    window.addEventListener("popstate", syncRoute);
-    window.addEventListener("hashchange", syncRoute);
+    state.routeSyncTimer = window.setTimeout(() => {
+      state.routeSyncTimer = null;
+      syncRoute();
+    }, 0);
+  }
+
+  function patchHistoryForRouteSync() {
+    const historyRef = window.history;
+    if (!historyRef) {
+      return;
+    }
+
+    ["pushState", "replaceState"].forEach((methodName) => {
+      const original = historyRef[methodName];
+      if (typeof original !== "function") {
+        return;
+      }
+
+      try {
+        historyRef[methodName] = function patchedHistoryState(...args) {
+          const result = original.apply(this, args);
+          scheduleRouteSync();
+          return result;
+        };
+      } catch (_) {
+        // Some browsers lock history methods. Popstate/hashchange still cover most navigation.
+      }
+    });
+  }
+
+  function startRouteWatcher() {
+    if (state.routeWatcherStarted) {
+      return;
+    }
+
+    state.routeWatcherStarted = true;
+    patchHistoryForRouteSync();
+    window.addEventListener("popstate", scheduleRouteSync);
+    window.addEventListener("hashchange", scheduleRouteSync);
+    window.addEventListener("pageshow", scheduleRouteSync);
   }
 
   async function loadInitialState() {
@@ -3581,11 +3722,7 @@
     runtimeEvent("init-start");
     await loadInitialState();
     startRouteWatcher();
-
-    if (isWatchlistPath(window.location.pathname)) {
-      mount();
-      debounceProcess();
-    }
+    syncRoute();
 
     runtimeEvent("init-done");
   }
