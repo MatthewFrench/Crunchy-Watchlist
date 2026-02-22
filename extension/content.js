@@ -10,10 +10,15 @@
 
   const SETTINGS_KEY = "cw_settings_v1";
   const RATING_CACHE_KEY = "cw_rating_cache_v2";
+  const WATCH_HISTORY_CACHE_KEY = "cw_watch_history_cache_v1";
   const RATING_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+  const WATCH_HISTORY_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
   const PROCESS_DEBOUNCE_MS = 180;
   const WATCHLIST_PAGE_SIZE = 100;
   const WATCHLIST_MAX_PAGES = 30;
+  const WATCH_HISTORY_PAGE_SIZE = 100;
+  const WATCH_HISTORY_MAX_PAGES = 40;
+  const WATCH_HISTORY_NO_MATCH_PAGE_LIMIT = 5;
   const RATING_BATCH_SIZE = 50;
   const AUTH_CLIENT_BASIC = "Basic bm9haWhkZXZtXzZpeWcwYThsMHE6";
   const AUTH_DEVICE_KEY = "cw_auth_device_id_v1";
@@ -36,9 +41,16 @@
     routeSyncTimer: null,
     processTimer: null,
     saveRatingsTimer: null,
+    saveWatchHistoryTimer: null,
     settings: { ...DEFAULT_SETTINGS },
     ratingCache: {},
     ratingInflight: new Map(),
+    watchHistoryCache: {
+      accountId: "",
+      updatedAt: 0,
+      bySeriesId: {}
+    },
+    watchHistoryInflight: null,
     previewCache: {},
     previewInflight: new Map(),
     authToken: null,
@@ -228,6 +240,15 @@
     clearTimeout(state.saveRatingsTimer);
     state.saveRatingsTimer = window.setTimeout(() => {
       storageSet(RATING_CACHE_KEY, state.ratingCache).catch(() => {
+        // no-op
+      });
+    }, 250);
+  }
+
+  function scheduleSaveWatchHistory() {
+    clearTimeout(state.saveWatchHistoryTimer);
+    state.saveWatchHistoryTimer = window.setTimeout(() => {
+      storageSet(WATCH_HISTORY_CACHE_KEY, state.watchHistoryCache).catch(() => {
         // no-op
       });
     }, 250);
@@ -573,6 +594,90 @@
     return Date.now() - entry.updatedAt < RATING_CACHE_TTL_MS;
   }
 
+  function isWatchHistoryCacheValid(cache, accountId) {
+    if (!cache || typeof cache !== "object") {
+      return false;
+    }
+
+    if (!cache.bySeriesId || typeof cache.bySeriesId !== "object" || Array.isArray(cache.bySeriesId)) {
+      return false;
+    }
+
+    if (typeof cache.updatedAt !== "number") {
+      return false;
+    }
+
+    if (typeof accountId === "string" && accountId && cache.accountId !== accountId) {
+      return false;
+    }
+
+    return Date.now() - cache.updatedAt < WATCH_HISTORY_CACHE_TTL_MS;
+  }
+
+  function normalizeWatchHistoryEntry(value) {
+    if (!value || typeof value !== "object") {
+      return null;
+    }
+
+    const datePlayedMs = parseDateMs(value.datePlayedMs ?? value.datePlayed);
+    if (datePlayedMs == null) {
+      return null;
+    }
+
+    return {
+      datePlayedMs,
+      datePlayed: new Date(datePlayedMs).toISOString(),
+      seasonNumber: sanitizePositiveInt(value.seasonNumber),
+      episodeNumber: sanitizePositiveInt(value.episodeNumber),
+      episodeTitle: typeof value.episodeTitle === "string" ? value.episodeTitle : "",
+      playhead: Number(value.playhead || 0),
+      fullyWatched: Boolean(value.fullyWatched)
+    };
+  }
+
+  function normalizeStoredWatchHistoryCache(raw) {
+    if (!raw || typeof raw !== "object") {
+      return {
+        accountId: "",
+        updatedAt: 0,
+        bySeriesId: {}
+      };
+    }
+
+    const bySeriesIdRaw = raw.bySeriesId && typeof raw.bySeriesId === "object" ? raw.bySeriesId : {};
+    const bySeriesId = {};
+
+    Object.entries(bySeriesIdRaw).forEach(([seriesId, value]) => {
+      if (!seriesId) {
+        return;
+      }
+      const normalized = normalizeWatchHistoryEntry(value);
+      if (normalized) {
+        bySeriesId[seriesId] = normalized;
+      }
+    });
+
+    return {
+      accountId: typeof raw.accountId === "string" ? raw.accountId : "",
+      updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : 0,
+      bySeriesId
+    };
+  }
+
+  function getCachedWatchHistory(seriesId) {
+    if (!seriesId || !state.watchHistoryCache || typeof state.watchHistoryCache !== "object") {
+      return null;
+    }
+
+    const bySeriesId = state.watchHistoryCache.bySeriesId;
+    if (!bySeriesId || typeof bySeriesId !== "object") {
+      return null;
+    }
+
+    const entry = normalizeWatchHistoryEntry(bySeriesId[seriesId]);
+    return entry || null;
+  }
+
   function generateDeviceId() {
     try {
       if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -790,6 +895,66 @@
     }
 
     return allRows;
+  }
+
+  async function fetchWatchHistoryPage(accountId, accessToken, pageNumber) {
+    const params = new URLSearchParams({
+      page_size: String(WATCH_HISTORY_PAGE_SIZE),
+      preferred_audio_language: getPreferredAudioLanguage(),
+      locale: getLocale()
+    });
+
+    if (pageNumber > 1) {
+      params.set("page", String(pageNumber));
+    }
+
+    const url = resolveApiHref(`/content/v2/${encodeURIComponent(accountId)}/watch-history?${params.toString()}`);
+    const response = await fetch(url, {
+      credentials: "include",
+      headers: {
+        authorization: `Bearer ${accessToken}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`watch history page request failed: ${response.status}`);
+    }
+
+    const payload = await response.json();
+    const rows = Array.isArray(payload?.data) ? payload.data : [];
+    const total = Number(payload?.total || rows.length);
+
+    return {
+      rows,
+      total
+    };
+  }
+
+  function getWatchHistorySeriesId(entry) {
+    return entry?.panel?.episode_metadata?.series_id || entry?.panel?.series_metadata?.series_id || null;
+  }
+
+  function parseWatchHistoryRow(entry) {
+    const seriesId = getWatchHistorySeriesId(entry);
+    if (!seriesId) {
+      return null;
+    }
+
+    const datePlayedMs = parseDateMs(entry?.date_played);
+    if (datePlayedMs == null) {
+      return null;
+    }
+
+    return {
+      seriesId,
+      datePlayedMs,
+      datePlayed: new Date(datePlayedMs).toISOString(),
+      seasonNumber: sanitizePositiveInt(entry?.panel?.episode_metadata?.season_number),
+      episodeNumber: sanitizePositiveInt(entry?.panel?.episode_metadata?.episode_number),
+      episodeTitle: typeof entry?.panel?.title === "string" ? entry.panel.title : "",
+      playhead: Number(entry?.playhead || 0),
+      fullyWatched: Boolean(entry?.fully_watched)
+    };
   }
 
   async function fetchRatingsBatch(accessToken, seriesIds) {
@@ -1414,8 +1579,7 @@
   }
 
   async function preloadRatingsForEntries(entries, tokenEntry) {
-    const bySeriesId = new Map(entries.map((entry) => [entry.seriesId, entry]));
-    const allSeriesIds = Array.from(bySeriesId.keys());
+    const allSeriesIds = Array.from(new Set(entries.map((entry) => entry.seriesId).filter(Boolean)));
     const staleSeriesIds = allSeriesIds.filter((seriesId) => !isCacheValid(state.ratingCache[seriesId]));
 
     if (!staleSeriesIds.length) {
@@ -1464,16 +1628,6 @@
       }
     }
 
-    const remaining = staleSeriesIds.filter((seriesId) => !isCacheValid(state.ratingCache[seriesId]));
-    for (const seriesId of remaining) {
-      const entry = bySeriesId.get(seriesId);
-      if (!entry) {
-        continue;
-      }
-      await getSeriesRating(seriesId, resolveSeriesHref(entry));
-      updated += 1;
-    }
-
     if (updated > 0) {
       scheduleSaveRatings();
     }
@@ -1482,6 +1636,118 @@
       stale: staleSeriesIds.length,
       updated
     });
+  }
+
+  async function preloadWatchHistoryForEntries(entries, tokenEntry, force = false) {
+    if (!tokenEntry?.accessToken || !tokenEntry?.accountId) {
+      return;
+    }
+
+    if (!force && isWatchHistoryCacheValid(state.watchHistoryCache, tokenEntry.accountId)) {
+      return;
+    }
+
+    if (!force && state.watchHistoryInflight) {
+      return state.watchHistoryInflight;
+    }
+
+    const candidateSeriesIds = Array.from(
+      new Set(
+        entries
+          .filter((entry) => entry?.seriesId)
+          .filter((entry) => !entry.neverWatched || Number(entry.playheadMs || 0) > 0)
+          .map((entry) => entry.seriesId)
+      )
+    );
+    const remainingSeriesIds = new Set(candidateSeriesIds);
+
+    const inflight = (async () => {
+      const bySeriesId = {};
+      let pages = 0;
+      let totalRows = null;
+      let fetchedRows = 0;
+      let noMatchPageStreak = 0;
+
+      while (pages < WATCH_HISTORY_MAX_PAGES) {
+        pages += 1;
+        const page = await fetchWatchHistoryPage(tokenEntry.accountId, tokenEntry.accessToken, pages);
+        let matchedOnPage = 0;
+
+        if (totalRows == null) {
+          totalRows = page.total;
+        }
+
+        fetchedRows += page.rows.length;
+
+        page.rows.forEach((row) => {
+          const parsed = parseWatchHistoryRow(row);
+          if (!parsed || !parsed.seriesId || parsed.datePlayedMs == null) {
+            return;
+          }
+
+          const previous = bySeriesId[parsed.seriesId];
+          if (!previous || parsed.datePlayedMs > previous.datePlayedMs) {
+            bySeriesId[parsed.seriesId] = parsed;
+          }
+
+          if (remainingSeriesIds.has(parsed.seriesId)) {
+            remainingSeriesIds.delete(parsed.seriesId);
+            matchedOnPage += 1;
+          }
+        });
+
+        if (matchedOnPage === 0 && remainingSeriesIds.size > 0) {
+          noMatchPageStreak += 1;
+        } else {
+          noMatchPageStreak = 0;
+        }
+
+        if (!page.rows.length || page.rows.length < WATCH_HISTORY_PAGE_SIZE) {
+          break;
+        }
+
+        if (totalRows != null && fetchedRows >= totalRows) {
+          break;
+        }
+
+        if (!remainingSeriesIds.size) {
+          break;
+        }
+
+        if (remainingSeriesIds.size && noMatchPageStreak >= WATCH_HISTORY_NO_MATCH_PAGE_LIMIT) {
+          break;
+        }
+      }
+
+      state.watchHistoryCache = {
+        accountId: tokenEntry.accountId,
+        updatedAt: Date.now(),
+        bySeriesId
+      };
+      scheduleSaveWatchHistory();
+
+      runtimeEvent("watch-history-preload", {
+        pages,
+        fetchedRows,
+        mappedSeries: Object.keys(bySeriesId).length,
+        matchedCandidates: candidateSeriesIds.length - remainingSeriesIds.size,
+        candidates: candidateSeriesIds.length,
+        noMatchPageStreak
+      });
+    })()
+      .catch((error) => {
+        runtimeEvent("watch-history-preload-failed", {
+          message: error?.message || "unknown"
+        });
+      })
+      .finally(() => {
+        if (state.watchHistoryInflight === inflight) {
+          state.watchHistoryInflight = null;
+        }
+      });
+
+    state.watchHistoryInflight = inflight;
+    return inflight;
   }
 
   function loadCuratedEntries(force = false) {
@@ -1505,7 +1771,10 @@
       const rows = await fetchAllWatchlistRows(tokenEntry);
       const entries = normalizeEntriesFromApiRows(rows);
 
-      await preloadRatingsForEntries(entries, tokenEntry);
+      await Promise.all([
+        preloadRatingsForEntries(entries, tokenEntry),
+        preloadWatchHistoryForEntries(entries, tokenEntry, force)
+      ]);
 
       state.curatedEntries = entries;
       state.curatedSource = "api";
@@ -3066,6 +3335,7 @@
   function buildRenderableEntries() {
     const merged = state.curatedEntries.map((entry) => {
       const ratingEntry = getCachedRating(entry.seriesId);
+      const watchHistoryEntry = getCachedWatchHistory(entry.seriesId);
       const rating = ratingEntry?.rating ?? null;
       const votes = ratingEntry?.votes ?? null;
       const distribution = ratingEntry?.distribution ?? null;
@@ -3097,6 +3367,10 @@
         normalizeImageUrlCandidate(entry.landscapeImageUrl) ||
         portraitImageUrl;
       const hoverPreviewImageUrl = normalizeImageUrlCandidate(entry.hoverPreviewImageUrl);
+      const lastWatchedMs = pickFirstDateMs([
+        watchHistoryEntry?.datePlayedMs,
+        entry.lastWatchedMs
+      ]);
       const mergedEntry = {
         ...entry,
         description,
@@ -3109,6 +3383,7 @@
         portraitImageUrl,
         landscapeImageUrl,
         hoverPreviewImageUrl,
+        lastWatchedMs,
         imageUrl: portraitImageUrl || landscapeImageUrl || normalizeImageUrlCandidate(entry.imageUrl),
         rating,
         votes
@@ -3458,7 +3733,14 @@
     refreshButton.addEventListener("click", async () => {
       state.ratingCache = {};
       state.ratingInflight.clear();
+      state.watchHistoryCache = {
+        accountId: "",
+        updatedAt: 0,
+        bySeriesId: {}
+      };
+      state.watchHistoryInflight = null;
       await storageSet(RATING_CACHE_KEY, state.ratingCache);
+      await storageSet(WATCH_HISTORY_CACHE_KEY, state.watchHistoryCache);
       state.curatedEntries = [];
       state.curatedError = null;
       ensureCuratedDataLoad(true);
@@ -3711,6 +3993,11 @@
     const rawRatingCache = await storageGet(RATING_CACHE_KEY, {});
     if (rawRatingCache && typeof rawRatingCache === "object") {
       state.ratingCache = rawRatingCache;
+    }
+
+    const rawWatchHistoryCache = await storageGet(WATCH_HISTORY_CACHE_KEY, null);
+    if (rawWatchHistoryCache && typeof rawWatchHistoryCache === "object") {
+      state.watchHistoryCache = normalizeStoredWatchHistoryCache(rawWatchHistoryCache);
     }
 
     runtimeEvent("state-load-done", {

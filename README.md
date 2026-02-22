@@ -1,5 +1,18 @@
 # Crunchy Watchlist Curator (Cross-Browser Web Extension)
 
+Crunchy Watchlist Curator turns Crunchyroll's watchlist into a decision-ready queue so you can pick what to watch next in seconds instead of endless scrolling.
+
+![Crunchy Watchlist Curator in action](docs/images/crunchy-watchlist-curator-in-action.png)
+
+## Why use it
+
+- Clean up noisy watchlists packed with already-watched or currently non-actionable shows so you can focus on what is actually worth watching next.
+- Surface the right next show faster with smart sort modes like `Hidden gems`, `Quick wins`, `Dormant backlog`, and `May need re-watch to remember`.
+- Focus only on what matters with non-actionable filtering, audio/genre filters, portrait/landscape card toggles, and English-audio-only filtering (`en-US`) when you want it.
+- Make better watch decisions with rich card context: ratings, vote volume, watch recency, next-episode progress, and genre metadata.
+
+## Everything it adds
+
 This extension improves `https://www.crunchyroll.com/watchlist` by adding:
 
 - A separate `Curated` tab (leaves Crunchyroll's native tab content untouched)
@@ -23,6 +36,7 @@ This extension improves `https://www.crunchyroll.com/watchlist` by adding:
 - `extension/content.js`
 - `extension/content.css`
 - `docs/end-user-installation.md` (manual installation guide for Chrome, Edge, Firefox, Safari)
+- `docs/release-checklist.md` (publish readiness checklist for all target browsers)
 - `docs/crunchyroll-watchlist-findings.md` (live selectors, API/auth endpoints, reverse-engineering notes)
 
 ## End-user installation
@@ -35,6 +49,15 @@ Quick summary:
 - Edge: install unpacked extension from `dist/edge/unpacked`
 - Firefox: load temporary add-on from `dist/firefox/unpacked` or use signed `.xpi`
 - Safari: install the packaged app build and enable extension in Safari settings
+
+## Store install links
+
+Add official listing links here once published:
+
+- Chrome Web Store: `TBD`
+- Edge Add-ons: `TBD`
+- Firefox Add-ons (AMO): `TBD`
+- Mac App Store (Safari wrapper app): `TBD`
 
 ## Load in Chrome, Edge, and Firefox (Dev)
 
@@ -196,6 +219,10 @@ Artifact names uploaded by CI:
 - `extension-firefox`
 - `extension-safari`
 
+## Release process
+
+Use `/Users/matthewfrench/GitHub/Crunchy-Watchlist/docs/release-checklist.md` before publishing a new version.
+
 ## Use (Real Site)
 
 1. Open [https://www.crunchyroll.com/watchlist](https://www.crunchyroll.com/watchlist).
@@ -203,13 +230,20 @@ Artifact names uploaded by CI:
    - `Crunchyroll`: native watchlist (untouched)
    - `Curated`: extension-managed view
 3. In `Curated`, use the toggles/selects to filter, sort, and switch card orientation.
-4. Use `Refresh ratings` if you want to clear cached metadata and refetch.
+4. Use `Refresh ratings` if you want to clear cached metadata (`ratings` and `watch-history`) and refetch.
 
 ## Behavior Notes
 
 - `Non-actionable`, `Audio`, `Genre`, `Sort`, and `Landscape cards` selections all persist in extension storage so your view stays consistent across reloads.
-- `Curated` is API-driven: it fetches all watchlist pages up front via Crunchyroll API pagination and preloads ratings in batches.
-- Ratings and related metadata are fetched from Crunchyroll endpoints and cached locally for 12 hours.
+- `Curated` is API-driven: it fetches all watchlist pages up front via Crunchyroll API pagination, preloads ratings in batch CMS calls, and preloads watch history in paged account-level calls.
+- Ratings and watch-history data are cached locally for 12 hours.
+- `Last watched` is sourced from `date_played` in `/content/v2/<accountId>/watch-history`, joined by `series_id`; if no match exists, cards show `unknown` (or `never` when Crunchyroll marks series as never watched).
+- API-call strategy is bounded and avoids one-request-per-show loops in normal flow.
+- Typical cold-load call pattern:
+  - 1x `POST /auth/v1/token`
+  - 1-3x watchlist pagination calls (`n=100`)
+  - 1-Nx rating batch calls (`/content/v2/cms/objects/<comma_separated_ids>`, chunked)
+  - 1-Nx watch-history page calls (`/content/v2/<accountId>/watch-history?page_size=100&page=...`, early-stop after several no-match pages)
 - If API auth/loading fails, `Curated` shows an explicit API error instead of falling back to partial DOM-loaded rows.
 - `Curated` shows a spinner while loading, and data preload starts in the background as soon as the watchlist page is ready.
 - Crunchyroll native watchlist uses virtualization; `Curated` renders its own full-data list, so sorting/filtering is controlled entirely by the extension UI.

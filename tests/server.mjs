@@ -193,6 +193,86 @@ const watchlistRows = [
   })
 ];
 
+function makeWatchHistoryRow({
+  seriesId,
+  title,
+  slug,
+  seasonNumber = 1,
+  episodeNumber,
+  sequenceNumber,
+  playhead = 0,
+  datePlayed,
+  fullyWatched = false,
+  audioLocale = 'ja-JP'
+}) {
+  return {
+    id: `${seriesId}-history-${episodeNumber}`,
+    date_played: datePlayed,
+    parent_id: seriesId,
+    parent_type: 'series',
+    playhead,
+    fully_watched: fullyWatched,
+    panel: {
+      id: `${seriesId}-episode-${episodeNumber}`,
+      type: 'episode',
+      title: `${title} E${episodeNumber}`,
+      description: `${title} fixture history episode`,
+      slug_title: `${slug}-e${episodeNumber}`,
+      episode_metadata: {
+        series_id: seriesId,
+        series_title: title,
+        series_slug_title: slug,
+        episode_number: episodeNumber,
+        season_number: seasonNumber,
+        sequence_number: sequenceNumber,
+        audio_locale: audioLocale,
+        availability_starts: '2025-01-01T12:00:00Z',
+        availability_ends: '9998-12-01T07:59:00Z',
+        episode_air_date: '2025-01-01T12:00:00Z'
+      }
+    }
+  };
+}
+
+const watchHistoryRows = [
+  makeWatchHistoryRow({
+    seriesId: 'GHIGH456',
+    title: 'High Rated Show',
+    slug: 'high-rated-show',
+    seasonNumber: 2,
+    episodeNumber: 4,
+    sequenceNumber: 16,
+    playhead: 0,
+    fullyWatched: true,
+    datePlayed: '2025-03-14T11:30:00Z',
+    audioLocale: 'en-US'
+  }),
+  makeWatchHistoryRow({
+    seriesId: 'GLOW123',
+    title: 'Low Rated Show',
+    slug: 'low-rated-show',
+    seasonNumber: 1,
+    episodeNumber: 2,
+    sequenceNumber: 2,
+    playhead: 700,
+    fullyWatched: false,
+    datePlayed: '2025-02-09T10:15:00Z',
+    audioLocale: 'ja-JP'
+  }),
+  makeWatchHistoryRow({
+    seriesId: 'GNONE789',
+    title: 'No Rating Show',
+    slug: 'no-rating-show',
+    seasonNumber: 1,
+    episodeNumber: 1,
+    sequenceNumber: 1,
+    playhead: 1200,
+    fullyWatched: false,
+    datePlayed: '2025-03-19T08:20:00Z',
+    audioLocale: 'en-US'
+  })
+];
+
 function json(res, statusCode, body) {
   const payload = JSON.stringify(body);
   res.writeHead(statusCode, {
@@ -285,6 +365,29 @@ const server = createServer(async (req, res) => {
         data: pageRows,
         meta: {
           total_before_filter: watchlistRows.length
+        }
+      });
+      return;
+    }
+
+    if (url.pathname.match(/^\/content\/v2\/[^/]+\/watch-history$/)) {
+      const requestedAccount = decodeURIComponent(url.pathname.split('/')[3] || '');
+      if (requestedAccount !== ACCOUNT_ID) {
+        json(res, 403, { error: 'invalid_account' });
+        return;
+      }
+
+      const pageSize = Math.max(1, Number.parseInt(url.searchParams.get('page_size') || '100', 10) || 100);
+      const pageNumber = Math.max(1, Number.parseInt(url.searchParams.get('page') || '1', 10) || 1);
+      const start = (pageNumber - 1) * pageSize;
+      const pageRows = watchHistoryRows.slice(start, start + pageSize);
+
+      json(res, 200, {
+        total: watchHistoryRows.length,
+        data: pageRows,
+        meta: {
+          page: pageNumber,
+          page_size: pageSize
         }
       });
       return;
