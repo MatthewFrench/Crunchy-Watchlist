@@ -110,3 +110,50 @@ jobs:
           name: extension-safari
           path: dist/safari
           if-no-files-found: error
+
+  release:
+    name: Publish release artifacts
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - build-webextensions
+      - build-safari
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: extension-*
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Prepare release metadata
+        id: release_meta
+        run: |
+          VERSION=$(node -p "require('./extension/manifest.json').version")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}-main.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          echo "name=Crunchy Watchlist Curator ${VERSION} (main ${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT})" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.release_meta.outputs.tag }}" \
+            artifacts/extension-chrome/crunchy-watchlist-curator-chrome.zip \
+            artifacts/extension-edge/crunchy-watchlist-curator-edge.zip \
+            artifacts/extension-firefox/crunchy-watchlist-curator-firefox.zip \
+            artifacts/extension-firefox/crunchy-watchlist-curator-firefox.xpi \
+            artifacts/extension-safari/crunchy-watchlist-curator-safari-macos-app.zip \
+            artifacts/extension-safari/crunchy-watchlist-curator-safari-webextension-source.zip \
+            --title "${{ steps.release_meta.outputs.name }}" \
+            --target "$GITHUB_SHA" \
+            --notes "Auto-generated release from main branch run ${{ github.run_number }}."

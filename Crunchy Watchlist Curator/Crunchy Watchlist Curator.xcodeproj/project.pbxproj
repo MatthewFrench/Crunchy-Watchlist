@@ -641,7 +641,7 @@
 					"-framework",
 					SafariServices,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.yourCompany.Crunchy-Watchlist-Curator.Extension";
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.matthewfrench.CrunchyWatchlistCurator.Extension";
 				PRODUCT_NAME = "Crunchy Watchlist Curator Extension";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -674,7 +674,7 @@
 					"-framework",
 					SafariServices,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.yourCompany.Crunchy-Watchlist-Curator.Extension";
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.matthewfrench.CrunchyWatchlistCurator.Extension";
 				PRODUCT_NAME = "Crunchy Watchlist Curator Extension";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -715,7 +715,7 @@
 					"-framework",
 					WebKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.yourCompany.Crunchy-Watchlist-Curator";
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.matthewfrench.CrunchyWatchlistCurator";
 				PRODUCT_NAME = "Crunchy Watchlist Curator";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -755,7 +755,7 @@
 					"-framework",
 					WebKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.yourCompany.Crunchy-Watchlist-Curator";
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.matthewfrench.CrunchyWatchlistCurator";
 				PRODUCT_NAME = "Crunchy Watchlist Curator";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -792,7 +792,7 @@
 					"-framework",
 					SafariServices,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.yourCompany.Crunchy-Watchlist-Curator.Extension";
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.matthewfrench.CrunchyWatchlistCurator.Extension";
 				PRODUCT_NAME = "Crunchy Watchlist Curator Extension";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -827,7 +827,7 @@
 					"-framework",
 					SafariServices,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.yourCompany.Crunchy-Watchlist-Curator.Extension";
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.matthewfrench.CrunchyWatchlistCurator.Extension";
 				PRODUCT_NAME = "Crunchy Watchlist Curator Extension";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -867,7 +867,7 @@
 					"-framework",
 					WebKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.yourCompany.Crunchy-Watchlist-Curator";
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.matthewfrench.CrunchyWatchlistCurator";
 				PRODUCT_NAME = "Crunchy Watchlist Curator";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
@@ -908,7 +908,7 @@
 					"-framework",
 					WebKit,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.yourCompany.Crunchy-Watchlist-Curator";
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.matthewfrench.CrunchyWatchlistCurator";
 				PRODUCT_NAME = "Crunchy Watchlist Curator";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;

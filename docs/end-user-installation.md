@@ -93,6 +93,50 @@ Notes:
 - Unsigned app builds may be blocked by Gatekeeper on end-user systems.
 - For broad end-user distribution, use signed/notarized release builds.
 
+## Local Safari testing workflow
+
+For development testing on macOS:
+
+1. Build the local wrapper:
+
+   ```bash
+   npm run build:safari
+   ```
+
+2. Unzip the wrapper:
+
+   ```bash
+   unzip -q dist/safari/crunchy-watchlist-curator-safari-macos-app.zip -d /tmp/cw-safari
+   ```
+
+3. Remove strict Gatekeeper flags (unsigned test build only):
+
+   ```bash
+   xattr -dr com.apple.quarantine /tmp/cw-safari/"Crunchy Watchlist Curator.app"
+   ```
+
+4. Replace your existing test copy and launch:
+
+   ```bash
+   rm -rf "/Applications/Crunchy Watchlist Curator.app"
+   cp -R "/tmp/cw-safari/Crunchy Watchlist Curator.app" /Applications/
+   open "/Applications/Crunchy Watchlist Curator.app"
+   ```
+
+5. In Safari, go to `Safari > Settings > Extensions` and enable the extension.
+
+6. Open `https://www.crunchyroll.com/watchlist` and verify the `Curated` tab.
+
+For faster iteration without re-running manual install every time, open the Xcode project and run the `Crunchy Watchlist Curator (macOS)` scheme directly:
+
+```bash
+open "Crunchy Watchlist Curator/Crunchy Watchlist Curator.xcodeproj"
+```
+
+Build and run from Xcode on `My Mac`, then use Safari extension toggles to pick up each build.
+
+Use Console.app and Safari Extensions logs for runtime debugging when behavior differs from test expectations.
+
 ## Verify installation
 
 1. Visit `https://www.crunchyroll.com/watchlist`.
