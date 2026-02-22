@@ -167,6 +167,7 @@ Important `data[]` keys observed:
 
 - `panel` (episode/series panel payload)
 - Timestamps: `date_added`, `updated_at` (used when available for date sorting)
+- Watch progress timestamps: `last_watched`, `watch_history_updated_at` (used when available for dormant/rewatch discovery sorts)
 - Flags: `new`, `is_favorite`, `fully_watched`, `never_watched`
 - `playhead`
 
@@ -200,7 +201,7 @@ Settings key: `cw_settings_v1`
   "audioLocaleFilter": "any | en-US | ...",
   "genreFilter": "any | action | fantasy | ...",
   "cardLayout": "portrait | landscape",
-  "sortMode": "none | rating_desc | rating_asc | date_added_desc | date_added_asc | date_updated_desc | date_updated_asc | votes_desc | star_points_desc | star_5_desc | star_4_desc | star_3_desc | star_2_desc | star_1_desc | star_5_pct_desc | star_4_pct_desc | star_3_pct_desc | star_2_pct_desc | star_1_pct_desc"
+  "sortMode": "none | rating_desc | rating_asc | hidden_gems_desc | consensus_quality_desc | controversial_desc | quality_floor_asc | quick_wins_asc | dormant_backlog_asc | rewatch_memory_desc | date_added_desc | date_added_asc | date_updated_desc | date_updated_asc | votes_desc | star_points_desc | star_5_desc | star_4_desc | star_3_desc | star_2_desc | star_1_desc | star_5_pct_desc | star_4_pct_desc | star_3_pct_desc | star_2_pct_desc | star_1_pct_desc"
 }
 ```
 
@@ -246,9 +247,20 @@ Implication: storing normalized rating cache locally is small and safe for long-
 - Uses selected audio-locale and genre dropdown values for filtering
 - Supports a card-layout toggle (`portrait` / `landscape`) driven by persisted setting state
 - Shows next unwatched episode (`Sx Ey`) from watchlist panel metadata
+- Shows `Last watched` on cards (prefers `last_watched` / `watch_history_updated_at`; falls back to update/add timestamps)
 - Shows seasons/episodes totals and estimated unwatched-left counts when episode ordering metadata is available
 - Shows category/genre-like tags from `series_metadata.tenant_categories` when present
-- Supports sort by rating ascending/descending, date added, date updated, total rating count, total star points, per-star counts, and per-star percentages in the extension-owned curated grid built from full watchlist API data
+- Supports sort by rating ascending/descending, date added, date updated, total rating count, total star points, per-star counts/percentages, plus discovery modes (`hidden_gems`, `consensus_quality`, `controversial`, `quality_floor`, `quick_wins`, `dormant_backlog`, `rewatch_memory`) in the extension-owned curated grid built from full watchlist API data
+
+Discovery sort definitions:
+
+- `hidden_gems_desc`: higher average rating first; ties break to lower rating counts.
+- `consensus_quality_desc`: maximize `(5★% + 4★%) - (2★% + 1★%)`.
+- `controversial_desc`: maximize distribution variance across star buckets.
+- `quality_floor_asc`: minimize `2 * 1★% + 2★%`.
+- `quick_wins_asc`: prioritize actionable entries with the fewest unwatched episodes left.
+- `dormant_backlog_asc`: oldest `last_watched` (fallback `updated`) timestamp first, with actionable entries prioritized.
+- `rewatch_memory_desc`: prioritize shows with meaningful watch progress (>=20%), at least ~3 weeks dormant, and larger episode counts.
 - Adds curated-card heart/trash controls that forward to native Crunchyroll watchlist actions
 - Adds curated thumbnail hover preview via stream metadata when preview URL is available
 - Uses portrait cover art for portrait cards and wide cover art for landscape cards (with ratio-based fallbacks when only one variant exists)

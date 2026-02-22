@@ -153,6 +153,9 @@ test.describe('Crunchy Watchlist Curator', () => {
       page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__next')
     ).toHaveText('Next unwatched: S2 E5');
     await expect(
+      page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__last-watched')
+    ).toContainText('Last watched:');
+    await expect(
       page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__scope')
     ).toContainText('Seasons: 3');
     await expect(
@@ -192,6 +195,48 @@ test.describe('Crunchy Watchlist Curator', () => {
 
     const afterOneStarPct = await visibleFixtureOrder(page);
     expect(afterOneStarPct[0]).toBe('Low Rated Show');
+
+    await page.selectOption('#cw-sort-mode', 'hidden_gems_desc');
+    await page.waitForTimeout(250);
+
+    const afterHiddenGems = await visibleFixtureOrder(page);
+    expect(afterHiddenGems[0]).toBe('High Rated Show');
+
+    await page.selectOption('#cw-sort-mode', 'consensus_quality_desc');
+    await page.waitForTimeout(250);
+
+    const afterConsensus = await visibleFixtureOrder(page);
+    expect(afterConsensus[0]).toBe('High Rated Show');
+
+    await page.selectOption('#cw-sort-mode', 'controversial_desc');
+    await page.waitForTimeout(250);
+
+    const afterControversial = await visibleFixtureOrder(page);
+    expect(afterControversial[0]).toBe('Low Rated Show');
+
+    await page.selectOption('#cw-sort-mode', 'quality_floor_asc');
+    await page.waitForTimeout(250);
+
+    const afterQualityFloor = await visibleFixtureOrder(page);
+    expect(afterQualityFloor[0]).toBe('High Rated Show');
+
+    await page.selectOption('#cw-sort-mode', 'quick_wins_asc');
+    await page.waitForTimeout(250);
+
+    const afterQuickWins = await visibleFixtureOrder(page);
+    expect(afterQuickWins[0]).toBe('No Rating Show');
+
+    await page.selectOption('#cw-sort-mode', 'dormant_backlog_asc');
+    await page.waitForTimeout(250);
+
+    const afterDormantBacklog = await visibleFixtureOrder(page);
+    expect(afterDormantBacklog[0]).toBe('Low Rated Show');
+
+    await page.selectOption('#cw-sort-mode', 'rewatch_memory_desc');
+    await page.waitForTimeout(250);
+
+    const afterRewatchMemory = await visibleFixtureOrder(page);
+    expect(afterRewatchMemory[0]).toBe('High Rated Show');
 
     await page.selectOption('#cw-sort-mode', 'date_added_desc');
     await page.waitForTimeout(250);

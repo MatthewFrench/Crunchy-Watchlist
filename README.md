@@ -10,9 +10,10 @@ This extension improves `https://www.crunchyroll.com/watchlist` by adding:
 - Rich rating UI on curated cards (score, rating count, 5-star histogram)
 - Layout-aware cover art selection (portrait cards prefer tall posters; landscape cards prefer wide posters)
 - Small per-show description snippet on each curated card
+- `Last watched` line on each card (with relative age)
 - Next unwatched episode line (`Sx Ey`) plus series totals (`seasons`, `episodes`, and estimated `unwatched left` when calculable)
 - Genre/category line when available from Crunchyroll metadata
-- A `Sort` selector for rating, `date added`, `date updated`, total rating count, total star points, per-star counts (`5★` to `1★`), and per-star percentages (`5★%` to `1★%`)
+- A `Sort` selector for rating/date/rating-volume metrics plus discovery modes: `Hidden gems`, `Consensus quality`, `Controversial`, `Quality floor`, `Quick wins`, `Dormant backlog`, and `May need re-watch to remember`
 - Native action buttons on curated cards (`Favorite` heart and `Remove` trash)
 - Hover preview on curated thumbnails when a stream preview URL is available
 
@@ -134,3 +135,12 @@ Edits to `extension/content.js` or `extension/content.css` trigger:
 ## Local fixture data
 
 Automated tests use a local fixture server (`tests/server.mjs`) and fixture page (`tests/fixtures/watchlist-fixture.html`) so UI logic can be validated quickly without account/login dependencies.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 only (`GPL-3.0-only`). See `LICENSE`.
+
+## Legal Notice
+
+- Crunchy Watchlist Curator is an independent, unofficial project and is not affiliated with, endorsed by, or sponsored by Crunchyroll, LLC, Sony Group Corporation, or their affiliates.
+- The GPL license in this repository applies only to the original code and assets included in this project. It does not grant any rights to Crunchyroll trademarks, logos, branding, or third-party content and services.
