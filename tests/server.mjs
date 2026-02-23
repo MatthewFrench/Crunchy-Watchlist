@@ -16,6 +16,10 @@ const ratingMap = {
     description: 'A high-rated fixture series with English audio.',
     seasonCount: 3,
     episodeCount: 36,
+    episodeCountByAudioLocale: {
+      'en-US': 36,
+      'ja-JP': 32
+    },
     tenantCategories: ['action', 'fantasy']
   },
   GLOW123: {
@@ -49,6 +53,25 @@ const ratingMap = {
     tenantCategories: ['romance']
   }
 };
+
+function pickLocalizedValue(valuesByLocale, preferredAudioLanguage, fallbackValue) {
+  if (!valuesByLocale || typeof valuesByLocale !== 'object' || Array.isArray(valuesByLocale)) {
+    return fallbackValue;
+  }
+
+  const normalizedPreferred = String(preferredAudioLanguage || '').trim().toLowerCase();
+  if (!normalizedPreferred) {
+    return fallbackValue;
+  }
+
+  for (const [locale, value] of Object.entries(valuesByLocale)) {
+    if (String(locale || '').trim().toLowerCase() === normalizedPreferred) {
+      return value;
+    }
+  }
+
+  return fallbackValue;
+}
 
 function makeWatchlistRow({
   seriesId,
@@ -248,6 +271,18 @@ const watchHistoryRows = [
     audioLocale: 'en-US'
   }),
   makeWatchHistoryRow({
+    seriesId: 'GHIGH456',
+    title: 'High Rated Show',
+    slug: 'high-rated-show',
+    seasonNumber: 3,
+    episodeNumber: 4,
+    sequenceNumber: 28,
+    playhead: 0,
+    fullyWatched: true,
+    datePlayed: '2025-03-01T08:05:00Z',
+    audioLocale: 'ja-JP'
+  }),
+  makeWatchHistoryRow({
     seriesId: 'GLOW123',
     title: 'Low Rated Show',
     slug: 'low-rated-show',
@@ -407,6 +442,7 @@ const server = createServer(async (req, res) => {
 
     if (url.pathname.startsWith('/content/v2/cms/objects/')) {
       const encodedIds = url.pathname.replace('/content/v2/cms/objects/', '');
+      const preferredAudioLanguage = String(url.searchParams.get('preferred_audio_language') || '').trim();
       const seriesIds = decodeURIComponent(encodedIds)
         .split(',')
         .map((value) => value.trim())
@@ -414,6 +450,16 @@ const server = createServer(async (req, res) => {
 
       const data = seriesIds.map((seriesId) => {
         const details = ratingMap[seriesId];
+        const localizedEpisodeCount = pickLocalizedValue(
+          details?.episodeCountByAudioLocale,
+          preferredAudioLanguage,
+          details?.episodeCount ?? null
+        );
+        const localizedSeasonCount = pickLocalizedValue(
+          details?.seasonCountByAudioLocale,
+          preferredAudioLanguage,
+          details?.seasonCount ?? null
+        );
         return {
           id: seriesId,
           type: 'series',
@@ -424,8 +470,8 @@ const server = createServer(async (req, res) => {
             subtitle_locales: ['en-US'],
             is_dubbed: (details?.audioLocales || []).includes('en-US'),
             is_subbed: true,
-            season_count: details?.seasonCount ?? null,
-            episode_count: details?.episodeCount ?? null,
+            season_count: localizedSeasonCount,
+            episode_count: localizedEpisodeCount,
             tenant_categories: details?.tenantCategories || []
           },
           rating: details?.average != null

@@ -31,6 +31,7 @@
   const RATING_CACHE_KEY = "cw_rating_cache_v2";
   const WATCH_HISTORY_CACHE_KEY = "cw_watch_history_cache_v1";
   const WATCHLIST_CACHE_KEY = "cw_watchlist_cache_v1";
+  const WATCH_HISTORY_CACHE_VERSION = 2;
   const RATING_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
   const WATCH_HISTORY_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
   const WATCHLIST_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -50,6 +51,9 @@
   const AUTH_DEVICE_KEY = "cw_auth_device_id_v1";
   const AUTH_TOKEN_SKEW_MS = 60 * 1000;
   const PREVIEW_HOVER_DELAY_MS = 220;
+  const PREFERRED_AUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
+  const PREFERRED_AUDIO_STORAGE_SCAN_LIMIT = 120;
+  const PREFERRED_AUDIO_VALUE_SCAN_LIMIT = 1200;
   const DEFAULT_SORT_MODE = "consensus_quality_desc";
   const VALID_SORT_MODES = new Set([
     "none",
@@ -101,10 +105,14 @@
     settings: { ...DEFAULT_SETTINGS },
     ratingCache: {},
     ratingInflight: new Map(),
+    ratingLocalePreloadInflight: new Map(),
+    watchHistoryLocalePreloadInflight: new Map(),
     watchHistoryCache: {
+      version: WATCH_HISTORY_CACHE_VERSION,
       accountId: "",
       updatedAt: 0,
-      bySeriesId: {}
+      bySeriesId: {},
+      bySeriesIdAudioLocale: {}
     },
     watchHistoryStatus: "idle",
     watchlistCache: {
@@ -113,6 +121,8 @@
       rows: []
     },
     watchHistoryInflight: null,
+    preferredAudioLanguage: null,
+    preferredAudioLanguageUpdatedAt: 0,
     previewCache: {},
     previewInflight: new Map(),
     authToken: null,
@@ -134,6 +144,7 @@
     genreFilterSelectEl: null,
     statsEl: null,
     gridEl: null,
+    curatedGridRenderSignature: "",
     framedRootEl: null,
     nativeHiddenNodes: []
   };
@@ -443,6 +454,265 @@
     return normalized;
   }
 
+  function normalizeAudioLocale(locale) {
+    const normalized = normalizeAudioLocales([locale]);
+    return normalized.length ? normalized[0] : null;
+  }
+
+  function normalizeLikelyLocale(value) {
+    const normalized = normalizeAudioLocale(value);
+    if (!normalized) {
+      return null;
+    }
+
+    if (!/^[a-z]{2,3}(?:-[a-z0-9]{2,8}){1,3}$/i.test(normalized)) {
+      return null;
+    }
+
+    return normalized;
+  }
+
+  const AUDIO_LOCALE_FIELD_CANDIDATES = new Set([
+    "preferred_audio_language",
+    "preferredaudiolanguage",
+    "preferred_audio_locale",
+    "preferredaudiolocale",
+    "default_audio_language",
+    "defaultaudiolanguage",
+    "default_audio_locale",
+    "defaultaudiolocale",
+    "audio_language",
+    "audiolanguage",
+    "audio_locale",
+    "audiolocale"
+  ]);
+
+  const AUDIO_LOCALE_FIELD_PATTERN = /(preferred[_-]?audio|default[_-]?audio|audio[_-]?(?:language|locale))/i;
+  const AUDIO_LOCALE_CONTAINER_PATTERN = /(settings?|prefs?|preferences?|profile|account|user|player|state|props|data|app)/i;
+
+  function isAudioLocaleFieldName(fieldName) {
+    const normalized = String(fieldName || "").trim().toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+
+    if (AUDIO_LOCALE_FIELD_CANDIDATES.has(normalized)) {
+      return true;
+    }
+
+    return AUDIO_LOCALE_FIELD_PATTERN.test(normalized);
+  }
+
+  function shouldTraverseAudioLocaleContainer(fieldName) {
+    return AUDIO_LOCALE_CONTAINER_PATTERN.test(String(fieldName || "").trim().toLowerCase());
+  }
+
+  function parsePotentialJsonValue(value) {
+    if (typeof value !== "string") {
+      return null;
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) {
+      return null;
+    }
+
+    if (trimmed.length > 500000) {
+      return null;
+    }
+
+    return safeJsonParse(trimmed, null);
+  }
+
+  function extractAudioLocaleFromUnknown(sourceValue) {
+    const queue = [sourceValue];
+    const visitedObjects = new WeakSet();
+    let scannedNodes = 0;
+
+    while (queue.length && scannedNodes < PREFERRED_AUDIO_VALUE_SCAN_LIMIT) {
+      scannedNodes += 1;
+      const currentValue = queue.shift();
+
+      if (currentValue == null) {
+        continue;
+      }
+
+      if (typeof currentValue === "string") {
+        const trimmed = currentValue.trim();
+        if (!trimmed) {
+          continue;
+        }
+
+        const directLocale = normalizeLikelyLocale(trimmed);
+        if (directLocale) {
+          return directLocale;
+        }
+
+        const inlineLocaleMatch = trimmed.match(
+          /"(?:preferred[_-]?audio(?:[_-]?(?:language|locale))|default[_-]?audio(?:[_-]?(?:language|locale))|audio[_-]?(?:language|locale))"\s*:\s*"([^"]+)"/i
+        );
+        if (inlineLocaleMatch) {
+          const matchedLocale = normalizeLikelyLocale(inlineLocaleMatch[1]);
+          if (matchedLocale) {
+            return matchedLocale;
+          }
+        }
+
+        const parsedJsonValue = parsePotentialJsonValue(trimmed);
+        if (parsedJsonValue != null) {
+          queue.push(parsedJsonValue);
+        }
+
+        continue;
+      }
+
+      if (typeof currentValue !== "object") {
+        continue;
+      }
+
+      if (visitedObjects.has(currentValue)) {
+        continue;
+      }
+      visitedObjects.add(currentValue);
+
+      if (Array.isArray(currentValue)) {
+        for (let index = 0; index < currentValue.length; index += 1) {
+          queue.push(currentValue[index]);
+        }
+        continue;
+      }
+
+      const entries = Object.entries(currentValue);
+      for (const [fieldName, fieldValue] of entries) {
+        if (fieldValue == null) {
+          continue;
+        }
+
+        if (isAudioLocaleFieldName(fieldName)) {
+          if (typeof fieldValue === "string") {
+            const directFieldLocale = normalizeLikelyLocale(fieldValue);
+            if (directFieldLocale) {
+              return directFieldLocale;
+            }
+
+            const parsedFieldJson = parsePotentialJsonValue(fieldValue);
+            if (parsedFieldJson != null) {
+              queue.unshift(parsedFieldJson);
+            }
+          } else {
+            queue.unshift(fieldValue);
+          }
+          continue;
+        }
+
+        if (typeof fieldValue === "object" && shouldTraverseAudioLocaleContainer(fieldName)) {
+          queue.push(fieldValue);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  function detectPreferredAudioLanguageFromStorage() {
+    if (typeof localStorage === "undefined") {
+      return null;
+    }
+
+    try {
+      const directStorageKeys = [
+        "preferred_audio_language",
+        "preferredAudioLanguage",
+        "preferred_audio_locale",
+        "preferredAudioLocale",
+        "audio_locale",
+        "audioLocale",
+        "audio_language",
+        "audioLanguage"
+      ];
+
+      for (const key of directStorageKeys) {
+        const rawValue = localStorage.getItem(key);
+        if (!rawValue) {
+          continue;
+        }
+
+        const matchedLocale = extractAudioLocaleFromUnknown(rawValue);
+        if (matchedLocale) {
+          return matchedLocale;
+        }
+      }
+
+      const scanLimit = Math.min(PREFERRED_AUDIO_STORAGE_SCAN_LIMIT, Math.max(0, localStorage.length));
+      for (let index = 0; index < scanLimit; index += 1) {
+        const key = localStorage.key(index);
+        if (!key) {
+          continue;
+        }
+
+        const normalizedKey = key.trim().toLowerCase();
+        if (!isAudioLocaleFieldName(normalizedKey) && !shouldTraverseAudioLocaleContainer(normalizedKey)) {
+          continue;
+        }
+
+        const rawValue = localStorage.getItem(key);
+        if (!rawValue) {
+          continue;
+        }
+
+        const matchedLocale = extractAudioLocaleFromUnknown(rawValue);
+        if (matchedLocale) {
+          return matchedLocale;
+        }
+      }
+    } catch (_) {
+      return null;
+    }
+
+    return null;
+  }
+
+  function detectPreferredAudioLanguageFromGlobals() {
+    const globalCandidates = [
+      window.__INITIAL_STATE__,
+      window.__NEXT_DATA__,
+      window.__NUXT__,
+      window.__APOLLO_STATE__,
+      window.__APP_STATE__,
+      window.__STATE__
+    ];
+
+    for (const candidate of globalCandidates) {
+      const matchedLocale = extractAudioLocaleFromUnknown(candidate);
+      if (matchedLocale) {
+        return matchedLocale;
+      }
+    }
+
+    return null;
+  }
+
+  function detectPreferredAudioLanguageFromBrowser() {
+    const candidates = [
+      ...(Array.isArray(navigator.languages) ? navigator.languages : []),
+      navigator.language,
+      document?.documentElement?.lang
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = normalizeLikelyLocale(candidate);
+      if (normalized) {
+        return normalized;
+      }
+    }
+
+    return null;
+  }
+
   function normalizeTagList(values) {
     if (!Array.isArray(values)) {
       return [];
@@ -588,10 +858,64 @@
     };
   }
 
+  function normalizeAudioLocaleCountMap(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {};
+    }
+
+    const normalizedMap = {};
+    Object.entries(value).forEach(([localeKey, countValue]) => {
+      const locale = normalizeAudioLocale(localeKey);
+      const count = sanitizePositiveInt(countValue);
+      if (!locale || count == null) {
+        return;
+      }
+
+      normalizedMap[locale.toLowerCase()] = count;
+    });
+
+    return normalizedMap;
+  }
+
+  function mergeAudioLocaleCountMap(previousMap, audioLocale, count) {
+    const merged = { ...normalizeAudioLocaleCountMap(previousMap) };
+    const locale = normalizeAudioLocale(audioLocale);
+    const normalizedCount = sanitizePositiveInt(count);
+
+    if (locale && normalizedCount != null) {
+      merged[locale.toLowerCase()] = normalizedCount;
+    }
+
+    return merged;
+  }
+
+  function getAudioLocaleCountFromMap(map, audioLocale) {
+    const locale = normalizeAudioLocale(audioLocale);
+    if (!locale) {
+      return null;
+    }
+
+    const normalizedMap = normalizeAudioLocaleCountMap(map);
+    return sanitizePositiveInt(normalizedMap[locale.toLowerCase()]);
+  }
+
   function mergeCachedSeriesData(seriesId, nextData) {
     const previous = state.ratingCache[seriesId] && typeof state.ratingCache[seriesId] === "object"
       ? state.ratingCache[seriesId]
       : {};
+    const preferredAudioLocale = normalizeAudioLocale(nextData.preferredAudioLocale);
+    const normalizedEpisodeCount = sanitizePositiveInt(nextData.episodeCount);
+    const normalizedSeasonCount = sanitizePositiveInt(nextData.seasonCount);
+    const episodeCountByAudioLocale = mergeAudioLocaleCountMap(
+      previous.episodeCountByAudioLocale,
+      preferredAudioLocale,
+      normalizedEpisodeCount
+    );
+    const seasonCountByAudioLocale = mergeAudioLocaleCountMap(
+      previous.seasonCountByAudioLocale,
+      preferredAudioLocale,
+      normalizedSeasonCount
+    );
 
     state.ratingCache[seriesId] = {
       rating: nextData.rating ?? previous.rating ?? null,
@@ -607,8 +931,10 @@
           : typeof previous.description === "string"
             ? previous.description
             : "",
-      episodeCount: sanitizePositiveInt(nextData.episodeCount) ?? sanitizePositiveInt(previous.episodeCount),
-      seasonCount: sanitizePositiveInt(nextData.seasonCount) ?? sanitizePositiveInt(previous.seasonCount),
+      episodeCount: normalizedEpisodeCount ?? sanitizePositiveInt(previous.episodeCount),
+      seasonCount: normalizedSeasonCount ?? sanitizePositiveInt(previous.seasonCount),
+      episodeCountByAudioLocale,
+      seasonCountByAudioLocale,
       genreTags:
         Array.isArray(nextData.genreTags) && nextData.genreTags.length
           ? normalizeTagList(nextData.genreTags)
@@ -671,6 +997,10 @@
       return false;
     }
 
+    if (Number(cache.version) !== WATCH_HISTORY_CACHE_VERSION) {
+      return false;
+    }
+
     if (!cache.bySeriesId || typeof cache.bySeriesId !== "object" || Array.isArray(cache.bySeriesId)) {
       return false;
     }
@@ -696,23 +1026,89 @@
       return null;
     }
 
+    const seasonNumber = sanitizePositiveInt(value.seasonNumber ?? value?.panel?.episode_metadata?.season_number);
+    const episodeNumber = sanitizePositiveInt(value.episodeNumber ?? value?.panel?.episode_metadata?.episode_number);
+    const absoluteEpisodeNumber = pickFirstPositiveInt([
+      sanitizePositiveInt(value.absoluteEpisodeNumber),
+      sanitizePositiveInt(value.sequenceNumber),
+      sanitizePositiveInt(value.sequence_number),
+      sanitizePositiveInt(value?.panel?.episode_metadata?.sequence_number),
+      sanitizePositiveInt(value?.panel?.episode_metadata?.episode_sequence_number),
+      sanitizePositiveInt(value?.panel?.episode_metadata?.global_episode_number),
+      sanitizePositiveInt(value?.panel?.episode_metadata?.global_episode_num),
+      seasonNumber === 1 ? episodeNumber : null
+    ]);
+    const audioLocale = normalizeAudioLocale(
+      value.audioLocale ??
+      value.audio_locale ??
+      value?.panel?.episode_metadata?.audio_locale ??
+      value?.panel?.audio_locale
+    );
+
     return {
       datePlayedMs,
       datePlayed: new Date(datePlayedMs).toISOString(),
-      seasonNumber: sanitizePositiveInt(value.seasonNumber),
-      episodeNumber: sanitizePositiveInt(value.episodeNumber),
+      seasonNumber,
+      episodeNumber,
+      absoluteEpisodeNumber,
       episodeTitle: typeof value.episodeTitle === "string" ? value.episodeTitle : "",
       playhead: Number(value.playhead || 0),
-      fullyWatched: Boolean(value.fullyWatched)
+      fullyWatched: Boolean(value.fullyWatched),
+      audioLocale
     };
+  }
+
+  function normalizeStoredWatchHistoryBySeriesAudioLocale(raw) {
+    if (!raw || typeof raw !== "object") {
+      return {};
+    }
+
+    const normalizedBySeries = {};
+
+    Object.entries(raw).forEach(([seriesId, localeMapValue]) => {
+      if (!seriesId || !localeMapValue || typeof localeMapValue !== "object" || Array.isArray(localeMapValue)) {
+        return;
+      }
+
+      const normalizedLocaleMap = {};
+
+      Object.entries(localeMapValue).forEach(([localeKey, entryValue]) => {
+        const normalizedEntry = normalizeWatchHistoryEntry(entryValue);
+        if (!normalizedEntry) {
+          return;
+        }
+
+        const locale = normalizeAudioLocale(normalizedEntry.audioLocale || localeKey);
+        if (!locale) {
+          return;
+        }
+
+        const localeStorageKey = locale.toLowerCase();
+        const previousEntry = normalizedLocaleMap[localeStorageKey];
+        if (!previousEntry || normalizedEntry.datePlayedMs > previousEntry.datePlayedMs) {
+          normalizedLocaleMap[localeStorageKey] = {
+            ...normalizedEntry,
+            audioLocale: locale
+          };
+        }
+      });
+
+      if (Object.keys(normalizedLocaleMap).length) {
+        normalizedBySeries[seriesId] = normalizedLocaleMap;
+      }
+    });
+
+    return normalizedBySeries;
   }
 
   function normalizeStoredWatchHistoryCache(raw) {
     if (!raw || typeof raw !== "object") {
       return {
+        version: WATCH_HISTORY_CACHE_VERSION,
         accountId: "",
         updatedAt: 0,
-        bySeriesId: {}
+        bySeriesId: {},
+        bySeriesIdAudioLocale: {}
       };
     }
 
@@ -729,10 +1125,14 @@
       }
     });
 
+    const bySeriesIdAudioLocale = normalizeStoredWatchHistoryBySeriesAudioLocale(raw.bySeriesIdAudioLocale);
+
     return {
+      version: Number(raw.version) || 0,
       accountId: typeof raw.accountId === "string" ? raw.accountId : "",
       updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : 0,
-      bySeriesId
+      bySeriesId,
+      bySeriesIdAudioLocale
     };
   }
 
@@ -780,13 +1180,39 @@
     return Date.now() - cache.updatedAt < WATCHLIST_CACHE_TTL_MS;
   }
 
-  function getCachedWatchHistory(seriesId) {
+  function getCachedWatchHistory(seriesId, audioLocale = null, allowSeriesFallback = true) {
     if (!seriesId || !state.watchHistoryCache || typeof state.watchHistoryCache !== "object") {
       return null;
     }
 
     const bySeriesId = state.watchHistoryCache.bySeriesId;
     if (!bySeriesId || typeof bySeriesId !== "object") {
+      return null;
+    }
+
+    const normalizedAudioLocale = normalizeAudioLocale(audioLocale);
+    if (normalizedAudioLocale) {
+      const bySeriesIdAudioLocale = state.watchHistoryCache.bySeriesIdAudioLocale;
+      const perSeriesLocaleMap =
+        bySeriesIdAudioLocale &&
+        typeof bySeriesIdAudioLocale === "object" &&
+        !Array.isArray(bySeriesIdAudioLocale[seriesId]) &&
+        typeof bySeriesIdAudioLocale[seriesId] === "object"
+          ? bySeriesIdAudioLocale[seriesId]
+          : null;
+
+      if (perSeriesLocaleMap) {
+        const matchedByLocale = normalizeWatchHistoryEntry(perSeriesLocaleMap[normalizedAudioLocale.toLowerCase()]);
+        if (matchedByLocale) {
+          return {
+            ...matchedByLocale,
+            audioLocale: normalizeAudioLocale(matchedByLocale.audioLocale) || normalizedAudioLocale
+          };
+        }
+      }
+    }
+
+    if (!allowSeriesFallback) {
       return null;
     }
 
@@ -1230,7 +1656,32 @@
   }
 
   function getPreferredAudioLanguage() {
-    return "en-US";
+    const now = Date.now();
+    if (
+      state.preferredAudioLanguage &&
+      now - state.preferredAudioLanguageUpdatedAt < PREFERRED_AUDIO_CACHE_TTL_MS
+    ) {
+      return state.preferredAudioLanguage;
+    }
+
+    const detectedPreferredAudioLanguage =
+      detectPreferredAudioLanguageFromStorage() ||
+      detectPreferredAudioLanguageFromGlobals() ||
+      detectPreferredAudioLanguageFromBrowser() ||
+      "en-US";
+    const normalizedPreferredAudioLanguage = normalizeLikelyLocale(detectedPreferredAudioLanguage) || "en-US";
+    const previousPreferredAudioLanguage = state.preferredAudioLanguage;
+
+    state.preferredAudioLanguage = normalizedPreferredAudioLanguage;
+    state.preferredAudioLanguageUpdatedAt = now;
+
+    if (previousPreferredAudioLanguage !== normalizedPreferredAudioLanguage) {
+      runtimeEvent("preferred-audio-language-detected", {
+        locale: normalizedPreferredAudioLanguage
+      });
+    }
+
+    return normalizedPreferredAudioLanguage;
   }
 
   async function fetchWatchlistPage(tokenEntry, start) {
@@ -1306,11 +1757,13 @@
     return allRows;
   }
 
-  async function fetchWatchHistoryPage(tokenEntry, pageNumber) {
+  async function fetchWatchHistoryPage(tokenEntry, pageNumber, preferredAudioLanguage = getPreferredAudioLanguage()) {
     const accountId = tokenEntry?.accountId;
+    const effectivePreferredAudioLanguage =
+      normalizeAudioLocale(preferredAudioLanguage) || getPreferredAudioLanguage();
     const params = new URLSearchParams({
       page_size: String(WATCH_HISTORY_PAGE_SIZE),
-      preferred_audio_language: getPreferredAudioLanguage(),
+      preferred_audio_language: effectivePreferredAudioLanguage,
       locale: getLocale()
     });
 
@@ -1350,7 +1803,7 @@
     return entry?.panel?.episode_metadata?.series_id || entry?.panel?.series_metadata?.series_id || null;
   }
 
-  function parseWatchHistoryRow(entry) {
+  function parseWatchHistoryRow(entry, fallbackAudioLocale = null) {
     const seriesId = getWatchHistorySeriesId(entry);
     if (!seriesId) {
       return null;
@@ -1361,26 +1814,46 @@
       return null;
     }
 
+    const seasonNumber = sanitizePositiveInt(entry?.panel?.episode_metadata?.season_number);
+    const episodeNumber = sanitizePositiveInt(entry?.panel?.episode_metadata?.episode_number);
+    const absoluteEpisodeNumber = pickFirstPositiveInt([
+      sanitizePositiveInt(entry?.panel?.episode_metadata?.sequence_number),
+      sanitizePositiveInt(entry?.panel?.episode_metadata?.episode_sequence_number),
+      sanitizePositiveInt(entry?.panel?.episode_metadata?.global_episode_number),
+      sanitizePositiveInt(entry?.panel?.episode_metadata?.global_episode_num),
+      seasonNumber === 1 ? episodeNumber : null
+    ]);
+    const audioLocale = normalizeAudioLocale(
+      entry?.panel?.episode_metadata?.audio_locale ||
+      entry?.panel?.audio_locale ||
+      entry?.audio_locale ||
+      entry?.audioLocale ||
+      fallbackAudioLocale
+    );
+
     return {
       seriesId,
       datePlayedMs,
       datePlayed: new Date(datePlayedMs).toISOString(),
-      seasonNumber: sanitizePositiveInt(entry?.panel?.episode_metadata?.season_number),
-      episodeNumber: sanitizePositiveInt(entry?.panel?.episode_metadata?.episode_number),
+      seasonNumber,
+      episodeNumber,
+      absoluteEpisodeNumber,
       episodeTitle: typeof entry?.panel?.title === "string" ? entry.panel.title : "",
       playhead: Number(entry?.playhead || 0),
-      fullyWatched: Boolean(entry?.fully_watched)
+      fullyWatched: Boolean(entry?.fully_watched),
+      audioLocale
     };
   }
 
-  async function fetchRatingsBatch(tokenEntry, seriesIds) {
+  async function fetchRatingsBatch(tokenEntry, seriesIds, preferredAudioLanguage = getPreferredAudioLanguage()) {
     if (!Array.isArray(seriesIds) || !seriesIds.length) {
       return [];
     }
 
+    const effectivePreferredAudioLanguage = normalizeAudioLocale(preferredAudioLanguage) || getPreferredAudioLanguage();
     const cmsUrl = resolveApiHref(
       `/content/v2/cms/objects/${seriesIds.map((id) => encodeURIComponent(id)).join(",")}` +
-        `?ratings=true&preferred_audio_language=${encodeURIComponent(getPreferredAudioLanguage())}` +
+        `?ratings=true&preferred_audio_language=${encodeURIComponent(effectivePreferredAudioLanguage)}` +
         `&locale=${encodeURIComponent(getLocale())}`
     );
 
@@ -1410,10 +1883,11 @@
       .filter(Boolean);
   }
 
-  async function fetchRatingFromCmsObjects(seriesId) {
+  async function fetchRatingFromCmsObjects(seriesId, preferredAudioLanguage = getPreferredAudioLanguage()) {
+    const effectivePreferredAudioLanguage = normalizeAudioLocale(preferredAudioLanguage) || getPreferredAudioLanguage();
     const cmsUrl = resolveApiHref(
       `/content/v2/cms/objects/${encodeURIComponent(seriesId)}` +
-        `?ratings=true&preferred_audio_language=${encodeURIComponent(getPreferredAudioLanguage())}` +
+        `?ratings=true&preferred_audio_language=${encodeURIComponent(effectivePreferredAudioLanguage)}` +
         `&locale=${encodeURIComponent(getLocale())}`
     );
 
@@ -1427,7 +1901,8 @@
         audioLocales: [],
         episodeCount: null,
         seasonCount: null,
-        genreTags: []
+        genreTags: [],
+        preferredAudioLocale: effectivePreferredAudioLanguage
       };
     }
 
@@ -1462,7 +1937,8 @@
           audioLocales: parsed.audioLocales,
           episodeCount: parsed.episodeCount,
           seasonCount: parsed.seasonCount,
-          genreTags: parsed.genreTags
+          genreTags: parsed.genreTags,
+          preferredAudioLocale: effectivePreferredAudioLanguage
         };
       }
 
@@ -1475,7 +1951,8 @@
         audioLocales: [],
         episodeCount: null,
         seasonCount: null,
-        genreTags: []
+        genreTags: [],
+        preferredAudioLocale: effectivePreferredAudioLanguage
       };
     };
 
@@ -1490,7 +1967,8 @@
         audioLocales: [],
         episodeCount: null,
         seasonCount: null,
-        genreTags: []
+        genreTags: [],
+        preferredAudioLocale: effectivePreferredAudioLanguage
       };
     }
   }
@@ -1534,10 +2012,10 @@
     };
   }
 
-  async function fetchRating(seriesId, seriesHref) {
+  async function fetchRating(seriesId, seriesHref, preferredAudioLanguage = getPreferredAudioLanguage()) {
     if (seriesId) {
       try {
-        const cmsRating = await fetchRatingFromCmsObjects(seriesId);
+        const cmsRating = await fetchRatingFromCmsObjects(seriesId, preferredAudioLanguage);
         if (cmsRating.rating != null) {
           return cmsRating;
         }
@@ -1817,12 +2295,12 @@
       return "Start Watching";
     }
 
-    if (row?.new) {
-      return "Up Next";
-    }
-
     if (Number(row?.playhead || 0) > 0) {
       return "Continue";
+    }
+
+    if (row?.new) {
+      return "Up Next";
     }
 
     return "Up Next";
@@ -2059,9 +2537,21 @@
     return resolveApiHref(entry?.href);
   }
 
-  async function preloadRatingsForEntries(entries, tokenEntry) {
+  function hasEpisodeCountForAudioLocale(entry, audioLocale) {
+    return getAudioLocaleCountFromMap(entry?.episodeCountByAudioLocale, audioLocale) != null;
+  }
+
+  async function preloadRatingsForEntries(entries, tokenEntry, preferredAudioLanguage = getPreferredAudioLanguage()) {
+    const effectivePreferredAudioLanguage = normalizeAudioLocale(preferredAudioLanguage) || getPreferredAudioLanguage();
     const allSeriesIds = Array.from(new Set(entries.map((entry) => entry.seriesId).filter(Boolean)));
-    const staleSeriesIds = allSeriesIds.filter((seriesId) => !isCacheValid(state.ratingCache[seriesId]));
+    const staleSeriesIds = allSeriesIds.filter((seriesId) => {
+      const cachedEntry = state.ratingCache[seriesId];
+      if (!isCacheValid(cachedEntry)) {
+        return true;
+      }
+
+      return !hasEpisodeCountForAudioLocale(cachedEntry, effectivePreferredAudioLanguage);
+    });
 
     if (!staleSeriesIds.length) {
       return;
@@ -2073,7 +2563,7 @@
       const chunks = chunkArray(staleSeriesIds, RATING_BATCH_SIZE);
       for (const chunk of chunks) {
         try {
-          const records = await fetchRatingsBatch(tokenEntry, chunk);
+          const records = await fetchRatingsBatch(tokenEntry, chunk, effectivePreferredAudioLanguage);
           records.forEach(
             ({
               seriesId,
@@ -2089,6 +2579,7 @@
               landscapeImageUrl
             }) => {
               mergeCachedSeriesData(seriesId, {
+                preferredAudioLocale: effectivePreferredAudioLanguage,
                 rating,
                 votes,
                 distribution,
@@ -2114,16 +2605,27 @@
     }
 
     runtimeEvent("ratings-preload", {
+      preferredAudioLanguage: effectivePreferredAudioLanguage,
       stale: staleSeriesIds.length,
       updated
     });
   }
 
-  async function preloadWatchHistoryForEntries(entries, tokenEntry, force = false) {
+  async function preloadWatchHistoryForEntries(
+    entries,
+    tokenEntry,
+    force = false,
+    preferredAudioLanguage = getPreferredAudioLanguage()
+  ) {
     if (!tokenEntry?.accessToken || !tokenEntry?.accountId) {
       state.watchHistoryStatus = "unavailable";
       return;
     }
+
+    const effectivePreferredAudioLanguage =
+      normalizeAudioLocale(preferredAudioLanguage) || getPreferredAudioLanguage();
+    const isDefaultPreferredAudio =
+      effectivePreferredAudioLanguage.toLowerCase() === getPreferredAudioLanguage().toLowerCase();
 
     if (!force && isWatchHistoryCacheValid(state.watchHistoryCache, tokenEntry.accountId)) {
       state.watchHistoryStatus = "ready";
@@ -2146,7 +2648,8 @@
 
     const inflight = (async () => {
       state.watchHistoryStatus = "loading";
-      const bySeriesId = {};
+      const seriesUpdates = {};
+      const localeUpdates = {};
       let pages = 0;
       let totalRows = null;
       let fetchedRows = 0;
@@ -2154,7 +2657,7 @@
 
       while (pages < WATCH_HISTORY_MAX_PAGES) {
         pages += 1;
-        const page = await fetchWatchHistoryPage(tokenEntry, pages);
+        const page = await fetchWatchHistoryPage(tokenEntry, pages, effectivePreferredAudioLanguage);
         let matchedOnPage = 0;
 
         if (totalRows == null) {
@@ -2164,14 +2667,30 @@
         fetchedRows += page.rows.length;
 
         page.rows.forEach((row) => {
-          const parsed = parseWatchHistoryRow(row);
+          const parsed = parseWatchHistoryRow(row, effectivePreferredAudioLanguage);
           if (!parsed || !parsed.seriesId || parsed.datePlayedMs == null) {
             return;
           }
 
-          const previous = bySeriesId[parsed.seriesId];
-          if (!previous || parsed.datePlayedMs > previous.datePlayedMs) {
-            bySeriesId[parsed.seriesId] = parsed;
+          if (isDefaultPreferredAudio) {
+            const previous = seriesUpdates[parsed.seriesId];
+            if (!previous || parsed.datePlayedMs > previous.datePlayedMs) {
+              seriesUpdates[parsed.seriesId] = parsed;
+            }
+          }
+
+          const locale = normalizeAudioLocale(parsed.audioLocale);
+          if (locale) {
+            const localeStorageKey = locale.toLowerCase();
+            const perSeriesLocaleMap = localeUpdates[parsed.seriesId] || {};
+            const previousByLocale = perSeriesLocaleMap[localeStorageKey];
+            if (!previousByLocale || parsed.datePlayedMs > previousByLocale.datePlayedMs) {
+              perSeriesLocaleMap[localeStorageKey] = {
+                ...parsed,
+                audioLocale: locale
+              };
+            }
+            localeUpdates[parsed.seriesId] = perSeriesLocaleMap;
           }
 
           if (remainingSeriesIds.has(parsed.seriesId)) {
@@ -2203,26 +2722,63 @@
         }
       }
 
+      const latestCache = normalizeStoredWatchHistoryCache(state.watchHistoryCache);
+      const nextBySeriesId = isDefaultPreferredAudio ? { ...latestCache.bySeriesId } : latestCache.bySeriesId;
+      const nextBySeriesIdAudioLocale = normalizeStoredWatchHistoryBySeriesAudioLocale(latestCache.bySeriesIdAudioLocale);
+
+      if (isDefaultPreferredAudio) {
+        Object.entries(seriesUpdates).forEach(([seriesId, updateEntry]) => {
+          const previous = normalizeWatchHistoryEntry(nextBySeriesId[seriesId]);
+          if (!previous || updateEntry.datePlayedMs > previous.datePlayedMs) {
+            nextBySeriesId[seriesId] = updateEntry;
+          }
+        });
+      }
+
+      Object.entries(localeUpdates).forEach(([seriesId, localeMapUpdates]) => {
+        const nextLocaleMap = { ...(nextBySeriesIdAudioLocale[seriesId] || {}) };
+
+        Object.entries(localeMapUpdates).forEach(([localeStorageKey, updateEntry]) => {
+          const previous = normalizeWatchHistoryEntry(nextLocaleMap[localeStorageKey]);
+          if (!previous || updateEntry.datePlayedMs > previous.datePlayedMs) {
+            nextLocaleMap[localeStorageKey] = updateEntry;
+          }
+        });
+
+        if (Object.keys(nextLocaleMap).length) {
+          nextBySeriesIdAudioLocale[seriesId] = nextLocaleMap;
+        }
+      });
+
       state.watchHistoryCache = {
+        version: WATCH_HISTORY_CACHE_VERSION,
         accountId: tokenEntry.accountId,
         updatedAt: Date.now(),
-        bySeriesId
+        bySeriesId: nextBySeriesId,
+        bySeriesIdAudioLocale: nextBySeriesIdAudioLocale
       };
       state.watchHistoryStatus = "ready";
       scheduleSaveWatchHistory();
 
       runtimeEvent("watch-history-preload", {
+        preferredAudioLanguage: effectivePreferredAudioLanguage,
         pages,
         fetchedRows,
-        mappedSeries: Object.keys(bySeriesId).length,
+        mappedSeries: Object.keys(nextBySeriesId).length,
+        mappedSeriesByAudioLocale: Object.keys(nextBySeriesIdAudioLocale).length,
         matchedCandidates: candidateSeriesIds.length - remainingSeriesIds.size,
         candidates: candidateSeriesIds.length,
         noMatchPageStreak
       });
     })()
       .catch((error) => {
-        state.watchHistoryStatus = "failed";
+        if (isDefaultPreferredAudio || !isWatchHistoryCacheValid(state.watchHistoryCache, tokenEntry.accountId)) {
+          state.watchHistoryStatus = "failed";
+        } else {
+          state.watchHistoryStatus = "ready";
+        }
         runtimeEvent("watch-history-preload-failed", {
+          preferredAudioLanguage: effectivePreferredAudioLanguage,
           message: error?.message || "unknown"
         });
       })
@@ -2270,6 +2826,17 @@
         preloadRatingsForEntries(entries, tokenEntry),
         preloadWatchHistoryForEntries(entries, tokenEntry, force)
       ]);
+
+      const selectedAudioLocale = normalizeAudioLocale(state.settings.audioLocaleFilter);
+      if (
+        selectedAudioLocale &&
+        selectedAudioLocale.toLowerCase() !== getPreferredAudioLanguage().toLowerCase()
+      ) {
+        await Promise.all([
+          preloadRatingsForEntries(entries, tokenEntry, selectedAudioLocale),
+          preloadWatchHistoryForEntries(entries, tokenEntry, true, selectedAudioLocale)
+        ]);
+      }
 
       state.watchlistCache = {
         accountId: tokenEntry.accountId,
@@ -2365,6 +2932,136 @@
   function getCachedRating(seriesId) {
     const cached = state.ratingCache[seriesId];
     return isCacheValid(cached) ? cached : null;
+  }
+
+  function getLocalizedSeriesCount(ratingEntry, audioLocale, countType) {
+    const fallbackFieldName = countType === "season" ? "seasonCount" : "episodeCount";
+    const mapFieldName = countType === "season" ? "seasonCountByAudioLocale" : "episodeCountByAudioLocale";
+    const localizedCount = getAudioLocaleCountFromMap(ratingEntry?.[mapFieldName], audioLocale);
+    if (localizedCount != null) {
+      return localizedCount;
+    }
+
+    return sanitizePositiveInt(ratingEntry?.[fallbackFieldName]);
+  }
+
+  function isLocalizedRatingDataMissingForEntries(entries, audioLocale) {
+    const selectedAudioLocale = normalizeAudioLocale(audioLocale);
+    if (!selectedAudioLocale || !Array.isArray(entries) || !entries.length) {
+      return false;
+    }
+
+    return entries.some((entry) => {
+      const seriesId = entry?.seriesId;
+      if (!seriesId) {
+        return false;
+      }
+
+      const cached = state.ratingCache[seriesId];
+      if (!isCacheValid(cached)) {
+        return true;
+      }
+
+      return !hasEpisodeCountForAudioLocale(cached, selectedAudioLocale);
+    });
+  }
+
+  async function preloadRatingsForSelectedAudioLocale(audioLocale) {
+    const selectedAudioLocale = normalizeAudioLocale(audioLocale);
+    if (!selectedAudioLocale || !state.curatedEntries.length) {
+      return;
+    }
+
+    if (!isLocalizedRatingDataMissingForEntries(state.curatedEntries, selectedAudioLocale)) {
+      return;
+    }
+
+    const localeKey = selectedAudioLocale.toLowerCase();
+    if (state.ratingLocalePreloadInflight.has(localeKey)) {
+      return state.ratingLocalePreloadInflight.get(localeKey);
+    }
+
+    const inflight = (async () => {
+      const tokenEntry = await getAccessToken(false);
+      if (!tokenEntry?.accessToken) {
+        return;
+      }
+
+      await preloadRatingsForEntries(state.curatedEntries, tokenEntry, selectedAudioLocale);
+    })()
+      .finally(() => {
+        if (state.ratingLocalePreloadInflight.get(localeKey) === inflight) {
+          state.ratingLocalePreloadInflight.delete(localeKey);
+        }
+      });
+
+    state.ratingLocalePreloadInflight.set(localeKey, inflight);
+    return inflight;
+  }
+
+  function isLocalizedWatchHistoryDataMissingForEntries(entries, audioLocale) {
+    const selectedAudioLocale = normalizeAudioLocale(audioLocale);
+    if (!selectedAudioLocale || !Array.isArray(entries) || !entries.length) {
+      return false;
+    }
+
+    const isDefaultPreferredAudio =
+      selectedAudioLocale.toLowerCase() === getPreferredAudioLanguage().toLowerCase();
+
+    return entries.some((entry) => {
+      const seriesId = entry?.seriesId;
+      if (!seriesId) {
+        return false;
+      }
+
+      if (entry.neverWatched && Number(entry.playheadMs || 0) <= 0) {
+        return false;
+      }
+
+      const localizedEntry = getCachedWatchHistory(seriesId, selectedAudioLocale, false);
+      if (localizedEntry) {
+        return false;
+      }
+
+      if (isDefaultPreferredAudio) {
+        return !getCachedWatchHistory(seriesId);
+      }
+
+      return true;
+    });
+  }
+
+  async function preloadWatchHistoryForSelectedAudioLocale(audioLocale) {
+    const selectedAudioLocale = normalizeAudioLocale(audioLocale);
+    if (!selectedAudioLocale || !state.curatedEntries.length) {
+      return;
+    }
+
+    if (!isLocalizedWatchHistoryDataMissingForEntries(state.curatedEntries, selectedAudioLocale)) {
+      return;
+    }
+
+    const localeKey = selectedAudioLocale.toLowerCase();
+    if (state.watchHistoryLocalePreloadInflight.has(localeKey)) {
+      return state.watchHistoryLocalePreloadInflight.get(localeKey);
+    }
+
+    const inflight = (async () => {
+      const tokenEntry = await getAccessToken(false);
+      if (!tokenEntry?.accessToken || !tokenEntry?.accountId) {
+        return;
+      }
+
+      await preloadWatchHistoryForEntries(state.curatedEntries, tokenEntry, true, selectedAudioLocale);
+    })()
+      .finally(() => {
+        if (state.watchHistoryLocalePreloadInflight.get(localeKey) === inflight) {
+          state.watchHistoryLocalePreloadInflight.delete(localeKey);
+        }
+      });
+
+    state.watchHistoryLocalePreloadInflight.set(localeKey, inflight);
+    return inflight;
   }
 
   function extractSeriesIdFromHref(href) {
@@ -3281,6 +3978,10 @@
   }
 
   function estimateUnwatchedEpisodesLeft(entry) {
+    const filteredProgressEntry =
+      entry?.watchHistoryProgressEntry && typeof entry.watchHistoryProgressEntry === "object"
+        ? entry.watchHistoryProgressEntry
+        : null;
     const totalEpisodes = sanitizePositiveInt(entry?.episodeCount);
     if (totalEpisodes == null) {
       return null;
@@ -3294,10 +3995,21 @@
       return totalEpisodes;
     }
 
-    const nextEpisodeIndex = pickFirstPositiveInt([
-      entry?.absoluteEpisodeNumber,
-      entry?.seasonNumber === 1 ? entry?.episodeNumber : null
+    const overrideEpisodeIndex = pickFirstPositiveInt([
+      filteredProgressEntry?.absoluteEpisodeNumber,
+      filteredProgressEntry?.seasonNumber === 1 ? filteredProgressEntry?.episodeNumber : null
     ]);
+    const overrideNextEpisodeIndex =
+      overrideEpisodeIndex != null
+        ? overrideEpisodeIndex + (filteredProgressEntry?.fullyWatched ? 1 : 0)
+        : null;
+
+    const nextEpisodeIndex =
+      overrideNextEpisodeIndex ??
+      pickFirstPositiveInt([
+        entry?.absoluteEpisodeNumber,
+        entry?.seasonNumber === 1 ? entry?.episodeNumber : null
+      ]);
 
     if (nextEpisodeIndex == null) {
       return null;
@@ -3881,9 +4593,26 @@
   }
 
   function buildRenderableEntries() {
+    const normalizedAudioFilter = String(state.settings.audioLocaleFilter || "any");
+    const normalizedGenreFilter = String(state.settings.genreFilter || "any");
+    const effectiveAudioFilter = normalizedAudioFilter.trim() || "any";
+    const effectiveGenreFilter = normalizedGenreFilter.trim() || "any";
+    const localizedAudioForCounts = effectiveAudioFilter !== "any" ? effectiveAudioFilter : null;
+    const selectedAudioLocale =
+      effectiveAudioFilter !== "any" ? normalizeAudioLocale(effectiveAudioFilter) : null;
+    const selectedAudioIsDefaultPreferred = selectedAudioLocale
+      ? selectedAudioLocale.toLowerCase() === getPreferredAudioLanguage().toLowerCase()
+      : false;
+
     const merged = state.curatedEntries.map((entry) => {
       const ratingEntry = getCachedRating(entry.seriesId);
       const watchHistoryEntry = getCachedWatchHistory(entry.seriesId);
+      const localeWatchHistoryEntry =
+        selectedAudioLocale
+          ? getCachedWatchHistory(entry.seriesId, selectedAudioLocale, false)
+          : null;
+      const watchHistoryProgressEntry =
+        localeWatchHistoryEntry || (selectedAudioIsDefaultPreferred ? watchHistoryEntry : null);
       const rating = ratingEntry?.rating ?? null;
       const votes = ratingEntry?.votes ?? null;
       const distribution = ratingEntry?.distribution ?? null;
@@ -3899,8 +4628,10 @@
           : "") ||
         entry.description ||
         "";
-      const episodeCount = sanitizePositiveInt(ratingEntry?.episodeCount) ?? sanitizePositiveInt(entry.episodeCount);
-      const seasonCount = sanitizePositiveInt(ratingEntry?.seasonCount) ?? sanitizePositiveInt(entry.seasonCount);
+      const episodeCount =
+        getLocalizedSeriesCount(ratingEntry, localizedAudioForCounts, "episode") ?? sanitizePositiveInt(entry.episodeCount);
+      const seasonCount =
+        getLocalizedSeriesCount(ratingEntry, localizedAudioForCounts, "season") ?? sanitizePositiveInt(entry.seasonCount);
       const genreTags = normalizeTagList(
         (Array.isArray(ratingEntry?.genreTags) && ratingEntry.genreTags.length
           ? ratingEntry.genreTags
@@ -3932,6 +4663,7 @@
         landscapeImageUrl,
         hoverPreviewImageUrl,
         lastWatchedMs,
+        watchHistoryProgressEntry,
         imageUrl: portraitImageUrl || landscapeImageUrl || normalizeImageUrlCandidate(entry.imageUrl),
         rating,
         votes
@@ -3964,11 +4696,6 @@
           .filter(Boolean)
       )
     ).sort((left, right) => left.localeCompare(right));
-
-    const normalizedAudioFilter = String(state.settings.audioLocaleFilter || "any");
-    const normalizedGenreFilter = String(state.settings.genreFilter || "any");
-    const effectiveAudioFilter = normalizedAudioFilter.trim() || "any";
-    const effectiveGenreFilter = normalizedGenreFilter.trim() || "any";
 
     if (effectiveAudioFilter !== "any") {
       filtered = filtered.filter((entry) =>
@@ -4033,37 +4760,59 @@
       selectedGenreFilter
     } = buildRenderableEntries();
     const loading = Boolean(state.curatedInflight);
+    const gridRenderSignature = JSON.stringify(
+      visible.length
+        ? {
+            layout: state.settings.cardLayout,
+            visible
+          }
+        : {
+            layout: state.settings.cardLayout,
+            emptyState:
+              state.curatedError && total === 0
+                ? `error:${state.curatedError}`
+                : loading && total === 0
+                  ? "loading"
+                  : total > 0
+                    ? "no-match"
+                    : "no-watchlist"
+          }
+    );
 
     withMutedObserver(() => {
       setSelectOptions(state.audioFilterSelectEl, audioOptions, selectedAudioFilter);
       setSelectOptions(state.genreFilterSelectEl, genreOptions, selectedGenreFilter);
 
-      state.gridEl.textContent = "";
-
       if (state.loadingIndicatorEl) {
         state.loadingIndicatorEl.style.display = loading ? "inline-flex" : "none";
       }
 
-      if (!visible.length) {
-        const empty = document.createElement("div");
-        empty.className = "cw-empty";
-        if (state.curatedError && total === 0) {
-          empty.textContent = state.curatedError;
-        } else if (loading && total === 0) {
-          const loadingContent = createLoadingIndicator("Loading curated watchlist from Crunchyroll API...");
-          empty.appendChild(loadingContent);
-        } else if (total > 0) {
-          empty.textContent = "No shows match the current filters.";
+      if (state.curatedGridRenderSignature !== gridRenderSignature) {
+        state.gridEl.textContent = "";
+
+        if (!visible.length) {
+          const empty = document.createElement("div");
+          empty.className = "cw-empty";
+          if (state.curatedError && total === 0) {
+            empty.textContent = state.curatedError;
+          } else if (loading && total === 0) {
+            const loadingContent = createLoadingIndicator("Loading curated watchlist from Crunchyroll API...");
+            empty.appendChild(loadingContent);
+          } else if (total > 0) {
+            empty.textContent = "No shows match the current filters.";
+          } else {
+            empty.textContent = "No watchlist items were returned by Crunchyroll.";
+          }
+          state.gridEl.appendChild(empty);
         } else {
-          empty.textContent = "No watchlist items were returned by Crunchyroll.";
+          const fragment = document.createDocumentFragment();
+          visible.forEach((entry) => {
+            fragment.appendChild(createCuratedCard(entry));
+          });
+          state.gridEl.appendChild(fragment);
         }
-        state.gridEl.appendChild(empty);
-      } else {
-        const fragment = document.createDocumentFragment();
-        visible.forEach((entry) => {
-          fragment.appendChild(createCuratedCard(entry));
-        });
-        state.gridEl.appendChild(fragment);
+
+        state.curatedGridRenderSignature = gridRenderSignature;
       }
 
       if (state.curatedError && total === 0) {
@@ -4083,6 +4832,30 @@
           : `${total} shows`;
       }
     });
+
+    const shouldPreloadLocalizedRatings =
+      selectedAudioFilter !== "any" &&
+      isLocalizedRatingDataMissingForEntries(state.curatedEntries, selectedAudioFilter);
+    const shouldPreloadLocalizedWatchHistory =
+      selectedAudioFilter !== "any" &&
+      isLocalizedWatchHistoryDataMissingForEntries(state.curatedEntries, selectedAudioFilter);
+
+    if (shouldPreloadLocalizedRatings || shouldPreloadLocalizedWatchHistory) {
+      const preloadTasks = [];
+      if (shouldPreloadLocalizedRatings) {
+        preloadTasks.push(preloadRatingsForSelectedAudioLocale(selectedAudioFilter));
+      }
+      if (shouldPreloadLocalizedWatchHistory) {
+        preloadTasks.push(preloadWatchHistoryForSelectedAudioLocale(selectedAudioFilter));
+      }
+
+      Promise.allSettled(preloadTasks).then(() => {
+        if (!state.mounted || !isWatchlistPath(window.location.pathname)) {
+          return;
+        }
+        renderCuratedPanel();
+      });
+    }
   }
 
   function applyTabUi() {
@@ -4270,6 +5043,21 @@
       state.settings.audioLocaleFilter = audioFilterControl.select.value || "any";
       await persistSettings();
       renderCuratedPanel();
+
+      const selectedAudioLocale = normalizeAudioLocale(state.settings.audioLocaleFilter);
+      if (!selectedAudioLocale) {
+        return;
+      }
+
+      Promise.allSettled([
+        preloadRatingsForSelectedAudioLocale(selectedAudioLocale),
+        preloadWatchHistoryForSelectedAudioLocale(selectedAudioLocale)
+      ]).then(() => {
+        if (!state.mounted || !isWatchlistPath(window.location.pathname)) {
+          return;
+        }
+        renderCuratedPanel();
+      });
     });
 
     genreFilterControl.select.addEventListener("change", async () => {
@@ -4287,10 +5075,14 @@
     refreshButton.addEventListener("click", async () => {
       state.ratingCache = {};
       state.ratingInflight.clear();
+      state.ratingLocalePreloadInflight.clear();
+      state.watchHistoryLocalePreloadInflight.clear();
       state.watchHistoryCache = {
+        version: WATCH_HISTORY_CACHE_VERSION,
         accountId: "",
         updatedAt: 0,
-        bySeriesId: {}
+        bySeriesId: {},
+        bySeriesIdAudioLocale: {}
       };
       state.watchHistoryStatus = "idle";
       state.watchHistoryInflight = null;
@@ -4335,6 +5127,7 @@
     state.genreFilterSelectEl = genreFilterControl.select;
     state.statsEl = stats;
     state.gridEl = grid;
+    state.curatedGridRenderSignature = "";
 
     runtimeEvent("ui-mounted", {
       headerClass: String(header.className || "")

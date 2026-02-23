@@ -142,12 +142,10 @@ test.describe('Crunchy Watchlist Curator', () => {
     expect(callLog.count).toBeGreaterThan(0);
     expect(callLog.count).toBeGreaterThanOrEqual(1);
     expect(callLog.firstUrl).toContain('/content/v2/discover/fixture-account/watchlist');
-    expect(callLog.params).toMatchObject({
-      order: 'desc',
-      n: '100',
-      preferred_audio_language: 'en-US',
-      locale: 'en-US'
-    });
+    expect(callLog.params.order).toBe('desc');
+    expect(callLog.params.n).toBe('100');
+    expect(callLog.params.locale).toBeTruthy();
+    expect(callLog.params.preferred_audio_language).toBe(callLog.params.locale);
 
     const beforeFilterCallCount = callLog.count;
 
@@ -162,6 +160,33 @@ test.describe('Crunchy Watchlist Curator', () => {
     await expect(watchAgainItem).not.toHaveClass(/cw-curated-card--not-watch-ready/);
     await expect(page.locator('.cw-controls__stats')).toContainText('4 shows');
     expect(callLog.count).toBe(beforeFilterCallCount);
+  });
+
+  test('uses persisted preferred audio language for watchlist API params', async ({ page }) => {
+    await page.evaluate(() => {
+      localStorage.setItem('preferred_audio_language', 'ja-JP');
+    });
+
+    const callLog = {
+      count: 0,
+      params: {}
+    };
+
+    await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
+      callLog.count += 1;
+      if (callLog.count === 1) {
+        const url = new URL(route.request().url());
+        callLog.params = Object.fromEntries(url.searchParams.entries());
+      }
+
+      await route.continue();
+    });
+
+    await injectExtension(page);
+
+    expect(callLog.count).toBeGreaterThan(0);
+    expect(callLog.params.preferred_audio_language).toBe('ja-JP');
+    expect(callLog.params.locale).toBeTruthy();
   });
 
   test('renders refresh action as a button and toggles card layout mode', async ({ page }) => {
@@ -357,6 +382,156 @@ test.describe('Crunchy Watchlist Curator', () => {
     await page.selectOption('#cw-genre-filter', 'action');
     await expect(page.locator('.cw-curated-card')).toHaveCount(1);
     await expect(page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"]')).toHaveCount(1);
+  });
+
+  test('updates unwatched count to match selected audio locale progress', async ({ page }) => {
+    await page.route('**/content/v2/**/watch-history*', async (route) => {
+      try {
+        const response = await route.fetch();
+        const payload = await response.json();
+        const url = new URL(route.request().url());
+        const preferredAudioLanguage = String(url.searchParams.get('preferred_audio_language') || '').trim().toLowerCase();
+        const rows = Array.isArray(payload?.data) ? payload.data : [];
+        const filteredRows = preferredAudioLanguage
+          ? rows.filter((row) => {
+              const rowAudioLocale = String(row?.panel?.episode_metadata?.audio_locale || '').trim().toLowerCase();
+              return rowAudioLocale === preferredAudioLanguage;
+            })
+          : rows;
+
+        await route.fulfill({
+          response,
+          contentType: 'application/json; charset=utf-8',
+          body: JSON.stringify({
+            ...payload,
+            total: filteredRows.length,
+            data: filteredRows
+          })
+        });
+      } catch (error) {
+        const errorText = String(error || '');
+        if (
+          errorText.includes('Target page, context or browser has been closed') ||
+          errorText.includes('Response has been disposed')
+        ) {
+          return;
+        }
+        throw error;
+      }
+    });
+
+    await injectExtension(page);
+    const highRatedScope = page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__scope');
+
+    await expect(highRatedScope).toContainText('Episodes: 36');
+    await expect(highRatedScope).toContainText('Unwatched left: 20');
+
+    await page.selectOption('#cw-audio-filter', 'ja-JP');
+    await expect(highRatedScope).toContainText('Episodes: 32');
+    await expect(highRatedScope).toContainText('Unwatched left: 4');
+
+    await page.selectOption('#cw-audio-filter', 'en-US');
+    await expect(highRatedScope).toContainText('Episodes: 36');
+    await expect(highRatedScope).toContainText('Unwatched left: 20');
+  });
+
+  test('keeps default-audio unwatched count correct when watch-history rows omit audio locale', async ({ page }) => {
+    await page.route('**/content/v2/**/watch-history*', async (route) => {
+      try {
+        const response = await route.fetch();
+        const payload = await response.json();
+        const rows = Array.isArray(payload?.data) ? payload.data : [];
+        const rewrittenRows = rows.map((row) => {
+          const episodeMetadata = row?.panel?.episode_metadata;
+          if (!episodeMetadata || typeof episodeMetadata !== 'object') {
+            return row;
+          }
+
+          const nextEpisodeMetadata = { ...episodeMetadata };
+          delete nextEpisodeMetadata.audio_locale;
+
+          return {
+            ...row,
+            panel: {
+              ...row.panel,
+              episode_metadata: nextEpisodeMetadata
+            }
+          };
+        });
+
+        await route.fulfill({
+          response,
+          contentType: 'application/json; charset=utf-8',
+          body: JSON.stringify({
+            ...payload,
+            data: rewrittenRows
+          })
+        });
+      } catch (error) {
+        const errorText = String(error || '');
+        if (
+          errorText.includes('Target page, context or browser has been closed') ||
+          errorText.includes('Response has been disposed')
+        ) {
+          return;
+        }
+        throw error;
+      }
+    });
+
+    await injectExtension(page);
+
+    const highRatedScope = page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__scope');
+    await page.selectOption('#cw-audio-filter', 'en-US');
+    await expect(highRatedScope).toContainText('Episodes: 36');
+    await expect(highRatedScope).toContainText('Unwatched left: 20');
+  });
+
+  test('shows Continue instead of Up Next when playhead progress exists', async ({ page }) => {
+    await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
+      try {
+        const response = await route.fetch();
+        const payload = await response.json();
+        const rows = Array.isArray(payload?.data) ? payload.data : [];
+        const rewrittenRows = rows.map((row) => {
+          const seriesId = row?.panel?.episode_metadata?.series_id;
+          if (seriesId !== 'GNONE789') {
+            return row;
+          }
+
+          return {
+            ...row,
+            new: true,
+            never_watched: false,
+            playhead: Math.max(1, Number(row?.playhead || 0))
+          };
+        });
+
+        await route.fulfill({
+          response,
+          contentType: 'application/json; charset=utf-8',
+          body: JSON.stringify({
+            ...payload,
+            data: rewrittenRows
+          })
+        });
+      } catch (error) {
+        const errorText = String(error || '');
+        if (
+          errorText.includes('Target page, context or browser has been closed') ||
+          errorText.includes('Response has been disposed')
+        ) {
+          return;
+        }
+        throw error;
+      }
+    });
+
+    await injectExtension(page);
+
+    await expect(
+      page.locator('.cw-curated-card[data-cw-curated-title="No Rating Show"] .cw-curated-card__status')
+    ).toContainText('Continue');
   });
 
   test('restores native watchlist visibility when switching back to Crunchyroll tab', async ({ page }) => {
