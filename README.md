@@ -4,7 +4,12 @@ Turn Crunchyroll’s “watch later” chaos into a clean, decision-ready queue.
 
 Crunchy Watchlist Curator injects a curated companion tab into your Crunchyroll watchlist so you can choose what to watch next in seconds, not minutes.
 
-![Crunchy Watchlist Curator in action](docs/images/crunchy-watchlist-curator-in-action.png)
+## Before vs after
+
+<p align="center">
+  <img src="docs/images/watchlist-before.png" alt="Before: native Crunchyroll watchlist view" width="49%" />
+  <img src="docs/images/watchlist-after.png" alt="After: Crunchy Watchlist Curator curated tab" width="49%" />
+</p>
 
 ## Why this exists
 
@@ -14,6 +19,27 @@ People open their watchlists, see too many titles, and end up re-sorting mentall
 - Surfaces “what now?” choices fast with smart sort modes
 - Keeps context visible (`rating`, `next episode`, genre, last activity, ratings volume)
 - Lets you tune the list for your exact viewing mood (`audio`, `genre`, card layout, filters)
+
+## Feature callouts
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>Watch-ready filtering</strong><br />
+      <sub>Switch between <code>None</code>, <code>Dim</code>, and <code>Hide</code> for non-watch-ready titles.</sub><br /><br />
+      <img src="docs/images/watch-ready-filter-options.png" alt="Watch-ready filter options" width="100%" />
+      <br /><br />
+      <strong>Deep sort mode coverage</strong><br />
+      <sub>Discovery-first, quality-first, and ratings-distribution sort modes in one menu.</sub><br /><br />
+      <img src="docs/images/sort-modes-dropdown.png" alt="Sort mode dropdown with discovery and quality-focused options" width="100%" />
+    </td>
+    <td width="50%" valign="top">
+      <strong>Audio locale filtering</strong><br />
+      <sub>Filter your queue by dub/sub language availability, including <code>en-US</code>.</sub><br /><br />
+      <img src="docs/images/audio-filter-locales.png" alt="Audio locale filter options" width="100%" />
+    </td>
+  </tr>
+</table>
 
 ## At a glance
 
