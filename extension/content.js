@@ -31,7 +31,7 @@
   const RATING_CACHE_KEY = "cw_rating_cache_v2";
   const WATCH_HISTORY_CACHE_KEY = "cw_watch_history_cache_v1";
   const WATCHLIST_CACHE_KEY = "cw_watchlist_cache_v1";
-  const WATCH_HISTORY_CACHE_VERSION = 2;
+  const WATCH_HISTORY_CACHE_VERSION = 3;
   const RATING_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
   const WATCH_HISTORY_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
   const WATCHLIST_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -54,6 +54,7 @@
   const PREFERRED_AUDIO_CACHE_TTL_MS = 2 * 60 * 1000;
   const PREFERRED_AUDIO_STORAGE_SCAN_LIMIT = 120;
   const PREFERRED_AUDIO_VALUE_SCAN_LIMIT = 1200;
+  const API_TRACE_LIMIT_PER_ENDPOINT = 30;
   const DEFAULT_SORT_MODE = "consensus_quality_desc";
   const VALID_SORT_MODES = new Set([
     "none",
@@ -112,7 +113,9 @@
       accountId: "",
       updatedAt: 0,
       bySeriesId: {},
-      bySeriesIdAudioLocale: {}
+      bySeriesIdAudioLocale: {},
+      bySeriesIdProgress: {},
+      bySeriesIdAudioLocaleProgress: {}
     },
     watchHistoryStatus: "idle",
     watchlistCache: {
@@ -123,6 +126,14 @@
     watchHistoryInflight: null,
     preferredAudioLanguage: null,
     preferredAudioLanguageUpdatedAt: 0,
+    apiTrace: {
+      authToken: [],
+      watchlist: [],
+      watchHistory: [],
+      cmsObjects: [],
+      legacyRating: [],
+      preview: []
+    },
     previewCache: {},
     previewInflight: new Map(),
     authToken: null,
@@ -178,6 +189,36 @@
 
     if (runtime.events.length > 100) {
       runtime.events.shift();
+    }
+  }
+
+  function cloneJsonValue(value) {
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function pushApiTrace(endpoint, record) {
+    if (!endpoint || !state.apiTrace || typeof state.apiTrace !== "object") {
+      return;
+    }
+
+    if (!Array.isArray(state.apiTrace[endpoint])) {
+      return;
+    }
+
+    const normalizedRecord = cloneJsonValue(record);
+    if (normalizedRecord == null) {
+      return;
+    }
+
+    const bucket = state.apiTrace[endpoint];
+    bucket.push(normalizedRecord);
+
+    if (bucket.length > API_TRACE_LIMIT_PER_ENDPOINT) {
+      bucket.splice(0, bucket.length - API_TRACE_LIMIT_PER_ENDPOINT);
     }
   }
 
@@ -1016,6 +1057,216 @@
     return Date.now() - cache.updatedAt < WATCH_HISTORY_CACHE_TTL_MS;
   }
 
+  function extractSeasonCoreFromSeasonId(value) {
+    if (value == null) {
+      return null;
+    }
+
+    const text = String(value).trim();
+    if (!text) {
+      return null;
+    }
+
+    const seasonIdMatch = text.match(/^GS(\d+)(?:[A-Z]{4})?$/i);
+    if (seasonIdMatch && seasonIdMatch[1]) {
+      return sanitizePositiveInt(seasonIdMatch[1]);
+    }
+
+    const compactMatch = text.match(/^S(\d+)$/i);
+    if (compactMatch && compactMatch[1]) {
+      return sanitizePositiveInt(compactMatch[1]);
+    }
+
+    return null;
+  }
+
+  function parseCanonicalEpisodeIdentifier(value) {
+    if (value == null) {
+      return null;
+    }
+
+    const text = String(value).trim();
+    if (!text) {
+      return null;
+    }
+
+    const match = text.match(/^([^|]+)\|S(\d+)\|E(\d+)$/i);
+    if (!match) {
+      return null;
+    }
+
+    const seriesId = String(match[1] || "").trim();
+    const seasonCore = sanitizePositiveInt(match[2]);
+    const episodeNumber = sanitizePositiveInt(match[3]);
+
+    if (!seriesId || seasonCore == null || episodeNumber == null) {
+      return null;
+    }
+
+    return {
+      seriesId,
+      seasonCore,
+      episodeNumber,
+      canonicalEpisodeKey: `${seriesId}|S${seasonCore}|E${episodeNumber}`
+    };
+  }
+
+  function buildCanonicalEpisodeKey(seriesId, seasonCore, episodeNumber) {
+    const normalizedSeriesId = typeof seriesId === "string" ? seriesId.trim() : "";
+    const normalizedSeasonCore = sanitizePositiveInt(seasonCore);
+    const normalizedEpisodeNumber = sanitizePositiveInt(episodeNumber);
+
+    if (!normalizedSeriesId || normalizedSeasonCore == null || normalizedEpisodeNumber == null) {
+      return null;
+    }
+
+    return `${normalizedSeriesId}|S${normalizedSeasonCore}|E${normalizedEpisodeNumber}`;
+  }
+
+  function deriveCanonicalEpisodeKeyFromEpisodeMetadata(meta, fallbackSeriesId = null) {
+    const parsedIdentifier = parseCanonicalEpisodeIdentifier(meta?.identifier);
+    if (parsedIdentifier) {
+      if (!fallbackSeriesId || parsedIdentifier.seriesId === fallbackSeriesId) {
+        return parsedIdentifier.canonicalEpisodeKey;
+      }
+    }
+
+    const seriesId = typeof fallbackSeriesId === "string" && fallbackSeriesId
+      ? fallbackSeriesId
+      : (typeof meta?.series_id === "string" ? meta.series_id : "");
+    const seasonCore = pickFirstPositiveInt([
+      extractSeasonCoreFromSeasonId(meta?.season_id),
+      sanitizePositiveInt(meta?.season_number)
+    ]);
+    const episodeNumber = sanitizePositiveInt(meta?.episode_number);
+
+    return buildCanonicalEpisodeKey(seriesId, seasonCore, episodeNumber);
+  }
+
+  function getAbsoluteEpisodeNumberFromEpisodeMetadata(meta) {
+    const seasonNumber = sanitizePositiveInt(meta?.season_number);
+    const episodeNumber = sanitizePositiveInt(meta?.episode_number);
+    return pickFirstPositiveInt([
+      sanitizePositiveInt(meta?.sequence_number),
+      sanitizePositiveInt(meta?.episode_sequence_number),
+      sanitizePositiveInt(meta?.global_episode_number),
+      sanitizePositiveInt(meta?.global_episode_num),
+      seasonNumber === 1 ? episodeNumber : null
+    ]);
+  }
+
+  function getEpisodeAvailabilityByAudioLocale(meta) {
+    const absoluteEpisodeNumber = getAbsoluteEpisodeNumberFromEpisodeMetadata(meta);
+    if (absoluteEpisodeNumber == null) {
+      return {};
+    }
+
+    const byAudioLocale = {};
+    const panelAudioLocale = normalizeAudioLocale(meta?.audio_locale);
+    if (panelAudioLocale) {
+      byAudioLocale[panelAudioLocale.toLowerCase()] = absoluteEpisodeNumber;
+    }
+
+    if (Array.isArray(meta?.versions)) {
+      meta.versions.forEach((version) => {
+        const locale = normalizeAudioLocale(version?.audio_locale);
+        if (!locale) {
+          return;
+        }
+
+        const localeKey = locale.toLowerCase();
+        const previous = sanitizePositiveInt(byAudioLocale[localeKey]) ?? 0;
+        byAudioLocale[localeKey] = Math.max(previous, absoluteEpisodeNumber);
+      });
+    }
+
+    return byAudioLocale;
+  }
+
+  function mergeEpisodeAvailabilityByAudioLocale(previousMap, nextMap) {
+    const merged = { ...normalizeAudioLocaleCountMap(previousMap) };
+    if (!nextMap || typeof nextMap !== "object" || Array.isArray(nextMap)) {
+      return merged;
+    }
+
+    Object.entries(nextMap).forEach(([localeKey, value]) => {
+      const locale = normalizeAudioLocale(localeKey);
+      const absoluteEpisodeNumber = sanitizePositiveInt(value);
+      if (!locale || absoluteEpisodeNumber == null) {
+        return;
+      }
+
+      const storageKey = locale.toLowerCase();
+      const previous = sanitizePositiveInt(merged[storageKey]) ?? 0;
+      merged[storageKey] = Math.max(previous, absoluteEpisodeNumber);
+    });
+
+    return merged;
+  }
+
+  function getWatchHistoryProgressIndex(value) {
+    const absoluteEpisodeNumber = pickFirstPositiveInt([
+      sanitizePositiveInt(value?.absoluteEpisodeNumber),
+      sanitizePositiveInt(value?.sequenceNumber),
+      sanitizePositiveInt(value?.sequence_number)
+    ]);
+    if (absoluteEpisodeNumber != null) {
+      return absoluteEpisodeNumber;
+    }
+
+    const seasonNumber = sanitizePositiveInt(value?.seasonNumber);
+    const episodeNumber = sanitizePositiveInt(value?.episodeNumber);
+    if (seasonNumber != null && episodeNumber != null) {
+      return seasonNumber * 100000 + episodeNumber;
+    }
+
+    return null;
+  }
+
+  function shouldReplaceWatchHistoryProgress(previous, next) {
+    if (!previous) {
+      return true;
+    }
+
+    const previousAudioInferred = Boolean(previous?.audioLocaleInferred);
+    const nextAudioInferred = Boolean(next?.audioLocaleInferred);
+    const previousDateMs = parseDateMs(previous?.datePlayedMs ?? previous?.datePlayed) ?? 0;
+    const nextDateMs = parseDateMs(next?.datePlayedMs ?? next?.datePlayed) ?? 0;
+
+    if (previousAudioInferred !== nextAudioInferred) {
+      return !nextAudioInferred;
+    }
+
+    if (previousAudioInferred && nextAudioInferred) {
+      if (nextDateMs !== previousDateMs) {
+        return nextDateMs > previousDateMs;
+      }
+    }
+
+    const previousIndex = getWatchHistoryProgressIndex(previous);
+    const nextIndex = getWatchHistoryProgressIndex(next);
+
+    if (nextIndex != null && previousIndex != null && nextIndex !== previousIndex) {
+      return nextIndex > previousIndex;
+    }
+
+    if (nextIndex != null && previousIndex == null) {
+      return true;
+    }
+
+    if (nextIndex == null && previousIndex != null) {
+      return false;
+    }
+
+    const previousCompleted = Boolean(previous?.fullyWatched);
+    const nextCompleted = Boolean(next?.fullyWatched);
+    if (nextCompleted !== previousCompleted) {
+      return nextCompleted;
+    }
+
+    return nextDateMs > previousDateMs;
+  }
+
   function normalizeWatchHistoryEntry(value) {
     if (!value || typeof value !== "object") {
       return null;
@@ -1044,17 +1295,41 @@
       value?.panel?.episode_metadata?.audio_locale ??
       value?.panel?.audio_locale
     );
+    const seriesId = typeof value?.seriesId === "string"
+      ? value.seriesId
+      : (typeof value?.panel?.episode_metadata?.series_id === "string" ? value.panel.episode_metadata.series_id : "");
+    const episodeId = typeof value?.episodeId === "string"
+      ? value.episodeId
+      : (typeof value?.id === "string"
+        ? value.id
+        : (typeof value?.panel?.id === "string" ? value.panel.id : null));
+    const identifier = typeof value?.identifier === "string"
+      ? value.identifier
+      : (typeof value?.panel?.episode_metadata?.identifier === "string"
+        ? value.panel.episode_metadata.identifier
+        : "");
+    const canonicalEpisodeKey =
+      typeof value?.canonicalEpisodeKey === "string" && value.canonicalEpisodeKey
+        ? value.canonicalEpisodeKey
+        : deriveCanonicalEpisodeKeyFromEpisodeMetadata(value?.panel?.episode_metadata || {}, seriesId);
 
     return {
+      seriesId,
       datePlayedMs,
       datePlayed: new Date(datePlayedMs).toISOString(),
       seasonNumber,
       episodeNumber,
       absoluteEpisodeNumber,
-      episodeTitle: typeof value.episodeTitle === "string" ? value.episodeTitle : "",
+      episodeId,
+      identifier,
+      canonicalEpisodeKey,
+      episodeTitle: typeof value.episodeTitle === "string"
+        ? value.episodeTitle
+        : (typeof value?.panel?.title === "string" ? value.panel.title : ""),
       playhead: Number(value.playhead || 0),
-      fullyWatched: Boolean(value.fullyWatched),
-      audioLocale
+      fullyWatched: Boolean(value.fullyWatched ?? value.fully_watched),
+      audioLocale,
+      audioLocaleInferred: Boolean(value?.audioLocaleInferred)
     };
   }
 
@@ -1108,7 +1383,9 @@
         accountId: "",
         updatedAt: 0,
         bySeriesId: {},
-        bySeriesIdAudioLocale: {}
+        bySeriesIdAudioLocale: {},
+        bySeriesIdProgress: {},
+        bySeriesIdAudioLocaleProgress: {}
       };
     }
 
@@ -1126,13 +1403,32 @@
     });
 
     const bySeriesIdAudioLocale = normalizeStoredWatchHistoryBySeriesAudioLocale(raw.bySeriesIdAudioLocale);
+    const bySeriesIdProgressRaw =
+      raw.bySeriesIdProgress && typeof raw.bySeriesIdProgress === "object"
+        ? raw.bySeriesIdProgress
+        : {};
+    const bySeriesIdProgress = {};
+
+    Object.entries(bySeriesIdProgressRaw).forEach(([seriesId, value]) => {
+      if (!seriesId) {
+        return;
+      }
+      const normalized = normalizeWatchHistoryEntry(value);
+      if (normalized) {
+        bySeriesIdProgress[seriesId] = normalized;
+      }
+    });
+
+    const bySeriesIdAudioLocaleProgress = normalizeStoredWatchHistoryBySeriesAudioLocale(raw.bySeriesIdAudioLocaleProgress);
 
     return {
       version: Number(raw.version) || 0,
       accountId: typeof raw.accountId === "string" ? raw.accountId : "",
       updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : 0,
       bySeriesId,
-      bySeriesIdAudioLocale
+      bySeriesIdAudioLocale,
+      bySeriesIdProgress,
+      bySeriesIdAudioLocaleProgress
     };
   }
 
@@ -1180,25 +1476,25 @@
     return Date.now() - cache.updatedAt < WATCHLIST_CACHE_TTL_MS;
   }
 
-  function getCachedWatchHistory(seriesId, audioLocale = null, allowSeriesFallback = true) {
-    if (!seriesId || !state.watchHistoryCache || typeof state.watchHistoryCache !== "object") {
-      return null;
-    }
-
-    const bySeriesId = state.watchHistoryCache.bySeriesId;
-    if (!bySeriesId || typeof bySeriesId !== "object") {
+  function getCachedWatchHistoryFromBuckets(
+    seriesBucket,
+    seriesByLocaleBucket,
+    seriesId,
+    audioLocale = null,
+    allowSeriesFallback = true
+  ) {
+    if (!seriesId || !seriesBucket || typeof seriesBucket !== "object") {
       return null;
     }
 
     const normalizedAudioLocale = normalizeAudioLocale(audioLocale);
     if (normalizedAudioLocale) {
-      const bySeriesIdAudioLocale = state.watchHistoryCache.bySeriesIdAudioLocale;
       const perSeriesLocaleMap =
-        bySeriesIdAudioLocale &&
-        typeof bySeriesIdAudioLocale === "object" &&
-        !Array.isArray(bySeriesIdAudioLocale[seriesId]) &&
-        typeof bySeriesIdAudioLocale[seriesId] === "object"
-          ? bySeriesIdAudioLocale[seriesId]
+        seriesByLocaleBucket &&
+        typeof seriesByLocaleBucket === "object" &&
+        !Array.isArray(seriesByLocaleBucket[seriesId]) &&
+        typeof seriesByLocaleBucket[seriesId] === "object"
+          ? seriesByLocaleBucket[seriesId]
           : null;
 
       if (perSeriesLocaleMap) {
@@ -1216,8 +1512,47 @@
       return null;
     }
 
-    const entry = normalizeWatchHistoryEntry(bySeriesId[seriesId]);
-    return entry || null;
+    return normalizeWatchHistoryEntry(seriesBucket[seriesId]);
+  }
+
+  function getCachedWatchHistory(seriesId, audioLocale = null, allowSeriesFallback = true) {
+    if (!seriesId || !state.watchHistoryCache || typeof state.watchHistoryCache !== "object") {
+      return null;
+    }
+
+    const bySeriesId = state.watchHistoryCache.bySeriesId;
+    const bySeriesIdAudioLocale = state.watchHistoryCache.bySeriesIdAudioLocale;
+    if (!bySeriesId || typeof bySeriesId !== "object") {
+      return null;
+    }
+
+    return getCachedWatchHistoryFromBuckets(
+      bySeriesId,
+      bySeriesIdAudioLocale,
+      seriesId,
+      audioLocale,
+      allowSeriesFallback
+    );
+  }
+
+  function getCachedWatchHistoryProgress(seriesId, audioLocale = null, allowSeriesFallback = true) {
+    if (!seriesId || !state.watchHistoryCache || typeof state.watchHistoryCache !== "object") {
+      return null;
+    }
+
+    const bySeriesIdProgress = state.watchHistoryCache.bySeriesIdProgress;
+    const bySeriesIdAudioLocaleProgress = state.watchHistoryCache.bySeriesIdAudioLocaleProgress;
+    if (!bySeriesIdProgress || typeof bySeriesIdProgress !== "object") {
+      return null;
+    }
+
+    return getCachedWatchHistoryFromBuckets(
+      bySeriesIdProgress,
+      bySeriesIdAudioLocaleProgress,
+      seriesId,
+      audioLocale,
+      allowSeriesFallback
+    );
   }
 
   function sleep(ms) {
@@ -1589,6 +1924,19 @@
     }
 
     const payload = await response.json();
+    pushApiTrace("authToken", {
+      at: Date.now(),
+      request: {
+        url: resolveApiHref("/auth/v1/token"),
+        grant_type: "etp_rt_cookie"
+      },
+      response: {
+        account_id: typeof payload?.account_id === "string" ? payload.account_id : null,
+        expires_in: Number(payload?.expires_in || 0) || null,
+        token_type: typeof payload?.token_type === "string" ? payload.token_type : null,
+        country: typeof payload?.country === "string" ? payload.country : null
+      }
+    });
     const accessToken = typeof payload?.access_token === "string" ? payload.access_token : "";
     const expiresInSeconds = Number(payload?.expires_in || 0);
     const accountId = payload?.account_id || null;
@@ -1719,6 +2067,22 @@
     auditWatchlistRowsContract(rows);
     const total = Number(payload?.total || rows.length);
 
+    pushApiTrace("watchlist", {
+      at: Date.now(),
+      request: {
+        url,
+        start: Math.max(0, Number(start) || 0),
+        n: WATCHLIST_PAGE_SIZE,
+        preferred_audio_language: params.get("preferred_audio_language"),
+        locale: params.get("locale")
+      },
+      response: {
+        total,
+        rowCount: rows.length
+      },
+      data: rows
+    });
+
     return {
       rows,
       total
@@ -1731,6 +2095,7 @@
 
   async function fetchAllWatchlistRows(tokenEntry) {
     const allRows = [];
+    const seenRowKeys = new Set();
     let start = 0;
     let total = null;
     let pages = 0;
@@ -1743,7 +2108,18 @@
         total = page.total;
       }
 
-      allRows.push(...page.rows);
+      page.rows.forEach((row) => {
+        const seriesId = getWatchlistSeriesId(row) || "";
+        const panelId = typeof row?.panel?.id === "string" ? row.panel.id : "";
+        const rowKey = `${seriesId}|${panelId}`;
+        if (rowKey !== "|" && seenRowKeys.has(rowKey)) {
+          return;
+        }
+        if (rowKey !== "|") {
+          seenRowKeys.add(rowKey);
+        }
+        allRows.push(row);
+      });
       start += WATCHLIST_PAGE_SIZE;
 
       if (page.rows.length < WATCHLIST_PAGE_SIZE) {
@@ -1793,6 +2169,22 @@
     auditWatchHistoryRowsContract(rows);
     const total = Number(payload?.total || rows.length);
 
+    pushApiTrace("watchHistory", {
+      at: Date.now(),
+      request: {
+        url,
+        page: Math.max(1, Number(pageNumber) || 1),
+        page_size: WATCH_HISTORY_PAGE_SIZE,
+        preferred_audio_language: params.get("preferred_audio_language"),
+        locale: params.get("locale")
+      },
+      response: {
+        total,
+        rowCount: rows.length
+      },
+      data: rows
+    });
+
     return {
       rows,
       total
@@ -1801,6 +2193,194 @@
 
   function getWatchHistorySeriesId(entry) {
     return entry?.panel?.episode_metadata?.series_id || entry?.panel?.series_metadata?.series_id || null;
+  }
+
+  function getWatchlistSeriesTitle(entry) {
+    return (
+      entry?.panel?.episode_metadata?.series_title ||
+      entry?.panel?.series_metadata?.title ||
+      entry?.panel?.title ||
+      ""
+    );
+  }
+
+  function getWatchHistorySeriesTitle(entry) {
+    return (
+      entry?.panel?.episode_metadata?.series_title ||
+      entry?.panel?.series_metadata?.title ||
+      entry?.panel?.title ||
+      ""
+    );
+  }
+
+  function getKnownSeriesCandidates() {
+    const bySeriesId = new Map();
+
+    const addCandidate = (seriesId, title) => {
+      const normalizedSeriesId = typeof seriesId === "string" ? seriesId.trim() : "";
+      const normalizedTitle = typeof title === "string" ? title.trim() : "";
+      if (!normalizedSeriesId) {
+        return;
+      }
+
+      if (bySeriesId.has(normalizedSeriesId)) {
+        const existing = bySeriesId.get(normalizedSeriesId);
+        if (!existing.title && normalizedTitle) {
+          existing.title = normalizedTitle;
+        }
+        return;
+      }
+
+      bySeriesId.set(normalizedSeriesId, {
+        seriesId: normalizedSeriesId,
+        title: normalizedTitle
+      });
+    };
+
+    state.curatedEntries.forEach((entry) => {
+      addCandidate(entry?.seriesId, entry?.title || "");
+    });
+
+    if (Array.isArray(state.watchlistCache?.rows)) {
+      state.watchlistCache.rows.forEach((row) => {
+        addCandidate(getWatchlistSeriesId(row), getWatchlistSeriesTitle(row));
+      });
+    }
+
+    if (Array.isArray(state.apiTrace?.watchlist)) {
+      state.apiTrace.watchlist.forEach((record) => {
+        (Array.isArray(record?.data) ? record.data : []).forEach((row) => {
+          addCandidate(getWatchlistSeriesId(row), getWatchlistSeriesTitle(row));
+        });
+      });
+    }
+
+    if (Array.isArray(state.apiTrace?.watchHistory)) {
+      state.apiTrace.watchHistory.forEach((record) => {
+        (Array.isArray(record?.data) ? record.data : []).forEach((row) => {
+          addCandidate(getWatchHistorySeriesId(row), getWatchHistorySeriesTitle(row));
+        });
+      });
+    }
+
+    return Array.from(bySeriesId.values()).sort((left, right) => {
+      const leftTitle = String(left.title || left.seriesId).toLowerCase();
+      const rightTitle = String(right.title || right.seriesId).toLowerCase();
+      return leftTitle.localeCompare(rightTitle);
+    });
+  }
+
+  function resolveSeriesCandidate(query) {
+    const normalizedQuery = String(query || "").trim().toLowerCase();
+    if (!normalizedQuery) {
+      return null;
+    }
+
+    const knownCandidates = getKnownSeriesCandidates();
+
+    const exactSeriesIdMatch = knownCandidates.find((candidate) => candidate.seriesId.toLowerCase() === normalizedQuery);
+    if (exactSeriesIdMatch) {
+      return exactSeriesIdMatch;
+    }
+
+    const exactTitleMatch = knownCandidates.find((candidate) => candidate.title.toLowerCase() === normalizedQuery);
+    if (exactTitleMatch) {
+      return exactTitleMatch;
+    }
+
+    return knownCandidates.find((candidate) => candidate.title.toLowerCase().includes(normalizedQuery)) || null;
+  }
+
+  function mapApiTraceRowsBySeries(bucket, seriesId, rowSeriesIdGetter) {
+    if (!Array.isArray(bucket) || !seriesId) {
+      return [];
+    }
+
+    return bucket
+      .map((record) => {
+        const rows = Array.isArray(record?.data) ? record.data : [];
+        const matchedRows = rows.filter((row) => rowSeriesIdGetter(row) === seriesId);
+        if (!matchedRows.length) {
+          return null;
+        }
+
+        return {
+          ...record,
+          response: {
+            ...(record?.response || {}),
+            matchedRowCount: matchedRows.length
+          },
+          data: matchedRows
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function buildSeriesApiDataDump(query) {
+    const matchedSeries = resolveSeriesCandidate(query);
+    if (!matchedSeries) {
+      return {
+        query,
+        error: "Series not found in current extension data.",
+        availableSeries: getKnownSeriesCandidates()
+      };
+    }
+
+    const seriesId = matchedSeries.seriesId;
+    const apis = {};
+
+    const watchlistCalls = mapApiTraceRowsBySeries(state.apiTrace.watchlist, seriesId, getWatchlistSeriesId);
+    if (watchlistCalls.length) {
+      apis["/content/v2/discover/{account_id}/watchlist"] = watchlistCalls;
+    }
+
+    const watchHistoryCalls = mapApiTraceRowsBySeries(state.apiTrace.watchHistory, seriesId, getWatchHistorySeriesId);
+    if (watchHistoryCalls.length) {
+      apis["/content/v2/{account_id}/watch-history"] = watchHistoryCalls;
+    }
+
+    const cmsCalls = mapApiTraceRowsBySeries(state.apiTrace.cmsObjects, seriesId, (row) => row?.id || null);
+    if (cmsCalls.length) {
+      apis["/content/v2/cms/objects/{series_ids}"] = cmsCalls;
+    }
+
+    const legacyRatingCalls = (Array.isArray(state.apiTrace.legacyRating) ? state.apiTrace.legacyRating : []).filter(
+      (record) => record?.request?.seriesId === seriesId
+    );
+    if (legacyRatingCalls.length) {
+      apis["/content-reviews/v3/rating/series/{series_id}"] = legacyRatingCalls;
+    }
+
+    const previewCalls = (Array.isArray(state.apiTrace.preview) ? state.apiTrace.preview : []).filter(
+      (record) => record?.request?.seriesId === seriesId
+    );
+    if (previewCalls.length) {
+      apis["/content/v2/cms/videos/{video_id}/streams"] = previewCalls;
+    }
+
+    return {
+      query,
+      generatedAt: new Date().toISOString(),
+      matchedSeries,
+      apis
+    };
+  }
+
+  function exposeDebugApi() {
+    window.__CW_WATCHLIST_CURATOR_DEBUG__ = {
+      listSeries: () => getKnownSeriesCandidates(),
+      dumpSeriesApiData: (query) => buildSeriesApiDataDump(query),
+      printSeriesApiData: (query) => {
+        const dump = buildSeriesApiDataDump(query);
+        try {
+          // eslint-disable-next-line no-console
+          console.log(JSON.stringify(dump, null, 2));
+        } catch (_) {
+          // no-op
+        }
+        return dump;
+      }
+    };
   }
 
   function parseWatchHistoryRow(entry, fallbackAudioLocale = null) {
@@ -1814,22 +2394,22 @@
       return null;
     }
 
-    const seasonNumber = sanitizePositiveInt(entry?.panel?.episode_metadata?.season_number);
-    const episodeNumber = sanitizePositiveInt(entry?.panel?.episode_metadata?.episode_number);
-    const absoluteEpisodeNumber = pickFirstPositiveInt([
-      sanitizePositiveInt(entry?.panel?.episode_metadata?.sequence_number),
-      sanitizePositiveInt(entry?.panel?.episode_metadata?.episode_sequence_number),
-      sanitizePositiveInt(entry?.panel?.episode_metadata?.global_episode_number),
-      sanitizePositiveInt(entry?.panel?.episode_metadata?.global_episode_num),
-      seasonNumber === 1 ? episodeNumber : null
-    ]);
-    const audioLocale = normalizeAudioLocale(
-      entry?.panel?.episode_metadata?.audio_locale ||
+    const meta = entry?.panel?.episode_metadata || {};
+    const seasonNumber = sanitizePositiveInt(meta?.season_number);
+    const episodeNumber = sanitizePositiveInt(meta?.episode_number);
+    const absoluteEpisodeNumber = getAbsoluteEpisodeNumberFromEpisodeMetadata(meta);
+    const explicitAudioLocale = normalizeAudioLocale(
+      meta?.audio_locale ||
       entry?.panel?.audio_locale ||
       entry?.audio_locale ||
-      entry?.audioLocale ||
-      fallbackAudioLocale
+      entry?.audioLocale
     );
+    const audioLocale = explicitAudioLocale || normalizeAudioLocale(fallbackAudioLocale);
+    const identifier = typeof meta?.identifier === "string" ? meta.identifier : "";
+    const canonicalEpisodeKey = deriveCanonicalEpisodeKeyFromEpisodeMetadata(meta, seriesId);
+    const episodeId = typeof entry?.id === "string"
+      ? entry.id
+      : (typeof entry?.panel?.id === "string" ? entry.panel.id : null);
 
     return {
       seriesId,
@@ -1838,10 +2418,14 @@
       seasonNumber,
       episodeNumber,
       absoluteEpisodeNumber,
+      episodeId,
+      identifier,
+      canonicalEpisodeKey,
       episodeTitle: typeof entry?.panel?.title === "string" ? entry.panel.title : "",
       playhead: Number(entry?.playhead || 0),
       fullyWatched: Boolean(entry?.fully_watched),
-      audioLocale
+      audioLocale,
+      audioLocaleInferred: !explicitAudioLocale && Boolean(audioLocale)
     };
   }
 
@@ -1876,6 +2460,21 @@
     const payload = await response.json();
     const records = requirePayloadDataArray("cms-objects", payload);
     auditCmsObjectContract(records);
+
+    pushApiTrace("cmsObjects", {
+      at: Date.now(),
+      request: {
+        url: cmsUrl,
+        mode: "batch",
+        preferred_audio_language: effectivePreferredAudioLanguage,
+        seriesIds: seriesIds.slice()
+      },
+      response: {
+        total: Number(payload?.total || records.length),
+        rowCount: records.length
+      },
+      data: records
+    });
 
     return records
       .map((record) => parseCmsObjectRecord(record))
@@ -1926,6 +2525,20 @@
       const payload = await response.json();
       const records = requirePayloadDataArray("cms-objects", payload);
       auditCmsObjectContract(records);
+      pushApiTrace("cmsObjects", {
+        at: Date.now(),
+        request: {
+          url: cmsUrl,
+          mode: "single",
+          preferred_audio_language: effectivePreferredAudioLanguage,
+          seriesIds: [seriesId]
+        },
+        response: {
+          total: Number(payload?.total || records.length),
+          rowCount: records.length
+        },
+        data: records
+      });
       const record = records.find((row) => row && row.id === seriesId) || records[0] || null;
       if (record) {
         const parsed = parseCmsObjectRecord(record);
@@ -2033,6 +2646,14 @@
       );
       if (response.ok) {
         const payload = await response.json();
+        pushApiTrace("legacyRating", {
+          at: Date.now(),
+          request: {
+            url: ratingUrl,
+            seriesId
+          },
+          response: payload
+        });
         const parsed = parseRatingPayload(payload);
         if (parsed.rating != null) {
           return {
@@ -2306,6 +2927,40 @@
     return "Up Next";
   }
 
+  function hasInProgressPlayback(entry, watchHistoryEntry) {
+    const hasEntryProgress = Number(entry?.playheadMs || 0) > 0 && !Boolean(entry?.fullyWatched);
+    if (hasEntryProgress) {
+      return true;
+    }
+
+    return Number(watchHistoryEntry?.playhead || 0) > 0 && !Boolean(watchHistoryEntry?.fullyWatched);
+  }
+
+  function deriveDisplayStatusBase(entry, watchHistoryEntry) {
+    const fallbackStatus = typeof entry?.statusBase === "string" && entry.statusBase.trim()
+      ? entry.statusBase.trim()
+      : "Up Next";
+    const normalizedFallback = fallbackStatus.toLowerCase();
+
+    if (normalizedFallback.includes("unavailable") || normalizedFallback.includes("coming soon")) {
+      return fallbackStatus;
+    }
+
+    if (Boolean(entry?.fullyWatched) || normalizedFallback.includes("watch again") || normalizedFallback.includes("rewatch")) {
+      return "Watch Again";
+    }
+
+    if (hasInProgressPlayback(entry, watchHistoryEntry)) {
+      return "Continue";
+    }
+
+    if (Boolean(entry?.neverWatched) || normalizedFallback.includes("start watching")) {
+      return "Start Watching";
+    }
+
+    return normalizedFallback.includes("up next") ? "Up Next" : fallbackStatus;
+  }
+
   function deriveAudioLocalesFromApi(meta) {
     const locales = [];
 
@@ -2414,21 +3069,26 @@
 
     rows.forEach((row, index) => {
       const seriesId = getWatchlistSeriesId(row);
-      if (!seriesId || dedup.has(seriesId)) {
+      if (!seriesId) {
         return;
       }
 
       const meta = row?.panel?.episode_metadata || {};
+      const knownEpisodeMaxByAudioLocale = getEpisodeAvailabilityByAudioLocale(meta);
+      const existing = dedup.get(seriesId);
+      if (existing) {
+        existing.knownEpisodeMaxByAudioLocale = mergeEpisodeAvailabilityByAudioLocale(
+          existing.knownEpisodeMaxByAudioLocale,
+          knownEpisodeMaxByAudioLocale
+        );
+        return;
+      }
+
       const statusBase = deriveStatusBaseFromApi(row, meta);
       const seasonNumber = sanitizePositiveInt(meta?.season_number);
       const episodeNumber = sanitizePositiveInt(meta?.episode_number);
-      const absoluteEpisodeNumber = pickFirstPositiveInt([
-        sanitizePositiveInt(meta?.sequence_number),
-        sanitizePositiveInt(meta?.episode_sequence_number),
-        sanitizePositiveInt(meta?.global_episode_number),
-        sanitizePositiveInt(meta?.global_episode_num),
-        seasonNumber === 1 ? episodeNumber : null
-      ]);
+      const absoluteEpisodeNumber = getAbsoluteEpisodeNumberFromEpisodeMetadata(meta);
+      const canonicalEpisodeKey = deriveCanonicalEpisodeKeyFromEpisodeMetadata(meta, seriesId);
       const nextEpisodeLabel = formatEpisodeIdentifier(seasonNumber, episodeNumber);
       const statusText = nextEpisodeLabel ? `${statusBase}: ${nextEpisodeLabel}` : statusBase;
       const audioLocales = deriveAudioLocalesFromApi(meta);
@@ -2481,6 +3141,7 @@
         source: "api",
         seriesId,
         panelId: typeof row?.panel?.id === "string" ? row.panel.id : null,
+        canonicalEpisodeKey,
         title,
         href,
         imageUrl,
@@ -2511,6 +3172,7 @@
         neverWatched,
         isFavorite: Boolean(row?.is_favorite),
         audioLocales,
+        knownEpisodeMaxByAudioLocale,
         hasEnglishAudio,
         watchReadyBase,
         originalIndex: index,
@@ -2649,11 +3311,14 @@
     const inflight = (async () => {
       state.watchHistoryStatus = "loading";
       const seriesUpdates = {};
+      const seriesProgressUpdates = {};
       const localeUpdates = {};
+      const localeProgressUpdates = {};
       let pages = 0;
       let totalRows = null;
       let fetchedRows = 0;
       let noMatchPageStreak = 0;
+      const seenRowKeys = new Set();
 
       while (pages < WATCH_HISTORY_MAX_PAGES) {
         pages += 1;
@@ -2672,10 +3337,24 @@
             return;
           }
 
+          const rowKey =
+            parsed.canonicalEpisodeKey ||
+            parsed.episodeId ||
+            `${parsed.seriesId}|${parsed.absoluteEpisodeNumber || ""}|${parsed.datePlayedMs}`;
+          if (seenRowKeys.has(rowKey)) {
+            return;
+          }
+          seenRowKeys.add(rowKey);
+
           if (isDefaultPreferredAudio) {
             const previous = seriesUpdates[parsed.seriesId];
             if (!previous || parsed.datePlayedMs > previous.datePlayedMs) {
               seriesUpdates[parsed.seriesId] = parsed;
+            }
+
+            const previousProgress = seriesProgressUpdates[parsed.seriesId];
+            if (shouldReplaceWatchHistoryProgress(previousProgress, parsed)) {
+              seriesProgressUpdates[parsed.seriesId] = parsed;
             }
           }
 
@@ -2691,6 +3370,16 @@
               };
             }
             localeUpdates[parsed.seriesId] = perSeriesLocaleMap;
+
+            const perSeriesLocaleProgressMap = localeProgressUpdates[parsed.seriesId] || {};
+            const previousProgressByLocale = perSeriesLocaleProgressMap[localeStorageKey];
+            if (shouldReplaceWatchHistoryProgress(previousProgressByLocale, parsed)) {
+              perSeriesLocaleProgressMap[localeStorageKey] = {
+                ...parsed,
+                audioLocale: locale
+              };
+            }
+            localeProgressUpdates[parsed.seriesId] = perSeriesLocaleProgressMap;
           }
 
           if (remainingSeriesIds.has(parsed.seriesId)) {
@@ -2724,13 +3413,26 @@
 
       const latestCache = normalizeStoredWatchHistoryCache(state.watchHistoryCache);
       const nextBySeriesId = isDefaultPreferredAudio ? { ...latestCache.bySeriesId } : latestCache.bySeriesId;
+      const nextBySeriesIdProgress = isDefaultPreferredAudio
+        ? { ...latestCache.bySeriesIdProgress }
+        : latestCache.bySeriesIdProgress;
       const nextBySeriesIdAudioLocale = normalizeStoredWatchHistoryBySeriesAudioLocale(latestCache.bySeriesIdAudioLocale);
+      const nextBySeriesIdAudioLocaleProgress = normalizeStoredWatchHistoryBySeriesAudioLocale(
+        latestCache.bySeriesIdAudioLocaleProgress
+      );
 
       if (isDefaultPreferredAudio) {
         Object.entries(seriesUpdates).forEach(([seriesId, updateEntry]) => {
           const previous = normalizeWatchHistoryEntry(nextBySeriesId[seriesId]);
           if (!previous || updateEntry.datePlayedMs > previous.datePlayedMs) {
             nextBySeriesId[seriesId] = updateEntry;
+          }
+        });
+
+        Object.entries(seriesProgressUpdates).forEach(([seriesId, updateEntry]) => {
+          const previous = normalizeWatchHistoryEntry(nextBySeriesIdProgress[seriesId]);
+          if (shouldReplaceWatchHistoryProgress(previous, updateEntry)) {
+            nextBySeriesIdProgress[seriesId] = updateEntry;
           }
         });
       }
@@ -2750,12 +3452,29 @@
         }
       });
 
+      Object.entries(localeProgressUpdates).forEach(([seriesId, localeMapUpdates]) => {
+        const nextLocaleProgressMap = { ...(nextBySeriesIdAudioLocaleProgress[seriesId] || {}) };
+
+        Object.entries(localeMapUpdates).forEach(([localeStorageKey, updateEntry]) => {
+          const previous = normalizeWatchHistoryEntry(nextLocaleProgressMap[localeStorageKey]);
+          if (shouldReplaceWatchHistoryProgress(previous, updateEntry)) {
+            nextLocaleProgressMap[localeStorageKey] = updateEntry;
+          }
+        });
+
+        if (Object.keys(nextLocaleProgressMap).length) {
+          nextBySeriesIdAudioLocaleProgress[seriesId] = nextLocaleProgressMap;
+        }
+      });
+
       state.watchHistoryCache = {
         version: WATCH_HISTORY_CACHE_VERSION,
         accountId: tokenEntry.accountId,
         updatedAt: Date.now(),
         bySeriesId: nextBySeriesId,
-        bySeriesIdAudioLocale: nextBySeriesIdAudioLocale
+        bySeriesIdAudioLocale: nextBySeriesIdAudioLocale,
+        bySeriesIdProgress: nextBySeriesIdProgress,
+        bySeriesIdAudioLocaleProgress: nextBySeriesIdAudioLocaleProgress
       };
       state.watchHistoryStatus = "ready";
       scheduleSaveWatchHistory();
@@ -2766,6 +3485,8 @@
         fetchedRows,
         mappedSeries: Object.keys(nextBySeriesId).length,
         mappedSeriesByAudioLocale: Object.keys(nextBySeriesIdAudioLocale).length,
+        mappedProgressSeries: Object.keys(nextBySeriesIdProgress).length,
+        mappedProgressSeriesByAudioLocale: Object.keys(nextBySeriesIdAudioLocaleProgress).length,
         matchedCandidates: candidateSeriesIds.length - remainingSeriesIds.size,
         candidates: candidateSeriesIds.length,
         noMatchPageStreak
@@ -3349,23 +4070,54 @@
     return null;
   }
 
+  function getPreviewCacheKey(entry) {
+    const streamsUrl = resolveApiHref(entry?.streamsLink);
+    if (streamsUrl) {
+      return `streams:${streamsUrl}`;
+    }
+
+    const panelId = typeof entry?.panelId === "string" ? entry.panelId.trim() : "";
+    if (panelId) {
+      return `episode:${panelId}`;
+    }
+
+    const canonicalEpisodeKey = typeof entry?.canonicalEpisodeKey === "string"
+      ? entry.canonicalEpisodeKey.trim()
+      : "";
+    if (canonicalEpisodeKey) {
+      return `canonical:${canonicalEpisodeKey}`;
+    }
+
+    const seriesId = typeof entry?.seriesId === "string" ? entry.seriesId.trim() : "";
+    if (seriesId) {
+      return `series:${seriesId}`;
+    }
+
+    return "";
+  }
+
   async function fetchPreviewUrlForEntry(entry) {
     const seriesId = entry?.seriesId;
     if (!seriesId) {
       return null;
     }
 
-    if (Object.prototype.hasOwnProperty.call(state.previewCache, seriesId)) {
-      return state.previewCache[seriesId] || null;
+    const previewCacheKey = getPreviewCacheKey(entry);
+    if (!previewCacheKey) {
+      return null;
     }
 
-    if (state.previewInflight.has(seriesId)) {
-      return state.previewInflight.get(seriesId);
+    if (Object.prototype.hasOwnProperty.call(state.previewCache, previewCacheKey)) {
+      return state.previewCache[previewCacheKey] || null;
+    }
+
+    if (state.previewInflight.has(previewCacheKey)) {
+      return state.previewInflight.get(previewCacheKey);
     }
 
     const streamsUrl = resolveApiHref(entry?.streamsLink);
     if (!streamsUrl) {
-      state.previewCache[seriesId] = null;
+      state.previewCache[previewCacheKey] = null;
       return null;
     }
 
@@ -3388,19 +4140,28 @@
 
         if (response.ok) {
           const payload = await response.json();
+          pushApiTrace("preview", {
+            at: Date.now(),
+            request: {
+              url: streamsUrl,
+              seriesId,
+              cacheKey: previewCacheKey
+            },
+            response: payload
+          });
           previewUrl = parsePreviewUrlFromPayload(payload);
         }
       } catch (_) {
         previewUrl = null;
       }
 
-      state.previewCache[seriesId] = previewUrl || null;
+      state.previewCache[previewCacheKey] = previewUrl || null;
       return previewUrl || null;
     })().finally(() => {
-      state.previewInflight.delete(seriesId);
+      state.previewInflight.delete(previewCacheKey);
     });
 
-    state.previewInflight.set(seriesId, inflight);
+    state.previewInflight.set(previewCacheKey, inflight);
     return inflight;
   }
 
@@ -4611,8 +5372,16 @@
         selectedAudioLocale
           ? getCachedWatchHistory(entry.seriesId, selectedAudioLocale, false)
           : null;
+      const watchHistoryProgressFallback = getCachedWatchHistoryProgress(entry.seriesId);
+      const localeWatchHistoryProgressEntry =
+        selectedAudioLocale
+          ? getCachedWatchHistoryProgress(entry.seriesId, selectedAudioLocale, false)
+          : null;
       const watchHistoryProgressEntry =
-        localeWatchHistoryEntry || (selectedAudioIsDefaultPreferred ? watchHistoryEntry : null);
+        localeWatchHistoryProgressEntry ||
+        (selectedAudioIsDefaultPreferred ? watchHistoryProgressFallback : null) ||
+        localeWatchHistoryEntry ||
+        (selectedAudioIsDefaultPreferred ? watchHistoryEntry : null);
       const rating = ratingEntry?.rating ?? null;
       const votes = ratingEntry?.votes ?? null;
       const distribution = ratingEntry?.distribution ?? null;
@@ -4628,8 +5397,14 @@
           : "") ||
         entry.description ||
         "";
+      const knownEpisodeCountForSelectedAudio =
+        localizedAudioForCounts
+          ? getAudioLocaleCountFromMap(entry?.knownEpisodeMaxByAudioLocale, localizedAudioForCounts)
+          : null;
       const episodeCount =
-        getLocalizedSeriesCount(ratingEntry, localizedAudioForCounts, "episode") ?? sanitizePositiveInt(entry.episodeCount);
+        getLocalizedSeriesCount(ratingEntry, localizedAudioForCounts, "episode") ??
+        knownEpisodeCountForSelectedAudio ??
+        sanitizePositiveInt(entry.episodeCount);
       const seasonCount =
         getLocalizedSeriesCount(ratingEntry, localizedAudioForCounts, "season") ?? sanitizePositiveInt(entry.seasonCount);
       const genreTags = normalizeTagList(
@@ -4668,10 +5443,12 @@
         rating,
         votes
       };
+      const statusBase = deriveDisplayStatusBase(mergedEntry, localeWatchHistoryEntry || watchHistoryEntry);
       const watchReady = isEntryWatchReady(mergedEntry);
 
       return {
         ...mergedEntry,
+        statusBase,
         watchReady
       };
     });
@@ -5082,7 +5859,9 @@
         accountId: "",
         updatedAt: 0,
         bySeriesId: {},
-        bySeriesIdAudioLocale: {}
+        bySeriesIdAudioLocale: {},
+        bySeriesIdProgress: {},
+        bySeriesIdAudioLocaleProgress: {}
       };
       state.watchHistoryStatus = "idle";
       state.watchHistoryInflight = null;
@@ -5378,6 +6157,7 @@
 
   async function init() {
     runtimeEvent("init-start");
+    exposeDebugApi();
     await loadInitialState();
     startRouteWatcher();
     syncRoute();

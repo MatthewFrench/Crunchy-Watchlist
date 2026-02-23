@@ -119,6 +119,7 @@ Chrome, Edge, Firefox AMO, and Safari signing workflows are documented and kept 
 - `docs/end-user-installation.md`
 - `docs/release-checklist.md`
 - `docs/testing.md`
+- `docs/api-endpoints-reference.md`
 
 Run `docs/testing.md` for Playwright + local browser validation instructions.
 
