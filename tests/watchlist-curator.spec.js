@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 const path = require('node:path');
 const { test, expect } = require('@playwright/test');
 
@@ -57,6 +58,14 @@ async function visibleFixtureOrder(page) {
     (cards) => cards.map((card) => card.getAttribute('data-cw-curated-title'))
   );
 }
+
+test('manifest injects on all Crunchyroll pages for SPA watchlist navigation', async () => {
+  const manifestPath = path.join(process.cwd(), 'extension', 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const matches = manifest?.content_scripts?.[0]?.matches || [];
+
+  expect(matches).toContain('https://www.crunchyroll.com/*');
+});
 
 test.describe('Crunchy Watchlist Curator', () => {
   test.beforeEach(async ({ page }) => {
@@ -504,6 +513,53 @@ test.describe('Crunchy Watchlist Curator', () => {
             new: true,
             never_watched: false,
             playhead: Math.max(1, Number(row?.playhead || 0))
+          };
+        });
+
+        await route.fulfill({
+          response,
+          contentType: 'application/json; charset=utf-8',
+          body: JSON.stringify({
+            ...payload,
+            data: rewrittenRows
+          })
+        });
+      } catch (error) {
+        const errorText = String(error || '');
+        if (
+          errorText.includes('Target page, context or browser has been closed') ||
+          errorText.includes('Response has been disposed')
+        ) {
+          return;
+        }
+        throw error;
+      }
+    });
+
+    await injectExtension(page);
+
+    await expect(
+      page.locator('.cw-curated-card[data-cw-curated-title="No Rating Show"] .cw-curated-card__status')
+    ).toContainText('Continue');
+  });
+
+  test('uses watch-history progress to show Continue when watchlist playhead is zero', async ({ page }) => {
+    await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
+      try {
+        const response = await route.fetch();
+        const payload = await response.json();
+        const rows = Array.isArray(payload?.data) ? payload.data : [];
+        const rewrittenRows = rows.map((row) => {
+          const seriesId = row?.panel?.episode_metadata?.series_id;
+          if (seriesId !== 'GNONE789') {
+            return row;
+          }
+
+          return {
+            ...row,
+            new: true,
+            never_watched: false,
+            playhead: 0
           };
         });
 
