@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": false,
+    "types": ["node", "@playwright/test"]
+  },
+  "include": ["tests/**/*.ts", "tests/types/**/*.d.ts", "playwright.config.ts"]
+}

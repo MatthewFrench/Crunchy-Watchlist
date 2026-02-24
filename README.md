@@ -128,6 +128,12 @@ Run `docs/testing.md` for Playwright + local browser validation instructions.
 ```bash
 npm install
 npm run pw:install
+npm run typecheck
+npm run lint
+npm run build:runtime      # prepare generated extension runtime in .tmp/extension-runtime-dev
+npm run build:runtime:webext # web-extension runtime output in .tmp/extension-runtime-webext
+npm run build:runtime:safari # Safari runtime output in .tmp/extension-runtime-safari
+npm run build:runtime:e2e    # Playwright runtime output in .tmp/extension-runtime-e2e
 npm run build:webext        # all web-extension packages
 npm run build:webext:chrome # Chrome only
 npm run build:webext:edge   # Edge only
@@ -141,7 +147,9 @@ npm run test:e2e:chromium
 npm run test:e2e:firefox
 npm run test:e2e:webkit
 npm run pw:live                  # interactive WebKit watchlist session
+npm run pw:live:smoke            # non-interactive generated-runtime parity check for live injection
 npm run lint:firefox             # Firefox manifest + package lint
+npm run format:check             # Biome format check on configured paths
 ```
 
 ## How it works

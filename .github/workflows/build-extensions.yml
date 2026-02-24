@@ -24,6 +24,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Live runtime smoke
+        run: npm run pw:live:smoke
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium firefox
 
