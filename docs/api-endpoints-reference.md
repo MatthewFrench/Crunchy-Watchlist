@@ -1,7 +1,7 @@
 # Crunchyroll API Endpoint Reference (Extension)
 
 Last updated: 2026-02-23
-Source of truth: `extension/content.js`
+Source of truth: `extension/Content.js`
 
 This document covers the network endpoints called directly by Crunchy Watchlist Curator, when each call happens, request/response structure, field meanings, and general data types.
 
@@ -287,7 +287,7 @@ General type expectations:
 
 ### Response Handling
 - This is HTML, not JSON.
-- Regex parser attempts extraction from embedded structured content:
+- Regex parser attempts extraction from embedded structured Content:
   - `ratingValue` / `averageRating` / `average`
   - `ratingCount` / `votes` / `count`
 
@@ -374,7 +374,7 @@ The following rules were verified via scripted checks against the captured JSON:
 
 ### Repeat-ID Patterns (Important for Deduping)
 
-Observed repeated IDs are from repeated calls with different request params, not distinct content rows:
+Observed repeated IDs are from repeated calls with different request params, not distinct Content rows:
 
 - Watchlist:
   - Same row (`GE00366381ENUS`) returned in both calls:
@@ -420,6 +420,6 @@ Observed repeated IDs are from repeated calls with different request params, not
 
 ## Related Files
 
-- `extension/content.js` (network calls, parsing, caching)
+- `extension/Content.js` (network calls, parsing, caching)
 - `docs/crunchyroll-watchlist-findings.md` (broader live-observation notes)
 - `.tmp/villainess-api-calls-live.json` (example per-show captured payload from live run)

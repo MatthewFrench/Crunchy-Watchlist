@@ -87,10 +87,10 @@ Prohibited dependencies:
 
 Composition roots are the only places where owners are wired together:
 
-- Browser runtime bootstrap: currently `extension/content.js` init/mount path; target is thin bootstrap entry file.
+- Browser runtime bootstrap: currently `extension/Content.js` init/mount path; target is thin bootstrap entry file.
 - Build composition root: `scripts/build-webextensions.mts` and `scripts/build-safari-macos.sh`.
 - Live debug composition root: `scripts/live-webkit-watchlist.mts`.
-- Test composition root: `tests/*.spec.ts` + fixture server composition (`tests/server.ts`, `tests/server-router.ts`, `tests/server-fixtures.ts`, `tests/server-response.ts`).
+- Test composition root: `tests/*.spec.ts` + fixture server composition (`tests/Server.ts`, `tests/ServerRouter.ts`, `tests/ServerFixtures.ts`, `tests/ServerResponse.ts`).
 
 Rule: composition roots wire modules and call owner APIs; they do not host business logic.
 
@@ -175,8 +175,8 @@ Rules:
 ## 14) TypeScript and Tooling Standards (Target Stack)
 
 1. Source language target:
-   - TypeScript for `extension/src/**`, `scripts/**`, and `tests/helpers/**`.
-   - Legacy JavaScript remains temporarily allowed in `extension/content.js` during migration.
+   - TypeScript for `extension/src/**`, `scripts/**`, and `tests/Helpers/**`.
+   - Legacy JavaScript remains temporarily allowed in `extension/Content.js` during migration.
 2. Type-safety baseline (target `tsconfig` defaults):
    - `strict: true`
    - `noUncheckedIndexedAccess: true`
@@ -218,7 +218,8 @@ Rules:
 
 These budgets are enforcement triggers.
 
-- Runtime source file size target: `<= 600` lines (default warning `> 800`, refactor required `> 1200`; temporary composition-root override for `extension/content.js`: warning `> 1000`, refactor `> 1200`).
+- Source and test module naming standard: use PascalCase for files/folders under `extension/src/**`, `extension/Types/**`, and `tests/**` (keep root ecosystem anchors lowercase: `extension/`, `extension/src/`, `tests/`, `scripts/`, `docs/`).
+- Runtime source file size target: `<= 600` lines (default warning `> 800`, refactor required `> 1200`; temporary composition-root override for `extension/Content.js`: warning `> 1000`, refactor `> 1200`).
 - Test spec file size target: `<= 400` lines (warning `> 550`, refactor required `> 750`).
 - Function length target: `<= 45` lines (warning `> 70`, refactor required `> 100`).
 - Max parameters per exported function: `<= 6` (otherwise use typed object argument).
@@ -228,81 +229,82 @@ These budgets are enforcement triggers.
 
 Current-state findings from this repository:
 
-1. `extension/content.js` has been reduced to `1000` lines (under the temporary composition-root warning override), and now delegates baseline ownership to extracted modules loaded before bootstrap:
-   - `extension/src/runtime/runtime-store.ts`
-   - `extension/src/runtime/runtime-trace.ts`
-   - `extension/src/runtime/state-loader.ts`
-   - `extension/src/runtime/route-lifecycle.ts`
-   - `extension/src/runtime/preferred-audio-detector.ts`
-   - `extension/src/runtime/curated-renderable.ts`
-   - `extension/src/runtime/curated-panel.ts`
-   - `extension/src/runtime/curated-loader.ts`
-   - `extension/src/runtime/curated-interactions.ts`
-   - `extension/src/runtime/interface-shell.ts`
-   - `extension/src/runtime/native-bridge.ts`
-   - `extension/src/runtime/debug-api.ts`
-   - `extension/src/runtime/bootstrap-config.ts`
-   - `extension/src/runtime/bootstrap-helpers.ts`
-   - `extension/src/runtime/bootstrap-modules.ts`
-   - `extension/src/runtime/bootstrap-gate.ts`
-   - `extension/src/data/storage-adapter.ts`
-   - `extension/src/data/api-contracts.ts`
-   - `extension/src/data/auth-client.ts`
-   - `extension/src/data/watchlist-client.ts`
-   - `extension/src/data/watchlist-repository.ts`
-   - `extension/src/data/ratings-client.ts`
-   - `extension/src/data/ratings-repository.ts`
-   - `extension/src/data/history-repository-cache.ts`
-   - `extension/src/data/history-repository-preload.ts`
-   - `extension/src/data/history-repository.ts`
-   - `extension/src/data/preview-repository.ts`
-   - `extension/src/domain/core-primitives.ts`
-   - `extension/src/domain/image-variants.ts`
-   - `extension/src/domain/entry-normalizer.ts`
-   - `extension/src/domain/sort-metrics.ts`
-   - `extension/src/domain/entry-sorting.ts`
-   - `extension/src/ui/controls-view.ts`
-   - `extension/src/ui/curated-card-view.ts`
-   - `extension/src/ui/curated-card-shell.ts`
-   - `extension/src/ui/card-metadata.ts`
+1. `extension/Content.js` has been reduced to `891` lines (below the next-cycle `< 900` target and under the temporary composition-root warning override), and now delegates baseline ownership to extracted modules loaded before bootstrap:
+   - `extension/src/Runtime/RuntimeStore.ts`
+   - `extension/src/Runtime/RuntimeTrace.ts`
+   - `extension/src/Runtime/StateLoader.ts`
+   - `extension/src/Runtime/RouteLifecycle.ts`
+   - `extension/src/Runtime/PreferredAudioDetector.ts`
+   - `extension/src/Runtime/CuratedRenderable.ts`
+   - `extension/src/Runtime/CuratedPanel.ts`
+   - `extension/src/Runtime/CuratedLoader.ts`
+   - `extension/src/Runtime/CuratedInteractions.ts`
+   - `extension/src/Runtime/InterfaceShell.ts`
+   - `extension/src/Runtime/NativeBridge.ts`
+   - `extension/src/Runtime/DebugApi.ts`
+   - `extension/src/Runtime/BootstrapConfig.ts`
+   - `extension/src/Runtime/BootstrapHelpers.ts`
+   - `extension/src/Runtime/BootstrapFinalize.ts`
+   - `extension/src/Runtime/BootstrapModules.ts`
+   - `extension/src/Runtime/BootstrapGate.ts`
+   - `extension/src/Data/StorageAdapter.ts`
+   - `extension/src/Data/ApiContracts.ts`
+   - `extension/src/Data/AuthClient.ts`
+   - `extension/src/Data/WatchlistClient.ts`
+   - `extension/src/Data/WatchlistRepository.ts`
+   - `extension/src/Data/RatingsClient.ts`
+   - `extension/src/Data/RatingsRepository.ts`
+   - `extension/src/Data/HistoryRepositoryCache.ts`
+   - `extension/src/Data/HistoryRepositoryPreload.ts`
+   - `extension/src/Data/HistoryRepository.ts`
+   - `extension/src/Data/PreviewRepository.ts`
+   - `extension/src/Domain/CorePrimitives.ts`
+   - `extension/src/Domain/ImageVariants.ts`
+   - `extension/src/Domain/EntryNormalizer.ts`
+   - `extension/src/Domain/SortMetrics.ts`
+   - `extension/src/Domain/EntrySorting.ts`
+   - `extension/src/Ui/ControlsView.ts`
+   - `extension/src/Ui/CuratedCardView.ts`
+   - `extension/src/Ui/CuratedCardShell.ts`
+   - `extension/src/Ui/CardMetadata.ts`
 2. Major UI/runtime hotspots were reduced in this refactor sequence:
    - `createCuratedCard`: `458 -> 3` lines
    - `ensureInterface`: `240 -> 3` lines
    - `preloadWatchHistoryForEntries`: `240 -> 84` lines
-   - `installCuratedCardPreview`: extracted to `runtime/native-bridge` ownership (removed from bootstrap surface)
+   - `installCuratedCardPreview`: extracted to `Runtime/NativeBridge` ownership (removed from bootstrap surface)
    - `buildRenderableEntries`: `167 -> 28` lines
 3. Additional function-level hotspot reductions completed:
    - `compareRenderableEntries`: `122 -> 29` lines
    - `normalizeEntriesFromApiRows`: `119 -> 23` lines
    - `renderCuratedPanel`: `115 -> 34` lines
-   - renderable merge/filter/build ownership extracted from `content.js` into `extension/src/runtime/curated-renderable.ts` (`content.js`: `3907 -> 3764`)
-   - curated panel/grid/stats/preload rendering ownership extracted from `content.js` into `extension/src/runtime/curated-panel.ts` (`content.js`: `3764 -> 3639`)
-   - curated loading/revalidation ownership extracted from `content.js` into `extension/src/runtime/curated-loader.ts` (`content.js`: `3639 -> 3549`)
-   - curated card-actions and control-binding ownership extracted from `content.js` into `extension/src/runtime/curated-interactions.ts` (`content.js`: `3549 -> 3463`)
-   - image variant normalization/selection ownership extracted from `content.js` into `extension/src/domain/image-variants.ts` (`content.js`: `3463 -> 3342`)
-   - debug series-data ownership extracted from `content.js` into `extension/src/runtime/debug-api.ts` (`content.js`: `3342 -> 3220`)
-   - native action forwarding and curated preview/session ownership extracted from `content.js` into `extension/src/runtime/native-bridge.ts` (`content.js`: `3220 -> 2835`)
-   - sorting/scoring/watch-progress metric ownership extracted from `content.js` into `extension/src/domain/sort-metrics.ts` (`content.js`: `2835 -> 2755`)
-   - sorting-comparator ownership extracted from `content.js` into `extension/src/domain/entry-sorting.ts` (`content.js`: `2755 -> 2592`)
-   - card metadata/rating badge ownership extracted from `content.js` into `extension/src/ui/card-metadata.ts` (`content.js`: `2592 -> 2506`)
-   - legacy wrapper cleanup removed dead indirection in `content.js` (`content.js`: `2506 -> 2421`)
-   - interface shell ownership extracted from `content.js` into `extension/src/runtime/interface-shell.ts` (`content.js`: `2421 -> 2267`)
-   - curated card shell ownership extracted from `content.js` into `extension/src/ui/curated-card-shell.ts` (`content.js`: `2267 -> 2154`)
-   - core primitives and API contract helper ownership extracted from `content.js` into `extension/src/domain/core-primitives.ts` and `extension/src/data/api-contracts.ts` (`content.js`: `2154 -> 1604`)
-   - bootstrap sort/settings config ownership extracted from `content.js` into `extension/src/runtime/bootstrap-config.ts`
-   - bootstrap guard/method assertion consolidation and delegate cleanup reduced `content.js` from `1604 -> 1200`
-   - bootstrap scheduling/preferred-audio/preload/favorite/layout/settings helpers extracted from `content.js` into `extension/src/runtime/bootstrap-helpers.ts` (`content.js`: `1200 -> 1116`)
-   - runtime event/API trace ownership extracted from `content.js` into `extension/src/runtime/runtime-trace.ts` (`content.js`: `1116 -> 1072`)
-   - bootstrap module-resolution/validation ownership extracted from `content.js` into `extension/src/runtime/bootstrap-modules.ts` (`content.js`: `1072 -> 999`)
-   - bootstrap runtime guard/path/header ownership extracted from `content.js` into `extension/src/runtime/bootstrap-gate.ts`
+   - renderable merge/filter/build ownership extracted from `Content.js` into `extension/src/Runtime/CuratedRenderable.ts` (`Content.js`: `3907 -> 3764`)
+   - curated panel/grid/stats/preload rendering ownership extracted from `Content.js` into `extension/src/Runtime/CuratedPanel.ts` (`Content.js`: `3764 -> 3639`)
+   - curated loading/revalidation ownership extracted from `Content.js` into `extension/src/Runtime/CuratedLoader.ts` (`Content.js`: `3639 -> 3549`)
+   - curated card-actions and control-binding ownership extracted from `Content.js` into `extension/src/Runtime/CuratedInteractions.ts` (`Content.js`: `3549 -> 3463`)
+   - image variant normalization/selection ownership extracted from `Content.js` into `extension/src/Domain/ImageVariants.ts` (`Content.js`: `3463 -> 3342`)
+   - debug series-data ownership extracted from `Content.js` into `extension/src/Runtime/DebugApi.ts` (`Content.js`: `3342 -> 3220`)
+   - native action forwarding and curated preview/session ownership extracted from `Content.js` into `extension/src/Runtime/NativeBridge.ts` (`Content.js`: `3220 -> 2835`)
+   - sorting/scoring/watch-progress metric ownership extracted from `Content.js` into `extension/src/Domain/SortMetrics.ts` (`Content.js`: `2835 -> 2755`)
+   - sorting-comparator ownership extracted from `Content.js` into `extension/src/Domain/EntrySorting.ts` (`Content.js`: `2755 -> 2592`)
+   - card metadata/rating badge ownership extracted from `Content.js` into `extension/src/Ui/CardMetadata.ts` (`Content.js`: `2592 -> 2506`)
+   - legacy wrapper cleanup removed dead indirection in `Content.js` (`Content.js`: `2506 -> 2421`)
+   - interface shell ownership extracted from `Content.js` into `extension/src/Runtime/InterfaceShell.ts` (`Content.js`: `2421 -> 2267`)
+   - curated card shell ownership extracted from `Content.js` into `extension/src/Ui/CuratedCardShell.ts` (`Content.js`: `2267 -> 2154`)
+   - core primitives and API contract helper ownership extracted from `Content.js` into `extension/src/Domain/CorePrimitives.ts` and `extension/src/Data/ApiContracts.ts` (`Content.js`: `2154 -> 1604`)
+   - bootstrap sort/settings config ownership extracted from `Content.js` into `extension/src/Runtime/BootstrapConfig.ts`
+   - bootstrap guard/method assertion consolidation and delegate cleanup reduced `Content.js` from `1604 -> 1200`
+   - bootstrap scheduling/preferred-audio/preload/favorite/layout/settings helpers extracted from `Content.js` into `extension/src/Runtime/BootstrapHelpers.ts` (`Content.js`: `1200 -> 1116`)
+   - runtime event/API trace ownership extracted from `Content.js` into `extension/src/Runtime/RuntimeTrace.ts` (`Content.js`: `1116 -> 1072`)
+   - bootstrap module-resolution/validation ownership extracted from `Content.js` into `extension/src/Runtime/BootstrapModules.ts` (`Content.js`: `1072 -> 999`)
+   - bootstrap runtime guard/path/header ownership extracted from `Content.js` into `extension/src/Runtime/BootstrapGate.ts`
    - `createBootstrapModules` was decomposed into focused resolver helpers, removing the final refactor-threshold runtime function hotspot.
-   - inlined ratings transport and cache-owner logic were extracted from `content.js` into:
-     - `extension/src/data/ratings-client.ts`
-     - `extension/src/data/ratings-repository.ts`
-   - inlined watchlist page/pagination transport logic was extracted from `content.js` into:
-     - `extension/src/data/watchlist-client.ts`
-   - inlined preview payload parsing/cache-key/fetch ownership logic was extracted from `content.js` into:
-     - `extension/src/data/preview-repository.ts`
+   - inlined ratings transport and cache-owner logic were extracted from `Content.js` into:
+     - `extension/src/Data/RatingsClient.ts`
+     - `extension/src/Data/RatingsRepository.ts`
+   - inlined watchlist page/pagination transport logic was extracted from `Content.js` into:
+     - `extension/src/Data/WatchlistClient.ts`
+   - inlined preview payload parsing/cache-key/fetch ownership logic was extracted from `Content.js` into:
+     - `extension/src/Data/PreviewRepository.ts`
 4. Phase 1/2/3/4 foundations are now extracted behind module boundaries and manifest ordering:
    - runtime store owner (`runtime-store`)
    - storage adapter owner (`storage-adapter`)
@@ -321,40 +323,40 @@ Current-state findings from this repository:
    - UI controls owner (`controls-view`)
    - UI card body owner (`curated-card-view`)
    - UI card metadata owner (`card-metadata`)
-   - fixture loader now consumes `manifest.json` script order (`tests/helpers/extension-fixture.ts`)
+   - fixture loader now consumes `manifest.json` script order (`tests/Helpers/ExtensionFixture.ts`)
 5. Extracted factory hotspot cleanup completed:
    - `createEntryNormalizer`: `291 -> 11` lines
    - `createCardView`: `118 -> 7` lines
    - `createControlsView`: `106 -> 8` lines
 6. Current hotspots to monitor include:
-   - `extension/content.js` file size (`1000` lines; under temporary composition-root warning override but still above long-term target)
-   - `extension/src/data/history-repository-preload.ts` file size (`783` lines, near warning threshold)
-   - `extension/src/domain/core-primitives.ts` file size (`735` lines, near warning threshold)
+   - `extension/Content.js` file size (`891` lines; below `< 900` next-cycle target but still above long-term target)
+   - `extension/src/Data/HistoryRepositoryPreload.ts` file size (`783` lines, near warning threshold)
+   - `extension/src/Domain/CorePrimitives.ts` file size (`735` lines, near warning threshold)
    - `preloadWatchHistoryForEntriesInternal` (`67` lines; largest remaining runtime function, currently below warning threshold)
 7. Playwright coverage is split into concern-specific spec files with shared helpers, and each spec file is within size budget.
 8. Current strengths to preserve:
    - Cross-browser Playwright coverage and fixture server contract tests are strong.
-   - Playwright fixture and config composition roots are TypeScript-based (`tests/server.ts`, `tests/server-router.ts`, `tests/server-fixtures.ts`, `tests/server-response.ts`, `playwright.config.ts`).
+   - Playwright fixture and config composition roots are TypeScript-based (`tests/Server.ts`, `tests/ServerRouter.ts`, `tests/ServerFixtures.ts`, `tests/ServerResponse.ts`, `playwright.config.ts`).
    - Build/release tooling and Safari packaging pipeline are deterministic and working.
    - Contract-drift and retry/auth scenarios are already tested.
    - Cache hydration/revalidation behavior is now covered in a stabilized cross-browser test path.
 9. `extension/manifest.json` currently injects on all Crunchyroll paths, with route-level early exit enforcing watchlist-only runtime behavior.
-10. Auth client credential material is now isolated to `extension/src/data/auth-client.ts` and must remain constrained to auth-boundary modules.
+10. Auth client credential material is now isolated to `extension/src/Data/AuthClient.ts` and must remain constrained to auth-boundary modules.
 11. Data-access boundaries currently isolated to extracted modules:
-   - `extension/src/data/auth-client.ts`
-   - `extension/src/data/watchlist-client.ts`
-   - `extension/src/data/watchlist-repository.ts`
-   - `extension/src/data/ratings-client.ts`
-   - `extension/src/data/ratings-repository.ts`
-   - `extension/src/data/history-repository-cache.ts`
-   - `extension/src/data/history-repository-preload.ts`
-   - `extension/src/data/history-repository.ts`
-   - `extension/src/data/preview-repository.ts`
+   - `extension/src/Data/AuthClient.ts`
+   - `extension/src/Data/WatchlistClient.ts`
+   - `extension/src/Data/WatchlistRepository.ts`
+   - `extension/src/Data/RatingsClient.ts`
+   - `extension/src/Data/RatingsRepository.ts`
+   - `extension/src/Data/HistoryRepositoryCache.ts`
+   - `extension/src/Data/HistoryRepositoryPreload.ts`
+   - `extension/src/Data/HistoryRepository.ts`
+   - `extension/src/Data/PreviewRepository.ts`
 12. Required architecture gates were re-run after this extraction pass:
    - `npm run typecheck`
    - `npm run lint`
    - `npm run format:check`
-   - `npm run test:unit` (97 passed)
+   - `npm run test:unit` (107 passed)
    - `npm run pw:live:smoke`
    - `npm run lint:firefox`
    - `npm run test:e2e` (75 passed)
@@ -368,22 +370,24 @@ Current-state findings from this repository:
    - Playwright fixture server startup now supports per-run dynamic ports (`PW_FIXTURE_SERVER_PORT`) to avoid `EADDRINUSE` conflicts in parallel E2E runs.
    - E2E fixture loading now requires explicit generated runtime paths (`EXTENSION_RUNTIME_DIR`) and no longer falls back to raw source assets.
    - E2E wrapper now sanitizes conflicting `NO_COLOR`/`FORCE_COLOR` env combinations in both wrapper and spawned command environments, and latest standard `npm run test:e2e` runs are clean of that warning noise.
-   - Playwright fixture server/config migrated to TypeScript (`tests/server.ts`, `playwright.config.ts`) and covered by `typecheck:tests`.
-   - preferred-audio detection ownership moved from `content.js` into `extension/src/runtime/preferred-audio-detector.ts`, reducing bootstrap hotspot concentration.
-   - curated panel/grid/stats/preload rendering ownership moved from `content.js` into `extension/src/runtime/curated-panel.ts`, reducing bootstrap orchestration concentration.
-   - curated loading and background revalidation ownership moved from `content.js` into `extension/src/runtime/curated-loader.ts`, reducing bootstrap orchestration concentration.
-   - curated card-actions and controls event-binding ownership moved from `content.js` into `extension/src/runtime/curated-interactions.ts`, reducing bootstrap orchestration concentration.
-   - image normalization/cover/thumbnail ownership moved from `content.js` into `extension/src/domain/image-variants.ts`, reducing runtime utility concentration.
-   - sorting/scoring/watch-progress metric ownership moved from `content.js` into `extension/src/domain/sort-metrics.ts`, reducing embedded domain logic in bootstrap.
-   - debug series-dump ownership moved from `content.js` into `extension/src/runtime/debug-api.ts`, reducing bootstrap utility concentration.
+   - Playwright fixture server/config migrated to TypeScript (`tests/Server.ts`, `playwright.config.ts`) and covered by `typecheck:tests`.
+   - preferred-audio detection ownership moved from `Content.js` into `extension/src/Runtime/PreferredAudioDetector.ts`, reducing bootstrap hotspot concentration.
+   - curated panel/grid/stats/preload rendering ownership moved from `Content.js` into `extension/src/Runtime/CuratedPanel.ts`, reducing bootstrap orchestration concentration.
+   - curated loading and background revalidation ownership moved from `Content.js` into `extension/src/Runtime/CuratedLoader.ts`, reducing bootstrap orchestration concentration.
+   - curated card-actions and controls event-binding ownership moved from `Content.js` into `extension/src/Runtime/CuratedInteractions.ts`, reducing bootstrap orchestration concentration.
+   - image normalization/cover/thumbnail ownership moved from `Content.js` into `extension/src/Domain/ImageVariants.ts`, reducing runtime utility concentration.
+   - sorting/scoring/watch-progress metric ownership moved from `Content.js` into `extension/src/Domain/SortMetrics.ts`, reducing embedded domain logic in bootstrap.
+   - debug series-dump ownership moved from `Content.js` into `extension/src/Runtime/DebugApi.ts`, reducing bootstrap utility concentration.
    - Phase 9 conversion for extracted owners is complete (`extension/src/**` owner modules are now TypeScript-based).
    - build/live/metrics script composition roots are now TypeScript-based (`scripts/*.mts`) with strict typecheck coverage.
    - Biome lint/format stack is active and CI-enforced for format checks on current migration surfaces.
-   - Vitest unit-test layer is active in CI with coverage for history/domain plus runtime-store, runtime-trace, watchlist repository, preferred-audio detector, bootstrap-helpers, curated-renderable, curated-panel, curated-loader, curated-interactions, interface-shell, bootstrap-config, bootstrap-gate, bootstrap-modules, state-loader, route-lifecycle, auth-client, ratings-client, native-bridge action-forwarding, image-variants, sort-metrics, entry-sorting, core-primitives, api-contracts, card-metadata, curated-card-shell, and debug-api owners (97 tests); next leverage remains deeper ratings-repository and preview-session edge-path coverage.
+   - Vitest unit-test layer is active in CI with coverage for history/domain plus runtime-store, runtime-trace, watchlist repository, preferred-audio detector, bootstrap-helpers, bootstrap-finalize, curated-renderable, curated-panel, curated-loader, curated-interactions, interface-shell, bootstrap-config, bootstrap-gate, bootstrap-modules, state-loader, route-lifecycle, auth-client, ratings-client, ratings-repository, preview-repository, native-bridge action-forwarding, image-variants, sort-metrics, entry-sorting, core-primitives, api-contracts, card-metadata, curated-card-shell, and debug-api owners (107 tests).
+   - schema-first boundary hardening was expanded in data owners (`RatingsRepository.ts`, `PreviewRepository.ts`) with explicit malformed-payload contract warnings/events and unit coverage.
    - ratings series-page fallback parsing now normalizes plain and escaped decimal payload forms to avoid silent rating truncation in fallback mode.
    - fixture server decomposition is in place; next leverage is adding explicit typed contract builders for fixture payloads to reduce route-payload drift risk.
    - live-debug injection (`pw:live`) now rebuilds and injects generated-runtime assets, reducing execution-path drift versus packaged/test flows.
    - non-interactive generated-runtime smoke validation is now automated through `npm run pw:live:smoke` and enforced in CI.
+   - source/test module paths are now standardized to PascalCase across `extension/src/**` and `tests/**`; manifest/build/test harness references are aligned to that convention.
    - repository-level `AGENTS.md` now documents structure-tree ownership context and function-change guardrails (high-value unit-test checks first, high-value comments only when needed).
    - architecture metrics now include TS sources, split server modules, function declarations, and function-expression/arrow assignments for broader hotspot visibility.
    - architecture metrics improvement opportunities now include warning-threshold file/function items (not only refactor-threshold misses), and now support explicit per-file budget overrides for transitional composition roots to keep signal actionable.
@@ -392,7 +396,7 @@ Current-state findings from this repository:
 
 Allowed until transformation phases complete:
 
-1. Monolithic `extension/content.js` remains accepted as transition surface.
+1. Monolithic `extension/Content.js` remains accepted as transition surface.
 2. Legacy fallback rating paths may remain while CMS/contract strategy is stabilized.
 
 Each exception must shrink over time and be tracked in the architecture transformation plan.
@@ -429,21 +433,21 @@ For each architecture PR:
 
 Priority order for the next architecture cycle:
 
-1. Priority 0: continue decomposing `extension/content.js` from `1000` toward `< 900` while keeping composition-only ownership and behavior parity.
-2. Priority 0: expand fast unit coverage from current 97-test baseline into deeper ratings-repository and preview-session edge-path owners.
-3. Priority 1: strengthen schema-first validation at API boundaries where unknown payloads enter typed data owners.
-4. Priority 1: continue dependency and workflow hardening (`web-ext` major review path, audit follow-ups, and manual-playwright guardrail drift checks).
-5. Priority 2: keep near-threshold files (`history-repository-preload.ts`, `core-primitives.ts`) stable with explicit headroom guardrails.
+1. Priority 0: continue decomposing `extension/Content.js` from `891` toward `<= 800` while keeping composition-only ownership and behavior parity.
+2. Priority 1: continue dependency and workflow hardening (`web-ext` major review path, audit follow-ups, and manual-playwright guardrail drift checks).
+3. Priority 1: extend schema-first validation consistency to remaining data boundaries (watchlist/history transport inputs) to match ratings/preview depth.
+4. Priority 2: keep near-threshold files (`HistoryRepositoryPreload.ts`, `CorePrimitives.ts`) stable with explicit headroom guardrails.
+5. Priority 2: add typed fixture payload builders for fixture-server routes to reduce route-payload drift risk.
 6. Priority 2: continue CI throughput optimization without reducing cross-browser/Safari confidence.
 
 Definition of successful next cycle:
 
-- `extension/content.js` stays at or below the current baseline (`1000`) while remaining composition-focused and trending toward `< 900`.
+- `extension/Content.js` stays at or below the current baseline (`891`) while remaining composition-focused and trending toward `<= 800`.
 - TypeScript migration coverage remains complete for extracted owners under `extension/src/**` with no regression to new JS modules.
 - TypeScript typecheck gate remains active and green in CI.
 - History preload internals remain below warning-level function thresholds with file-size headroom kept below `800`.
-- `native-bridge.ts` is back under the strict runtime file-size target (`<= 600`).
-- Remaining runtime orchestration in `content.js` stays limited to composition/root wiring with no direct ownership logic regrowth.
+- `NativeBridge.ts` is back under the strict runtime file-size target (`<= 600`).
+- Remaining runtime orchestration in `Content.js` stays limited to composition/root wiring with no direct ownership logic regrowth.
 - No additional refactor-threshold functions are introduced.
 - Architecture metrics hotspot scanning continues to include declarations plus function-expression/arrow surfaces.
 - Architecture metrics remains calibrated for transitional composition-root signal quality while preserving strict refactor thresholds.

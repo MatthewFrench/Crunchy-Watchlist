@@ -28,7 +28,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'tsx tests/server.ts',
+    command: 'tsx tests/Server.ts',
     url: fixtureServerUrl,
     timeout: 20000,
     reuseExistingServer: !process.env.CI,

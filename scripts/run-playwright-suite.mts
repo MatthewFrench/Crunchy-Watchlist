@@ -108,7 +108,7 @@ async function main(): Promise<void> {
     const finalArgs = ['test', ...playwrightArgs]
     process.stdout.write(`[e2e-runtime] Running playwright ${finalArgs.join(' ')}\n`)
 
-    const testResult = await runCommand('playwright', finalArgs, commandEnv)
+    const testResult = await runCommand('Playwright', finalArgs, commandEnv)
     process.exitCode = testResult.code
   } finally {
     if (!keepRuntimeOutput) {

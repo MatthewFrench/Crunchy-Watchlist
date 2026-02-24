@@ -6,5 +6,5 @@
     "checkJs": false,
     "types": ["node", "@playwright/test"]
   },
-  "include": ["tests/**/*.ts", "tests/types/**/*.d.ts", "playwright.config.ts"]
+  "include": ["tests/**/*.ts", "tests/Types/**/*.d.ts", "playwright.config.ts"]
 }

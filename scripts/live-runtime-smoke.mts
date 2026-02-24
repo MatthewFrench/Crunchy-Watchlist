@@ -108,8 +108,8 @@ async function main(): Promise<void> {
     assertArrayEqual('content_scripts[0].css', sourceAssets.cssFiles, runtimeAssets.cssFiles)
     assertArrayEqual('content_scripts[0].js', sourceAssets.jsFiles, runtimeAssets.jsFiles)
 
-    if (!runtimeAssets.jsFiles.length || runtimeAssets.jsFiles[runtimeAssets.jsFiles.length - 1] !== 'content.js') {
-      throw new Error('Generated runtime content script ordering is invalid: expected content.js as final JS entry.')
+    if (!runtimeAssets.jsFiles.length || runtimeAssets.jsFiles[runtimeAssets.jsFiles.length - 1] !== 'Content.js') {
+      throw new Error('Generated runtime content script ordering is invalid: expected Content.js as final JS entry.')
     }
 
     await assertFilesExist(runtimeDir, [...runtimeAssets.cssFiles, ...runtimeAssets.jsFiles])

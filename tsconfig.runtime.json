@@ -7,5 +7,5 @@
     "lib": ["ES2022", "DOM"],
     "types": []
   },
-  "include": ["extension/src/**/*.ts", "extension/content.ts", "extension/types/**/*.d.ts"]
+  "include": ["extension/src/**/*.ts", "extension/Content.js", "extension/Types/**/*.d.ts"]
 }

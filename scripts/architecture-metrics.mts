@@ -48,7 +48,7 @@ const FILE_SIZE_BUDGETS = {
 } as const
 
 const FILE_SIZE_BUDGET_OVERRIDES: Record<string, { warn: number; refactor: number }> = {
-  'extension/content.js': {
+  'extension/Content.js': {
     warn: 1000,
     refactor: 1200,
   },
@@ -316,13 +316,13 @@ async function collectTrackedFiles(): Promise<string[]> {
     .filter((entry) => entry.isFile() && (entry.name.endsWith('.spec.js') || entry.name.endsWith('.spec.ts')))
     .map((entry) => path.join(testsDir, entry.name))
   const fixtureServerModules = testEntries
-    .filter((entry) => entry.isFile() && entry.name.startsWith('server') && entry.name.endsWith('.ts'))
+    .filter((entry) => entry.isFile() && entry.name.startsWith('Server') && entry.name.endsWith('.ts'))
     .map((entry) => path.join(testsDir, entry.name))
 
   return Array.from(
     new Set([
-      path.join(repoRoot, 'extension', 'content.js'),
-      path.join(repoRoot, 'extension', 'content.css'),
+      path.join(repoRoot, 'extension', 'Content.js'),
+      path.join(repoRoot, 'extension', 'Content.css'),
       ...extensionSrcJsFiles.sort(),
       ...extensionSrcTsFiles.sort(),
       ...fixtureServerModules.sort(),

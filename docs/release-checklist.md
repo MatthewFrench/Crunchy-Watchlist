@@ -32,7 +32,7 @@ Use this checklist for each public release across Chrome, Edge, Firefox, and Saf
 - [ ] Verify GitHub release naming follows repo convention.
 - [ ] Expected release tag: `v<manifest-version>-main.<run>.<attempt>`.
 - [ ] Expected release title: `Crunchy Watchlist Curator <version> (main <run>.<attempt>)`.
-- [ ] Verify browser packages include expected `manifest.json`, `content.js`, `content.css`, and `icons/`.
+- [ ] Verify browser packages include expected `manifest.json`, `Content.js`, `Content.css`, and `icons/`.
 - [ ] Verify Firefox package includes `browser_specific_settings.gecko.id`.
 - [ ] Verify Safari package includes app wrapper build output.
 - [ ] Verify generated web-extension artifacts exist and contain expected icons:
