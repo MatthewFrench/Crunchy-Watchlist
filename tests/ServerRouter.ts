@@ -1,12 +1,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { ACCOUNT_ID, ratingMap, watchHistoryRows, watchlistRows } from './ServerFixtures'
 import {
-  ACCOUNT_ID,
-  ACCESS_TOKEN,
-  pickLocalizedValue,
-  ratingMap,
-  watchHistoryRows,
-  watchlistRows,
-} from './ServerFixtures'
+  buildAuthTokenPayload,
+  buildCmsObjectsPayload,
+  buildLegacySeriesRatingPayload,
+  buildSeriesPageHtml,
+  buildStreamsPayload,
+  buildWatchHistoryPagePayload,
+  buildWatchlistPagePayload,
+} from './Helpers/FixturePayloadBuilders'
 import { extToContentType, json, readExtensionAsset, readFixture, text } from './ServerResponse'
 
 type FixtureServerRouterOptions = {
@@ -16,25 +18,6 @@ type FixtureServerRouterOptions = {
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   return Math.max(1, Number.parseInt(String(value || `${fallback}`), 10) || fallback)
-}
-
-function buildSeriesPageHtml(seriesId: string, average: number, count: number): string {
-  return `<!doctype html>
-<html>
-  <head>
-    <title>${seriesId}</title>
-    <script type="application/ld+json">${JSON.stringify({
-      '@context': 'https://schema.org',
-      '@type': 'TVSeries',
-      aggregateRating: {
-        '@type': 'AggregateRating',
-        ratingValue: average,
-        ratingCount: count,
-      },
-    })}</script>
-  </head>
-  <body>Series ${seriesId}</body>
-</html>`
 }
 
 export async function handleFixtureRequest(
@@ -58,21 +41,7 @@ export async function handleFixtureRequest(
     }
 
     if (url.pathname === '/auth/v1/token' && req.method === 'POST') {
-      json(res, 200, {
-        access_token: ACCESS_TOKEN,
-        refresh_token: 'fixture-refresh-token',
-        expires_in: 3600,
-        token_type: 'bearer',
-        scope: 'offline_access',
-        country: 'US',
-        account_id: ACCOUNT_ID,
-        profile_id: 'fixture-profile-id',
-        fun_user: {
-          is_fun_login: true,
-          migration_status: 'migrated',
-          watch_data_status: 'ready',
-        },
-      })
+      json(res, 200, buildAuthTokenPayload())
       return
     }
 
@@ -87,13 +56,7 @@ export async function handleFixtureRequest(
       const start = Math.max(0, Number.parseInt(url.searchParams.get('start') || '0', 10) || 0)
       const pageRows = watchlistRows.slice(start, start + n)
 
-      json(res, 200, {
-        total: watchlistRows.length,
-        data: pageRows,
-        meta: {
-          total_before_filter: watchlistRows.length,
-        },
-      })
+      json(res, 200, buildWatchlistPagePayload(pageRows, watchlistRows.length))
       return
     }
 
@@ -109,26 +72,12 @@ export async function handleFixtureRequest(
       const start = (pageNumber - 1) * pageSize
       const pageRows = watchHistoryRows.slice(start, start + pageSize)
 
-      json(res, 200, {
-        total: watchHistoryRows.length,
-        data: pageRows,
-        meta: {
-          page: pageNumber,
-          page_size: pageSize,
-        },
-      })
+      json(res, 200, buildWatchHistoryPagePayload(pageRows, watchHistoryRows.length, pageNumber, pageSize))
       return
     }
 
     if (url.pathname.match(/^\/content\/v2\/cms\/episodes\/[^/]+\/streams$/)) {
-      json(res, 200, {
-        preview_url: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
-        streams: {
-          adaptive_hls: {
-            '': 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-          },
-        },
-      })
+      json(res, 200, buildStreamsPayload())
       return
     }
 
@@ -140,72 +89,7 @@ export async function handleFixtureRequest(
         .map((value) => value.trim())
         .filter(Boolean)
 
-      const data = seriesIds.map((seriesId) => {
-        const details = ratingMap[seriesId]
-        const localizedEpisodeCount = pickLocalizedValue(
-          details?.episodeCountByAudioLocale,
-          preferredAudioLanguage,
-          details?.episodeCount ?? null,
-        )
-        const localizedSeasonCount = pickLocalizedValue(
-          details?.seasonCountByAudioLocale,
-          preferredAudioLanguage,
-          details?.seasonCount ?? null,
-        )
-        return {
-          id: seriesId,
-          type: 'series',
-          title: seriesId,
-          description: details?.description || '',
-          series_metadata: {
-            audio_locales: details?.audioLocales || [],
-            subtitle_locales: ['en-US'],
-            is_dubbed: (details?.audioLocales || []).includes('en-US'),
-            is_subbed: true,
-            season_count: localizedSeasonCount,
-            episode_count: localizedEpisodeCount,
-            tenant_categories: details?.tenantCategories || [],
-          },
-          rating:
-            details?.average != null
-              ? {
-                  average: details.average,
-                  total: details.count,
-                  '5s': {
-                    displayed: `${details.distribution?.[5] ?? 0}%`,
-                    percentage: details.distribution?.[5] ?? 0,
-                    unit: '%',
-                  },
-                  '4s': {
-                    displayed: `${details.distribution?.[4] ?? 0}%`,
-                    percentage: details.distribution?.[4] ?? 0,
-                    unit: '%',
-                  },
-                  '3s': {
-                    displayed: `${details.distribution?.[3] ?? 0}%`,
-                    percentage: details.distribution?.[3] ?? 0,
-                    unit: '%',
-                  },
-                  '2s': {
-                    displayed: `${details.distribution?.[2] ?? 0}%`,
-                    percentage: details.distribution?.[2] ?? 0,
-                    unit: '%',
-                  },
-                  '1s': {
-                    displayed: `${details.distribution?.[1] ?? 0}%`,
-                    percentage: details.distribution?.[1] ?? 0,
-                    unit: '%',
-                  },
-                }
-              : undefined,
-        }
-      })
-
-      json(res, 200, {
-        total: data.length,
-        data,
-        meta: {},
-      })
+      json(res, 200, buildCmsObjectsPayload(seriesIds, preferredAudioLanguage))
       return
     }
 
@@ -217,12 +101,7 @@ export async function handleFixtureRequest(
         return
       }
 
-      json(res, 200, {
-        rating: {
-          average: rating.average,
-          count: rating.count,
-        },
-      })
+      json(res, 200, buildLegacySeriesRatingPayload(seriesId))
       return
     }
 

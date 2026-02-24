@@ -61,6 +61,8 @@
         "src/Data/WatchlistClient.js",
         "src/Data/WatchlistRepository.js",
         "src/Data/HistoryRepositoryCache.js",
+        "src/Data/HistoryRepositoryPreloadPlanning.js",
+        "src/Data/HistoryRepositoryPreloadCollector.js",
         "src/Data/HistoryRepositoryPreload.js",
         "src/Data/HistoryRepository.js",
         "src/Data/RatingsClient.js",

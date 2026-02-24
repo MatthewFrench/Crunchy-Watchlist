@@ -28,6 +28,7 @@
     getLocale: () => string
     getWatchlistSeriesId: (row: WatchlistRow) => string | null
     pushApiTrace: (endpoint: string, record: unknown) => void
+    runtimeEvent: (event: string, payload?: unknown) => void
     watchlistPageSize: number
     watchlistMaxPages: number
   }
@@ -42,6 +43,7 @@
     getLocale?: unknown
     getWatchlistSeriesId?: unknown
     pushApiTrace?: unknown
+    runtimeEvent?: unknown
     watchlistPageSize?: unknown
     watchlistMaxPages?: unknown
   }
@@ -57,6 +59,13 @@
       throw new Error(`[CW] Missing watchlist dependency: ${name}`)
     }
     return value as T
+  }
+
+  function toRecord(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return {}
+    }
+    return value as Record<string, unknown>
   }
 
   function createWatchlistContext(options: WatchlistClientOptions = {}): WatchlistContext {
@@ -88,17 +97,46 @@
         typeof options.pushApiTrace === 'function'
           ? (options.pushApiTrace as WatchlistContext['pushApiTrace'])
           : () => {},
+      runtimeEvent:
+        typeof options.runtimeEvent === 'function'
+          ? (options.runtimeEvent as WatchlistContext['runtimeEvent'])
+          : () => {},
       watchlistPageSize: Math.max(1, Number(options.watchlistPageSize) || 1),
       watchlistMaxPages: Math.max(1, Number(options.watchlistMaxPages) || 1),
     }
   }
 
-  function getPayloadTotal(payload: unknown, fallback: number): number {
+  function getPayloadTotal(
+    context: WatchlistContext,
+    payload: unknown,
+    fallback: number,
+    start: number,
+    requestUrl: string,
+  ): number {
     if (!payload || typeof payload !== 'object') {
+      context.runtimeEvent('watchlist-contract-warning', {
+        reason: 'invalid-total-root',
+        fallbackTotal: fallback,
+        start,
+        requestUrl,
+      })
       return fallback
     }
 
-    return Number((payload as Record<string, unknown>).total || fallback)
+    const totalValue = toRecord(payload).total
+    const parsedTotal = Number(totalValue)
+    if (!Number.isFinite(parsedTotal) || parsedTotal < 0) {
+      context.runtimeEvent('watchlist-contract-warning', {
+        reason: 'invalid-total-value',
+        totalValue,
+        fallbackTotal: fallback,
+        start,
+        requestUrl,
+      })
+      return fallback
+    }
+
+    return Math.round(parsedTotal)
   }
 
   function getPanelId(row: WatchlistRow): string {
@@ -111,12 +149,7 @@
     return typeof panelId === 'string' ? panelId : ''
   }
 
-  async function fetchWatchlistPageInternal(
-    context: WatchlistContext,
-    tokenEntry: TokenEntry | undefined,
-    start: number,
-  ): Promise<{ rows: WatchlistRow[]; total: number }> {
-    const accountId = tokenEntry?.accountId
+  function createWatchlistQueryParams(context: WatchlistContext, start: number): URLSearchParams {
     const params = new root.URLSearchParams({
       order: 'desc',
       n: String(context.watchlistPageSize),
@@ -128,9 +161,13 @@
       params.set('start', String(start))
     }
 
-    const url = context.resolveApiHref(
-      `/content/v2/discover/${encodeURIComponent(String(accountId))}/watchlist?${params.toString()}`,
-    )
+    return params
+  }
+
+  function createWatchlistRequestOptions(
+    context: WatchlistContext,
+    tokenEntry: TokenEntry | undefined,
+  ): { label: string; bearerToken?: string; refreshBearerToken?: unknown } {
     const requestOptions: {
       label: string
       bearerToken?: string
@@ -139,9 +176,33 @@
       label: 'watchlist page request',
       refreshBearerToken: context.createAuthRefreshHandler(tokenEntry),
     }
+
     if (typeof tokenEntry?.accessToken === 'string') {
       requestOptions.bearerToken = tokenEntry.accessToken
     }
+
+    return requestOptions
+  }
+
+  async function fetchWatchlistPageInternal(
+    context: WatchlistContext,
+    tokenEntry: TokenEntry | undefined,
+    start: number,
+  ): Promise<{ rows: WatchlistRow[]; total: number }> {
+    const accountId = tokenEntry?.accountId
+    if (typeof accountId !== 'string' || !accountId.trim()) {
+      context.runtimeEvent('watchlist-contract-warning', {
+        reason: 'missing-account-id',
+        start,
+      })
+      throw new Error('watchlist request missing account id')
+    }
+
+    const params = createWatchlistQueryParams(context, start)
+    const url = context.resolveApiHref(
+      `/content/v2/discover/${encodeURIComponent(String(accountId))}/watchlist?${params.toString()}`,
+    )
+    const requestOptions = createWatchlistRequestOptions(context, tokenEntry)
 
     const response = await context.fetchWithResilience(
       url,
@@ -155,10 +216,21 @@
       throw new Error(`watchlist page request failed: ${response.status}`)
     }
 
-    const payload = (await response.json()) as unknown
+    let payload: unknown
+    try {
+      payload = (await response.json()) as unknown
+    } catch (_) {
+      context.runtimeEvent('watchlist-contract-warning', {
+        reason: 'invalid-json-payload',
+        start,
+        requestUrl: url,
+      })
+      throw new Error('watchlist page payload parse failed')
+    }
+
     const rows = context.requirePayloadDataArray('watchlist', payload)
     context.auditWatchlistRowsContract(rows)
-    const total = getPayloadTotal(payload, rows.length)
+    const total = getPayloadTotal(context, payload, rows.length, start, url)
 
     context.pushApiTrace('watchlist', {
       at: Date.now(),

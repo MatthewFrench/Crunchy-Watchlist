@@ -72,6 +72,12 @@ type HistoryRepositoryPreloadModule = {
 const cacheModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryCache.ts'),
 ).href
+const planningModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreloadPlanning.ts'),
+).href
+const collectorModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreloadCollector.ts'),
+).href
 const preloadModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreload.ts'),
 ).href
@@ -210,7 +216,7 @@ function createRepositories(
 
 describe('HistoryRepositoryPreload', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([cacheModuleUrl, preloadModuleUrl])
+    await loadRuntimeModules([cacheModuleUrl, planningModuleUrl, collectorModuleUrl, preloadModuleUrl])
   })
 
   afterEach(() => {
@@ -315,6 +321,62 @@ describe('HistoryRepositoryPreload', () => {
     expect(state.watchHistoryCache.bySeriesId['series-a']?.episodeId).toBe('episode-3')
     expect(state.watchHistoryCache.bySeriesIdAudioLocale['series-a']?.['en-us']?.episodeId).toBe('episode-3')
     expect(runtimeEvents.some((eventItem) => eventItem.event === 'watch-history-preload')).toBe(true)
+  })
+
+  it('emits contract warning and falls back to row count when payload total is invalid', async () => {
+    const state = createWatchHistoryState()
+    const runtimeEvents: Array<{ event: string; payload: unknown }> = []
+
+    const fetchWithResilience = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            total: 'invalid',
+            data: [
+              {
+                id: 'episode-3',
+                date_played: '2024-01-03T00:00:00.000Z',
+                playhead: 240,
+                fully_watched: false,
+                panel: {
+                  id: 'episode-3',
+                  title: 'Episode 3',
+                  episode_metadata: {
+                    series_id: 'series-a',
+                    season_number: 1,
+                    episode_number: 3,
+                    sequence_number: 3,
+                    identifier: 's1-e3',
+                    audio_locale: 'en-US',
+                  },
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+    )
+
+    const { preloadRepository } = createRepositories(state, {
+      fetchWithResilience,
+      runtimeEvent: (event: string, payload?: unknown) => {
+        runtimeEvents.push({ event, payload })
+      },
+    })
+
+    await preloadRepository.preloadWatchHistoryForEntries(
+      [{ seriesId: 'series-a', playheadMs: 240 }],
+      { accessToken: 'token-1', accountId: 'acct-1' },
+      true,
+      'en-US',
+    )
+
+    expect(runtimeEvents).toContainEqual(
+      expect.objectContaining({
+        event: 'watch-history-contract-warning',
+      }),
+    )
+    expect(state.watchHistoryStatus).toBe('ready')
   })
 
   it('detects missing localized entries for non-default audio locale', () => {

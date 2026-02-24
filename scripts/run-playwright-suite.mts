@@ -10,6 +10,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const repoRoot = path.resolve(__dirname, '..')
 const buildScriptPath = path.join(repoRoot, 'scripts', 'build-extension-runtime.mts')
+const playwrightCliPath = path.join(repoRoot, 'node_modules', '@playwright', 'test', 'cli.js')
 const keepRuntimeOutput = /^(1|true|yes)$/i.test(String(process.env.CW_KEEP_E2E_RUNTIME || '').trim())
 
 type CommandResult = {
@@ -107,8 +108,7 @@ async function main(): Promise<void> {
 
     const finalArgs = ['test', ...playwrightArgs]
     process.stdout.write(`[e2e-runtime] Running playwright ${finalArgs.join(' ')}\n`)
-
-    const testResult = await runCommand('Playwright', finalArgs, commandEnv)
+    const testResult = await runCommand(process.execPath, [playwrightCliPath, ...finalArgs], commandEnv)
     process.exitCode = testResult.code
   } finally {
     if (!keepRuntimeOutput) {
