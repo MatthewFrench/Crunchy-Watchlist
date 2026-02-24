@@ -264,6 +264,106 @@ describe('curated-renderable runtime', () => {
     expect(result.visible[0]?.seriesId).toBe('series-1')
   })
 
+  it('hides cold-start entries when watch-ready mode is hide_not_started', () => {
+    const runtime = createCuratedRenderableRuntime({
+      deriveDisplayStatusBase: (entry: unknown) => String((entry as Record<string, unknown>).statusBase || 'Up Next'),
+      isEntryWatchReady: (entry: unknown) => Boolean((entry as Record<string, unknown>).watchReadyHint),
+    })
+
+    const result = runtime.buildRenderableEntries(
+      [
+        {
+          seriesId: 'series-started',
+          statusBase: 'Continue',
+          neverWatched: false,
+          playheadMs: 1200,
+          audioLocales: ['en-US'],
+          genreTags: ['Action'],
+          sortOrder: 1,
+          watchReadyHint: true,
+        },
+        {
+          seriesId: 'series-cold-start-status',
+          statusBase: 'Start Watching',
+          neverWatched: false,
+          audioLocales: ['en-US'],
+          genreTags: ['Action'],
+          sortOrder: 2,
+          watchReadyHint: true,
+        },
+        {
+          seriesId: 'series-cold-start-flags',
+          statusBase: 'Up Next',
+          neverWatched: true,
+          playheadMs: 0,
+          lastWatchedMs: 0,
+          watchHistoryProgressEntry: { playhead: 0, progressMs: 0 },
+          audioLocales: ['en-US'],
+          genreTags: ['Action'],
+          sortOrder: 3,
+          watchReadyHint: false,
+        },
+        {
+          seriesId: 'series-never-watched-but-progress',
+          statusBase: 'Up Next',
+          neverWatched: true,
+          playheadMs: 2200,
+          audioLocales: ['en-US'],
+          genreTags: ['Action'],
+          sortOrder: 4,
+          watchReadyHint: false,
+        },
+      ],
+      {
+        audioLocaleFilter: 'any',
+        genreFilter: 'any',
+        watchReadyFilterMode: 'hide_not_started',
+      },
+    )
+
+    expect(result.mode).toBe('hide_not_started')
+    expect(result.total).toBe(4)
+    expect(result.visible.map((entry) => entry.seriesId)).toEqual([
+      'series-started',
+      'series-never-watched-but-progress',
+    ])
+  })
+
+  it('filters to hearted entries when genre filter is favorites', () => {
+    const runtime = createCuratedRenderableRuntime()
+
+    const result = runtime.buildRenderableEntries(
+      [
+        {
+          seriesId: 'series-favorite',
+          isFavorite: true,
+          audioLocales: ['en-US'],
+          genreTags: ['Action'],
+          watchReadyHint: true,
+          sortOrder: 1,
+        },
+        {
+          seriesId: 'series-regular',
+          isFavorite: false,
+          audioLocales: ['en-US'],
+          genreTags: ['Action'],
+          watchReadyHint: true,
+          sortOrder: 2,
+        },
+      ],
+      {
+        audioLocaleFilter: 'any',
+        genreFilter: '__favorites__',
+        watchReadyFilterMode: 'none',
+      },
+    )
+
+    expect(result.total).toBe(2)
+    expect(result.selectedGenreFilter).toBe('__favorites__')
+    expect(result.genreOptions.map((option) => option.optionValue)).toContain('__favorites__')
+    expect(result.visible.map((entry) => entry.seriesId)).toEqual(['series-favorite'])
+  })
+
   it('uses default preferred-audio fallback for progress when localized progress is missing', () => {
     const fallbackProgress = { progressMs: 3000 }
     const runtime = createCuratedRenderableRuntime({

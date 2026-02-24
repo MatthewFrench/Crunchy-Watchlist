@@ -1,6 +1,6 @@
 ;(() => {
   type RenderableResult = {
-    mode: 'none' | 'dim' | 'hide'
+    mode: 'none' | 'dim' | 'hide' | 'hide_not_started'
     total: number
     visible: Array<Record<string, unknown>>
     audioOptions: Array<{ optionValue: string; title: string }>
@@ -15,6 +15,8 @@
     curatedEntries: unknown[]
     curatedInflight: Promise<unknown> | null
     curatedPendingRequests: string[]
+    curatedPendingRequestStartedCount: number
+    curatedPendingRequestCompletedCount: number
     curatedGridRenderSignature: string
     gridEl: (Element & { textContent: string | null }) | null
     statsEl: (Element & { textContent: string | null }) | null
@@ -22,6 +24,12 @@
     audioFilterSelectEl: Element | null
     genreFilterSelectEl: Element | null
     settings: Record<string, unknown>
+  }
+
+  type RequestProgress = {
+    started: number
+    completed: number
+    inProgress: number
   }
 
   type CuratedPanelContext = {
@@ -77,9 +85,22 @@
       return []
     }
 
-    return value
-      .map((item) => (typeof item === 'string' ? item.trim() : ''))
-      .filter((item) => Boolean(item))
+    return value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter((item) => Boolean(item))
+  }
+
+  function toNonNegativeInt(value: unknown): number {
+    const number = Number(value)
+    return Number.isFinite(number) && number >= 0 ? Math.round(number) : 0
+  }
+
+  function getPendingRequestProgressInternal(context: CuratedPanelContext, pendingRequests: string[]): RequestProgress {
+    const started = toNonNegativeInt(context.state.curatedPendingRequestStartedCount)
+    const completed = Math.min(toNonNegativeInt(context.state.curatedPendingRequestCompletedCount), started)
+    return {
+      started,
+      completed,
+      inProgress: pendingRequests.length,
+    }
   }
 
   function createCuratedPanelContext(options: CuratedPanelOptions = {}): CuratedPanelContext {
@@ -156,6 +177,7 @@
     total: number,
     loading: boolean,
     pendingRequests: string[],
+    requestProgress: RequestProgress,
   ): string {
     if (visible.length) {
       return JSON.stringify({
@@ -168,10 +190,16 @@
       layout: context.state.settings.cardLayout,
       emptyState: resolveCuratedGridEmptyStateKey(context, total, loading),
       pendingRequests: loading ? pendingRequests : [],
+      requestProgress: loading ? requestProgress : { started: 0, completed: 0, inProgress: 0 },
     })
   }
 
-  function createLoadingIndicatorInternal(documentRef: Document, text: string, pendingRequests: string[] = []): Element {
+  function createLoadingIndicatorInternal(
+    documentRef: Document,
+    text: string,
+    pendingRequests: string[] = [],
+    requestProgress: RequestProgress = { started: 0, completed: 0, inProgress: 0 },
+  ): Element {
     const loading = documentRef.createElement('span')
     loading.className = 'cw-loading'
 
@@ -190,7 +218,7 @@
     heading.appendChild(label)
     loading.appendChild(heading)
 
-    if (!pendingRequests.length) {
+    if (!pendingRequests.length && requestProgress.started === 0 && requestProgress.completed === 0) {
       return loading
     }
 
@@ -199,8 +227,19 @@
 
     const detailsTitle = documentRef.createElement('span')
     detailsTitle.className = 'cw-loading__details-title'
-    detailsTitle.textContent = 'Requests in progress'
+    detailsTitle.textContent = 'Request progress'
     details.appendChild(detailsTitle)
+
+    const progress = documentRef.createElement('span')
+    progress.className = 'cw-loading__progress'
+    const totalCount = Math.max(requestProgress.started, requestProgress.completed + requestProgress.inProgress)
+    progress.textContent = `Completed ${requestProgress.completed} of ${totalCount} • In progress ${requestProgress.inProgress}`
+    details.appendChild(progress)
+
+    if (!pendingRequests.length) {
+      loading.appendChild(details)
+      return loading
+    }
 
     const requests = documentRef.createElement('ul')
     requests.className = 'cw-loading__requests'
@@ -293,10 +332,13 @@
     }
 
     if (loading && total === 0) {
+      const pendingRequests = getPendingRequestItems(context.state.curatedPendingRequests)
+      const requestProgress = getPendingRequestProgressInternal(context, pendingRequests)
       const loadingContent = createLoadingIndicatorInternal(
         context.documentRef,
         'Loading curated watchlist from Crunchyroll API...',
-        getPendingRequestItems(context.state.curatedPendingRequests),
+        pendingRequests,
+        requestProgress,
       )
       empty.appendChild(loadingContent)
       return empty
@@ -344,6 +386,7 @@
     visibleCount: number,
     loading: boolean,
   ): string {
+    const shouldShowFilteredCount = watchReadyFilterMode === 'hide' || watchReadyFilterMode === 'hide_not_started'
     if (context.state.curatedError && total === 0) {
       return 'API load failed'
     }
@@ -351,13 +394,13 @@
       return 'Loading...'
     }
     if (loading && total > 0) {
-      const base = watchReadyFilterMode === 'hide' ? `Showing ${visibleCount} of ${total}` : `${total} shows`
+      const base = shouldShowFilteredCount ? `Showing ${visibleCount} of ${total}` : `${total} shows`
       return `${base} (refreshing...)`
     }
     if (context.state.curatedError) {
       return String(context.state.curatedError)
     }
-    return watchReadyFilterMode === 'hide' ? `Showing ${visibleCount} of ${total}` : `${total} shows`
+    return shouldShowFilteredCount ? `Showing ${visibleCount} of ${total}` : `${total} shows`
   }
 
   function queueLocalizedCuratedPreloads(
@@ -412,7 +455,15 @@
     } = context.buildRenderableEntries()
     const loading = Boolean(context.state.curatedInflight)
     const pendingRequests = getPendingRequestItems(context.state.curatedPendingRequests)
-    const gridRenderSignature = buildCuratedGridRenderSignature(context, visible, total, loading, pendingRequests)
+    const requestProgress = getPendingRequestProgressInternal(context, pendingRequests)
+    const gridRenderSignature = buildCuratedGridRenderSignature(
+      context,
+      visible,
+      total,
+      loading,
+      pendingRequests,
+      requestProgress,
+    )
 
     context.withMutedObserver(() => {
       setSelectOptionsInternal(

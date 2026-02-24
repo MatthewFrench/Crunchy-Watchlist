@@ -53,9 +53,7 @@ describe('bootstrap-config runtime module', () => {
     expect(config.validSortModes.has('rating_desc')).toBe(true)
     expect(config.validSortModes.has('recent_activity_desc')).toBe(true)
     expect(config.validSortModes.has('star_1_pct_desc')).toBe(true)
-    expect(
-      config.sortModeControlOptions.some((option) => option.optionValue === 'recent_activity_desc'),
-    ).toBe(true)
+    expect(config.sortModeControlOptions.some((option) => option.optionValue === 'recent_activity_desc')).toBe(true)
   })
 
   it('returns independent option arrays between calls', () => {

@@ -46,6 +46,8 @@ function createBaseState() {
     curatedEntries: [{ seriesId: 'series-1' }],
     curatedError: 'old-error',
     curatedPendingRequests: ['Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)'],
+    curatedPendingRequestStartedCount: 3,
+    curatedPendingRequestCompletedCount: 1,
   }
 }
 
@@ -158,6 +160,8 @@ describe('interface-shell runtime', () => {
     expect(state.curatedEntries).toEqual([])
     expect(state.curatedError).toBeNull()
     expect(state.curatedPendingRequests).toEqual([])
+    expect(state.curatedPendingRequestStartedCount).toBe(0)
+    expect(state.curatedPendingRequestCompletedCount).toBe(0)
     expect(storageSetCalls).toEqual([
       { key: 'cw_rating_cache_v2', value: {} },
       { key: 'cw_watch_history_cache_v1', value: nextWatchHistoryCache },

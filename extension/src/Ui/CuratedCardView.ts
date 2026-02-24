@@ -91,19 +91,20 @@
     return value as CuratedEntry
   }
 
-  function createNextEpisodeElementInternal(context: CardViewContext, entry: CuratedEntry): HTMLElement {
-    const nextEpisode = document.createElement('div')
-    nextEpisode.className = 'cw-curated-card__next'
-
+  function resolveStatusTextInternal(entry: CuratedEntry): string {
+    const statusBase =
+      typeof entry.statusBase === 'string' && entry.statusBase.trim() ? entry.statusBase.trim() : 'Up Next'
     if (entry.fullyWatched) {
-      context.setLabeledValue(nextEpisode, 'Next unwatched', 'none')
-    } else if (typeof entry.nextEpisodeLabel === 'string' && entry.nextEpisodeLabel) {
-      context.setLabeledValue(nextEpisode, 'Next unwatched', entry.nextEpisodeLabel)
-    } else {
-      context.setLabeledValue(nextEpisode, 'Next unwatched', 'unknown')
+      return statusBase
     }
 
-    return nextEpisode
+    const nextEpisodeLabel =
+      typeof entry.nextEpisodeLabel === 'string' && entry.nextEpisodeLabel.trim() ? entry.nextEpisodeLabel.trim() : ''
+    if (!nextEpisodeLabel) {
+      return statusBase
+    }
+
+    return `${statusBase}: ${nextEpisodeLabel}`
   }
 
   function createScopeElementInternal(context: CardViewContext, entry: CuratedEntry): HTMLElement {
@@ -185,7 +186,7 @@
 
     const status = document.createElement('div')
     status.className = 'cw-curated-card__status'
-    status.textContent = typeof entry.statusBase === 'string' && entry.statusBase ? entry.statusBase : 'Up Next'
+    status.textContent = resolveStatusTextInternal(entry)
 
     const lastWatched = document.createElement('div')
     lastWatched.className = 'cw-curated-card__last-watched'
@@ -193,7 +194,6 @@
     lastWatched.dataset.cwLastWatchedState = lastWatchedPresentation.state
     context.setLabeledValue(lastWatched, 'Last watched', lastWatchedPresentation.text)
 
-    const nextEpisode = createNextEpisodeElementInternal(context, entry)
     const scope = createScopeElementInternal(context, entry)
     const { genreValue, genres } = createGenresElementInternal(context, entry)
     const histogram = context.makeRatingHistogram(entry.distribution, entry.votes)
@@ -202,7 +202,6 @@
     body.appendChild(description)
     body.appendChild(status)
     body.appendChild(lastWatched)
-    body.appendChild(nextEpisode)
     body.appendChild(scope)
     if (genreValue && genres) {
       body.appendChild(genres)

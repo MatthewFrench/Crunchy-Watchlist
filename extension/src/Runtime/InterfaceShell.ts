@@ -26,6 +26,8 @@
     curatedEntries: unknown[]
     curatedError: unknown
     curatedPendingRequests: string[]
+    curatedPendingRequestStartedCount: number
+    curatedPendingRequestCompletedCount: number
   }
 
   type SelectControl = {
@@ -403,6 +405,8 @@
     context.state.curatedEntries = []
     context.state.curatedError = null
     context.state.curatedPendingRequests = []
+    context.state.curatedPendingRequestStartedCount = 0
+    context.state.curatedPendingRequestCompletedCount = 0
   }
 
   function createTabButtonInternal(context: InterfaceShellContext, label: string, tabValue: string): HTMLButtonElement {

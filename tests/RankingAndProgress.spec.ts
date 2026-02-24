@@ -123,8 +123,8 @@ test.describe('Ranking, Filtering, and Progress', () => {
       page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__description'),
     ).toContainText('English audio')
     await expect(
-      page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__next'),
-    ).toHaveText('Next unwatched: S2 E5')
+      page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__status'),
+    ).toHaveText('Up Next: S2 E5')
     await expect(
       page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__last-watched'),
     ).toContainText('Last watched:')
@@ -241,6 +241,19 @@ test.describe('Ranking, Filtering, and Progress', () => {
     await page.selectOption('#cw-genre-filter', 'action')
     await expect(page.locator('.cw-curated-card')).toHaveCount(1)
     await expect(page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"]')).toHaveCount(1)
+  })
+
+  test('filters by favorites using genre dropdown option', async ({ page }) => {
+    await injectExtension(page)
+
+    await expect(page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"]')).toHaveCount(1)
+    await expect(page.locator('.cw-curated-card[data-cw-curated-title="Low Rated Show"]')).toHaveCount(1)
+
+    await page.selectOption('#cw-genre-filter', '__favorites__')
+    await expect(page.locator('.cw-curated-card')).toHaveCount(1)
+    await expect(page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"]')).toHaveCount(1)
+    await expect(page.locator('.cw-curated-card[data-cw-curated-title="Low Rated Show"]')).toHaveCount(0)
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 1 of 4')
   })
 
   test('updates unwatched count to match selected audio locale progress', async ({ page }) => {

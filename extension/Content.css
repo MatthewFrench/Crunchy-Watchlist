@@ -204,6 +204,12 @@
   text-transform: uppercase;
 }
 
+.cw-loading__progress {
+  display: block;
+  margin-top: 3px;
+  color: #e3e9fd;
+}
+
 .cw-loading__requests {
   margin: 4px 0 0 17px;
   padding: 0;

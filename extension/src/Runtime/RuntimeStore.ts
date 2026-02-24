@@ -59,6 +59,8 @@
     curatedSource: string
     curatedInflight: Promise<unknown> | null
     curatedPendingRequests: string[]
+    curatedPendingRequestStartedCount: number
+    curatedPendingRequestCompletedCount: number
     curatedObservedPromise: Promise<unknown> | null
     curatedLastRevalidateAt: number
     mutationMuted: boolean
@@ -153,6 +155,8 @@
       curatedSource: 'none',
       curatedInflight: null,
       curatedPendingRequests: [],
+      curatedPendingRequestStartedCount: 0,
+      curatedPendingRequestCompletedCount: 0,
       curatedObservedPromise: null,
       curatedLastRevalidateAt: 0,
       mutationMuted: false,
