@@ -11,11 +11,26 @@
     extractCoverImagesFromApiImages?: unknown
   }
 
-  type CorePrimitivesContext = {
+  type CountType = 'season' | 'episode'
+
+  type RatingPrimitivesDeps = {
+    sanitizeRating: (value: unknown) => number | null
+    sanitizeVotes: (value: unknown) => number | null
+    sanitizePositiveInt: (value: unknown) => number | null
+    sanitizePercentage: (value: unknown) => number | null
+    normalizeAudioLocales: (locales: unknown) => string[]
+    normalizeTagList: (values: unknown) => string[]
     extractCoverImagesFromApiImages: (images: unknown) => CoverImageResult
   }
 
-  type CountType = 'season' | 'episode'
+  type RatingPrimitivesRuntime = {
+    parseRatingPayload: (payload: Record<string, unknown> | null | undefined) => {
+      rating: number | null
+      votes: number | null
+    }
+    parseRatingDistribution: (ratingBlock: unknown) => Record<string, number | null> | null
+    parseCmsObjectRecord: (record: unknown) => Record<string, unknown>
+  }
 
   type EpisodePrimitivesDeps = {
     sanitizePositiveInt: (value: unknown) => number | null
@@ -49,13 +64,31 @@
     return value as T
   }
 
-  function createCorePrimitivesContext(deps: CorePrimitivesDeps = {}): CorePrimitivesContext {
-    return {
-      extractCoverImagesFromApiImages: requireFunction(
-        'extractCoverImagesFromApiImages',
-        deps.extractCoverImagesFromApiImages,
-      ) as CorePrimitivesContext['extractCoverImagesFromApiImages'],
+  function createRatingPrimitivesRuntime(deps: RatingPrimitivesDeps): RatingPrimitivesRuntime {
+    const domainRegistry =
+      moduleRegistry.domain && typeof moduleRegistry.domain === 'object'
+        ? (moduleRegistry.domain as Record<string, unknown>)
+        : {}
+    const ratingPrimitivesModule =
+      domainRegistry.ratingPrimitives && typeof domainRegistry.ratingPrimitives === 'object'
+        ? (domainRegistry.ratingPrimitives as Record<string, unknown>)
+        : {}
+    const createRatingPrimitives = ratingPrimitivesModule.createRatingPrimitives
+    if (typeof createRatingPrimitives !== 'function') {
+      throw new Error('[CW] Missing primitive dependency: createRatingPrimitives')
     }
+
+    const runtime = (createRatingPrimitives as (deps: RatingPrimitivesDeps) => unknown)(
+      deps,
+    ) as Partial<RatingPrimitivesRuntime>
+    const requiredMethods = ['parseRatingPayload', 'parseRatingDistribution', 'parseCmsObjectRecord'] as const
+    for (const methodName of requiredMethods) {
+      if (typeof runtime?.[methodName] !== 'function') {
+        throw new Error(`[CW] Missing rating primitive method: ${methodName}`)
+      }
+    }
+
+    return runtime as RatingPrimitivesRuntime
   }
 
   function createEpisodePrimitivesRuntime(deps: EpisodePrimitivesDeps): EpisodePrimitivesRuntime {
@@ -259,152 +292,6 @@
     return null
   }
 
-  function parseRatingPayload(payload: Record<string, unknown> | null | undefined): {
-    rating: number | null
-    votes: number | null
-  } {
-    const candidateRating = [
-      payload?.rating && typeof payload.rating === 'object'
-        ? (payload.rating as Record<string, unknown>).average
-        : null,
-      payload?.rating && typeof payload.rating === 'object' ? (payload.rating as Record<string, unknown>).value : null,
-      payload?.average,
-      payload?.data && typeof payload.data === 'object' ? (payload.data as Record<string, unknown>).average : null,
-      payload?.data && typeof payload.data === 'object' ? (payload.data as Record<string, unknown>).rating : null,
-      Array.isArray(payload?.data) &&
-      payload?.data[0] &&
-      typeof payload.data[0] === 'object' &&
-      (payload.data[0] as Record<string, unknown>).rating &&
-      typeof (payload.data[0] as Record<string, unknown>).rating === 'object'
-        ? ((payload.data[0] as Record<string, unknown>).rating as Record<string, unknown>).average
-        : null,
-      Array.isArray(payload?.data) &&
-      payload?.data[0] &&
-      typeof payload.data[0] === 'object' &&
-      (payload.data[0] as Record<string, unknown>).rating &&
-      typeof (payload.data[0] as Record<string, unknown>).rating === 'object'
-        ? ((payload.data[0] as Record<string, unknown>).rating as Record<string, unknown>).value
-        : null,
-      payload?.result && typeof payload.result === 'object'
-        ? (payload.result as Record<string, unknown>).average
-        : null,
-      payload?.aggregateRating && typeof payload.aggregateRating === 'object'
-        ? (payload.aggregateRating as Record<string, unknown>).ratingValue
-        : null,
-      payload?.aggregateRating && typeof payload.aggregateRating === 'object'
-        ? (payload.aggregateRating as Record<string, unknown>).rating
-        : null,
-    ]
-      .map(sanitizeRating)
-      .find((value) => value != null)
-
-    const candidateVotes = [
-      payload?.rating && typeof payload.rating === 'object' ? (payload.rating as Record<string, unknown>).count : null,
-      payload?.rating && typeof payload.rating === 'object' ? (payload.rating as Record<string, unknown>).total : null,
-      payload?.count,
-      payload?.total,
-      payload?.data && typeof payload.data === 'object' ? (payload.data as Record<string, unknown>).count : null,
-      payload?.data && typeof payload.data === 'object' ? (payload.data as Record<string, unknown>).total : null,
-      Array.isArray(payload?.data) &&
-      payload?.data[0] &&
-      typeof payload.data[0] === 'object' &&
-      (payload.data[0] as Record<string, unknown>).rating &&
-      typeof (payload.data[0] as Record<string, unknown>).rating === 'object'
-        ? ((payload.data[0] as Record<string, unknown>).rating as Record<string, unknown>).count
-        : null,
-      Array.isArray(payload?.data) &&
-      payload?.data[0] &&
-      typeof payload.data[0] === 'object' &&
-      (payload.data[0] as Record<string, unknown>).rating &&
-      typeof (payload.data[0] as Record<string, unknown>).rating === 'object'
-        ? ((payload.data[0] as Record<string, unknown>).rating as Record<string, unknown>).total
-        : null,
-      payload?.aggregateRating && typeof payload.aggregateRating === 'object'
-        ? (payload.aggregateRating as Record<string, unknown>).ratingCount
-        : null,
-    ]
-      .map(sanitizeVotes)
-      .find((value) => value != null)
-
-    let rating = candidateRating ?? null
-    let votes = candidateVotes ?? null
-
-    if (rating == null || votes == null) {
-      const serialized = JSON.stringify(payload || {})
-
-      if (rating == null) {
-        const ratingMatch = serialized.match(/"(?:average|ratingValue|rating)"\s*:\s*"?([0-5](?:\\.\d+)?)"?/i)
-        if (ratingMatch) {
-          rating = sanitizeRating(ratingMatch[1])
-        }
-      }
-
-      if (votes == null) {
-        const votesMatch = serialized.match(/"(?:ratingCount|votes|total|count)"\s*:\s*"?(\d{1,10})"?/i)
-        if (votesMatch) {
-          votes = sanitizeVotes(votesMatch[1])
-        }
-      }
-    }
-
-    return { rating, votes }
-  }
-
-  function parseRatingDistribution(ratingBlock: unknown): Record<string, number | null> | null {
-    if (!ratingBlock || typeof ratingBlock !== 'object') {
-      return null
-    }
-
-    const distribution: Record<string, number | null> = {}
-    let hasAny = false
-
-    for (let star = 1; star <= 5; star += 1) {
-      const bucket = (ratingBlock as Record<string, unknown>)[`${star}s`]
-      const bucketRecord = bucket && typeof bucket === 'object' ? (bucket as Record<string, unknown>) : null
-      const percentage = sanitizePercentage(bucketRecord?.percentage ?? bucketRecord?.displayed)
-      distribution[String(star)] = percentage
-      if (percentage != null) {
-        hasAny = true
-      }
-    }
-
-    return hasAny ? distribution : null
-  }
-
-  function parseCmsObjectRecord(context: CorePrimitivesContext, record: unknown): Record<string, unknown> {
-    const objectRecord = record && typeof record === 'object' ? (record as Record<string, unknown>) : {}
-    const seriesId = typeof objectRecord.id === 'string' ? objectRecord.id : null
-    const parsedRating = parseRatingPayload(objectRecord)
-    const seriesMetadata =
-      objectRecord.series_metadata && typeof objectRecord.series_metadata === 'object'
-        ? (objectRecord.series_metadata as Record<string, unknown>)
-        : {}
-    const audioLocales = normalizeAudioLocales(seriesMetadata.audio_locales)
-    const description = typeof objectRecord.description === 'string' ? objectRecord.description.trim() : ''
-    const episodeCount = sanitizePositiveInt(seriesMetadata.episode_count)
-    const seasonCount = sanitizePositiveInt(seriesMetadata.season_count)
-    const genreTags = normalizeTagList([
-      ...(Array.isArray(seriesMetadata.genres) ? seriesMetadata.genres : []),
-      ...(Array.isArray(seriesMetadata.tenant_categories) ? seriesMetadata.tenant_categories : []),
-    ])
-    const coverImages = context.extractCoverImagesFromApiImages(objectRecord.images)
-    const ratingRecord = objectRecord.rating && typeof objectRecord.rating === 'object' ? objectRecord.rating : null
-
-    return {
-      seriesId,
-      rating: parsedRating.rating,
-      votes: parsedRating.votes,
-      distribution: parseRatingDistribution(ratingRecord),
-      audioLocales,
-      description,
-      episodeCount,
-      seasonCount,
-      genreTags,
-      portraitImageUrl: coverImages.portrait,
-      landscapeImageUrl: coverImages.landscape,
-    }
-  }
-
   function normalizeAudioLocaleCountMap(value: unknown): Record<string, number> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return {}
@@ -576,12 +463,24 @@
   }
 
   function createCorePrimitives(deps: CorePrimitivesDeps = {}) {
-    const context = createCorePrimitivesContext(deps)
+    const extractCoverImagesFromApiImages = requireFunction<(images: unknown) => CoverImageResult>(
+      'extractCoverImagesFromApiImages',
+      deps.extractCoverImagesFromApiImages,
+    )
     const episodePrimitives = createEpisodePrimitivesRuntime({
       sanitizePositiveInt,
       pickFirstPositiveInt,
       normalizeAudioLocale,
       normalizeAudioLocaleCountMap,
+    })
+    const ratingPrimitives = createRatingPrimitivesRuntime({
+      sanitizeRating,
+      sanitizeVotes,
+      sanitizePositiveInt,
+      sanitizePercentage,
+      normalizeAudioLocales,
+      normalizeTagList,
+      extractCoverImagesFromApiImages,
     })
     return {
       sanitizeRating,
@@ -596,9 +495,10 @@
       normalizeTagList,
       hasEnUsAudio,
       formatEpisodeIdentifier,
-      parseRatingPayload,
-      parseRatingDistribution,
-      parseCmsObjectRecord: (record: unknown) => parseCmsObjectRecord(context, record),
+      parseRatingPayload: (payload: Record<string, unknown> | null | undefined) =>
+        ratingPrimitives.parseRatingPayload(payload),
+      parseRatingDistribution: (ratingBlock: unknown) => ratingPrimitives.parseRatingDistribution(ratingBlock),
+      parseCmsObjectRecord: (record: unknown) => ratingPrimitives.parseCmsObjectRecord(record),
       normalizeAudioLocaleCountMap,
       mergeAudioLocaleCountMap,
       getAudioLocaleCountFromMap,

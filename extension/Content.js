@@ -1,42 +1,20 @@
 ;(() => {
-  const updateDiagnostics = (patch = {}) => {
-    try {
-      const existing =
-        window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__ && typeof window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__ === 'object'
-          ? window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__
-          : {}
-      window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__ = {
-        ...existing,
-        ...patch,
-        updatedAt: new Date().toISOString(),
-        href: typeof window.location?.href === 'string' ? window.location.href : '',
-      }
-    } catch (_) {
-      // no-op
-    }
-  }
-
-  const setBootstrapIssue = (stage, details = {}) => {
-    updateDiagnostics({
-      ok: false,
-      stage,
-      ...details,
-    })
-    try {
-      // eslint-disable-next-line no-console
-      console.error(`[CW] ${stage}`, details)
-    } catch (_) {
-      // no-op
-    }
-  }
-
-  updateDiagnostics({
-    ok: false,
-    stage: 'content-script-loaded',
-    pathname: typeof window.location?.pathname === 'string' ? window.location.pathname : '',
-  })
-
   const moduleRegistry = window.__CW_WATCHLIST_CURATOR_MODULES__ || {}
+  const runtimeBootstrapDiagnosticsModule = moduleRegistry.runtimeBootstrapDiagnostics
+  if (
+    !runtimeBootstrapDiagnosticsModule ||
+    typeof runtimeBootstrapDiagnosticsModule.createBootstrapDiagnostics !== 'function'
+  ) {
+    // eslint-disable-next-line no-console
+    console.error('[CW] missing-bootstrap-diagnostics-module')
+    return
+  }
+  const { updateDiagnostics, setBootstrapIssue } = runtimeBootstrapDiagnosticsModule.createBootstrapDiagnostics({
+    windowRef: window,
+    consoleRef: console,
+  })
+  updateDiagnostics({ ok: false, stage: 'content-script-loaded', pathname: window.location?.pathname || '' })
+
   const runtimeBootstrapGateModule = moduleRegistry.runtimeBootstrapGate
   if (
     !runtimeBootstrapGateModule ||
@@ -44,9 +22,7 @@
       (methodName) => typeof runtimeBootstrapGateModule[methodName] !== 'function',
     )
   ) {
-    setBootstrapIssue('missing-bootstrap-gate-module', {
-      moduleKeys: Object.keys(moduleRegistry),
-    })
+    setBootstrapIssue('missing-bootstrap-gate-module')
     return
   }
 
@@ -59,51 +35,21 @@
     updateDiagnostics({
       ok: false,
       stage: 'bootstrap-gated',
-      pathname: typeof window.location?.pathname === 'string' ? window.location.pathname : '',
+      pathname: window.location?.pathname || '',
       inTopFrame: window.top === window,
     })
     return
   }
 
-  updateDiagnostics({
-    ok: false,
-    stage: 'bootstrap-started',
-  })
-
-  const SETTINGS_KEY = 'cw_settings_v1'
-  const RATING_CACHE_KEY = 'cw_rating_cache_v2'
-  const WATCH_HISTORY_CACHE_KEY = 'cw_watch_history_cache_v1'
-  const WATCHLIST_CACHE_KEY = 'cw_watchlist_cache_v1'
-  const WATCH_HISTORY_CACHE_VERSION = 3
-  const RATING_CACHE_TTL_MS = 12 * 60 * 60 * 1000
-  const WATCH_HISTORY_CACHE_TTL_MS = 12 * 60 * 60 * 1000
-  const WATCHLIST_CACHE_TTL_MS = 24 * 60 * 60 * 1000
-  const PROCESS_DEBOUNCE_MS = 180
-  const WATCHLIST_PAGE_SIZE = 100
-  const WATCHLIST_MAX_PAGES = 30
-  const WATCHLIST_REVALIDATE_COOLDOWN_MS = 90 * 1000
-  const WATCH_HISTORY_PAGE_SIZE = 100
-  const WATCH_HISTORY_MAX_PAGES = 40
-  const WATCH_HISTORY_NO_MATCH_PAGE_LIMIT = 5
-  const RATING_BATCH_SIZE = 50
-  const FETCH_TIMEOUT_MS = 12000
-  const FETCH_MAX_ATTEMPTS = 3
-  const FETCH_BACKOFF_BASE_MS = 400
-  const FETCH_BACKOFF_JITTER_MS = 220
-  const AUTH_CLIENT_BASIC = 'Basic bm9haWhkZXZtXzZpeWcwYThsMHE6'
-  const AUTH_DEVICE_KEY = 'cw_auth_device_id_v1'
-  const AUTH_TOKEN_SKEW_MS = 60 * 1000
-  const PREVIEW_HOVER_DELAY_MS = 220
-  const PREFERRED_AUDIO_CACHE_TTL_MS = 2 * 60 * 1000
-  const PREFERRED_AUDIO_STORAGE_SCAN_LIMIT = 120
-  const PREFERRED_AUDIO_VALUE_SCAN_LIMIT = 1200
-  const API_TRACE_LIMIT_PER_ENDPOINT = 30
+  updateDiagnostics({ ok: false, stage: 'bootstrap-started' })
 
   const runtimeBootstrapModulesModule = moduleRegistry.runtimeBootstrapModules
-  if (!runtimeBootstrapModulesModule || typeof runtimeBootstrapModulesModule.createBootstrapModules !== 'function') {
-    setBootstrapIssue('missing-bootstrap-modules-module', {
-      moduleKeys: Object.keys(moduleRegistry),
-    })
+  if (
+    !runtimeBootstrapModulesModule ||
+    typeof runtimeBootstrapModulesModule.createBootstrapModules !== 'function' ||
+    typeof runtimeBootstrapModulesModule.assertRuntimeMethods !== 'function'
+  ) {
+    setBootstrapIssue('missing-bootstrap-modules-module')
     return
   }
   const runtimeBootstrapFinalizeModule = moduleRegistry.runtimeBootstrapFinalize
@@ -113,9 +59,7 @@
     typeof runtimeBootstrapFinalizeModule.createStorageAccessors !== 'function' ||
     typeof runtimeBootstrapFinalizeModule.safeJsonParse !== 'function'
   ) {
-    setBootstrapIssue('missing-bootstrap-finalize-module', {
-      moduleKeys: Object.keys(moduleRegistry),
-    })
+    setBootstrapIssue('missing-bootstrap-finalize-module')
     return
   }
 
@@ -161,14 +105,16 @@
     validSortModes: VALID_SORT_MODES,
     sortModeControlOptions: SORT_MODE_CONTROL_OPTIONS,
     defaultSettings: DEFAULT_SETTINGS,
+    runtimeConstants,
   } = bootstrapModulesRuntime
+  const assertRuntimeMethods = runtimeBootstrapModulesModule.assertRuntimeMethods
 
   const createEmptyWatchHistoryCache = () =>
-    runtimeStoreModule.createEmptyWatchHistoryCache(WATCH_HISTORY_CACHE_VERSION)
+    runtimeStoreModule.createEmptyWatchHistoryCache(runtimeConstants.watchHistoryCacheVersion)
   const createWatchlistCacheSnapshot = (...args) => runtimeStoreModule.createWatchlistCacheSnapshot(...args)
   const state = runtimeStoreModule.createRuntimeState({
     defaultSettings: DEFAULT_SETTINGS,
-    watchHistoryCacheVersion: WATCH_HISTORY_CACHE_VERSION,
+    watchHistoryCacheVersion: runtimeConstants.watchHistoryCacheVersion,
   })
 
   const storageLocalArea =
@@ -180,12 +126,6 @@
   const getWatchlistRoot = () => runtimeBootstrapGateModule.getWatchlistRoot(document)
   const getWatchlistHeader = () => runtimeBootstrapGateModule.getWatchlistHeader(document)
 
-  const assertRuntimeMethods = (ownerLabel, instance, methodNames) => {
-    if (!instance || typeof instance !== 'object') throw new Error(`[CW] Missing ${ownerLabel}`)
-    for (const methodName of methodNames)
-      if (typeof instance[methodName] !== 'function') throw new Error(`[CW] Missing ${methodName} ${ownerLabel}`)
-  }
-
   let processWatchlist = async () => {}
   let runtimeEvent = () => {}
   let pushApiTrace = () => {}
@@ -196,7 +136,7 @@
       processWatchlist().catch(() => {
         // no-op
       })
-    }, PROCESS_DEBOUNCE_MS)
+    }, runtimeConstants.processDebounceMs)
   }
 
   const safeJsonParse = (value, fallback) => runtimeBootstrapFinalizeModule.safeJsonParse(value, fallback)
@@ -279,40 +219,32 @@
     applyTabUiImpl,
     resetCuratedCachesForRefreshImpl,
     ensureInterfaceImpl,
-    listKnownSeries = () => [],
-    dumpSeriesApiData = (query) => ({
-      query: String(query || ''),
-      error: 'Debug API unavailable.',
-      availableSeries: [],
-    }),
-    resolveApiHref = (href) => String(href || ''),
-    normalizeImageUrlCandidate = (value) => normalizeImageUrlCandidateImpl(value),
-    extractCoverImagesFromApiImages = (images) => extractCoverImagesFromApiImagesImpl(images),
-    extractThumbnailImageFromApiImages = (images) => extractThumbnailImageFromApiImagesImpl(images),
-    scheduleSaveRatings = () => {},
-    scheduleSaveWatchHistory = () => {},
-    scheduleSaveWatchlistCache = () => {},
-    getPreferredAudioLanguage = () => 'en-US',
-    preloadRatingsForSelectedAudioLocale = async () => {},
-    preloadWatchHistoryForSelectedAudioLocale = async () => {},
-    toggleCuratedFavorite = () => {},
-    removeCuratedSeries = () => {},
-    isLikelyVideoUrl = (url) => typeof url === 'string' && /\.(m3u8|mp4|webm|m4v|mpd)(\?|$)/i.test(url),
-    isEntryWatchReady = (entry) => Boolean(entry?.watchReadyBase),
-    withMutedObserver = (work) => {
-      if (typeof work === 'function') {
-        work()
-      }
-    },
-    applyCardLayoutUi = () => {},
-    persistSettings = async () => {}
-  let printSeriesApiData = (query) => dumpSeriesApiData(query)
+    listKnownSeries,
+    dumpSeriesApiData,
+    resolveApiHref,
+    normalizeImageUrlCandidate,
+    extractCoverImagesFromApiImages,
+    extractThumbnailImageFromApiImages,
+    scheduleSaveRatings,
+    scheduleSaveWatchHistory,
+    scheduleSaveWatchlistCache,
+    getPreferredAudioLanguage,
+    preloadRatingsForSelectedAudioLocale,
+    preloadWatchHistoryForSelectedAudioLocale,
+    toggleCuratedFavorite,
+    removeCuratedSeries,
+    isLikelyVideoUrl,
+    isEntryWatchReady,
+    withMutedObserver,
+    applyCardLayoutUi,
+    persistSettings
+  let printSeriesApiData
 
   try {
     const runtimeTrace = runtimeTraceModule.createRuntimeTrace({
       windowRef: window,
       state,
-      apiTraceLimitPerEndpoint: API_TRACE_LIMIT_PER_ENDPOINT,
+      apiTraceLimitPerEndpoint: runtimeConstants.apiTraceLimitPerEndpoint,
     })
     assertRuntimeMethods('runtime trace', runtimeTrace, ['runtimeEvent', 'pushApiTrace'])
     runtimeEvent = runtimeTrace.runtimeEvent
@@ -334,8 +266,8 @@
       parseDateMs: (value) => corePrimitives.parseDateMs(value),
       getWatchlistSeriesId: (entry) => corePrimitives.getWatchlistSeriesId(entry),
       getWatchHistorySeriesId: (entry) => corePrimitives.getWatchHistorySeriesId(entry),
-      fetchBackoffBaseMs: FETCH_BACKOFF_BASE_MS,
-      fetchBackoffJitterMs: FETCH_BACKOFF_JITTER_MS,
+      fetchBackoffBaseMs: runtimeConstants.fetchBackoffBaseMs,
+      fetchBackoffJitterMs: runtimeConstants.fetchBackoffJitterMs,
     })
     assertRuntimeMethods('api contracts', apiContracts, [
       'shouldRetryStatus',
@@ -351,8 +283,8 @@
       localStorageRef: window.localStorage,
       navigatorRef: window.navigator,
       documentRef: window.document,
-      storageScanLimit: PREFERRED_AUDIO_STORAGE_SCAN_LIMIT,
-      valueScanLimit: PREFERRED_AUDIO_VALUE_SCAN_LIMIT,
+      storageScanLimit: runtimeConstants.preferredAudioStorageScanLimit,
+      valueScanLimit: runtimeConstants.preferredAudioValueScanLimit,
     })
     assertRuntimeMethods('preferred audio detector', preferredAudioDetector, ['detectPreferredAudioLanguage'])
     detectPreferredAudioLanguage = () => preferredAudioDetector.detectPreferredAudioLanguage()
@@ -362,11 +294,11 @@
       windowRef: window,
       runtimeEvent,
       storageSet: (key, value) => storageSet(key, value),
-      settingsKey: SETTINGS_KEY,
-      ratingCacheKey: RATING_CACHE_KEY,
-      watchHistoryCacheKey: WATCH_HISTORY_CACHE_KEY,
-      watchlistCacheKey: WATCHLIST_CACHE_KEY,
-      preferredAudioCacheTtlMs: PREFERRED_AUDIO_CACHE_TTL_MS,
+      settingsKey: runtimeConstants.settingsKey,
+      ratingCacheKey: runtimeConstants.ratingCacheKey,
+      watchHistoryCacheKey: runtimeConstants.watchHistoryCacheKey,
+      watchlistCacheKey: runtimeConstants.watchlistCacheKey,
+      preferredAudioCacheTtlMs: runtimeConstants.preferredAudioCacheTtlMs,
       normalizeAudioLocale: (value) => corePrimitives.normalizeAudioLocale(value),
       detectPreferredAudioLanguage: () => detectPreferredAudioLanguage(),
       isLocalizedRatingDataMissingForEntries: (entries, audioLocale) =>
@@ -419,11 +351,11 @@
       shouldRetryStatus: apiContracts.shouldRetryStatus,
       computeFetchRetryDelayMs: apiContracts.computeFetchRetryDelayMs,
       sleep: apiContracts.sleep,
-      fetchTimeoutMs: FETCH_TIMEOUT_MS,
-      fetchMaxAttempts: FETCH_MAX_ATTEMPTS,
-      authTokenSkewMs: AUTH_TOKEN_SKEW_MS,
-      authClientBasic: AUTH_CLIENT_BASIC,
-      authDeviceKey: AUTH_DEVICE_KEY,
+      fetchTimeoutMs: runtimeConstants.fetchTimeoutMs,
+      fetchMaxAttempts: runtimeConstants.fetchMaxAttempts,
+      authTokenSkewMs: runtimeConstants.authTokenSkewMs,
+      authClientBasic: runtimeConstants.authClientBasic,
+      authDeviceKey: runtimeConstants.authDeviceKey,
       localStorageRef: window.localStorage,
       navigatorRef: window.navigator,
       cryptoRef: window.crypto,
@@ -434,9 +366,9 @@
       'getAccessToken',
       'createAuthRefreshHandler',
     ])
-    fetchWithResilience = (url, init = {}, options = {}) => authClient.fetchWithResilience(url, init, options)
-    getAccessToken = (forceRefresh = false) => authClient.getAccessToken(forceRefresh)
-    createAuthRefreshHandler = (tokenEntry) => authClient.createAuthRefreshHandler(tokenEntry)
+    fetchWithResilience = authClient.fetchWithResilience
+    getAccessToken = authClient.getAccessToken
+    createAuthRefreshHandler = authClient.createAuthRefreshHandler
 
     const imageVariants = imageVariantsModule.createImageVariants({
       sanitizePositiveInt: corePrimitives.sanitizePositiveInt,
@@ -450,6 +382,9 @@
     normalizeImageUrlCandidateImpl = (value) => imageVariants.normalizeImageUrlCandidate(value)
     extractCoverImagesFromApiImagesImpl = (images) => imageVariants.extractCoverImagesFromApiImages(images)
     extractThumbnailImageFromApiImagesImpl = (images) => imageVariants.extractThumbnailImageFromApiImages(images)
+    normalizeImageUrlCandidate = (value) => normalizeImageUrlCandidateImpl(value)
+    extractCoverImagesFromApiImages = (images) => extractCoverImagesFromApiImagesImpl(images)
+    extractThumbnailImageFromApiImages = (images) => extractThumbnailImageFromApiImagesImpl(images)
 
     const ratingsClient = ratingsClientModule.createRatingsClient({
       fetchWithResilience,
@@ -468,10 +403,8 @@
       pushApiTrace,
     })
     assertRuntimeMethods('ratings client', ratingsClient, ['fetchRatingsBatch', 'fetchRating'])
-    fetchRatingsBatch = (tokenEntry, seriesIds, preferredAudioLanguage = getPreferredAudioLanguage()) =>
-      ratingsClient.fetchRatingsBatch(tokenEntry, seriesIds, preferredAudioLanguage)
-    fetchRating = (seriesId, seriesHref, preferredAudioLanguage = getPreferredAudioLanguage()) =>
-      ratingsClient.fetchRating(seriesId, seriesHref, preferredAudioLanguage)
+    fetchRatingsBatch = ratingsClient.fetchRatingsBatch
+    fetchRating = ratingsClient.fetchRating
 
     const ratingsRepository = ratingsRepositoryModule.createRatingsRepository({
       state,
@@ -488,8 +421,8 @@
       fetchRating,
       scheduleSaveRatings,
       runtimeEvent,
-      ratingBatchSize: RATING_BATCH_SIZE,
-      ratingCacheTtlMs: RATING_CACHE_TTL_MS,
+      ratingBatchSize: runtimeConstants.ratingBatchSize,
+      ratingCacheTtlMs: runtimeConstants.ratingCacheTtlMs,
     })
     assertRuntimeMethods('ratings repository', ratingsRepository, [
       'getSeriesRating',
@@ -497,11 +430,9 @@
       'getCachedRating',
       'isLocalizedRatingDataMissingForEntries',
     ])
-    preloadRatingsForEntries = (entries, tokenEntry, preferredAudioLanguage = getPreferredAudioLanguage()) =>
-      ratingsRepository.preloadRatingsForEntries(entries, tokenEntry, preferredAudioLanguage)
-    getCachedRating = (seriesId) => ratingsRepository.getCachedRating(seriesId)
-    isLocalizedRatingDataMissingForEntries = (entries, audioLocale) =>
-      ratingsRepository.isLocalizedRatingDataMissingForEntries(entries, audioLocale)
+    preloadRatingsForEntries = ratingsRepository.preloadRatingsForEntries
+    getCachedRating = ratingsRepository.getCachedRating
+    isLocalizedRatingDataMissingForEntries = ratingsRepository.isLocalizedRatingDataMissingForEntries
 
     const watchlistClient = watchlistClientModule.createWatchlistClient({
       fetchWithResilience,
@@ -514,17 +445,17 @@
       getWatchlistSeriesId: corePrimitives.getWatchlistSeriesId,
       pushApiTrace,
       runtimeEvent,
-      watchlistPageSize: WATCHLIST_PAGE_SIZE,
-      watchlistMaxPages: WATCHLIST_MAX_PAGES,
+      watchlistPageSize: runtimeConstants.watchlistPageSize,
+      watchlistMaxPages: runtimeConstants.watchlistMaxPages,
     })
     assertRuntimeMethods('watchlist client', watchlistClient, ['fetchAllWatchlistRows'])
-    fetchAllWatchlistRows = (tokenEntry) => watchlistClient.fetchAllWatchlistRows(tokenEntry)
+    fetchAllWatchlistRows = watchlistClient.fetchAllWatchlistRows
 
     const watchlistRepository = watchlistRepositoryModule.createWatchlistRepository({
       state,
       createWatchlistCacheSnapshot,
       scheduleSaveWatchlistCache,
-      watchlistCacheTtlMs: WATCHLIST_CACHE_TTL_MS,
+      watchlistCacheTtlMs: runtimeConstants.watchlistCacheTtlMs,
     })
     assertRuntimeMethods('watchlist repository', watchlistRepository, [
       'normalizeStoredWatchlistCache',
@@ -532,12 +463,10 @@
       'resetWatchlistCacheOnAccountMismatch',
       'setWatchlistCacheRows',
     ])
-    normalizeStoredWatchlistCache = (raw) => watchlistRepository.normalizeStoredWatchlistCache(raw)
-    isWatchlistCacheValid = (cache, accountId) => watchlistRepository.isWatchlistCacheValid(cache, accountId)
-    resetWatchlistCacheOnAccountMismatch = (accountId) =>
-      watchlistRepository.resetWatchlistCacheOnAccountMismatch(accountId)
-    setWatchlistCacheRows = (accountId, rows, updatedAt = Date.now()) =>
-      watchlistRepository.setWatchlistCacheRows(accountId, rows, updatedAt)
+    normalizeStoredWatchlistCache = watchlistRepository.normalizeStoredWatchlistCache
+    isWatchlistCacheValid = watchlistRepository.isWatchlistCacheValid
+    resetWatchlistCacheOnAccountMismatch = watchlistRepository.resetWatchlistCacheOnAccountMismatch
+    setWatchlistCacheRows = watchlistRepository.setWatchlistCacheRows
 
     const historyRepository = historyRepositoryModule.createHistoryRepository({
       state,
@@ -558,11 +487,11 @@
       scheduleSaveWatchHistory,
       pushApiTrace,
       runtimeEvent,
-      watchHistoryCacheVersion: WATCH_HISTORY_CACHE_VERSION,
-      watchHistoryCacheTtlMs: WATCH_HISTORY_CACHE_TTL_MS,
-      watchHistoryPageSize: WATCH_HISTORY_PAGE_SIZE,
-      watchHistoryMaxPages: WATCH_HISTORY_MAX_PAGES,
-      watchHistoryNoMatchPageLimit: WATCH_HISTORY_NO_MATCH_PAGE_LIMIT,
+      watchHistoryCacheVersion: runtimeConstants.watchHistoryCacheVersion,
+      watchHistoryCacheTtlMs: runtimeConstants.watchHistoryCacheTtlMs,
+      watchHistoryPageSize: runtimeConstants.watchHistoryPageSize,
+      watchHistoryMaxPages: runtimeConstants.watchHistoryMaxPages,
+      watchHistoryNoMatchPageLimit: runtimeConstants.watchHistoryNoMatchPageLimit,
     })
     assertRuntimeMethods('history repository', historyRepository, [
       'normalizeStoredWatchHistoryCache',
@@ -572,20 +501,12 @@
       'preloadWatchHistoryForEntries',
       'isLocalizedWatchHistoryDataMissingForEntries',
     ])
-    normalizeStoredWatchHistoryCache = (raw) => historyRepository.normalizeStoredWatchHistoryCache(raw)
-    isWatchHistoryCacheValid = (cache, accountId) => historyRepository.isWatchHistoryCacheValid(cache, accountId)
-    getCachedWatchHistory = (seriesId, audioLocale = null, allowSeriesFallback = true) =>
-      historyRepository.getCachedWatchHistory(seriesId, audioLocale, allowSeriesFallback)
-    getCachedWatchHistoryProgress = (seriesId, audioLocale = null, allowSeriesFallback = true) =>
-      historyRepository.getCachedWatchHistoryProgress(seriesId, audioLocale, allowSeriesFallback)
-    preloadWatchHistoryForEntries = (
-      entries,
-      tokenEntry,
-      force = false,
-      preferredAudioLanguage = getPreferredAudioLanguage(),
-    ) => historyRepository.preloadWatchHistoryForEntries(entries, tokenEntry, force, preferredAudioLanguage)
-    isLocalizedWatchHistoryDataMissingForEntries = (entries, audioLocale) =>
-      historyRepository.isLocalizedWatchHistoryDataMissingForEntries(entries, audioLocale)
+    normalizeStoredWatchHistoryCache = historyRepository.normalizeStoredWatchHistoryCache
+    isWatchHistoryCacheValid = historyRepository.isWatchHistoryCacheValid
+    getCachedWatchHistory = historyRepository.getCachedWatchHistory
+    getCachedWatchHistoryProgress = historyRepository.getCachedWatchHistoryProgress
+    preloadWatchHistoryForEntries = historyRepository.preloadWatchHistoryForEntries
+    isLocalizedWatchHistoryDataMissingForEntries = historyRepository.isLocalizedWatchHistoryDataMissingForEntries
 
     const previewRepository = previewRepositoryModule.createPreviewRepository({
       state,
@@ -597,7 +518,7 @@
       runtimeEvent,
     })
     assertRuntimeMethods('preview repository', previewRepository, ['fetchPreviewUrlForEntry'])
-    fetchPreviewUrlForEntry = (entry) => previewRepository.fetchPreviewUrlForEntry(entry)
+    fetchPreviewUrlForEntry = previewRepository.fetchPreviewUrlForEntry
 
     const entryNormalizer = entryNormalizerModule.createEntryNormalizer({
       sanitizePositiveInt: corePrimitives.sanitizePositiveInt,
@@ -801,7 +722,7 @@
       setWatchlistCacheRows,
       isWatchlistPath,
       renderCuratedPanel,
-      watchlistRevalidateCooldownMs: WATCHLIST_REVALIDATE_COOLDOWN_MS,
+      watchlistRevalidateCooldownMs: runtimeConstants.watchlistRevalidateCooldownMs,
     })
     assertRuntimeMethods('curated loader runtime', curatedLoaderRuntime, [
       'loadCuratedEntries',
@@ -816,7 +737,7 @@
       normalizeImageUrlCandidate,
       fetchPreviewUrlForEntry,
       isLikelyVideoUrl,
-      previewHoverDelayMs: PREVIEW_HOVER_DELAY_MS,
+      previewHoverDelayMs: runtimeConstants.previewHoverDelayMs,
     })
     assertRuntimeMethods('native bridge runtime', nativeBridgeRuntime, [
       'triggerNativeCardAction',
@@ -871,8 +792,8 @@
       debounceProcess,
       createEmptyWatchHistoryCache: () => createEmptyWatchHistoryCache(),
       storageSet: (key, value) => storageSet(key, value),
-      ratingCacheKey: RATING_CACHE_KEY,
-      watchHistoryCacheKey: WATCH_HISTORY_CACHE_KEY,
+      ratingCacheKey: runtimeConstants.ratingCacheKey,
+      watchHistoryCacheKey: runtimeConstants.watchHistoryCacheKey,
     })
     assertRuntimeMethods('interface shell runtime', interfaceShellRuntime, [
       'clearRootFrame',
@@ -937,10 +858,10 @@
       defaultSettings: DEFAULT_SETTINGS,
       validSortModes: VALID_SORT_MODES,
       defaultSortMode: DEFAULT_SORT_MODE,
-      settingsKey: SETTINGS_KEY,
-      ratingCacheKey: RATING_CACHE_KEY,
-      watchHistoryCacheKey: WATCH_HISTORY_CACHE_KEY,
-      watchlistCacheKey: WATCHLIST_CACHE_KEY,
+      settingsKey: runtimeConstants.settingsKey,
+      ratingCacheKey: runtimeConstants.ratingCacheKey,
+      watchHistoryCacheKey: runtimeConstants.watchHistoryCacheKey,
+      watchlistCacheKey: runtimeConstants.watchlistCacheKey,
     },
     listKnownSeries,
     dumpSeriesApiData,

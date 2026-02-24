@@ -229,7 +229,7 @@ These budgets are enforcement triggers.
 
 Current-state findings from this repository:
 
-1. `extension/Content.js` is at `979` lines (above the next-cycle `< 900` target but still under the temporary composition-root warning override `> 1000`), and now delegates baseline ownership to extracted modules loaded before bootstrap:
+1. `extension/Content.js` is at `900` lines (at the next-cycle `<= 900` target and under the temporary composition-root warning override `> 1000`), and now delegates baseline ownership to extracted modules loaded before bootstrap:
    - `extension/src/Runtime/RuntimeStore.ts`
    - `extension/src/Runtime/RuntimeTrace.ts`
    - `extension/src/Runtime/StateLoader.ts`
@@ -246,6 +246,7 @@ Current-state findings from this repository:
    - `extension/src/Runtime/BootstrapHelpers.ts`
    - `extension/src/Runtime/BootstrapFinalize.ts`
    - `extension/src/Runtime/BootstrapModules.ts`
+   - `extension/src/Runtime/BootstrapDiagnostics.ts`
    - `extension/src/Runtime/BootstrapGate.ts`
    - `extension/src/Data/StorageAdapter.ts`
    - `extension/src/Data/ApiContracts.ts`
@@ -262,6 +263,7 @@ Current-state findings from this repository:
    - `extension/src/Data/PreviewRepository.ts`
    - `extension/src/Domain/EpisodePrimitives.ts`
    - `extension/src/Domain/CorePrimitives.ts`
+   - `extension/src/Domain/RatingPrimitives.ts`
    - `extension/src/Domain/ImageVariants.ts`
    - `extension/src/Domain/EntryNormalizer.ts`
    - `extension/src/Domain/SortMetrics.ts`
@@ -332,8 +334,9 @@ Current-state findings from this repository:
    - `createCardView`: `118 -> 7` lines
    - `createControlsView`: `106 -> 8` lines
 6. Current hotspots to monitor include:
-   - `extension/Content.js` file size (`979` lines; above `< 900` next-cycle target and still above long-term target)
-   - `extension/src/Domain/CorePrimitives.ts` file size (`639` lines, improved after episode-primitives extraction and still above strict target)
+   - `extension/Content.js` file size (`900` lines; at `<= 900` near-term target and still above long-term target)
+   - `extension/src/Data/HistoryRepositoryPreload.ts` file size (`759` lines; under warning threshold and largest remaining data owner)
+   - `extension/src/Domain/CorePrimitives.ts` file size (`538` lines; now under strict target and should be kept from regrowth)
    - architecture metrics currently report no warning-level file/function hotspots.
 7. Playwright coverage is split into concern-specific spec files with shared helpers, and each spec file is within size budget.
 8. Current strengths to preserve:
@@ -359,7 +362,7 @@ Current-state findings from this repository:
    - `npm run typecheck`
    - `npm run lint`
    - `npm run format:check`
-   - `npm run test:unit` (139 passed)
+   - `npm run test:unit` (143 passed)
    - `npm run pw:live:smoke`
    - `npm run lint:firefox`
    - `npm run test:e2e` (81 passed)
@@ -444,19 +447,18 @@ For each architecture PR:
 
 Priority order for the next optimization cycle:
 
-1. Priority 0: reduce `extension/Content.js` from `979` to `<= 900` first, then `<= 800`, while preserving composition-only ownership and behavior parity.
-2. Priority 1: decompose `extension/src/Domain/CorePrimitives.ts` (`639`) to `<= 600` without introducing wrapper indirection debt.
-3. Priority 1: remove the Xcode script-phase warning by declaring outputs for `Prepare Safari Runtime (macOS Extension)`.
-4. Priority 1: preserve schema-first boundary guarantees and contract-warning coverage as new endpoints/features are added.
-5. Priority 1: keep dependency/tooling hygiene green (ongoing audit follow-ups, Playwright/toolchain drift checks, and lockfile parity checks on Node 20 CI semantics).
-6. Priority 2: continue CI throughput optimization without reducing cross-browser/Safari confidence.
-7. Priority 2: keep architecture docs baseline/status sections synchronized with each structural change cycle.
+1. Priority 0: reduce `extension/Content.js` from `900` to `<= 800` while preserving composition-only ownership and behavior parity.
+2. Priority 1: reduce `extension/src/Data/HistoryRepositoryPreload.ts` (`759`) toward `<= 700` by extracting remaining planning/merge sub-owners.
+3. Priority 1: keep `extension/src/Domain/CorePrimitives.ts` and `extension/src/Domain/RatingPrimitives.ts` bounded and schema-first as new rating metadata features are added.
+4. Priority 1: keep dependency/tooling hygiene green (ongoing audit follow-ups, Playwright/toolchain drift checks, and lockfile parity checks on Node 20 CI semantics).
+5. Priority 2: continue CI throughput optimization without reducing cross-browser/Safari confidence.
+6. Priority 2: keep architecture docs baseline/status sections synchronized with each structural change cycle.
 
 Definition of successful next cycle:
 
-- `extension/Content.js` is reduced below `900` with no ownership logic regrowth.
-- `CorePrimitives.ts` reaches `<= 600` or has an approved decomposition plan with merged owner slices and tests.
-- Safari build script-phase warning noise is removed by explicit output declarations.
+- `extension/Content.js` is reduced to `<= 800` with no ownership logic regrowth.
+- `HistoryRepositoryPreload.ts` is reduced toward `<= 700` or has an approved decomposition plan with merged owner slices and tests.
+- Safari build remains clean of script-phase output warnings after incremental Xcode updates.
 - TypeScript migration coverage remains complete for extracted owners under `extension/src/**` with no regression to new JS modules.
 - Typecheck/lint/format/unit/metrics gates stay green for each architecture slice.
 - Release-confidence gates (`lint:firefox`, `test:e2e`, `build:webext`, `build:safari`) remain green for release-affecting slices.
