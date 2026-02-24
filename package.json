@@ -50,5 +50,8 @@
     "typescript": "^5.9.3",
     "vitest": "^4.0.18",
     "web-ext": "^9.3.0"
+  },
+  "overrides": {
+    "addons-linter": "^9.9.1"
   }
 }

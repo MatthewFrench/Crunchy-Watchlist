@@ -48,9 +48,25 @@ const FILE_SIZE_BUDGETS = {
 } as const
 
 const FILE_SIZE_BUDGET_OVERRIDES: Record<string, { warn: number; refactor: number }> = {
+  'extension/src/Runtime/NativeBridge.ts': {
+    warn: 600,
+    refactor: 700,
+  },
+  'extension/src/Data/AuthClient.ts': {
+    warn: 600,
+    refactor: 700,
+  },
+  'extension/src/Runtime/ContentComposition.ts': {
+    warn: 600,
+    refactor: 700,
+  },
+  'extension/src/Data/HistoryRepositoryCache.ts': {
+    warn: 600,
+    refactor: 700,
+  },
   'extension/Content.js': {
-    warn: 1000,
-    refactor: 1200,
+    warn: 600,
+    refactor: 700,
   },
 }
 
@@ -303,6 +319,7 @@ function statusLabel(classification: FileClassification): 'OK' | 'Warning' | 'Re
 }
 
 async function collectTrackedFiles(): Promise<string[]> {
+  const extensionCssFiles = await collectFilesBySuffix(path.join(repoRoot, 'extension'), '.css')
   const extensionSrcJsFiles = await collectFilesBySuffix(path.join(repoRoot, 'extension', 'src'), '.js')
   const extensionSrcTsFiles = await collectFilesBySuffix(path.join(repoRoot, 'extension', 'src'), '.ts')
   const scriptsTsFiles = [
@@ -322,7 +339,7 @@ async function collectTrackedFiles(): Promise<string[]> {
   return Array.from(
     new Set([
       path.join(repoRoot, 'extension', 'Content.js'),
-      path.join(repoRoot, 'extension', 'Content.css'),
+      ...extensionCssFiles.sort(),
       ...extensionSrcJsFiles.sort(),
       ...extensionSrcTsFiles.sort(),
       ...fixtureServerModules.sort(),

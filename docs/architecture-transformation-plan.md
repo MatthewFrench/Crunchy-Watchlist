@@ -16,8 +16,11 @@ This plan converts the current monolithic extension runtime into a layered, Type
 
 ## 2) Current Baseline (Reviewed 2026-02-24)
 
-- `extension/Content.js`: 900 lines (at the `<= 900` near-term target, below temporary composition-root warning override `> 1000`, and still above long-term target `<= 600`).
-- `extension/src/Domain/CorePrimitives.ts`: 538 lines (now below strict runtime target `<= 600`).
+- `extension/Content.js`: 597 lines (strict target `<= 600` satisfied).
+- `extension/src/Runtime/ContentComposition.ts`: 568 lines (strict target `<= 600` satisfied).
+- `extension/src/Data/HistoryRepositoryPreload.ts`: 514 lines (strict target `<= 600` satisfied).
+- `extension/Content.css`: 576 lines and `extension/ContentResponsive.css`: 52 lines (split style surfaces; both under strict target).
+- `extension/src/Domain/CorePrimitives.ts`: 539 lines (below strict runtime target `<= 600`).
 - Current refactor-required functions: `0`.
 - Warning-level file/function hotspots: `0` (latest `arch:metrics` run reports no warning-level structural opportunities).
 - Largest remaining runtime functions:
@@ -47,6 +50,12 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - `extension/Content.js`: 1116 -> 1072 lines
   - `extension/Content.js`: 1072 -> 999 lines
   - `extension/Content.js`: 999 -> 892 lines
+  - `extension/Content.js`: 892 -> 794 lines
+  - `extension/Content.js`: 794 -> 597 lines
+  - `extension/src/Data/HistoryRepositoryPreload.ts`: 759 -> 699 lines
+  - `extension/src/Data/HistoryRepositoryPreload.ts`: 699 -> 514 lines
+  - `extension/src/Runtime/ContentComposition.ts`: 709 -> 568 lines
+  - `extension/Content.css`: 628 -> 576 lines
   - `createCuratedCard`: 458 -> 36 lines
   - `ensureInterface`: 240 -> 56 lines
   - `preloadWatchHistoryForEntries`: 240 -> 84 lines
@@ -80,6 +89,8 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - `extension/src/Runtime/BootstrapModules.ts`
   - `extension/src/Runtime/BootstrapDiagnostics.ts`
   - `extension/src/Runtime/BootstrapGate.ts`
+  - `extension/src/Runtime/ContentBootstrap.ts`
+  - `extension/src/Runtime/ContentComposition.ts`
   - `extension/src/Data/StorageAdapter.ts`
   - `extension/src/Data/ApiContracts.ts`
   - `extension/src/Data/AuthClient.ts`
@@ -123,7 +134,7 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - `npm run typecheck`: pass
   - `npm run lint`: pass
   - `npm run format:check`: pass
-  - `npm run test:unit`: pass (143 passed)
+  - `npm run test:unit`: pass (146 passed)
   - `npm run pw:live:smoke`: pass
   - `npm run lint:firefox`: pass
   - `npm run test:e2e`: pass (81 passed)
@@ -152,6 +163,7 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - E2E wrapper execution is pinned to `@playwright/test` CLI (`scripts/run-playwright-suite.mts`) to avoid runner-context mismatch from bin resolution drift.
   - architecture metrics now scan TS sources and split fixture-server modules, including function declarations plus function-expression/arrow assignments for hotspot detection.
   - architecture metrics now support per-file budget overrides for transitional composition roots to keep trend signal actionable while preserving strict refactor thresholds.
+  - architecture metrics now scan all extension CSS files (not only `Content.css`) so style-surface splits remain visible in budget reporting.
   - episode metadata/canonical key ownership is now isolated in `extension/src/Domain/EpisodePrimitives.ts` and consumed via `CorePrimitives` composition.
   - curated loading diagnostics now include duplicate-preserving pending-request visibility and explicit completed/in-progress counters in empty-state loading views.
   - favorites filtering (`Genre: Favorites`) and status-line merge semantics (`Up Next: Sx Ey`, `Continue: Sx Ey`) are implemented with unit and Playwright coverage.
@@ -162,11 +174,14 @@ This plan converts the current monolithic extension runtime into a layered, Type
 
 ```text
 extension/
-  Content.js                     # generated bootstrap/runtime artifact
+  Content.js                     # transitional composition-root runtime entry
   Content.css
+  ContentResponsive.css
   manifest.json
   src/
     Runtime/
+      ContentBootstrap.ts
+      ContentComposition.ts
       BootstrapConfig.ts
       BootstrapFinalize.ts
       BootstrapGate.ts
@@ -212,6 +227,9 @@ extension/
       CuratedCardView.ts
   Types/
     BrowserGlobals.d.ts
+    CommonRuntimeTypes.d.ts
+    ContentCompositionTypes.d.ts
+    HistoryRepositoryPreloadTypes.d.ts
   generated/
     runtime/**                   # deterministic transpile/bundle output consumed by packaging
 ```
@@ -493,10 +511,10 @@ Use this section as a live tracker.
 | M1 | Completed | TBD | Runtime store + storage adapter extracted to `extension/src/**`, wired through `manifest.json`, and mirrored by fixture injection order. |
 | M2 | Completed | TBD | Auth/transport, watchlist transport/cache owner, ratings transport/cache owner, history cache/preload owner, and preview repository are extracted to dedicated `extension/src/Data/**` modules and delegated from `Content.js`. |
 | M3 | Completed | TBD | TypeScript foundation is landed: `tsconfig` set, deterministic `build:runtime`, packaging from generated runtime, and CI `typecheck` gate. |
-| M4 | Completed | TBD | Domain/UI/runtime owner extraction is in place across `extension/src/**`; bootstrap surface is reduced to `900` and remains under the temporary composition-root warning override. |
+| M4 | Completed | TBD | Domain/UI/runtime owner extraction is in place across `extension/src/**`; composition roots and extracted runtime owners are now reduced to strict-size targets (`Content.js` 597, `ContentComposition.ts` 568). |
 | M5 | Completed | TBD | Incremental `.ts` conversion for extracted owners is complete, including `extension/src/Data/HistoryRepository.ts`. |
 | M6 | Completed | TBD | TS-aware metrics plus CI `typecheck`/lint/formatter/unit/E2E/build gates are active and green. |
-| M7 | Completed | TBD | Cleanup and standards lock are complete for the active v1 transformation scope; remaining bootstrap-size reduction is tracked as post-completion optimization work. |
+| M7 | Completed | TBD | Cleanup and standards lock are complete for the active v1 transformation scope, including strict-size completion and full gate revalidation. |
 
 ## 9) Definition of Done for Transformation
 
@@ -504,7 +522,7 @@ Transformation is complete when all are true:
 
 1. Runtime architecture follows layers in `docs/architecture-standards.md`.
 2. No major hotspot functions exceed refactor-required thresholds.
-3. Transitional composition root stays under the temporary override (`< 1000`), remains composition-only, and shows no direct business/domain logic regrowth.
+3. Transitional composition root remains composition-only and stays within strict target budgets (`<= 600`) without direct business/domain logic regrowth.
 4. Cross-browser and Safari build/test gates remain green.
 5. Architecture docs reflect actual implemented ownership and boundaries.
 6. TypeScript/lint/formatter/unit gates are active and green for migrated code paths.
@@ -1459,15 +1477,85 @@ Completed in this pass:
    - `npm run build:webext`
    - `npm run build:safari`
    - `npm run arch:metrics`
+206. Extracted bootstrap prelude ownership from `Content.js`:
+   - added `extension/src/Runtime/ContentBootstrap.ts` for diagnostics runtime resolution, route-gate resolution, and bootstrap runtime module validation.
+   - updated `extension/manifest.json` script ordering to load `src/Runtime/ContentBootstrap.js` before `Content.js`.
+   - added `tests/Unit/Runtime/ContentBootstrap.test.ts` for gate-denied and bootstrap-success prelude coverage.
+207. Closed the near-term bootstrap and history preload line-budget goals:
+   - reduced `extension/Content.js` from `899` source lines (`900` metrics accounting) to `793` source lines (`794` metrics accounting).
+   - reduced `extension/src/Data/HistoryRepositoryPreload.ts` from `759` lines to `698` source lines (`699` metrics accounting) by inlining helper resolvers and reducing indirection.
+208. Re-verified the full architecture and release-confidence gates after these reductions:
+   - `npm ci`
+   - `npm run typecheck`
+   - `npm run lint`
+   - `npm run format:check`
+   - `npm run test:unit` (145 passed)
+   - `npm run pw:live:smoke`
+   - `npm run lint:firefox`
+   - `npm run test:e2e` (81 passed)
+   - `npm run build:webext`
+   - `npm run build:safari`
+   - `npm run arch:metrics`
+209. Updated architecture standards and plan priorities for the next cycle:
+   - shifted priority from the completed `<= 800`/`<= 700` targets to long-term strict budget work (`Content.js <= 600`).
+   - called out dependency-hygiene debt (`npm ci` currently reports 3 moderate vulnerabilities in transitive dev-tooling packages).
+210. Completed strict-size reduction for remaining runtime composition/decomposition surfaces:
+   - `extension/Content.js`: `794` -> `597`.
+   - `extension/src/Runtime/ContentComposition.ts`: `709` -> `568`.
+   - `extension/src/Data/HistoryRepositoryPreload.ts`: `699` -> `514`.
+211. Extracted large type contracts into dedicated ambient runtime typing modules:
+   - `extension/Types/CommonRuntimeTypes.d.ts`
+   - `extension/Types/ContentCompositionTypes.d.ts`
+   - `extension/Types/HistoryRepositoryPreloadTypes.d.ts`
+212. Removed the last strict-size style outlier by splitting responsive/animation styling:
+   - `extension/Content.css`: `628` -> `576`
+   - added `extension/ContentResponsive.css` and updated `extension/manifest.json` CSS ordering.
+213. Hardened architecture observability after style split:
+   - updated `scripts/architecture-metrics.mts` to track all `extension/**/*.css` files instead of a single hardcoded stylesheet.
+214. Re-verified full architecture and release-confidence gates after strict-budget completion:
+   - `npm ci`
+   - `npm run typecheck`
+   - `npm run lint`
+   - `npm run format:check`
+   - `npm run test:unit` (146 passed)
+   - `npm run pw:live:smoke`
+   - `npm run lint:firefox`
+   - `npm run test:e2e` (81 passed)
+   - `npm run build:webext`
+   - `npm run build:safari`
+   - `npm run arch:metrics`
+215. Closed dependency-hygiene debt without regressing Firefox lint/build parity:
+   - added `package.json` override for `addons-linter@^9.9.1`.
+   - validated `npm ci` + `npm audit` return clean (`0` vulnerabilities).
+   - re-validated `npm run lint:firefox` with upgraded linter dependency chain.
+216. Tightened architecture-regrowth guardrails for near-threshold owners:
+   - updated `scripts/architecture-metrics.mts` overrides so `NativeBridge.ts`, `AuthClient.ts`, `ContentComposition.ts`, `HistoryRepositoryCache.ts`, and `Content.js` now warn at `> 600` and refactor at `> 700`.
+   - preserved baseline global budgets for non-overridden modules.
+217. Hardened Safari build determinism in local and CI composition roots:
+   - updated `scripts/build-safari-macos.sh` to use explicit arch-aware destination selection (`platform=macOS,arch=<arm64|x86_64>`).
+   - updated `.github/workflows/build-extensions.yml` Safari job to run `npm run build:safari` so generated runtime/typecheck gates run before artifact packaging.
+218. Re-verified full architecture and release-confidence gates after dependency + CI/runtime hardening:
+   - `npm ci`
+   - `npm run typecheck`
+   - `npm run lint`
+   - `npm run format:check`
+   - `npm run test:unit` (146 passed)
+   - `npm run pw:live:smoke`
+   - `npm run lint:firefox`
+   - `npm run test:e2e` (81 passed)
+   - `npm run build:webext`
+   - `npm run build:safari`
+   - `npm run arch:metrics`
 
 Observed new/confirmed opportunities:
 
-1. `extension/Content.js` is now `900` lines in architecture metrics (`899` source lines), so the next leverage remains reducing toward `<= 800`.
-2. `CorePrimitives.ts` is now `538` and under target; keep decomposition pressure on `HistoryRepositoryPreload.ts` (`759`) and other top-size owners.
-3. Unit coverage now spans runtime/data/domain/UI owners with 143 passing unit tests, including rating primitive fallback parsing and bootstrap diagnostics ownership.
-4. Metrics hotspot scanning reports no warning-level structural opportunities; preserve this baseline with gate discipline.
-5. Safari build now succeeds without the prior script-phase output warning; keep pbxproj output declarations synchronized when script phases change.
-6. Naming-standard drift risk remains concentrated at composition roots (`manifest.json`, test fixture loader, runtime smoke checks); keep these path contracts explicitly validated in unit/fixture tests.
+1. Strict architecture size targets are now satisfied on the tracked runtime/style surfaces (`Content.js`, `ContentComposition.ts`, `HistoryRepositoryPreload.ts`, `Content.css`).
+2. Unit coverage now spans runtime/data/domain/UI owners with 146 passing unit tests, including bootstrap and composition/deferred-callback coverage.
+3. Metrics hotspot scanning still reports no warning-level structural opportunities; preserve this baseline with gate discipline.
+4. Safari build remains clean and successful with explicit arch destination + generated-runtime CI build path; keep pbxproj output declarations synchronized when script phases change.
+5. Dependency/toolchain hygiene is currently clean (`npm ci` + `npm audit` report `0` vulnerabilities); preserve this with controlled upgrade windows and full gate parity.
+6. Naming/order drift risk remains concentrated at composition roots (`manifest.json`, fixture loader, runtime smoke checks); keep these contracts validated.
+7. Full cross-browser + Safari verification remains high-cost; preserve explicit cadence discipline to avoid confidence drift.
 
 ## 11) Research Inputs (2026-02-23)
 
@@ -1498,44 +1586,49 @@ Why this is the better fit for current architecture direction:
 
 ## 12) Immediate Next Priorities (Post-Completion Optimization Queue)
 
-1. Reduce `extension/Content.js` from `900` to `<= 800` while keeping composition-only ownership.
-2. Reduce `extension/src/Data/HistoryRepositoryPreload.ts` from `759` toward `<= 700` by extracting remaining merge/planning helpers.
+1. Preserve dependency/toolchain hygiene (`npm ci` + `npm audit` currently clean) via controlled upgrades and full gate verification windows.
+2. Prevent regrowth in near-threshold owners (`NativeBridge.ts`, `Content.js`, `AuthClient.ts`, `ContentComposition.ts`, `HistoryRepositoryCache.ts`) under tightened warning/refactor guardrails.
 3. Preserve schema-first boundary enforcement and contract-warning telemetry as watchlist/history/ratings/preview surfaces evolve.
-4. Keep dependency/toolchain hygiene active (`npm ci` parity, lockfile hygiene, and audit follow-through on dev-toolchain updates).
-5. Keep architecture gate discipline: `typecheck`, `lint`, `format:check`, `test:unit`, `arch:metrics` as baseline; run `lint:firefox` + `test:e2e` + `build:webext` + `build:safari` on release-affecting cycles.
-6. Keep architecture docs and progress logs synchronized in the same cycle as structural changes.
+4. Keep architecture gate discipline: `typecheck`, `lint`, `format:check`, `test:unit`, `arch:metrics` as baseline; run `lint:firefox` + `test:e2e` + `build:webext` + `build:safari` on release-affecting cycles.
+5. Keep architecture docs and progress logs synchronized in the same cycle as structural changes.
+6. Keep Safari CI/local composition deterministic (`npm run build:safari` generated-runtime path + arch-aware `xcodebuild` destination) to avoid packaging/runtime drift.
 
 ## 13) Prioritized Execution Queue (Reviewed 2026-02-24)
 
 Use this order for the next implementation cycle:
 
-1. Priority 0: continue bootstrap decomposition from `extension/Content.js` (`900`) to `<= 800`.
-2. Priority 1: split `HistoryRepositoryPreload` responsibilities further to reduce owner size and isolate merge policy.
-3. Priority 1: keep targeted integration coverage for favorites-filter + pending-request loading diagnostics while bootstrap/data decomposition continues.
-4. Priority 1: preserve lockfile/install parity and keep dependency upgrades behind full gate verification.
+1. Priority 0: dependency hygiene hardening with controlled upgrades and full-gate parity.
+2. Priority 1: keep top owners under strict targets and avoid ownership regression into composition roots.
+3. Priority 1: preserve lockfile/install parity and deterministic build/runtime script behavior across CI/local paths.
+4. Priority 1: keep targeted integration and unit coverage for favorites filter, watch-ready filtering, blended sort, and loading diagnostics while maintaining current architecture boundaries.
 5. Priority 2: keep CI-runtime cost stable while preserving cross-browser confidence (parallel-safe generated-runtime paths and fixture-port isolation remain mandatory).
-6. Priority 2: reduce long-form architecture progress debt by keeping baseline/status sections current and treating historical logs as append-only history.
+6. Priority 2: keep baseline/status sections current and treat historical logs as append-only history.
 
 ## 14) Transformation Status Snapshot (2026-02-24)
 
-Overall status indicator: **Complete (100%) for architecture transformation v1 scope**.
+Overall status indicator:
+
+1. **100% complete for architecture transformation scope** (strict-size budgets, layer ownership extraction, and release-confidence gates are all satisfied).
+2. **100% complete for ecosystem hardening** (dependency hygiene, lockfile parity, deterministic CI/runtime composition paths, and release-confidence gates are all currently satisfied).
 
 Completion breakdown:
 
 1. Runtime ownership extraction: `100%` complete for v1 scope (all major runtime/data/domain/UI ownership moved to typed owner modules).
 2. TypeScript/tooling modernization: `100%` complete for v1 scope (TS foundations + lint/format/typecheck + unit/E2E/build gates active).
-3. Architecture budget compliance: `100%` complete against active enforced thresholds (no warning/refactor-level hotspots in latest metrics).
+3. Architecture budget compliance: `100%` complete for strict targets (top runtime/style files are now `<= 600`; no warning/refactor-level hotspots in latest metrics).
 4. Verification confidence coverage: `100%` complete against active gate policy (`npm ci`, typecheck/lint/format, unit, cross-browser E2E, Firefox lint, webext/safari builds, metrics).
+5. Dependency/toolchain hygiene: `100%` complete (`npm ci` and `npm audit` are clean with controlled override hardening and lockfile parity preserved).
 
 Post-completion optimization backlog (not required for v1 completion):
 
-1. `extension/Content.js` reduced to `<= 800` and limited to composition-only responsibilities.
-2. `HistoryRepositoryPreload.ts` reduced toward `<= 700`.
-3. Architecture docs baseline/status sections updated in the same cycle as structural changes.
+1. Keep dependency/audit hygiene clean while preserving `npm ci` parity and release-confidence gate stability after future upgrades.
+2. Keep top runtime owners below strict targets while feature work continues.
+3. Keep CI/runtime script composition deterministic (`npm run build:safari` generated-runtime path, arch-aware destination handling, race-safe generated-runtime outputs).
+4. Architecture docs baseline/status sections updated in the same cycle as structural changes.
 
 Current unresolved blockers and high-friction items:
 
 1. No hard blockers currently prevent execution.
-2. Highest remaining friction is bootstrap concentration in `extension/Content.js` (`900` metrics lines) and resulting review/debug overhead.
-3. `HistoryRepositoryPreload.ts` (`759`) is the largest non-bootstrap owner and easiest place for incidental growth regressions.
-4. Full cross-browser + Safari validation is reliable but expensive, so cadence discipline must stay explicit to avoid confidence drift.
+2. High-size owner drift risk remains in `NativeBridge.ts` (`599`), `Content.js` (`597`), `AuthClient.ts` (`578`), and `ContentComposition.ts` (`568`) as features expand.
+3. Full cross-browser + Safari validation is reliable but expensive, so cadence discipline must stay explicit to avoid confidence drift.
+4. Xcode can still emit non-blocking metadata notices (for example AppIntents extraction warnings) depending on local toolchain/Xcode version, but destination-selection ambiguity is resolved.
