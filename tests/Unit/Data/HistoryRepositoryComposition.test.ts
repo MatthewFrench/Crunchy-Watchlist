@@ -59,6 +59,12 @@ type HistoryRepositoryModule = {
 const cacheModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryCache.ts'),
 ).href
+const planningModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreloadPlanning.ts'),
+).href
+const collectorModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreloadCollector.ts'),
+).href
 const preloadModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreload.ts'),
 ).href
@@ -147,7 +153,13 @@ describe('history-repository composition root', () => {
   })
 
   it('wires cache and preload owners through the composition root', async () => {
-    const registry = await loadRuntimeModules([cacheModuleUrl, preloadModuleUrl, repositoryModuleUrl])
+    const registry = await loadRuntimeModules([
+      cacheModuleUrl,
+      planningModuleUrl,
+      collectorModuleUrl,
+      preloadModuleUrl,
+      repositoryModuleUrl,
+    ])
     const historyRepositoryModule = registry.historyRepository as HistoryRepositoryModule
 
     const state = createHistoryState()

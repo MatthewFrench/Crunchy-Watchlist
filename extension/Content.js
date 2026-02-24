@@ -450,6 +450,7 @@
       getLocale: apiContracts.getLocale,
       getWatchlistSeriesId: corePrimitives.getWatchlistSeriesId,
       pushApiTrace,
+      runtimeEvent,
       watchlistPageSize: WATCHLIST_PAGE_SIZE,
       watchlistMaxPages: WATCHLIST_MAX_PAGES,
     })

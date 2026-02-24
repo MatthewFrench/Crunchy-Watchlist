@@ -229,7 +229,7 @@ These budgets are enforcement triggers.
 
 Current-state findings from this repository:
 
-1. `extension/Content.js` has been reduced to `891` lines (below the next-cycle `< 900` target and under the temporary composition-root warning override), and now delegates baseline ownership to extracted modules loaded before bootstrap:
+1. `extension/Content.js` is at `892` lines (below the next-cycle `< 900` target and under the temporary composition-root warning override), and now delegates baseline ownership to extracted modules loaded before bootstrap:
    - `extension/src/Runtime/RuntimeStore.ts`
    - `extension/src/Runtime/RuntimeTrace.ts`
    - `extension/src/Runtime/StateLoader.ts`
@@ -255,6 +255,8 @@ Current-state findings from this repository:
    - `extension/src/Data/RatingsClient.ts`
    - `extension/src/Data/RatingsRepository.ts`
    - `extension/src/Data/HistoryRepositoryCache.ts`
+   - `extension/src/Data/HistoryRepositoryPreloadPlanning.ts`
+   - `extension/src/Data/HistoryRepositoryPreloadCollector.ts`
    - `extension/src/Data/HistoryRepositoryPreload.ts`
    - `extension/src/Data/HistoryRepository.ts`
    - `extension/src/Data/PreviewRepository.ts`
@@ -329,10 +331,9 @@ Current-state findings from this repository:
    - `createCardView`: `118 -> 7` lines
    - `createControlsView`: `106 -> 8` lines
 6. Current hotspots to monitor include:
-   - `extension/Content.js` file size (`891` lines; below `< 900` next-cycle target but still above long-term target)
-   - `extension/src/Data/HistoryRepositoryPreload.ts` file size (`783` lines, near warning threshold)
-   - `extension/src/Domain/CorePrimitives.ts` file size (`735` lines, near warning threshold)
-   - `preloadWatchHistoryForEntriesInternal` (`67` lines; largest remaining runtime function, currently below warning threshold)
+   - `extension/Content.js` file size (`892` lines; below `< 900` next-cycle target but still above long-term target)
+   - `extension/src/Domain/CorePrimitives.ts` file size (`735` lines, largest remaining runtime owner file)
+   - architecture metrics currently report no warning-level file/function hotspots.
 7. Playwright coverage is split into concern-specific spec files with shared helpers, and each spec file is within size budget.
 8. Current strengths to preserve:
    - Cross-browser Playwright coverage and fixture server contract tests are strong.
@@ -356,7 +357,7 @@ Current-state findings from this repository:
    - `npm run typecheck`
    - `npm run lint`
    - `npm run format:check`
-   - `npm run test:unit` (107 passed)
+   - `npm run test:unit` (119 passed)
    - `npm run pw:live:smoke`
    - `npm run lint:firefox`
    - `npm run test:e2e` (75 passed)
@@ -366,7 +367,9 @@ Current-state findings from this repository:
 13. Current maintainability/tooling gaps from stack review:
    - TypeScript foundations are now in place (`tsconfig.*`, deterministic `build:runtime`, and CI `typecheck` gate).
    - generated runtime output isolation is in place for webext/safari/e2e flows, reducing prior cross-command race friction.
+   - dependency hygiene pass is completed for current review scope (`web-ext` upgraded to `^9.3.0`) and Firefox lint remains green.
    - `test:e2e*` scripts now run through an isolated runtime wrapper (`scripts/run-playwright-suite.mts`), preventing default shared-output collisions across concurrent E2E runs.
+   - E2E wrapper now invokes `@playwright/test` CLI directly (`scripts/run-playwright-suite.mts`), avoiding runner-context mismatch regressions from bin resolution drift.
    - Playwright fixture server startup now supports per-run dynamic ports (`PW_FIXTURE_SERVER_PORT`) to avoid `EADDRINUSE` conflicts in parallel E2E runs.
    - E2E fixture loading now requires explicit generated runtime paths (`EXTENSION_RUNTIME_DIR`) and no longer falls back to raw source assets.
    - E2E wrapper now sanitizes conflicting `NO_COLOR`/`FORCE_COLOR` env combinations in both wrapper and spawned command environments, and latest standard `npm run test:e2e` runs are clean of that warning noise.
@@ -381,10 +384,10 @@ Current-state findings from this repository:
    - Phase 9 conversion for extracted owners is complete (`extension/src/**` owner modules are now TypeScript-based).
    - build/live/metrics script composition roots are now TypeScript-based (`scripts/*.mts`) with strict typecheck coverage.
    - Biome lint/format stack is active and CI-enforced for format checks on current migration surfaces.
-   - Vitest unit-test layer is active in CI with coverage for history/domain plus runtime-store, runtime-trace, watchlist repository, preferred-audio detector, bootstrap-helpers, bootstrap-finalize, curated-renderable, curated-panel, curated-loader, curated-interactions, interface-shell, bootstrap-config, bootstrap-gate, bootstrap-modules, state-loader, route-lifecycle, auth-client, ratings-client, ratings-repository, preview-repository, native-bridge action-forwarding, image-variants, sort-metrics, entry-sorting, core-primitives, api-contracts, card-metadata, curated-card-shell, and debug-api owners (107 tests).
+   - Vitest unit-test layer is active in CI with coverage for history/domain plus runtime-store, runtime-trace, watchlist repository/client, preferred-audio detector, bootstrap-helpers, bootstrap-finalize, curated-renderable, curated-panel, curated-loader, curated-interactions, interface-shell, bootstrap-config, bootstrap-gate, bootstrap-modules, state-loader, route-lifecycle, auth-client, ratings-client, ratings-repository, preview-repository, history preload planning/collector/preload, native-bridge action-forwarding, image-variants, sort-metrics, entry-sorting, core-primitives, api-contracts, card-metadata, curated-card-shell, and debug-api owners (119 tests).
    - schema-first boundary hardening was expanded in data owners (`RatingsRepository.ts`, `PreviewRepository.ts`) with explicit malformed-payload contract warnings/events and unit coverage.
    - ratings series-page fallback parsing now normalizes plain and escaped decimal payload forms to avoid silent rating truncation in fallback mode.
-   - fixture server decomposition is in place; next leverage is adding explicit typed contract builders for fixture payloads to reduce route-payload drift risk.
+   - fixture server payload contracts now use explicit typed payload builders (`tests/Helpers/FixturePayloadBuilders.ts`), reducing route-payload drift risk.
    - live-debug injection (`pw:live`) now rebuilds and injects generated-runtime assets, reducing execution-path drift versus packaged/test flows.
    - non-interactive generated-runtime smoke validation is now automated through `npm run pw:live:smoke` and enforced in CI.
    - source/test module paths are now standardized to PascalCase across `extension/src/**` and `tests/**`; manifest/build/test harness references are aligned to that convention.
@@ -433,16 +436,16 @@ For each architecture PR:
 
 Priority order for the next architecture cycle:
 
-1. Priority 0: continue decomposing `extension/Content.js` from `891` toward `<= 800` while keeping composition-only ownership and behavior parity.
-2. Priority 1: continue dependency and workflow hardening (`web-ext` major review path, audit follow-ups, and manual-playwright guardrail drift checks).
-3. Priority 1: extend schema-first validation consistency to remaining data boundaries (watchlist/history transport inputs) to match ratings/preview depth.
-4. Priority 2: keep near-threshold files (`HistoryRepositoryPreload.ts`, `CorePrimitives.ts`) stable with explicit headroom guardrails.
-5. Priority 2: add typed fixture payload builders for fixture-server routes to reduce route-payload drift risk.
-6. Priority 2: continue CI throughput optimization without reducing cross-browser/Safari confidence.
+1. Priority 0: continue decomposing `extension/Content.js` from `892` toward `<= 800` while keeping composition-only ownership and behavior parity.
+2. Priority 1: preserve schema-first boundary guarantees and contract-warning coverage as new endpoints/features are added.
+3. Priority 1: keep dependency/tooling hygiene green (ongoing audit follow-ups and Playwright/toolchain drift checks).
+4. Priority 2: keep near-threshold files (`CorePrimitives.ts`) from warning-level growth with explicit headroom guardrails.
+5. Priority 2: continue CI throughput optimization without reducing cross-browser/Safari confidence.
+6. Priority 2: continue reducing composition-root complexity by extracting remaining bootstrap orchestration from `Content.js`.
 
 Definition of successful next cycle:
 
-- `extension/Content.js` stays at or below the current baseline (`891`) while remaining composition-focused and trending toward `<= 800`.
+- `extension/Content.js` stays at or below the current baseline (`892`) while remaining composition-focused and trending toward `<= 800`.
 - TypeScript migration coverage remains complete for extracted owners under `extension/src/**` with no regression to new JS modules.
 - TypeScript typecheck gate remains active and green in CI.
 - History preload internals remain below warning-level function thresholds with file-size headroom kept below `800`.
