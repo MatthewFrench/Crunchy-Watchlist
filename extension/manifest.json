@@ -80,9 +80,11 @@
         "src/Ui/ControlsView.js",
         "src/Ui/CuratedCardView.js",
         "src/Ui/CuratedCardShell.js",
+        "src/Runtime/ContentBootstrap.js",
+        "src/Runtime/ContentComposition.js",
         "Content.js"
       ],
-      "css": ["Content.css"],
+      "css": ["Content.css", "ContentResponsive.css"],
       "run_at": "document_idle"
     }
   ]

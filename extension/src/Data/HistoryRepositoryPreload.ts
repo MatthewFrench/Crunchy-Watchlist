@@ -1,199 +1,4 @@
 ;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
-
-  type LooseRecord = {
-    [key: string]: unknown
-    panel?: LooseRecord
-    episode_metadata?: LooseRecord
-    series_metadata?: LooseRecord
-  }
-
-  type WatchHistoryEntry = {
-    seriesId: string
-    datePlayedMs: number
-    datePlayed: string
-    seasonNumber: number | null
-    episodeNumber: number | null
-    absoluteEpisodeNumber: number | null
-    episodeId: string | null
-    identifier: string
-    canonicalEpisodeKey: string
-    episodeTitle: string
-    playhead: number
-    fullyWatched: boolean
-    audioLocale: string
-    audioLocaleInferred: boolean
-  }
-
-  type WatchHistoryLocaleMap = Record<string, WatchHistoryEntry>
-
-  type WatchHistoryCache = {
-    version: number
-    accountId: string
-    updatedAt: number
-    bySeriesId: Record<string, WatchHistoryEntry>
-    bySeriesIdAudioLocale: Record<string, WatchHistoryLocaleMap>
-    bySeriesIdProgress: Record<string, WatchHistoryEntry>
-    bySeriesIdAudioLocaleProgress: Record<string, WatchHistoryLocaleMap>
-  }
-
-  type WatchHistoryState = {
-    watchHistoryCache: WatchHistoryCache
-    watchHistoryStatus: string
-    watchHistoryInflight: Promise<unknown> | null
-  } & LooseRecord
-
-  type TokenEntry = {
-    accessToken?: unknown
-    accountId?: unknown
-  } & LooseRecord
-
-  type HistoryPreloadEntry = {
-    seriesId?: unknown
-    neverWatched?: unknown
-    playheadMs?: unknown
-  } & LooseRecord
-
-  type HistoryUpdateBuckets = {
-    remainingSeriesIds: Set<string>
-    seriesUpdates: Record<string, WatchHistoryEntry>
-    seriesProgressUpdates: Record<string, WatchHistoryEntry>
-    localeUpdates: Record<string, WatchHistoryLocaleMap>
-    localeProgressUpdates: Record<string, WatchHistoryLocaleMap>
-    pages: number
-    totalRows: number | null
-    fetchedRows: number
-    noMatchPageStreak: number
-    seenRowKeys: Set<string>
-  }
-
-  type WatchHistoryPreloadPlan = {
-    effectivePreferredAudioLanguage: string
-    isDefaultPreferredAudio: boolean
-    candidateSeriesIds: string[]
-  }
-
-  type ResolveHistoryPreloadPlan = (options: {
-    entries: HistoryPreloadEntry[]
-    preferredAudioLanguage: unknown
-    getPreferredAudioLanguage: () => string
-    normalizeAudioLocale: (value: unknown) => string
-  }) => {
-    effectivePreferredAudioLanguage: string
-    isDefaultPreferredAudio: boolean
-    candidateSeriesIds: string[]
-  }
-
-  type GetHistoryPayloadTotal = (options: {
-    payload: unknown
-    fallback: number
-    pageNumber: number
-    requestUrl: string
-    runtimeEvent: (event: string, payload?: unknown) => void
-  }) => number
-
-  type CollectWatchHistoryUpdateBuckets = (options: {
-    tokenEntry: TokenEntry
-    effectivePreferredAudioLanguage: string
-    candidateSeriesIds: string[]
-    isDefaultPreferredAudio: boolean
-    watchHistoryMaxPages: number
-    watchHistoryPageSize: number
-    watchHistoryNoMatchPageLimit: number
-    fetchWatchHistoryPage: (
-      tokenEntry: TokenEntry,
-      pageNumber: number,
-      preferredAudioLanguage?: unknown,
-    ) => Promise<{ rows: LooseRecord[]; total: number }>
-    normalizeAudioLocale: (value: unknown) => string
-    sanitizePositiveInt: (value: unknown) => number | null
-    parseDateMs: (value: unknown) => number | null
-    deriveCanonicalEpisodeKeyFromEpisodeMetadata: (metadata: LooseRecord, seriesId?: unknown) => string
-    getAbsoluteEpisodeNumberFromEpisodeMetadata: (metadata: LooseRecord) => number | null
-    shouldReplaceWatchHistoryProgress: (
-      previous: LooseRecord | null | undefined,
-      next: LooseRecord | null | undefined,
-    ) => boolean
-  }) => Promise<HistoryUpdateBuckets>
-
-  type HistoryRepositoryPreloadContext = {
-    state: WatchHistoryState
-    normalizeAudioLocale: (value: unknown) => string
-    sanitizePositiveInt: (value: unknown) => number | null
-    parseDateMs: (value: unknown) => number | null
-    deriveCanonicalEpisodeKeyFromEpisodeMetadata: (metadata: LooseRecord, seriesId?: unknown) => string
-    getAbsoluteEpisodeNumberFromEpisodeMetadata: (metadata: LooseRecord) => number | null
-    getPreferredAudioLanguage: () => string
-    getLocale: () => string
-    resolveHistoryPreloadPlan: ResolveHistoryPreloadPlan
-    getHistoryPayloadTotal: GetHistoryPayloadTotal
-    collectWatchHistoryUpdateBuckets: CollectWatchHistoryUpdateBuckets
-    resolveApiHref: (value: string) => string
-    fetchWithResilience: (url: string, init: RequestInit, options: LooseRecord) => Promise<Response>
-    createAuthRefreshHandler: (tokenEntry: TokenEntry) => unknown
-    requirePayloadDataArray: (name: string, payload: unknown) => LooseRecord[]
-    auditWatchHistoryRowsContract: (rows: LooseRecord[]) => void
-    normalizeStoredWatchHistoryCache: (raw: unknown) => WatchHistoryCache
-    normalizeStoredWatchHistoryBySeriesAudioLocale: (raw: unknown) => Record<string, WatchHistoryLocaleMap>
-    normalizeWatchHistoryEntry: (value: unknown) => WatchHistoryEntry | null
-    isWatchHistoryCacheValid: (cache: unknown, accountId?: unknown) => boolean
-    shouldReplaceWatchHistoryProgress: (
-      previous: LooseRecord | null | undefined,
-      next: LooseRecord | null | undefined,
-    ) => boolean
-    getCachedWatchHistory: (
-      seriesId: unknown,
-      audioLocale?: unknown,
-      allowSeriesFallback?: boolean,
-    ) => WatchHistoryEntry | null
-    scheduleSaveWatchHistory: () => void
-    pushApiTrace: (bucket: string, payload: unknown) => void
-    runtimeEvent: (event: string, payload?: unknown) => void
-    watchHistoryCacheVersion: number
-    watchHistoryPageSize: number
-    watchHistoryMaxPages: number
-    watchHistoryNoMatchPageLimit: number
-  }
-
-  type HistoryRepositoryPreloadOptions = {
-    state?: unknown
-    normalizeAudioLocale?: unknown
-    sanitizePositiveInt?: unknown
-    parseDateMs?: unknown
-    deriveCanonicalEpisodeKeyFromEpisodeMetadata?: unknown
-    getAbsoluteEpisodeNumberFromEpisodeMetadata?: unknown
-    getPreferredAudioLanguage?: unknown
-    getLocale?: unknown
-    resolveApiHref?: unknown
-    fetchWithResilience?: unknown
-    createAuthRefreshHandler?: unknown
-    requirePayloadDataArray?: unknown
-    auditWatchHistoryRowsContract?: unknown
-    normalizeStoredWatchHistoryCache?: unknown
-    normalizeStoredWatchHistoryBySeriesAudioLocale?: unknown
-    normalizeWatchHistoryEntry?: unknown
-    isWatchHistoryCacheValid?: unknown
-    shouldReplaceWatchHistoryProgress?: unknown
-    getCachedWatchHistory?: unknown
-    scheduleSaveWatchHistory?: unknown
-    pushApiTrace?: unknown
-    runtimeEvent?: unknown
-    watchHistoryCacheVersion?: unknown
-    watchHistoryPageSize?: unknown
-    watchHistoryMaxPages?: unknown
-    watchHistoryNoMatchPageLimit?: unknown
-  }
-
-  type HistoryRepositoryPreload = {
-    preloadWatchHistoryForEntries: (
-      entries: unknown,
-      tokenEntry: unknown,
-      force?: boolean,
-      preferredAudioLanguage?: unknown,
-    ) => Promise<unknown>
-    isLocalizedWatchHistoryDataMissingForEntries: (entries: unknown, audioLocale: unknown) => boolean
-  }
-
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
     root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
@@ -281,65 +86,6 @@
     }
   }
 
-  function resolveHistoryRepositoryPreloadPlanningDependencies(): Pick<
-    HistoryRepositoryPreloadContext,
-    'resolveHistoryPreloadPlan' | 'getHistoryPayloadTotal'
-  > {
-    const planningModule = toRecord(moduleRegistry.historyRepositoryPreloadPlanning)
-    return {
-      resolveHistoryPreloadPlan: requireFunction(
-        'resolveHistoryPreloadPlan',
-        planningModule.resolveHistoryPreloadPlan,
-      ) as ResolveHistoryPreloadPlan,
-      getHistoryPayloadTotal: requireFunction(
-        'getHistoryPayloadTotal',
-        planningModule.getHistoryPayloadTotal,
-      ) as GetHistoryPayloadTotal,
-    }
-  }
-
-  function resolveHistoryRepositoryPreloadCollectorDependencies(): Pick<
-    HistoryRepositoryPreloadContext,
-    'collectWatchHistoryUpdateBuckets'
-  > {
-    const collectorModule = toRecord(moduleRegistry.historyRepositoryPreloadCollector)
-    return {
-      collectWatchHistoryUpdateBuckets: requireFunction(
-        'collectWatchHistoryUpdateBuckets',
-        collectorModule.collectWatchHistoryUpdateBuckets,
-      ) as CollectWatchHistoryUpdateBuckets,
-    }
-  }
-
-  function resolveOptionalHistoryRepositoryPreloadDependencies(
-    options: HistoryRepositoryPreloadOptions,
-  ): Pick<HistoryRepositoryPreloadContext, 'pushApiTrace' | 'runtimeEvent'> {
-    return {
-      pushApiTrace:
-        typeof options.pushApiTrace === 'function'
-          ? (options.pushApiTrace as HistoryRepositoryPreloadContext['pushApiTrace'])
-          : () => {},
-      runtimeEvent:
-        typeof options.runtimeEvent === 'function'
-          ? (options.runtimeEvent as HistoryRepositoryPreloadContext['runtimeEvent'])
-          : () => {},
-    }
-  }
-
-  function resolveHistoryRepositoryPreloadNumericOptions(
-    options: HistoryRepositoryPreloadOptions,
-  ): Pick<
-    HistoryRepositoryPreloadContext,
-    'watchHistoryCacheVersion' | 'watchHistoryPageSize' | 'watchHistoryMaxPages' | 'watchHistoryNoMatchPageLimit'
-  > {
-    return {
-      watchHistoryCacheVersion: Number(options.watchHistoryCacheVersion) || 0,
-      watchHistoryPageSize: Math.max(1, Number(options.watchHistoryPageSize) || 1),
-      watchHistoryMaxPages: Math.max(1, Number(options.watchHistoryMaxPages) || 1),
-      watchHistoryNoMatchPageLimit: Math.max(1, Number(options.watchHistoryNoMatchPageLimit) || 1),
-    }
-  }
-
   function createHistoryRepositoryPreloadContext(
     options: HistoryRepositoryPreloadOptions = {},
   ): HistoryRepositoryPreloadContext {
@@ -348,18 +94,37 @@
       throw new Error('[CW] Missing history repository state')
     }
 
+    const planningModule = toRecord(moduleRegistry.historyRepositoryPreloadPlanning)
+    const collectorModule = toRecord(moduleRegistry.historyRepositoryPreloadCollector)
+
     return {
       state,
       ...resolveRequiredHistoryRepositoryPreloadDependencies(options),
-      ...resolveHistoryRepositoryPreloadPlanningDependencies(),
-      ...resolveHistoryRepositoryPreloadCollectorDependencies(),
-      ...resolveOptionalHistoryRepositoryPreloadDependencies(options),
-      ...resolveHistoryRepositoryPreloadNumericOptions(options),
+      resolveHistoryPreloadPlan: requireFunction(
+        'resolveHistoryPreloadPlan',
+        planningModule.resolveHistoryPreloadPlan,
+      ) as HistoryRepositoryPreloadContext['resolveHistoryPreloadPlan'],
+      getHistoryPayloadTotal: requireFunction(
+        'getHistoryPayloadTotal',
+        planningModule.getHistoryPayloadTotal,
+      ) as HistoryRepositoryPreloadContext['getHistoryPayloadTotal'],
+      collectWatchHistoryUpdateBuckets: requireFunction(
+        'collectWatchHistoryUpdateBuckets',
+        collectorModule.collectWatchHistoryUpdateBuckets,
+      ) as HistoryRepositoryPreloadContext['collectWatchHistoryUpdateBuckets'],
+      pushApiTrace:
+        typeof options.pushApiTrace === 'function'
+          ? (options.pushApiTrace as HistoryRepositoryPreloadContext['pushApiTrace'])
+          : () => {},
+      runtimeEvent:
+        typeof options.runtimeEvent === 'function'
+          ? (options.runtimeEvent as HistoryRepositoryPreloadContext['runtimeEvent'])
+          : () => {},
+      watchHistoryCacheVersion: Number(options.watchHistoryCacheVersion) || 0,
+      watchHistoryPageSize: Math.max(1, Number(options.watchHistoryPageSize) || 1),
+      watchHistoryMaxPages: Math.max(1, Number(options.watchHistoryMaxPages) || 1),
+      watchHistoryNoMatchPageLimit: Math.max(1, Number(options.watchHistoryNoMatchPageLimit) || 1),
     }
-  }
-
-  function normalizeHistoryPageNumber(pageNumber: number): number {
-    return Math.max(1, Number(pageNumber) || 1)
   }
 
   function requireHistoryAccountId(
@@ -374,7 +139,7 @@
 
     context.runtimeEvent('watch-history-contract-warning', {
       reason: 'missing-account-id',
-      page: normalizeHistoryPageNumber(pageNumber),
+      page: Math.max(1, Number(pageNumber) || 1),
     })
     throw new Error('watch history request missing account id')
   }
@@ -408,7 +173,7 @@
     } catch (_) {
       context.runtimeEvent('watch-history-contract-warning', {
         reason: 'invalid-json-payload',
-        page: normalizeHistoryPageNumber(pageNumber),
+        page: Math.max(1, Number(pageNumber) || 1),
         requestUrl,
       })
       throw new Error('watch history page payload parse failed')
@@ -422,7 +187,7 @@
     preferredAudioLanguage: unknown = context.getPreferredAudioLanguage(),
   ): Promise<{ rows: LooseRecord[]; total: number }> {
     const accountId = requireHistoryAccountId(context, tokenEntry, pageNumber)
-    const resolvedPageNumber = normalizeHistoryPageNumber(pageNumber)
+    const resolvedPageNumber = Math.max(1, Number(pageNumber) || 1)
     const params = createWatchHistoryRequestParams(context, pageNumber, preferredAudioLanguage)
 
     const url = context.resolveApiHref(
@@ -561,33 +326,6 @@
     }
   }
 
-  function createWatchHistoryCollectorOptions(
-    context: HistoryRepositoryPreloadContext,
-    tokenEntry: TokenEntry,
-    preloadPlan: WatchHistoryPreloadPlan,
-  ): Parameters<CollectWatchHistoryUpdateBuckets>[0] {
-    return {
-      tokenEntry,
-      effectivePreferredAudioLanguage: preloadPlan.effectivePreferredAudioLanguage,
-      candidateSeriesIds: preloadPlan.candidateSeriesIds,
-      isDefaultPreferredAudio: preloadPlan.isDefaultPreferredAudio,
-      watchHistoryMaxPages: context.watchHistoryMaxPages,
-      watchHistoryPageSize: context.watchHistoryPageSize,
-      watchHistoryNoMatchPageLimit: context.watchHistoryNoMatchPageLimit,
-      fetchWatchHistoryPage: (
-        tokenEntryForPage: TokenEntry,
-        pageNumber: number,
-        preferredAudioLanguageForPage: unknown = preloadPlan.effectivePreferredAudioLanguage,
-      ) => fetchWatchHistoryPageInternal(context, tokenEntryForPage, pageNumber, preferredAudioLanguageForPage),
-      normalizeAudioLocale: context.normalizeAudioLocale,
-      sanitizePositiveInt: context.sanitizePositiveInt,
-      parseDateMs: context.parseDateMs,
-      deriveCanonicalEpisodeKeyFromEpisodeMetadata: context.deriveCanonicalEpisodeKeyFromEpisodeMetadata,
-      getAbsoluteEpisodeNumberFromEpisodeMetadata: context.getAbsoluteEpisodeNumberFromEpisodeMetadata,
-      shouldReplaceWatchHistoryProgress: context.shouldReplaceWatchHistoryProgress,
-    }
-  }
-
   function applyWatchHistoryBucketsToState(
     context: HistoryRepositoryPreloadContext,
     buckets: HistoryUpdateBuckets,
@@ -676,9 +414,26 @@
 
     const inflight = (async () => {
       context.state.watchHistoryStatus = 'loading'
-      const buckets = await context.collectWatchHistoryUpdateBuckets(
-        createWatchHistoryCollectorOptions(context, tokenEntry, preloadPlan),
-      )
+      const buckets = await context.collectWatchHistoryUpdateBuckets({
+        tokenEntry,
+        effectivePreferredAudioLanguage: preloadPlan.effectivePreferredAudioLanguage,
+        candidateSeriesIds: preloadPlan.candidateSeriesIds,
+        isDefaultPreferredAudio: preloadPlan.isDefaultPreferredAudio,
+        watchHistoryMaxPages: context.watchHistoryMaxPages,
+        watchHistoryPageSize: context.watchHistoryPageSize,
+        watchHistoryNoMatchPageLimit: context.watchHistoryNoMatchPageLimit,
+        fetchWatchHistoryPage: (
+          tokenEntryForPage: TokenEntry,
+          pageNumber: number,
+          preferredAudioLanguageForPage: unknown = preloadPlan.effectivePreferredAudioLanguage,
+        ) => fetchWatchHistoryPageInternal(context, tokenEntryForPage, pageNumber, preferredAudioLanguageForPage),
+        normalizeAudioLocale: context.normalizeAudioLocale,
+        sanitizePositiveInt: context.sanitizePositiveInt,
+        parseDateMs: context.parseDateMs,
+        deriveCanonicalEpisodeKeyFromEpisodeMetadata: context.deriveCanonicalEpisodeKeyFromEpisodeMetadata,
+        getAbsoluteEpisodeNumberFromEpisodeMetadata: context.getAbsoluteEpisodeNumberFromEpisodeMetadata,
+        shouldReplaceWatchHistoryProgress: context.shouldReplaceWatchHistoryProgress,
+      })
       applyWatchHistoryBucketsToState(context, buckets, preloadPlan, tokenAccountId)
     })()
       .catch((error: unknown) => {

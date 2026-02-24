@@ -12,6 +12,12 @@ APP_PATH="$DERIVED_DATA_DIR/Build/Products/Release/$APP_NAME"
 APP_ZIP_PATH="$OUTPUT_DIR/crunchy-watchlist-curator-safari-macos-app.zip"
 SOURCE_ZIP_PATH="$OUTPUT_DIR/crunchy-watchlist-curator-safari-webextension-source.zip"
 EXTENSION_SOURCE_PATH="$ROOT_DIR/$EXTENSION_SOURCE_DIR"
+SAFARI_BUILD_ARCH="${SAFARI_BUILD_ARCH:-$(uname -m)}"
+XCODE_DESTINATION="platform=macOS"
+
+if [[ "$SAFARI_BUILD_ARCH" == "arm64" || "$SAFARI_BUILD_ARCH" == "x86_64" ]]; then
+  XCODE_DESTINATION="platform=macOS,arch=$SAFARI_BUILD_ARCH"
+fi
 
 if ! command -v xcodebuild >/dev/null 2>&1; then
   echo "xcodebuild is required to build Safari artifacts."
@@ -25,7 +31,7 @@ xcodebuild \
   -project "$PROJECT_PATH" \
   -scheme "$SCHEME_NAME" \
   -configuration Release \
-  -destination "platform=macOS" \
+  -destination "$XCODE_DESTINATION" \
   -derivedDataPath "$DERIVED_DATA_DIR" \
   CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO \
