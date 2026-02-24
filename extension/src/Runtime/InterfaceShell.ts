@@ -25,6 +25,7 @@
     watchHistoryInflight: Promise<unknown> | null
     curatedEntries: unknown[]
     curatedError: unknown
+    curatedPendingRequests: string[]
   }
 
   type SelectControl = {
@@ -401,6 +402,7 @@
     await context.storageSet(context.watchHistoryCacheKey, context.state.watchHistoryCache)
     context.state.curatedEntries = []
     context.state.curatedError = null
+    context.state.curatedPendingRequests = []
   }
 
   function createTabButtonInternal(context: InterfaceShellContext, label: string, tabValue: string): HTMLButtonElement {

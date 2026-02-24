@@ -1,4 +1,42 @@
 ;(() => {
+  const updateDiagnostics = (patch = {}) => {
+    try {
+      const existing =
+        window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__ &&
+        typeof window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__ === 'object'
+          ? window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__
+          : {}
+      window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__ = {
+        ...existing,
+        ...patch,
+        updatedAt: new Date().toISOString(),
+        href: typeof window.location?.href === 'string' ? window.location.href : '',
+      }
+    } catch (_) {
+      // no-op
+    }
+  }
+
+  const setBootstrapIssue = (stage, details = {}) => {
+    updateDiagnostics({
+      ok: false,
+      stage,
+      ...details,
+    })
+    try {
+      // eslint-disable-next-line no-console
+      console.error(`[CW] ${stage}`, details)
+    } catch (_) {
+      // no-op
+    }
+  }
+
+  updateDiagnostics({
+    ok: false,
+    stage: 'content-script-loaded',
+    pathname: typeof window.location?.pathname === 'string' ? window.location.pathname : '',
+  })
+
   const moduleRegistry = window.__CW_WATCHLIST_CURATOR_MODULES__ || {}
   const runtimeBootstrapGateModule = moduleRegistry.runtimeBootstrapGate
   if (
@@ -7,6 +45,9 @@
       (methodName) => typeof runtimeBootstrapGateModule[methodName] !== 'function',
     )
   ) {
+    setBootstrapIssue('missing-bootstrap-gate-module', {
+      moduleKeys: Object.keys(moduleRegistry),
+    })
     return
   }
 
@@ -15,7 +56,20 @@
     browserRef: typeof browser !== 'undefined' ? browser : undefined,
     chromeRef: typeof chrome !== 'undefined' ? chrome : undefined,
   })
-  if (!shouldRun) return
+  if (!shouldRun) {
+    updateDiagnostics({
+      ok: false,
+      stage: 'bootstrap-gated',
+      pathname: typeof window.location?.pathname === 'string' ? window.location.pathname : '',
+      inTopFrame: window.top === window,
+    })
+    return
+  }
+
+  updateDiagnostics({
+    ok: false,
+    stage: 'bootstrap-started',
+  })
 
   const SETTINGS_KEY = 'cw_settings_v1'
   const RATING_CACHE_KEY = 'cw_rating_cache_v2'
@@ -48,6 +102,9 @@
 
   const runtimeBootstrapModulesModule = moduleRegistry.runtimeBootstrapModules
   if (!runtimeBootstrapModulesModule || typeof runtimeBootstrapModulesModule.createBootstrapModules !== 'function') {
+    setBootstrapIssue('missing-bootstrap-modules-module', {
+      moduleKeys: Object.keys(moduleRegistry),
+    })
     return
   }
   const runtimeBootstrapFinalizeModule = moduleRegistry.runtimeBootstrapFinalize
@@ -57,11 +114,17 @@
     typeof runtimeBootstrapFinalizeModule.createStorageAccessors !== 'function' ||
     typeof runtimeBootstrapFinalizeModule.safeJsonParse !== 'function'
   ) {
+    setBootstrapIssue('missing-bootstrap-finalize-module', {
+      moduleKeys: Object.keys(moduleRegistry),
+    })
     return
   }
 
   const bootstrapModulesRuntime = runtimeBootstrapModulesModule.createBootstrapModules({ windowRef: window })
-  if (!bootstrapModulesRuntime || typeof bootstrapModulesRuntime !== 'object') return
+  if (!bootstrapModulesRuntime || typeof bootstrapModulesRuntime !== 'object') {
+    setBootstrapIssue('invalid-bootstrap-modules-runtime')
+    return
+  }
 
   const {
     runtimeStoreModule,
@@ -161,6 +224,7 @@
     getWatchedEpisodeEstimateImpl,
     getPlausiblePastTimestampImpl,
     getRewatchActivityTimestampImpl,
+    getMostRecentActivityTimestampImpl,
     getDormantBacklogScoreImpl,
     getRewatchMemoryScoreImpl,
     estimateUnwatchedEpisodesLeftImpl,
@@ -570,6 +634,7 @@
       'getWatchedEpisodeEstimate',
       'getPlausiblePastTimestamp',
       'getRewatchActivityTimestamp',
+      'getMostRecentActivityTimestamp',
       'getDormantBacklogScore',
       'getRewatchMemoryScore',
       'estimateUnwatchedEpisodesLeft',
@@ -587,6 +652,7 @@
     getWatchedEpisodeEstimateImpl = (entry) => sortMetrics.getWatchedEpisodeEstimate(entry)
     getPlausiblePastTimestampImpl = (value) => sortMetrics.getPlausiblePastTimestamp(value)
     getRewatchActivityTimestampImpl = (entry) => sortMetrics.getRewatchActivityTimestamp(entry)
+    getMostRecentActivityTimestampImpl = (entry) => sortMetrics.getMostRecentActivityTimestamp(entry)
     getDormantBacklogScoreImpl = (entry) => sortMetrics.getDormantBacklogScore(entry)
     getRewatchMemoryScoreImpl = (entry) => sortMetrics.getRewatchMemoryScore(entry)
     estimateUnwatchedEpisodesLeftImpl = (entry) => sortMetrics.estimateUnwatchedEpisodesLeft(entry)
@@ -608,6 +674,7 @@
       getRewatchMemoryScore: (entry) => getRewatchMemoryScoreImpl(entry),
       getWatchedEpisodeEstimate: (entry) => getWatchedEpisodeEstimateImpl(entry),
       getRewatchActivityTimestamp: (entry) => getRewatchActivityTimestampImpl(entry),
+      getMostRecentActivityTimestamp: (entry) => getMostRecentActivityTimestampImpl(entry),
       getPlausiblePastTimestamp: (value) => getPlausiblePastTimestampImpl(value),
     })
     assertRuntimeMethods('entry sorting', entrySorting, ['compareRenderableEntries'])
@@ -697,7 +764,8 @@
       pickFirstDateMs: corePrimitives.pickFirstDateMs,
       deriveDisplayStatusBase: corePrimitives.deriveDisplayStatusBase,
       isEntryWatchReady,
-      compareRenderableEntries: (left, right) => compareRenderableEntriesImpl(left, right, state.settings.sortMode),
+      compareRenderableEntries: (left, right, sortMode = state.settings.sortMode) =>
+        compareRenderableEntriesImpl(left, right, sortMode),
     })
     assertRuntimeMethods('curated renderable', curatedRenderable, ['buildRenderableEntries'])
     buildRenderableEntries = () => curatedRenderable.buildRenderableEntries(state.curatedEntries, state.settings)
@@ -835,7 +903,10 @@
     listKnownSeries = () => debugRuntime.listSeries()
     dumpSeriesApiData = (query) => debugRuntime.dumpSeriesApiData(query)
     printSeriesApiData = (query) => debugRuntime.printSeriesApiData(query)
-  } catch (_) {
+  } catch (error) {
+    setBootstrapIssue('runtime-module-initialization-failed', {
+      message: error?.message || 'unknown',
+    })
     return
   }
   const bootstrapFinalizeRuntime = runtimeBootstrapFinalizeModule.createBootstrapFinalizeRuntime({
@@ -880,12 +951,29 @@
     processWatchlist = () => bootstrapFinalizeRuntime.processWatchlist()
   }
   if (!bootstrapFinalizeRuntime || typeof bootstrapFinalizeRuntime.init !== 'function') {
+    setBootstrapIssue('missing-bootstrap-finalize-runtime')
     return
   }
 
-  bootstrapFinalizeRuntime.init().catch((error) => {
-    runtimeEvent('init-error', {
-      message: error?.message || 'unknown',
-    })
+  updateDiagnostics({
+    ok: false,
+    stage: 'init-started',
   })
+
+  bootstrapFinalizeRuntime
+    .init()
+    .then(() => {
+      updateDiagnostics({
+        ok: true,
+        stage: 'init-complete',
+      })
+    })
+    .catch((error) => {
+      runtimeEvent('init-error', {
+        message: error?.message || 'unknown',
+      })
+      setBootstrapIssue('init-error', {
+        message: error?.message || 'unknown',
+      })
+    })
 })()

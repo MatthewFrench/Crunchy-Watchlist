@@ -14,6 +14,7 @@ type SortMetricsRuntime = {
   getWatchedEpisodeEstimate: (entry: unknown) => number | null
   getPlausiblePastTimestamp: (value: unknown) => number | null
   getRewatchActivityTimestamp: (entry: unknown) => number | null
+  getMostRecentActivityTimestamp: (entry: unknown) => number | null
   getDormantBacklogScore: (entry: unknown) => number | null
   getRewatchMemoryScore: (entry: unknown) => number | null
   estimateUnwatchedEpisodesLeft: (entry: unknown) => number | null
@@ -221,6 +222,28 @@ describe('sort-metrics domain module', () => {
         absoluteEpisodeNumber: 1,
       }),
     ).toBeNull()
+  })
+
+  it('derives most-recent activity from any known activity timestamp', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-02-01T00:00:00.000Z'))
+    const runtime = createSortMetricsRuntime()
+
+    expect(
+      runtime.getMostRecentActivityTimestamp({
+        lastWatchedMs: '2026-01-10T00:00:00.000Z',
+        dateUpdatedMs: '2026-01-20T00:00:00.000Z',
+        dateAddedMs: '2025-12-05T00:00:00.000Z',
+      }),
+    ).toBe(Date.parse('2026-01-20T00:00:00.000Z'))
+
+    expect(
+      runtime.getMostRecentActivityTimestamp({
+        dateAddedMs: '2025-12-05T00:00:00.000Z',
+      }),
+    ).toBe(Date.parse('2025-12-05T00:00:00.000Z'))
+
+    expect(runtime.getMostRecentActivityTimestamp({})).toBeNull()
   })
 
   it('scores rewatch-memory candidates only when progress and dormancy thresholds are met', () => {

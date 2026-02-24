@@ -168,6 +168,14 @@
     if (!context.validSortModes.has(sortMode)) {
       nextSettings.sortMode = context.defaultSortMode
     }
+    const defaultSecondarySortMode = getString(context.defaultSettings.secondarySortMode, 'none')
+    const secondarySortMode = typeof nextSettings.secondarySortMode === 'string' ? nextSettings.secondarySortMode : ''
+    if (!context.validSortModes.has(secondarySortMode)) {
+      nextSettings.secondarySortMode = defaultSecondarySortMode
+    }
+    if (nextSettings.secondarySortMode === nextSettings.sortMode) {
+      nextSettings.secondarySortMode = defaultSecondarySortMode
+    }
 
     context.state.settings = nextSettings
 

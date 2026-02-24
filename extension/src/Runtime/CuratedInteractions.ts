@@ -393,6 +393,22 @@
     })
   }
 
+  function bindSecondarySortFilterInternal(
+    context: CuratedInteractionsContext,
+    secondarySortControl: Record<string, unknown>,
+  ): void {
+    const select = toSelect(secondarySortControl.select)
+    if (!select) {
+      return
+    }
+
+    select.addEventListener('change', async () => {
+      context.state.settings.secondarySortMode = select.value || 'none'
+      await context.persistSettings()
+      context.renderCuratedPanel()
+    })
+  }
+
   function bindRefreshButtonInternal(context: CuratedInteractionsContext, refreshButton: unknown): void {
     const button = toButton(refreshButton)
     if (!button) {
@@ -414,6 +430,7 @@
     bindAudioFilterInternal(context, toRecord(controls.audioFilterControl))
     bindGenreFilterInternal(context, toRecord(controls.genreFilterControl))
     bindSortFilterInternal(context, toRecord(controls.sortControl))
+    bindSecondarySortFilterInternal(context, toRecord(controls.secondarySortControl))
     bindRefreshButtonInternal(context, controls.refreshButton)
   }
 

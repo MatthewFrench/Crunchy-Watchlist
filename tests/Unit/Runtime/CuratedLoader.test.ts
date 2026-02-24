@@ -56,6 +56,7 @@ function createCuratedLoaderHarness(overrides: Record<string, unknown> = {}) {
     curatedError: null as unknown,
     curatedEntries: [] as unknown[],
     curatedInflight: null as Promise<unknown[]> | null,
+    curatedPendingRequests: [] as string[],
     curatedSource: 'none',
     curatedLastRevalidateAt: 0,
     curatedObservedPromise: null as Promise<unknown[]> | null,
@@ -130,6 +131,7 @@ describe('curated-loader runtime', () => {
         curatedError: null,
         curatedEntries: [],
         curatedInflight: null,
+        curatedPendingRequests: [],
         curatedSource: 'none',
         curatedLastRevalidateAt: 0,
         curatedObservedPromise: null,
@@ -147,9 +149,31 @@ describe('curated-loader runtime', () => {
     expect(harness.dependencies.setWatchlistCacheRows).toHaveBeenCalledTimes(1)
     expect(harness.dependencies.preloadRatingsForEntries).toHaveBeenCalledTimes(2)
     expect(harness.dependencies.preloadWatchHistoryForEntries).toHaveBeenCalledTimes(2)
+    expect(harness.state.curatedPendingRequests).toEqual([])
     expect(harness.runtimeEvents.map((entry) => entry.event)).toEqual(
       expect.arrayContaining(['curated-load-start', 'curated-load-done']),
     )
+  })
+
+  it('tracks in-flight request labels while first load is pending', async () => {
+    const fetchRowsDeferred = createDeferred<unknown[]>()
+    const harness = createCuratedLoaderHarness({
+      fetchAllWatchlistRows: vi.fn(() => fetchRowsDeferred.promise),
+    })
+
+    const loadPromise = harness.runtime.loadCuratedEntries(false)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(harness.state.curatedPendingRequests).toContain(
+      'Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)',
+    )
+    expect(harness.dependencies.renderCuratedPanel).toHaveBeenCalled()
+
+    fetchRowsDeferred.resolve([{ id: 'row-1' }])
+    await loadPromise
+
+    expect(harness.state.curatedPendingRequests).toEqual([])
   })
 
   it('returns existing entries and performs background revalidate when stale', async () => {
@@ -162,6 +186,7 @@ describe('curated-loader runtime', () => {
         curatedError: null,
         curatedEntries: cachedEntries,
         curatedInflight: null,
+        curatedPendingRequests: [],
         curatedSource: 'api',
         curatedLastRevalidateAt: Date.now() - 200_000,
         curatedObservedPromise: null,
@@ -175,6 +200,7 @@ describe('curated-loader runtime', () => {
 
     const result = await harness.runtime.ensureCuratedDataLoad(false)
     expect(result).toBe(cachedEntries)
+    await Promise.resolve()
     expect(harness.dependencies.fetchAllWatchlistRows).toHaveBeenCalledTimes(1)
     expect(harness.state.curatedInflight).not.toBeNull()
 
@@ -184,7 +210,7 @@ describe('curated-loader runtime', () => {
     await backgroundPromise
     await Promise.resolve()
 
-    expect(harness.dependencies.renderCuratedPanel).toHaveBeenCalledTimes(1)
+    expect(harness.dependencies.renderCuratedPanel).toHaveBeenCalled()
     expect(harness.state.curatedObservedPromise).toBeNull()
   })
 

@@ -14,6 +14,7 @@
     curatedError: unknown
     curatedEntries: unknown[]
     curatedInflight: Promise<unknown> | null
+    curatedPendingRequests: string[]
     curatedGridRenderSignature: string
     gridEl: (Element & { textContent: string | null }) | null
     statsEl: (Element & { textContent: string | null }) | null
@@ -69,6 +70,16 @@
     }
 
     return value as T
+  }
+
+  function getPendingRequestItems(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+      return []
+    }
+
+    return value
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter((item) => Boolean(item))
   }
 
   function createCuratedPanelContext(options: CuratedPanelOptions = {}): CuratedPanelContext {
@@ -144,6 +155,7 @@
     visible: Array<Record<string, unknown>>,
     total: number,
     loading: boolean,
+    pendingRequests: string[],
   ): string {
     if (visible.length) {
       return JSON.stringify({
@@ -155,12 +167,16 @@
     return JSON.stringify({
       layout: context.state.settings.cardLayout,
       emptyState: resolveCuratedGridEmptyStateKey(context, total, loading),
+      pendingRequests: loading ? pendingRequests : [],
     })
   }
 
-  function createLoadingIndicatorInternal(documentRef: Document, text: string): Element {
+  function createLoadingIndicatorInternal(documentRef: Document, text: string, pendingRequests: string[] = []): Element {
     const loading = documentRef.createElement('span')
     loading.className = 'cw-loading'
+
+    const heading = documentRef.createElement('span')
+    heading.className = 'cw-loading__heading'
 
     const spinner = documentRef.createElement('span')
     spinner.className = 'cw-spinner'
@@ -170,8 +186,34 @@
     label.className = 'cw-loading__label'
     label.textContent = text
 
-    loading.appendChild(spinner)
-    loading.appendChild(label)
+    heading.appendChild(spinner)
+    heading.appendChild(label)
+    loading.appendChild(heading)
+
+    if (!pendingRequests.length) {
+      return loading
+    }
+
+    const details = documentRef.createElement('span')
+    details.className = 'cw-loading__details'
+
+    const detailsTitle = documentRef.createElement('span')
+    detailsTitle.className = 'cw-loading__details-title'
+    detailsTitle.textContent = 'Requests in progress'
+    details.appendChild(detailsTitle)
+
+    const requests = documentRef.createElement('ul')
+    requests.className = 'cw-loading__requests'
+
+    pendingRequests.forEach((requestLabel) => {
+      const requestItem = documentRef.createElement('li')
+      requestItem.className = 'cw-loading__request'
+      requestItem.textContent = requestLabel
+      requests.appendChild(requestItem)
+    })
+
+    details.appendChild(requests)
+    loading.appendChild(details)
     return loading
   }
 
@@ -254,6 +296,7 @@
       const loadingContent = createLoadingIndicatorInternal(
         context.documentRef,
         'Loading curated watchlist from Crunchyroll API...',
+        getPendingRequestItems(context.state.curatedPendingRequests),
       )
       empty.appendChild(loadingContent)
       return empty
@@ -368,7 +411,8 @@
       selectedGenreFilter,
     } = context.buildRenderableEntries()
     const loading = Boolean(context.state.curatedInflight)
-    const gridRenderSignature = buildCuratedGridRenderSignature(context, visible, total, loading)
+    const pendingRequests = getPendingRequestItems(context.state.curatedPendingRequests)
+    const gridRenderSignature = buildCuratedGridRenderSignature(context, visible, total, loading, pendingRequests)
 
     context.withMutedObserver(() => {
       setSelectOptionsInternal(

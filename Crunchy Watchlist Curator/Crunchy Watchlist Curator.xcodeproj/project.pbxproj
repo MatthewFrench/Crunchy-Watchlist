@@ -34,9 +34,11 @@
 		C85B096E2F4A30030074A3BE /* Content.js in Resources */ = {isa = PBXBuildFile; fileRef = C85B096B2F4A30030074A3BE /* Content.js */; };
 		C85B096F2F4A30030074A3BE /* Content.css in Resources */ = {isa = PBXBuildFile; fileRef = C85B09692F4A30030074A3BE /* Content.css */; };
 		C85B09702F4A30030074A3BE /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = C85B096A2F4A30030074A3BE /* manifest.json */; };
-		C85B09712F4A30030074A3BE /* Content.js in Resources */ = {isa = PBXBuildFile; fileRef = C85B096B2F4A30030074A3BE /* Content.js */; };
-		C85B09752F4A30030074A3BE /* icons in Resources */ = {isa = PBXBuildFile; fileRef = C85B09742F4A30030074A3BE /* icons */; };
-		C85B09762F4A30030074A3BE /* icons in Resources */ = {isa = PBXBuildFile; fileRef = C85B09742F4A30030074A3BE /* icons */; };
+			C85B09712F4A30030074A3BE /* Content.js in Resources */ = {isa = PBXBuildFile; fileRef = C85B096B2F4A30030074A3BE /* Content.js */; };
+			C85B09752F4A30030074A3BE /* icons in Resources */ = {isa = PBXBuildFile; fileRef = C85B09742F4A30030074A3BE /* icons */; };
+			C85B09762F4A30030074A3BE /* icons in Resources */ = {isa = PBXBuildFile; fileRef = C85B09742F4A30030074A3BE /* icons */; };
+			F0A1B2C3D4E5000000000001 /* src in Resources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5000000000003 /* src */; };
+			F0A1B2C3D4E5000000000002 /* src in Resources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5000000000003 /* src */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -103,10 +105,11 @@
 		C85B093F2F4A30020074A3BE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C85B09442F4A30020074A3BE /* Crunchy Watchlist Curator Extension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Crunchy Watchlist Curator Extension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		C85B09492F4A30020074A3BE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		C85B09692F4A30030074A3BE /* Content.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; name = Content.css; path = ../../extension/Content.css; sourceTree = "<group>"; };
-		C85B096A2F4A30030074A3BE /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = manifest.json; path = ../../extension/manifest.json; sourceTree = "<group>"; };
-		C85B096B2F4A30030074A3BE /* Content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = Content.js; path = ../../extension/Content.js; sourceTree = "<group>"; };
-		C85B09742F4A30030074A3BE /* icons */ = {isa = PBXFileReference; lastKnownFileType = folder; name = icons; path = ../../extension/icons; sourceTree = "<group>"; };
+			C85B09692F4A30030074A3BE /* Content.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; name = Content.css; path = ../../.tmp/extension-runtime-safari/Content.css; sourceTree = "<group>"; };
+			C85B096A2F4A30030074A3BE /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = manifest.json; path = ../../.tmp/extension-runtime-safari/manifest.json; sourceTree = "<group>"; };
+			C85B096B2F4A30030074A3BE /* Content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = Content.js; path = ../../.tmp/extension-runtime-safari/Content.js; sourceTree = "<group>"; };
+			C85B09742F4A30030074A3BE /* icons */ = {isa = PBXFileReference; lastKnownFileType = folder; name = icons; path = ../../.tmp/extension-runtime-safari/icons; sourceTree = "<group>"; };
+			F0A1B2C3D4E5000000000003 /* src */ = {isa = PBXFileReference; lastKnownFileType = folder; name = src; path = ../../.tmp/extension-runtime-safari/src; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -233,14 +236,15 @@
 			path = "macOS (Extension)";
 			sourceTree = "<group>";
 		};
-		C85B09682F4A30030074A3BE /* Resources */ = {
-			isa = PBXGroup;
-			children = (
-				C85B09692F4A30030074A3BE /* Content.css */,
-				C85B096A2F4A30030074A3BE /* manifest.json */,
-				C85B096B2F4A30030074A3BE /* Content.js */,
-				C85B09742F4A30030074A3BE /* icons */,
-			);
+			C85B09682F4A30030074A3BE /* Resources */ = {
+				isa = PBXGroup;
+				children = (
+					C85B09692F4A30030074A3BE /* Content.css */,
+					C85B096A2F4A30030074A3BE /* manifest.json */,
+					C85B096B2F4A30030074A3BE /* Content.js */,
+					F0A1B2C3D4E5000000000003 /* src */,
+					C85B09742F4A30030074A3BE /* icons */,
+				);
 			name = Resources;
 			path = "Shared (Extension)";
 			sourceTree = SOURCE_ROOT;
@@ -290,14 +294,15 @@
 			productReference = C85B092E2F4A30020074A3BE /* Crunchy Watchlist Curator.app */;
 			productType = "com.apple.product-type.application";
 		};
-		C85B09392F4A30020074A3BE /* Crunchy Watchlist Curator Extension (iOS) */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = C85B095A2F4A30020074A3BE /* Build configuration list for PBXNativeTarget "Crunchy Watchlist Curator Extension (iOS)" */;
-			buildPhases = (
-				C85B09362F4A30020074A3BE /* Sources */,
-				C85B09372F4A30020074A3BE /* Frameworks */,
-				C85B09382F4A30020074A3BE /* Resources */,
-			);
+			C85B09392F4A30020074A3BE /* Crunchy Watchlist Curator Extension (iOS) */ = {
+				isa = PBXNativeTarget;
+				buildConfigurationList = C85B095A2F4A30020074A3BE /* Build configuration list for PBXNativeTarget "Crunchy Watchlist Curator Extension (iOS)" */;
+				buildPhases = (
+					C85B09362F4A30020074A3BE /* Sources */,
+					C85B09372F4A30020074A3BE /* Frameworks */,
+					F0A1B2C3D4E5000000000010 /* Prepare Safari Runtime (iOS Extension) */,
+					C85B09382F4A30020074A3BE /* Resources */,
+				);
 			buildRules = (
 			);
 			dependencies = (
@@ -309,14 +314,15 @@
 			productReference = C85B093A2F4A30020074A3BE /* Crunchy Watchlist Curator Extension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-		C85B09432F4A30020074A3BE /* Crunchy Watchlist Curator Extension (macOS) */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = C85B09612F4A30020074A3BE /* Build configuration list for PBXNativeTarget "Crunchy Watchlist Curator Extension (macOS)" */;
-			buildPhases = (
-				C85B09402F4A30020074A3BE /* Sources */,
-				C85B09412F4A30020074A3BE /* Frameworks */,
-				C85B09422F4A30020074A3BE /* Resources */,
-			);
+			C85B09432F4A30020074A3BE /* Crunchy Watchlist Curator Extension (macOS) */ = {
+				isa = PBXNativeTarget;
+				buildConfigurationList = C85B09612F4A30020074A3BE /* Build configuration list for PBXNativeTarget "Crunchy Watchlist Curator Extension (macOS)" */;
+				buildPhases = (
+					C85B09402F4A30020074A3BE /* Sources */,
+					C85B09412F4A30020074A3BE /* Frameworks */,
+					F0A1B2C3D4E5000000000011 /* Prepare Safari Runtime (macOS Extension) */,
+					C85B09422F4A30020074A3BE /* Resources */,
+				);
 			buildRules = (
 			);
 			dependencies = (
@@ -402,29 +408,62 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		C85B09382F4A30020074A3BE /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				C85B09712F4A30030074A3BE /* Content.js in Resources */,
-				C85B09752F4A30030074A3BE /* icons in Resources */,
-				C85B09702F4A30030074A3BE /* manifest.json in Resources */,
-				C85B096F2F4A30030074A3BE /* Content.css in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		C85B09422F4A30020074A3BE /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				C85B096E2F4A30030074A3BE /* Content.js in Resources */,
-				C85B09762F4A30030074A3BE /* icons in Resources */,
-				C85B096D2F4A30030074A3BE /* manifest.json in Resources */,
-				C85B096C2F4A30030074A3BE /* Content.css in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
+			C85B09382F4A30020074A3BE /* Resources */ = {
+				isa = PBXResourcesBuildPhase;
+				buildActionMask = 2147483647;
+				files = (
+					C85B09712F4A30030074A3BE /* Content.js in Resources */,
+					C85B09752F4A30030074A3BE /* icons in Resources */,
+					C85B09702F4A30030074A3BE /* manifest.json in Resources */,
+					C85B096F2F4A30030074A3BE /* Content.css in Resources */,
+					F0A1B2C3D4E5000000000001 /* src in Resources */,
+				);
+				runOnlyForDeploymentPostprocessing = 0;
+			};
+			C85B09422F4A30020074A3BE /* Resources */ = {
+				isa = PBXResourcesBuildPhase;
+				buildActionMask = 2147483647;
+				files = (
+					C85B096E2F4A30030074A3BE /* Content.js in Resources */,
+					C85B09762F4A30030074A3BE /* icons in Resources */,
+					C85B096D2F4A30030074A3BE /* manifest.json in Resources */,
+					C85B096C2F4A30030074A3BE /* Content.css in Resources */,
+					F0A1B2C3D4E5000000000002 /* src in Resources */,
+				);
+				runOnlyForDeploymentPostprocessing = 0;
+			};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		F0A1B2C3D4E5000000000010 /* Prepare Safari Runtime (iOS Extension) */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Prepare Safari Runtime (iOS Extension)";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nREPO_ROOT=\"${SRCROOT}/..\"\nif [ ! -d \"$REPO_ROOT/node_modules\" ]; then\n  echo \"Missing node_modules; run npm ci at $REPO_ROOT\"\n  exit 1\nfi\ncd \"$REPO_ROOT\"\nnpm run build:runtime:safari:checked\n";
+		};
+		F0A1B2C3D4E5000000000011 /* Prepare Safari Runtime (macOS Extension) */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Prepare Safari Runtime (macOS Extension)";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nREPO_ROOT=\"${SRCROOT}/..\"\nif [ ! -d \"$REPO_ROOT/node_modules\" ]; then\n  echo \"Missing node_modules; run npm ci at $REPO_ROOT\"\n  exit 1\nfi\ncd \"$REPO_ROOT\"\nnpm run build:runtime:safari:checked\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		C85B09182F4A30020074A3BE /* Sources */ = {

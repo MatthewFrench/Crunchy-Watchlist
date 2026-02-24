@@ -87,7 +87,7 @@ function createCuratedRenderableRuntime(
     preferredAudioLanguage?: string
     deriveDisplayStatusBase?: (entry: unknown, watchHistoryEntry: unknown) => string
     isEntryWatchReady?: (entry: unknown) => boolean
-    compareRenderableEntries?: (left: unknown, right: unknown) => number
+    compareRenderableEntries?: (left: unknown, right: unknown, sortMode?: unknown) => number
   } = {},
 ): CuratedRenderableRuntime {
   const {
@@ -169,7 +169,8 @@ function createCuratedRenderableRuntime(
     },
     deriveDisplayStatusBase,
     isEntryWatchReady,
-    compareRenderableEntries,
+    compareRenderableEntries: (left: unknown, right: unknown, sortMode?: unknown) =>
+      compareRenderableEntries(left, right, sortMode),
   })
 }
 
@@ -314,5 +315,39 @@ describe('curated-renderable runtime', () => {
 
     expect(merged.statusBase).toBe('Continue')
     expect(merged.watchReady).toBe(true)
+  })
+
+  it('blends primary and secondary sort modes using average rank', () => {
+    const runtime = createCuratedRenderableRuntime({
+      compareRenderableEntries: (left: unknown, right: unknown, sortMode?: unknown) => {
+        const leftRecord = left as Record<string, unknown>
+        const rightRecord = right as Record<string, unknown>
+        if (sortMode === 'rating_desc') {
+          return Number(rightRecord.primaryScore || 0) - Number(leftRecord.primaryScore || 0)
+        }
+        if (sortMode === 'votes_desc') {
+          return Number(rightRecord.secondaryScore || 0) - Number(leftRecord.secondaryScore || 0)
+        }
+        return Number(leftRecord.sortOrder || 0) - Number(rightRecord.sortOrder || 0)
+      },
+    })
+
+    const result = runtime.buildRenderableEntries(
+      [
+        { seriesId: 'series-a', primaryScore: 100, secondaryScore: 0, watchReadyHint: true, sortOrder: 1 },
+        { seriesId: 'series-b', primaryScore: 90, secondaryScore: 80, watchReadyHint: true, sortOrder: 2 },
+        { seriesId: 'series-c', primaryScore: 80, secondaryScore: 100, watchReadyHint: true, sortOrder: 3 },
+        { seriesId: 'series-d', primaryScore: 70, secondaryScore: 90, watchReadyHint: true, sortOrder: 4 },
+      ],
+      {
+        audioLocaleFilter: 'any',
+        genreFilter: 'any',
+        watchReadyFilterMode: 'none',
+        sortMode: 'rating_desc',
+        secondarySortMode: 'votes_desc',
+      },
+    )
+
+    expect(result.visible.map((entry) => entry.seriesId)).toEqual(['series-c', 'series-a', 'series-b', 'series-d'])
   })
 })

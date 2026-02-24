@@ -6,6 +6,7 @@
     curatedError: unknown
     curatedEntries: unknown[]
     curatedInflight: Promise<unknown[]> | null
+    curatedPendingRequests: string[]
     curatedSource: string
     curatedLastRevalidateAt: number
     curatedObservedPromise: Promise<unknown[]> | null
@@ -93,6 +94,68 @@
     return typeof value === 'string' ? value.trim() : ''
   }
 
+  function normalizePendingRequestLabels(activeRequests: Set<string>): string[] {
+    const labels: string[] = []
+    activeRequests.forEach((label) => {
+      const normalizedLabel = getString(label)
+      if (normalizedLabel) {
+        labels.push(normalizedLabel)
+      }
+    })
+    return labels
+  }
+
+  function areStringArraysEqual(left: string[], right: string[]): boolean {
+    if (left.length !== right.length) {
+      return false
+    }
+
+    for (let index = 0; index < left.length; index += 1) {
+      if (left[index] !== right[index]) {
+        return false
+      }
+    }
+
+    return true
+  }
+
+  function syncPendingRequestDiagnostics(context: CuratedLoaderContext, activeRequests: Set<string>): void {
+    const nextPendingRequests = normalizePendingRequestLabels(activeRequests)
+    const currentPendingRequests = Array.isArray(context.state.curatedPendingRequests)
+      ? context.state.curatedPendingRequests
+      : []
+
+    if (areStringArraysEqual(currentPendingRequests, nextPendingRequests)) {
+      return
+    }
+
+    context.state.curatedPendingRequests = nextPendingRequests
+
+    if (!context.state.mounted || !context.isWatchlistPath(context.locationRef.pathname)) {
+      return
+    }
+
+    context.renderCuratedPanel()
+  }
+
+  async function withTrackedPendingRequest<T>(
+    context: CuratedLoaderContext,
+    activeRequests: Set<string>,
+    label: string,
+    work: () => Promise<T>,
+  ): Promise<T> {
+    // Track active API ownership so loading UI can show what is currently blocking first render.
+    activeRequests.add(label)
+    syncPendingRequestDiagnostics(context, activeRequests)
+
+    try {
+      return await work()
+    } finally {
+      activeRequests.delete(label)
+      syncPendingRequestDiagnostics(context, activeRequests)
+    }
+  }
+
   function createCuratedLoaderContext(options: CuratedLoaderOptions = {}): CuratedLoaderContext {
     const state = options.state && typeof options.state === 'object' ? (options.state as RuntimeState) : null
     if (!state) {
@@ -166,10 +229,18 @@
       return context.state.curatedInflight
     }
 
+    const activeRequests = new Set<string>()
     const inflight = (async () => {
       context.runtimeEvent('curated-load-start')
       context.state.curatedError = null
-      const tokenEntry = await context.getAccessToken(false)
+      syncPendingRequestDiagnostics(context, activeRequests)
+
+      const tokenEntry = await withTrackedPendingRequest(
+        context,
+        activeRequests,
+        'Authorizing Crunchyroll API token (/auth/v1/token)',
+        () => context.getAccessToken(false),
+      )
       const accessToken = getString(tokenEntry?.accessToken)
       const accountId = getString(tokenEntry?.accountId)
 
@@ -179,12 +250,27 @@
 
       context.resetWatchlistCacheOnAccountMismatch(accountId)
 
-      const rows = await context.fetchAllWatchlistRows(tokenEntry as TokenEntry)
+      const rows = await withTrackedPendingRequest(
+        context,
+        activeRequests,
+        'Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)',
+        () => context.fetchAllWatchlistRows(tokenEntry as TokenEntry),
+      )
       const entries = context.normalizeEntriesFromApiRows(rows)
 
       await Promise.all([
-        context.preloadRatingsForEntries(entries, tokenEntry as TokenEntry),
-        context.preloadWatchHistoryForEntries(entries, tokenEntry as TokenEntry, force),
+        withTrackedPendingRequest(
+          context,
+          activeRequests,
+          'Fetching ratings (/content-reviews/v3/rating/series/{series_id})',
+          () => context.preloadRatingsForEntries(entries, tokenEntry as TokenEntry),
+        ),
+        withTrackedPendingRequest(
+          context,
+          activeRequests,
+          'Fetching watch history (/content/v2/{account_id}/watch-history)',
+          () => context.preloadWatchHistoryForEntries(entries, tokenEntry as TokenEntry, force),
+        ),
       ])
 
       const selectedAudioLocale = context.normalizeAudioLocale(context.state.settings.audioLocaleFilter)
@@ -193,8 +279,18 @@
         selectedAudioLocale.toLowerCase() !== context.getPreferredAudioLanguage().toLowerCase()
       ) {
         await Promise.all([
-          context.preloadRatingsForEntries(entries, tokenEntry as TokenEntry, selectedAudioLocale),
-          context.preloadWatchHistoryForEntries(entries, tokenEntry as TokenEntry, true, selectedAudioLocale),
+          withTrackedPendingRequest(
+            context,
+            activeRequests,
+            `Fetching ${selectedAudioLocale} ratings (/content-reviews/v3/rating/series/{series_id})`,
+            () => context.preloadRatingsForEntries(entries, tokenEntry as TokenEntry, selectedAudioLocale),
+          ),
+          withTrackedPendingRequest(
+            context,
+            activeRequests,
+            `Fetching ${selectedAudioLocale} watch history (/content/v2/{account_id}/watch-history)`,
+            () => context.preloadWatchHistoryForEntries(entries, tokenEntry as TokenEntry, true, selectedAudioLocale),
+          ),
         ])
       }
 
@@ -228,6 +324,8 @@
       })
       .finally(() => {
         context.state.curatedInflight = null
+        activeRequests.clear()
+        syncPendingRequestDiagnostics(context, activeRequests)
       })
 
     context.state.curatedInflight = inflight

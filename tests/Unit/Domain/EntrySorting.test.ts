@@ -87,6 +87,7 @@ function createEntrySortingRuntime(): EntrySortingRuntime {
     getRewatchMemoryScore: (entry: unknown) => asNumeric(asRecord(entry).rewatchMemory),
     getWatchedEpisodeEstimate: (entry: unknown) => asNumeric(asRecord(entry).watchedEstimate),
     getRewatchActivityTimestamp: (entry: unknown) => asNumeric(asRecord(entry).rewatchActivity),
+    getMostRecentActivityTimestamp: (entry: unknown) => asNumeric(asRecord(entry).mostRecentActivity),
     getPlausiblePastTimestamp: (value: unknown) => parseDateMs(value),
   })
 }
@@ -156,6 +157,38 @@ describe('entry-sorting domain module', () => {
         { originalIndex: 2, distribution: { '5': 40 } },
         { originalIndex: 1, distribution: { '5': 15 } },
         'star_5_pct_desc',
+      ),
+    ).toBeLessThan(0)
+  })
+
+  it('sorts recent activity with newest entries first', () => {
+    const runtime = createEntrySortingRuntime()
+
+    expect(
+      runtime.compareRenderableEntries(
+        {
+          originalIndex: 3,
+          mostRecentActivity: Date.parse('2026-02-01T10:00:00.000Z'),
+        },
+        {
+          originalIndex: 1,
+          mostRecentActivity: Date.parse('2026-01-10T10:00:00.000Z'),
+        },
+        'recent_activity_desc',
+      ),
+    ).toBeLessThan(0)
+
+    expect(
+      runtime.compareRenderableEntries(
+        {
+          originalIndex: 1,
+          mostRecentActivity: Date.parse('2026-02-01T10:00:00.000Z'),
+        },
+        {
+          originalIndex: 2,
+          mostRecentActivity: Date.parse('2026-02-01T10:00:00.000Z'),
+        },
+        'recent_activity_desc',
       ),
     ).toBeLessThan(0)
   })

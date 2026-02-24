@@ -45,6 +45,7 @@ function createBaseState() {
     watchHistoryInflight: Promise.resolve(null),
     curatedEntries: [{ seriesId: 'series-1' }],
     curatedError: 'old-error',
+    curatedPendingRequests: ['Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)'],
   }
 }
 
@@ -156,6 +157,7 @@ describe('interface-shell runtime', () => {
     expect(state.watchHistoryInflight).toBeNull()
     expect(state.curatedEntries).toEqual([])
     expect(state.curatedError).toBeNull()
+    expect(state.curatedPendingRequests).toEqual([])
     expect(storageSetCalls).toEqual([
       { key: 'cw_rating_cache_v2', value: {} },
       { key: 'cw_watch_history_cache_v1', value: nextWatchHistoryCache },

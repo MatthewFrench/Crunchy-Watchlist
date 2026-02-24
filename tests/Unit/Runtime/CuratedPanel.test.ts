@@ -9,6 +9,7 @@ type FakeElement = {
   style: Record<string, string>
   children: FakeElement[]
   appendChild: (child: FakeElement) => FakeElement
+  setAttribute: (name: string, value: string) => void
 }
 
 type FakeSelectOption = {
@@ -45,6 +46,7 @@ function createFakeElement(): FakeElement {
       this.children.push(child)
       return child
     },
+    setAttribute() {},
   }
   return element
 }
@@ -69,6 +71,25 @@ function getCuratedPanelModule() {
   return registry.runtimeCuratedPanel
 }
 
+function hasClassName(element: FakeElement, className: string): boolean {
+  return element.className.split(' ').filter(Boolean).includes(className)
+}
+
+function findElementByClassName(element: FakeElement, className: string): FakeElement | null {
+  if (hasClassName(element, className)) {
+    return element
+  }
+
+  for (const child of element.children) {
+    const found = findElementByClassName(child, className)
+    if (found) {
+      return found
+    }
+  }
+
+  return null
+}
+
 describe('curated-panel runtime', () => {
   beforeEach(async () => {
     await loadRuntimeModules([curatedPanelModuleUrl])
@@ -90,6 +111,7 @@ describe('curated-panel runtime', () => {
       curatedError: null,
       curatedEntries: [],
       curatedInflight: null,
+      curatedPendingRequests: [],
       curatedGridRenderSignature: '',
       gridEl,
       statsEl,
@@ -152,5 +174,69 @@ describe('curated-panel runtime', () => {
     expect(statsEl.textContent).toBe('Showing 1 of 2')
     expect(loadingIndicatorEl.style.display).toBe('none')
     expect(gridEl.children).toHaveLength(1)
+  })
+
+  it('shows in-flight request labels in empty-state loading indicator', () => {
+    const gridEl = createFakeElement()
+    const statsEl = createFakeElement()
+    const loadingIndicatorEl = createFakeElement()
+
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [],
+      curatedInflight: Promise.resolve([]),
+      curatedPendingRequests: [
+        'Authorizing Crunchyroll API token (/auth/v1/token)',
+        'Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)',
+      ],
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    }
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: {
+        createElement: () => ({ ...createFakeElement(), value: '' }),
+        createDocumentFragment: () => createFakeElement(),
+      },
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: () => createFakeElement(),
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => ({
+        mode: 'hide',
+        total: 0,
+        visible: [],
+        audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+        genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+        selectedAudioFilter: 'any',
+        selectedGenreFilter: 'any',
+      }),
+      withMutedObserver: (work: () => void) => {
+        work()
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    })
+
+    runtime.renderCuratedPanel()
+
+    const requestsList = findElementByClassName(gridEl, 'cw-loading__requests')
+    expect(requestsList).not.toBeNull()
+    expect(requestsList?.children.map((child) => child.textContent)).toEqual(state.curatedPendingRequests)
+    expect(loadingIndicatorEl.style.display).toBe('inline-flex')
+    expect(statsEl.textContent).toBe('Loading...')
   })
 })

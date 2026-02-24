@@ -16,6 +16,7 @@
     getRewatchMemoryScore?: unknown
     getWatchedEpisodeEstimate?: unknown
     getRewatchActivityTimestamp?: unknown
+    getMostRecentActivityTimestamp?: unknown
     getPlausiblePastTimestamp?: unknown
   }
 
@@ -34,6 +35,7 @@
     getRewatchMemoryScore: (entry: unknown) => number | null
     getWatchedEpisodeEstimate: (entry: unknown) => number | null
     getRewatchActivityTimestamp: (entry: unknown) => number | null
+    getMostRecentActivityTimestamp: (entry: unknown) => number | null
     getPlausiblePastTimestamp: (value: unknown) => number | null
   }
 
@@ -106,6 +108,10 @@
         'getRewatchActivityTimestamp',
         deps.getRewatchActivityTimestamp,
       ) as EntrySortingContext['getRewatchActivityTimestamp'],
+      getMostRecentActivityTimestamp: requireFunction(
+        'getMostRecentActivityTimestamp',
+        deps.getMostRecentActivityTimestamp,
+      ) as EntrySortingContext['getMostRecentActivityTimestamp'],
       getPlausiblePastTimestamp: requireFunction(
         'getPlausiblePastTimestamp',
         deps.getPlausiblePastTimestamp,
@@ -257,6 +263,8 @@
         return context.getQuickWinScore(record)
       case 'dormant_backlog_asc':
         return context.getDormantBacklogScore(record)
+      case 'recent_activity_desc':
+        return context.getMostRecentActivityTimestamp(record)
       case 'date_added_desc':
       case 'date_added_asc':
         return context.parseDateMs(record.dateAddedMs)

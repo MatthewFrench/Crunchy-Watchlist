@@ -18,6 +18,7 @@
     audioLocaleFilter?: unknown
     genreFilter?: unknown
     sortMode?: unknown
+    secondarySortMode?: unknown
   }
 
   type ControlsParts = {
@@ -26,6 +27,7 @@
     audioFilterControl: SelectFieldResult
     genreFilterControl: SelectFieldResult
     sortControl: SelectFieldResult
+    secondarySortControl: SelectFieldResult
     refreshButton: HTMLButtonElement
     loadingIndicator: HTMLElement
     stats: HTMLSpanElement
@@ -142,12 +144,27 @@
     return createSelectFieldInternal('cw-sort-mode', 'Sort:', getString(settings.sortMode, 'none'), options)
   }
 
+  function createSecondarySortControlInternal(settings: ControlsSettings, options: SelectOption[]): SelectFieldResult {
+    const secondaryOptions: SelectOption[] = [
+      { optionValue: 'none', title: 'Disabled (primary sort only)' },
+      ...options.filter((option) => option.optionValue !== 'none'),
+    ]
+
+    return createSelectFieldInternal(
+      'cw-secondary-sort-mode',
+      'Secondary sort:',
+      getString(settings.secondarySortMode, 'none'),
+      secondaryOptions,
+    )
+  }
+
   function appendControlsRowChildren(row: HTMLElement, parts: ControlsParts): void {
     row.appendChild(parts.watchReadyFilterControl.field)
     row.appendChild(parts.cardLayoutControl.field)
     row.appendChild(parts.audioFilterControl.field)
     row.appendChild(parts.genreFilterControl.field)
     row.appendChild(parts.sortControl.field)
+    row.appendChild(parts.secondarySortControl.field)
     row.appendChild(parts.refreshButton)
     row.appendChild(parts.loadingIndicator)
     row.appendChild(parts.stats)
@@ -176,12 +193,17 @@
     const audioFilterControl = createAudioFilterControlInternal(safeSettings)
     const genreFilterControl = createGenreFilterControlInternal(safeSettings)
     const sortControl = createSortControlInternal(safeSettings, options)
+    const secondarySortControl = createSecondarySortControlInternal(safeSettings, options)
 
-    ;[watchReadyFilterControl.field, audioFilterControl.field, genreFilterControl.field, sortControl.field].forEach(
-      (field) => {
-        field.classList.add('cw-controls__field--grow')
-      },
-    )
+    ;[
+      watchReadyFilterControl.field,
+      audioFilterControl.field,
+      genreFilterControl.field,
+      sortControl.field,
+      secondarySortControl.field,
+    ].forEach((field) => {
+      field.classList.add('cw-controls__field--grow')
+    })
 
     const refreshButton = document.createElement('button')
     refreshButton.type = 'button'
@@ -202,6 +224,7 @@
       audioFilterControl,
       genreFilterControl,
       sortControl,
+      secondarySortControl,
       refreshButton,
       loadingIndicator,
       stats,
@@ -216,6 +239,7 @@
       audioFilterControl,
       genreFilterControl,
       sortControl,
+      secondarySortControl,
       refreshButton,
       stats,
       loadingIndicator,

@@ -56,6 +56,7 @@ describe('runtime state-loader', () => {
       cardLayout: 'portrait',
       watchReadyFilterMode: 'hide',
       sortMode: 'consensus_quality_desc',
+      secondarySortMode: 'none',
     }
 
     const storageValues = {
@@ -64,6 +65,7 @@ describe('runtime state-loader', () => {
         actionabilityMode: 'dim',
         cardLayout: 'unknown-layout',
         sortMode: 'invalid-sort',
+        secondarySortMode: 'also-invalid',
       },
       cw_rating_cache_v2: {
         seriesA: { rating: 4.4 },
@@ -99,6 +101,7 @@ describe('runtime state-loader', () => {
     expect(settings.watchReadyFilterMode).toBe('dim')
     expect(settings.cardLayout).toBe('portrait')
     expect(settings.sortMode).toBe('consensus_quality_desc')
+    expect(settings.secondarySortMode).toBe('none')
     expect(state.ratingCache).toEqual({
       seriesA: { rating: 4.4 },
     })
@@ -110,6 +113,48 @@ describe('runtime state-loader', () => {
         cachedCurated: 0,
       },
     })
+  })
+
+  it('disables secondary sort when it matches the primary sort mode', async () => {
+    const state = createBaseState()
+    const stateLoader = getStateLoaderModule().createStateLoader({
+      state,
+      storageGet: createStorageGet({
+        cw_settings_v1: {
+          sortMode: 'rating_desc',
+          secondarySortMode: 'rating_desc',
+        },
+        cw_rating_cache_v2: {},
+        cw_watch_history_cache_v1: {},
+        cw_watchlist_cache_v1: null,
+      }),
+      runtimeEvent: () => {},
+      normalizeStoredWatchHistoryCache: (raw: unknown) => raw,
+      isWatchHistoryCacheValid: () => false,
+      normalizeStoredWatchlistCache: (raw: unknown) => raw,
+      isWatchlistCacheValid: () => false,
+      normalizeEntriesFromApiRows: (rows: unknown[]) => rows,
+      defaultSettings: {
+        activeTab: 'curated',
+        audioLocaleFilter: 'any',
+        genreFilter: 'any',
+        cardLayout: 'portrait',
+        watchReadyFilterMode: 'hide',
+        sortMode: 'consensus_quality_desc',
+        secondarySortMode: 'none',
+      },
+      validSortModes: new Set(['none', 'rating_desc', 'consensus_quality_desc']),
+      defaultSortMode: 'consensus_quality_desc',
+      settingsKey: 'cw_settings_v1',
+      ratingCacheKey: 'cw_rating_cache_v2',
+      watchHistoryCacheKey: 'cw_watch_history_cache_v1',
+      watchlistCacheKey: 'cw_watchlist_cache_v1',
+    })
+
+    await stateLoader.loadInitialState()
+
+    expect((state.settings as Record<string, unknown>).sortMode).toBe('rating_desc')
+    expect((state.settings as Record<string, unknown>).secondarySortMode).toBe('none')
   })
 
   it('hydrates curated entries from valid watchlist cache and emits hydration event', async () => {
@@ -142,6 +187,7 @@ describe('runtime state-loader', () => {
         cardLayout: 'portrait',
         watchReadyFilterMode: 'hide',
         sortMode: 'none',
+        secondarySortMode: 'none',
       },
       validSortModes: new Set(['none']),
       defaultSortMode: 'none',

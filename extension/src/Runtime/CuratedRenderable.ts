@@ -12,7 +12,7 @@
   type PickFirstDateMsFn = (values: unknown[]) => number | null
   type DeriveDisplayStatusBaseFn = (entry: unknown, watchHistoryEntry: unknown) => string
   type IsEntryWatchReadyFn = (entry: unknown) => boolean
-  type CompareRenderableEntriesFn = (left: unknown, right: unknown) => number
+  type CompareRenderableEntriesFn = (left: unknown, right: unknown, sortMode?: unknown) => number
 
   type CuratedRenderableOptions = {
     normalizeAudioLocale?: unknown
@@ -123,6 +123,10 @@
       return value as 'none' | 'dim' | 'hide'
     }
     return 'hide'
+  }
+
+  function resolveSortMode(value: unknown): string {
+    return typeof value === 'string' && value.trim() ? value.trim() : 'none'
   }
 
   function resolveCuratedRenderableDependencies(options: CuratedRenderableOptions = {}): CuratedRenderableDependencies {
@@ -334,6 +338,62 @@
     return filtered
   }
 
+  function buildRankMap(
+    entries: Record<string, unknown>[],
+    compareEntries: (left: Record<string, unknown>, right: Record<string, unknown>) => number,
+  ): Map<Record<string, unknown>, number> {
+    const sorted = entries.slice().sort((left, right) => compareEntries(left, right))
+    const rankMap = new Map<Record<string, unknown>, number>()
+    sorted.forEach((entry, index) => {
+      rankMap.set(entry, index)
+    })
+    return rankMap
+  }
+
+  function sortDecoratedEntriesInternal(
+    decorated: Record<string, unknown>[],
+    settingsRecord: Record<string, unknown>,
+    dependencies: CuratedRenderableDependencies,
+  ): void {
+    const primarySortMode = resolveSortMode(settingsRecord.sortMode)
+    const requestedSecondarySortMode = resolveSortMode(settingsRecord.secondarySortMode)
+    const secondarySortMode = requestedSecondarySortMode === primarySortMode ? 'none' : requestedSecondarySortMode
+    const comparePrimary = (left: Record<string, unknown>, right: Record<string, unknown>) =>
+      dependencies.compareRenderableEntries(left, right, primarySortMode)
+
+    if (secondarySortMode === 'none') {
+      decorated.sort((left, right) => comparePrimary(left, right))
+      return
+    }
+
+    const compareSecondary = (left: Record<string, unknown>, right: Record<string, unknown>) =>
+      dependencies.compareRenderableEntries(left, right, secondarySortMode)
+    const primaryRanks = buildRankMap(decorated, comparePrimary)
+    const secondaryRanks = buildRankMap(decorated, compareSecondary)
+
+    // Entry-sorting comparators are total-order (original-index tiebreak), so deterministic
+    // rank positions are safe to average for blended ordering.
+    decorated.sort((left, right) => {
+      const leftPrimaryRank = primaryRanks.get(left) ?? Number.POSITIVE_INFINITY
+      const rightPrimaryRank = primaryRanks.get(right) ?? Number.POSITIVE_INFINITY
+      const leftSecondaryRank = secondaryRanks.get(left) ?? Number.POSITIVE_INFINITY
+      const rightSecondaryRank = secondaryRanks.get(right) ?? Number.POSITIVE_INFINITY
+
+      const leftAverageRank = (leftPrimaryRank + leftSecondaryRank) / 2
+      const rightAverageRank = (rightPrimaryRank + rightSecondaryRank) / 2
+      if (leftAverageRank !== rightAverageRank) {
+        return leftAverageRank - rightAverageRank
+      }
+      if (leftPrimaryRank !== rightPrimaryRank) {
+        return leftPrimaryRank - rightPrimaryRank
+      }
+      if (leftSecondaryRank !== rightSecondaryRank) {
+        return leftSecondaryRank - rightSecondaryRank
+      }
+      return comparePrimary(left, right)
+    })
+  }
+
   function buildRenderableEntriesInternal(
     entries: unknown[],
     settings: unknown,
@@ -353,7 +413,7 @@
       dimNotWatchReady: watchReadyFilterMode === 'dim' && !entry.watchReady,
     }))
 
-    decorated.sort((left, right) => dependencies.compareRenderableEntries(left, right))
+    sortDecoratedEntriesInternal(decorated, settingsRecord, dependencies)
 
     return {
       mode: watchReadyFilterMode,
