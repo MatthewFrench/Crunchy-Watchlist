@@ -133,6 +133,7 @@ npm run lint
 npm run build:runtime      # prepare generated extension runtime in .tmp/extension-runtime-dev
 npm run build:runtime:webext # web-extension runtime output in .tmp/extension-runtime-webext
 npm run build:runtime:safari # Safari runtime output in .tmp/extension-runtime-safari
+npm run build:runtime:safari:checked # runtime tsc check + Safari runtime output
 npm run build:runtime:e2e    # Playwright runtime output in .tmp/extension-runtime-e2e
 npm run build:webext        # all web-extension packages
 npm run build:webext:chrome # Chrome only
@@ -179,6 +180,10 @@ This means sorting stays stable and fast even with large lists.
 - If a show action fails: native watchlist controls may not be loaded yet due to virtualization.
 - If login state is stale: sign out/in on Crunchyroll, then reopen watchlist.
 - Firefox temporary add-on users: extension resets on restart by design.
+- Safari quick diagnostics:
+  - Open page Web Inspector on `https://www.crunchyroll.com/watchlist`.
+  - Run `window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__` in the console.
+  - `stage: "init-complete"` means the runtime started; any `stage` ending with `error` or `missing-*` points to the exact bootstrap failure.
 
 ## Release and contributors
 

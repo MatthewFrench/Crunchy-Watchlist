@@ -158,6 +158,7 @@ describe('curated-interactions runtime', () => {
         audioLocaleFilter: 'any',
         genreFilter: 'any',
         sortMode: 'consensus_quality_desc',
+        secondarySortMode: 'none',
       },
     }
 
@@ -203,6 +204,8 @@ describe('curated-interactions runtime', () => {
     genreSelect.value = 'action'
     const sortSelect = createFakeElement()
     sortSelect.value = 'rating_desc'
+    const secondarySortSelect = createFakeElement()
+    secondarySortSelect.value = 'votes_desc'
     const refreshButton = createFakeElement()
 
     runtime.bindCuratedInterfaceControls({
@@ -211,6 +214,7 @@ describe('curated-interactions runtime', () => {
       audioFilterControl: { select: audioSelect },
       genreFilterControl: { select: genreSelect },
       sortControl: { select: sortSelect },
+      secondarySortControl: { select: secondarySortSelect },
       refreshButton,
     })
 
@@ -221,6 +225,7 @@ describe('curated-interactions runtime', () => {
     await Promise.resolve()
     await genreSelect.dispatch('change')
     await sortSelect.dispatch('change')
+    await secondarySortSelect.dispatch('change')
     await refreshButton.dispatch('click')
 
     expect(state.settings.watchReadyFilterMode).toBe('dim')
@@ -228,7 +233,8 @@ describe('curated-interactions runtime', () => {
     expect(state.settings.audioLocaleFilter).toBe('ja-JP')
     expect(state.settings.genreFilter).toBe('action')
     expect(state.settings.sortMode).toBe('rating_desc')
-    expect(persistSettings).toHaveBeenCalledTimes(5)
+    expect(state.settings.secondarySortMode).toBe('votes_desc')
+    expect(persistSettings).toHaveBeenCalledTimes(6)
     expect(preloadRatingsForSelectedAudioLocale).toHaveBeenCalledWith('ja-JP')
     expect(preloadWatchHistoryForSelectedAudioLocale).toHaveBeenCalledWith('ja-JP')
     expect(resetCuratedCachesForRefresh).toHaveBeenCalledTimes(1)

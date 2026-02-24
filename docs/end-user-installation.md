@@ -198,11 +198,14 @@ If the extension is enabled but you see no `Curated` tab:
 - In the watchlist page console, run:
 
 ```js
+window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__
 window.__CW_WATCHLIST_CURATOR_RUNTIME__?.events?.slice(-10)
 document.querySelector(".cw-watchlist-frame")
 ```
 
-If both are `undefined`, the content script is not being injected on that domain.
+`window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__` reports the latest bootstrap stage (`init-complete`, `bootstrap-gated`, `missing-*`, `*-error`).
+
+If all three values are `undefined`, the content script is not being injected on that domain.
 
 ## Uninstall
 

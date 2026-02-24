@@ -15,6 +15,7 @@
       genreFilter: string
       cardLayout: string
       sortMode: string
+      secondarySortMode: string
     }
   }
 
@@ -36,6 +37,7 @@
     'quick_wins_asc',
     'dormant_backlog_asc',
     'rewatch_memory_desc',
+    'recent_activity_desc',
     'date_added_desc',
     'date_added_asc',
     'date_updated_desc',
@@ -64,6 +66,7 @@
     { optionValue: 'quick_wins_asc', title: 'Quick wins (few unwatched left)' },
     { optionValue: 'dormant_backlog_asc', title: 'Dormant backlog (oldest activity)' },
     { optionValue: 'rewatch_memory_desc', title: 'May need re-watch to remember' },
+    { optionValue: 'recent_activity_desc', title: 'Most recent activity (any type)' },
     { optionValue: 'date_added_desc', title: 'Recently added' },
     { optionValue: 'date_added_asc', title: 'Oldest added' },
     { optionValue: 'date_updated_desc', title: 'Recently updated' },
@@ -89,6 +92,7 @@
     genreFilter: 'any',
     cardLayout: 'portrait',
     sortMode: DEFAULT_SORT_MODE,
+    secondarySortMode: 'none',
   } as const
 
   function cloneSortModeControlOptions(): SortModeOption[] {
@@ -110,6 +114,7 @@
         genreFilter: DEFAULT_SETTINGS.genreFilter,
         cardLayout: DEFAULT_SETTINGS.cardLayout,
         sortMode: DEFAULT_SETTINGS.sortMode,
+        secondarySortMode: DEFAULT_SETTINGS.secondarySortMode,
       },
     }
   }

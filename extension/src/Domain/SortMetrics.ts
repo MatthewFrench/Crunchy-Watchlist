@@ -28,6 +28,7 @@
     getWatchedEpisodeEstimate: (entry: unknown) => number | null
     getPlausiblePastTimestamp: (value: unknown) => number | null
     getRewatchActivityTimestamp: (entry: unknown) => number | null
+    getMostRecentActivityTimestamp: (entry: unknown) => number | null
     getDormantBacklogScore: (entry: unknown) => number | null
     getRewatchMemoryScore: (entry: unknown) => number | null
     estimateUnwatchedEpisodesLeft: (entry: unknown) => number | null
@@ -267,6 +268,23 @@
     )
   }
 
+  function getMostRecentActivityTimestampInternal(context: SortMetricsContext, entryValue: unknown): number | null {
+    const entry = asSortMetricsEntry(entryValue)
+
+    // "Activity of any kind" includes watch progress, watchlist updates, and original add date.
+    const candidates = [
+      getPlausiblePastTimestampInternal(context, entry.lastWatchedMs),
+      getPlausiblePastTimestampInternal(context, entry.dateUpdatedMs),
+      getPlausiblePastTimestampInternal(context, entry.dateAddedMs),
+    ].filter((value): value is number => value != null)
+
+    if (!candidates.length) {
+      return null
+    }
+
+    return Math.max(...candidates)
+  }
+
   function getQuickWinScoreInternal(context: SortMetricsContext, entryValue: unknown): number | null {
     const entry = asSortMetricsEntry(entryValue)
     const unwatchedLeft = estimateUnwatchedEpisodesLeftInternal(context, entry)
@@ -336,6 +354,7 @@
       getWatchedEpisodeEstimate: (entry) => getWatchedEpisodeEstimateInternal(context, entry),
       getPlausiblePastTimestamp: (value) => getPlausiblePastTimestampInternal(context, value),
       getRewatchActivityTimestamp: (entry) => getRewatchActivityTimestampInternal(context, entry),
+      getMostRecentActivityTimestamp: (entry) => getMostRecentActivityTimestampInternal(context, entry),
       getDormantBacklogScore: (entry) => getDormantBacklogScoreInternal(context, entry),
       getRewatchMemoryScore: (entry) => getRewatchMemoryScoreInternal(context, entry),
       estimateUnwatchedEpisodesLeft: (entry) => estimateUnwatchedEpisodesLeftInternal(context, entry),

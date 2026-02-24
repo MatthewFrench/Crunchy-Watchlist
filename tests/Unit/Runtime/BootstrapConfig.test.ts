@@ -14,6 +14,7 @@ type BootstrapConfig = {
     genreFilter: string
     cardLayout: string
     sortMode: string
+    secondarySortMode: string
   }
 }
 
@@ -47,9 +48,14 @@ describe('bootstrap-config runtime module', () => {
 
     expect(config.defaultSortMode).toBe('consensus_quality_desc')
     expect(config.defaultSettings.sortMode).toBe('consensus_quality_desc')
+    expect(config.defaultSettings.secondarySortMode).toBe('none')
     expect(config.defaultSettings.activeTab).toBe('curated')
     expect(config.validSortModes.has('rating_desc')).toBe(true)
+    expect(config.validSortModes.has('recent_activity_desc')).toBe(true)
     expect(config.validSortModes.has('star_1_pct_desc')).toBe(true)
+    expect(
+      config.sortModeControlOptions.some((option) => option.optionValue === 'recent_activity_desc'),
+    ).toBe(true)
   })
 
   it('returns independent option arrays between calls', () => {

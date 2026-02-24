@@ -104,6 +104,7 @@ describe('RuntimeStore', () => {
     expect((typedState.ratingInflight as unknown) instanceof Map).toBe(true)
     expect((typedState.previewInflight as unknown) instanceof Map).toBe(true)
     expect(typedState.watchHistoryStatus).toBe('idle')
+    expect(typedState.curatedPendingRequests).toEqual([])
     expect(typedState.mounted).toBe(false)
   })
 
