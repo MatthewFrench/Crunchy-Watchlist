@@ -40,6 +40,7 @@
       "js": [
         "src/Runtime/RuntimeStore.js",
         "src/Runtime/BootstrapGate.js",
+        "src/Runtime/BootstrapDiagnostics.js",
         "src/Runtime/RuntimeTrace.js",
         "src/Runtime/StateLoader.js",
         "src/Runtime/RouteLifecycle.js",
@@ -69,6 +70,7 @@
         "src/Data/RatingsRepository.js",
         "src/Data/PreviewRepository.js",
         "src/Domain/EpisodePrimitives.js",
+        "src/Domain/RatingPrimitives.js",
         "src/Domain/CorePrimitives.js",
         "src/Domain/ImageVariants.js",
         "src/Domain/EntryNormalizer.js",

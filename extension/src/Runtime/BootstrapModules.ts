@@ -3,6 +3,7 @@
     defaultSortMode: string
     validSortModes: Set<string>
     sortModeControlOptions: unknown[]
+    runtimeConstants: Record<string, unknown>
     defaultSettings: Record<string, unknown>
   }
 
@@ -41,6 +42,7 @@
     defaultSortMode: string
     validSortModes: Set<string>
     sortModeControlOptions: unknown[]
+    runtimeConstants: Record<string, unknown>
     defaultSettings: Record<string, unknown>
   }
 
@@ -129,9 +131,22 @@
       typeof record.defaultSortMode === 'string' &&
       record.validSortModes instanceof Set &&
       Array.isArray(record.sortModeControlOptions) &&
+      Boolean(record.runtimeConstants) &&
+      typeof record.runtimeConstants === 'object' &&
       Boolean(record.defaultSettings) &&
       typeof record.defaultSettings === 'object'
     )
+  }
+
+  function assertRuntimeMethods(ownerLabel: string, instance: unknown, methodNames: string[]): void {
+    if (!instance || typeof instance !== 'object') {
+      throw new Error(`[CW] Missing ${ownerLabel}`)
+    }
+    for (const methodName of methodNames) {
+      if (typeof (instance as Record<string, unknown>)[methodName] !== 'function') {
+        throw new Error(`[CW] Missing ${methodName} ${ownerLabel}`)
+      }
+    }
   }
 
   function areModulesDefined(values: unknown[]): boolean {
@@ -224,11 +239,13 @@
       defaultSortMode: bootstrapConfig.defaultSortMode,
       validSortModes: bootstrapConfig.validSortModes,
       sortModeControlOptions: bootstrapConfig.sortModeControlOptions,
+      runtimeConstants: bootstrapConfig.runtimeConstants,
       defaultSettings: bootstrapConfig.defaultSettings,
     }
   }
 
   moduleRegistry.runtimeBootstrapModules = {
     createBootstrapModules,
+    assertRuntimeMethods,
   }
 })()

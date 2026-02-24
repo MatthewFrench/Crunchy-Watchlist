@@ -38,6 +38,7 @@ type BootstrapModulesRuntime = {
   defaultSortMode: string
   validSortModes: Set<string>
   sortModeControlOptions: unknown[]
+  runtimeConstants: Record<string, unknown>
   defaultSettings: Record<string, unknown>
 }
 
@@ -99,6 +100,9 @@ function seedRequiredModules(overrides: Record<string, unknown> = {}) {
       defaultSortMode: 'rating_desc',
       validSortModes: new Set(['none', 'rating_desc']),
       sortModeControlOptions: [{ value: 'rating_desc', label: 'Rating' }],
+      runtimeConstants: {
+        settingsKey: 'cw_settings_v1',
+      },
       defaultSettings: {
         activeTab: 'curated',
       },
@@ -156,6 +160,7 @@ describe('bootstrap-modules runtime', () => {
     expect(runtime?.defaultSortMode).toBe('rating_desc')
     expect(runtime?.validSortModes).toBeInstanceOf(Set)
     expect(runtime?.sortModeControlOptions).toEqual([{ value: 'rating_desc', label: 'Rating' }])
+    expect(runtime?.runtimeConstants).toEqual({ settingsKey: 'cw_settings_v1' })
     expect(runtime?.defaultSettings).toEqual({ activeTab: 'curated' })
   })
 })

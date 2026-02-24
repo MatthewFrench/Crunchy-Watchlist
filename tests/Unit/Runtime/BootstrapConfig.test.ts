@@ -7,6 +7,13 @@ type BootstrapConfig = {
   defaultSortMode: string
   validSortModes: Set<string>
   sortModeControlOptions: Array<{ optionValue: string; title: string }>
+  runtimeConstants: {
+    settingsKey: string
+    ratingCacheKey: string
+    watchHistoryCacheKey: string
+    watchlistCacheKey: string
+    watchHistoryCacheVersion: number
+  }
   defaultSettings: {
     activeTab: string
     watchReadyFilterMode: string
@@ -54,6 +61,9 @@ describe('bootstrap-config runtime module', () => {
     expect(config.validSortModes.has('recent_activity_desc')).toBe(true)
     expect(config.validSortModes.has('star_1_pct_desc')).toBe(true)
     expect(config.sortModeControlOptions.some((option) => option.optionValue === 'recent_activity_desc')).toBe(true)
+    expect(config.runtimeConstants.settingsKey).toBe('cw_settings_v1')
+    expect(config.runtimeConstants.ratingCacheKey).toBe('cw_rating_cache_v2')
+    expect(config.runtimeConstants.watchHistoryCacheVersion).toBe(3)
   })
 
   it('returns independent option arrays between calls', () => {

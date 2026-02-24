@@ -4,10 +4,42 @@
     title: string
   }
 
+  type RuntimeConstants = {
+    settingsKey: string
+    ratingCacheKey: string
+    watchHistoryCacheKey: string
+    watchlistCacheKey: string
+    watchHistoryCacheVersion: number
+    ratingCacheTtlMs: number
+    watchHistoryCacheTtlMs: number
+    watchlistCacheTtlMs: number
+    processDebounceMs: number
+    watchlistPageSize: number
+    watchlistMaxPages: number
+    watchlistRevalidateCooldownMs: number
+    watchHistoryPageSize: number
+    watchHistoryMaxPages: number
+    watchHistoryNoMatchPageLimit: number
+    ratingBatchSize: number
+    fetchTimeoutMs: number
+    fetchMaxAttempts: number
+    fetchBackoffBaseMs: number
+    fetchBackoffJitterMs: number
+    authClientBasic: string
+    authDeviceKey: string
+    authTokenSkewMs: number
+    previewHoverDelayMs: number
+    preferredAudioCacheTtlMs: number
+    preferredAudioStorageScanLimit: number
+    preferredAudioValueScanLimit: number
+    apiTraceLimitPerEndpoint: number
+  }
+
   type BootstrapConfig = {
     defaultSortMode: string
     validSortModes: Set<string>
     sortModeControlOptions: SortModeOption[]
+    runtimeConstants: RuntimeConstants
     defaultSettings: {
       activeTab: string
       watchReadyFilterMode: string
@@ -95,6 +127,37 @@
     secondarySortMode: 'none',
   } as const
 
+  const RUNTIME_CONSTANTS: RuntimeConstants = {
+    settingsKey: 'cw_settings_v1',
+    ratingCacheKey: 'cw_rating_cache_v2',
+    watchHistoryCacheKey: 'cw_watch_history_cache_v1',
+    watchlistCacheKey: 'cw_watchlist_cache_v1',
+    watchHistoryCacheVersion: 3,
+    ratingCacheTtlMs: 12 * 60 * 60 * 1000,
+    watchHistoryCacheTtlMs: 12 * 60 * 60 * 1000,
+    watchlistCacheTtlMs: 24 * 60 * 60 * 1000,
+    processDebounceMs: 180,
+    watchlistPageSize: 100,
+    watchlistMaxPages: 30,
+    watchlistRevalidateCooldownMs: 90 * 1000,
+    watchHistoryPageSize: 100,
+    watchHistoryMaxPages: 40,
+    watchHistoryNoMatchPageLimit: 5,
+    ratingBatchSize: 50,
+    fetchTimeoutMs: 12000,
+    fetchMaxAttempts: 3,
+    fetchBackoffBaseMs: 400,
+    fetchBackoffJitterMs: 220,
+    authClientBasic: 'Basic bm9haWhkZXZtXzZpeWcwYThsMHE6',
+    authDeviceKey: 'cw_auth_device_id_v1',
+    authTokenSkewMs: 60 * 1000,
+    previewHoverDelayMs: 220,
+    preferredAudioCacheTtlMs: 2 * 60 * 1000,
+    preferredAudioStorageScanLimit: 120,
+    preferredAudioValueScanLimit: 1200,
+    apiTraceLimitPerEndpoint: 30,
+  }
+
   function cloneSortModeControlOptions(): SortModeOption[] {
     return SORT_MODE_CONTROL_OPTIONS.map((option) => ({
       optionValue: option.optionValue,
@@ -102,11 +165,16 @@
     }))
   }
 
+  function cloneRuntimeConstants(): RuntimeConstants {
+    return { ...RUNTIME_CONSTANTS }
+  }
+
   function createBootstrapConfig(): BootstrapConfig {
     return {
       defaultSortMode: DEFAULT_SORT_MODE,
       validSortModes: new Set(VALID_SORT_MODE_VALUES),
       sortModeControlOptions: cloneSortModeControlOptions(),
+      runtimeConstants: cloneRuntimeConstants(),
       defaultSettings: {
         activeTab: DEFAULT_SETTINGS.activeTab,
         watchReadyFilterMode: DEFAULT_SETTINGS.watchReadyFilterMode,
