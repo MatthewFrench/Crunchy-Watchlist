@@ -68,6 +68,7 @@
         "src/Data/RatingsClient.js",
         "src/Data/RatingsRepository.js",
         "src/Data/PreviewRepository.js",
+        "src/Domain/EpisodePrimitives.js",
         "src/Domain/CorePrimitives.js",
         "src/Domain/ImageVariants.js",
         "src/Domain/EntryNormalizer.js",

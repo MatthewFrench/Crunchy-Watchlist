@@ -17,6 +17,7 @@ This plan converts the current monolithic extension runtime into a layered, Type
 ## 2) Current Baseline (Reviewed 2026-02-24)
 
 - `extension/Content.js`: 892 lines (below the `< 900` near-term target and within temporary composition-root warning override; still above long-term target).
+- `extension/src/Domain/CorePrimitives.ts`: 639 lines (reduced from 735 by extracting episode/canonical-key ownership to `Domain/EpisodePrimitives.ts`; still above strict long-term target `<= 600`).
 - Current refactor-required functions: `0`.
 - Largest remaining hotspot functions:
   - `createBootstrapFinalizeRuntime`: 67 lines (`extension/src/Runtime/BootstrapFinalize.ts`)
@@ -45,7 +46,7 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - `extension/Content.js`: 1200 -> 1116 lines
   - `extension/Content.js`: 1116 -> 1072 lines
   - `extension/Content.js`: 1072 -> 999 lines
-  - `extension/Content.js`: 999 -> 891 lines
+  - `extension/Content.js`: 999 -> 892 lines
   - `createCuratedCard`: 458 -> 36 lines
   - `ensureInterface`: 240 -> 56 lines
   - `preloadWatchHistoryForEntries`: 240 -> 84 lines
@@ -91,6 +92,7 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - `extension/src/Data/RatingsRepository.ts`
   - `extension/src/Data/HistoryRepository.ts`
   - `extension/src/Data/PreviewRepository.ts`
+  - `extension/src/Domain/EpisodePrimitives.ts`
   - `extension/src/Domain/CorePrimitives.ts`
   - `extension/src/Domain/ImageVariants.ts`
   - `extension/src/Domain/EntryNormalizer.ts`
@@ -118,7 +120,7 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - `npm run typecheck`: pass
   - `npm run lint`: pass
   - `npm run format:check`: pass
-  - `npm run test:unit`: pass (120 passed)
+  - `npm run test:unit`: pass (123 passed)
   - `npm run pw:live:smoke`: pass
   - `npm run lint:firefox`: pass
   - `npm run test:e2e`: pass (78 passed)
@@ -147,6 +149,7 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - E2E wrapper execution is pinned to `@playwright/test` CLI (`scripts/run-playwright-suite.mts`) to avoid runner-context mismatch from bin resolution drift.
   - architecture metrics now scan TS sources and split fixture-server modules, including function declarations plus function-expression/arrow assignments for hotspot detection.
   - architecture metrics now support per-file budget overrides for transitional composition roots to keep trend signal actionable while preserving strict refactor thresholds.
+  - episode metadata/canonical key ownership is now isolated in `extension/src/Domain/EpisodePrimitives.ts` and consumed via `CorePrimitives` composition.
 
 ## 3) Target End-State
 
@@ -191,6 +194,7 @@ extension/
       WatchlistClient.ts
       WatchlistRepository.ts
     Domain/
+      EpisodePrimitives.ts
       CorePrimitives.ts
       EntryNormalizer.ts
       EntrySorting.ts
@@ -446,7 +450,7 @@ Exit criteria:
 
 Status:
 
-- In Progress (2026-02-24): TS-aware metrics, CI lint + formatter + unit-test gates are in place; remaining work is coverage expansion and broader lint-scope hardening.
+- Completed (2026-02-24): CI now enforces TS-aware lint + formatter + unit/E2E/build gates, and hotspot metrics remain actionable for TS sources.
 
 ## 6) Risk Register and Mitigations
 
@@ -1355,12 +1359,37 @@ Completed in this pass:
 188. Closed Safari asset-catalog warning friction:
    - corrected `AppIcon.appiconset` 512x512@1x asset mapping to use a true 512x512 icon (`icon-512.png`).
    - re-ran `npm run build:safari`; app-icon dimension warnings are no longer emitted.
+189. Extracted episode metadata/canonical-key ownership from `CorePrimitives`:
+   - added `extension/src/Domain/EpisodePrimitives.ts`.
+   - moved season-core extraction, canonical identifier parsing/building, canonical key derivation, absolute-episode derivation, and audio-locale availability merge logic behind a dedicated domain owner.
+   - updated `extension/src/Domain/CorePrimitives.ts` to compose through `domain.episodePrimitives` while preserving the existing `createCorePrimitives` public API.
+190. Updated runtime/test wiring for episode-primitives composition:
+   - updated `extension/manifest.json` to load `src/Domain/EpisodePrimitives.js` before `src/Domain/CorePrimitives.js`.
+   - updated `tests/Unit/Domain/CorePrimitives.test.ts` module-loading order for runtime parity.
+   - added high-value coverage in `tests/Unit/Domain/EpisodePrimitives.test.ts`.
+191. Improved architecture baseline metrics after domain decomposition:
+   - reduced `extension/src/Domain/CorePrimitives.ts` from `735 -> 639` lines.
+   - added `extension/src/Domain/EpisodePrimitives.ts` at `258` lines as a dedicated owner module.
+   - unit baseline increased from `120 -> 123` passing tests.
+192. Re-verified full architecture gates after episode-primitives extraction:
+   - `npm ci`
+   - `npm run typecheck`
+   - `npm run lint`
+   - `npm run format`
+   - `npm run format:check`
+   - `npm run test:unit` (123 passed)
+   - `npm run pw:live:smoke`
+   - `npm run lint:firefox`
+   - `npm run test:e2e` (78 passed)
+   - `npm run build:webext`
+   - `npm run build:safari`
+   - `npm run arch:metrics`
 
 Observed new/confirmed opportunities:
 
 1. `extension/Content.js` is now `892` lines; next leverage is reducing toward `<= 800` so the composition-root exception can continue shrinking toward retirement.
-2. `CorePrimitives.ts` (`735`) remains the largest non-bootstrap owner and should be kept from drifting toward warning-level size.
-3. Unit coverage now spans runtime/data/domain/UI owners with 120 passing unit tests, including SPA route-lifecycle fallback coverage.
+2. `CorePrimitives.ts` (`639`) remains above the strict runtime target (`<= 600`) and should be kept from regrowth while additional decomposition is planned.
+3. Unit coverage now spans runtime/data/domain/UI owners with 123 passing unit tests, including SPA route-lifecycle fallback and episode-primitives coverage.
 4. Metrics hotspot scanning now reports no warning-level structural opportunities; preserve this baseline with gate discipline.
 5. Naming-standard drift risk is concentrated at composition roots (`manifest.json`, test fixture loader, runtime smoke checks); keep these path contracts explicitly validated in unit/fixture tests.
 
@@ -1394,7 +1423,7 @@ Why this is the better fit for current architecture direction:
 ## 12) Immediate Next Priorities (Post-Review)
 
 1. Keep `extension/Content.js` at or below `892` lines and continue reducing toward `<= 800` without re-centralizing owner logic.
-2. Keep `CorePrimitives.ts` (`735`) stable with explicit headroom and begin targeted decomposition if growth resumes.
+2. Keep `CorePrimitives.ts` (`639`) stable with explicit headroom and complete targeted decomposition to reach the strict `<= 600` target.
 3. Continue dependency/toolchain hygiene (audit follow-ups, dependency drift checks, and lockfile parity checks under Node 20 CI semantics).
 4. Keep schema-first boundary validation/test depth aligned as new APIs are introduced.
 5. Continue CI throughput improvements without reducing cross-browser/Safari confidence.
@@ -1433,7 +1462,7 @@ Definition-of-done check:
 Post-100 hardening backlog (not blockers for transformation completion):
 
 1. `extension/Content.js` remains above the long-term runtime target (`<= 600`) despite improving to `892`.
-2. `CorePrimitives.ts` (`735`) remains the largest non-bootstrap owner and needs headroom protection.
+2. `CorePrimitives.ts` (`639`) remains above the strict runtime target and needs one more decomposition slice.
 3. Dependency/toolchain hygiene is improved but needs ongoing audit/version cadence and lockfile parity monitoring.
 4. CI throughput still has optimization headroom (especially around cross-browser + Safari stages).
 5. Composition-root exception retirement (`Content.js` override) remains an open long-term objective.
@@ -1443,6 +1472,6 @@ Current blocker status:
 - No hard blocker is currently preventing progress.
 - Highest-friction items are:
   - `extension/Content.js` still above long-term target (`<= 600`) even after reduction to `892`,
-  - `CorePrimitives.ts` breadth (`735`) as the largest non-bootstrap owner,
+  - `CorePrimitives.ts` breadth (`639`) as the largest non-bootstrap owner,
   - maintaining dependency/audit hygiene over time as toolchains evolve while preserving lockfile CI parity,
   - maintaining full cross-browser/Safari confidence while optimizing CI runtime.
