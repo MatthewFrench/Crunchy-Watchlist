@@ -41,10 +41,10 @@ npm run test:e2e:webkit
 
 Current test-suite split:
 
-- `tests/manifest-routing.spec.ts` (manifest/routing/mount lifecycle)
-- `tests/ui-behavior.spec.ts` (controls, tab behavior, action forwarding, persistence)
-- `tests/ranking-and-progress.spec.ts` (sorting/filtering/progress/data joins)
-- `tests/resilience-contracts.spec.ts` (retry and API contract drift behavior)
+- `tests/ManifestRouting.spec.ts` (manifest/routing/mount lifecycle)
+- `tests/UiBehavior.spec.ts` (controls, tab behavior, action forwarding, persistence)
+- `tests/RankingAndProgress.spec.ts` (sorting/filtering/progress/data joins)
+- `tests/ResilienceContracts.spec.ts` (retry and API contract drift behavior)
 
 ## Fast unit tests (Vitest)
 
@@ -62,15 +62,15 @@ npm run test:unit:watch
 
 Current unit-test focus:
 
-- `tests/unit/data/history-repository-cache.test.ts`
-- `tests/unit/data/history-repository-preload.test.ts`
-- `tests/unit/data/history-repository-composition.test.ts`
-- `tests/unit/data/watchlist-repository.test.ts`
-- `tests/unit/domain/entry-normalizer.test.ts`
-- `tests/unit/runtime/runtime-store.test.ts`
-- `tests/unit/runtime/runtime-trace.test.ts`
-- `tests/unit/runtime/bootstrap-helpers.test.ts`
-- `tests/unit/runtime/bootstrap-modules.test.ts`
+- `tests/Unit/Data/HistoryRepositoryCache.test.ts`
+- `tests/Unit/Data/HistoryRepositoryPreload.test.ts`
+- `tests/Unit/Data/HistoryRepositoryComposition.test.ts`
+- `tests/Unit/Data/WatchlistRepository.test.ts`
+- `tests/Unit/Domain/EntryNormalizer.test.ts`
+- `tests/Unit/Runtime/RuntimeStore.test.ts`
+- `tests/Unit/Runtime/RuntimeTrace.test.ts`
+- `tests/Unit/Runtime/BootstrapHelpers.test.ts`
+- `tests/Unit/Runtime/BootstrapModules.test.ts`
 
 ## Optional Playwright UI mode
 
@@ -134,11 +134,11 @@ npm run lint
 
 ## Fixture data and local test server
 
-- `tests/server.ts`
-- `tests/server-router.ts`
-- `tests/server-fixtures.ts`
-- `tests/server-response.ts`
-- `tests/fixtures/watchlist-fixture.html`
+- `tests/Server.ts`
+- `tests/ServerRouter.ts`
+- `tests/ServerFixtures.ts`
+- `tests/ServerResponse.ts`
+- `tests/Fixtures/WatchlistFixture.html`
 
 These fixtures and the local fixture server are intentionally used to validate parsing, filtering, rendering, and action-forwarding without requiring live Crunchyroll account state.
 

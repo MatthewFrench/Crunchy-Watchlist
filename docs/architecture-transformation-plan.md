@@ -16,34 +16,35 @@ This plan converts the current monolithic extension runtime into a layered, Type
 
 ## 2) Current Baseline (Reviewed 2026-02-24)
 
-- `extension/content.js`: 1000 lines (within temporary composition-root warning override; still above long-term target).
+- `extension/Content.js`: 891 lines (below the `< 900` near-term target and within temporary composition-root warning override; still above long-term target).
 - Current refactor-required functions: `0`.
 - Largest remaining hotspot functions:
-  - `preloadWatchHistoryForEntriesInternal`: 67 lines (`extension/src/data/history-repository-preload.ts`)
-  - `fetchPreviewUrlForEntryInternal`: 64 lines (`extension/src/data/preview-repository.ts`)
-  - `loadInitialStateInternal`: 63 lines (`extension/src/runtime/state-loader.ts`)
+  - `preloadWatchHistoryForEntriesInternal`: 67 lines (`extension/src/Data/HistoryRepositoryPreload.ts`)
+  - `createBootstrapFinalizeRuntime`: 67 lines (`extension/src/Runtime/BootstrapFinalize.ts`)
+  - `loadInitialStateInternal`: 63 lines (`extension/src/Runtime/StateLoader.ts`)
 - Hotspot reductions completed in this cycle:
-  - `extension/content.js`: 6476 -> 4308 lines
-  - `extension/content.js`: 4308 -> 4137 lines
-  - `extension/content.js`: 4137 -> 3907 lines
-  - `extension/content.js`: 3907 -> 3764 lines
-  - `extension/content.js`: 3764 -> 3639 lines
-  - `extension/content.js`: 3639 -> 3549 lines
-  - `extension/content.js`: 3549 -> 3463 lines
-  - `extension/content.js`: 3463 -> 3342 lines
-  - `extension/content.js`: 3342 -> 3220 lines
-  - `extension/content.js`: 3220 -> 2835 lines
-  - `extension/content.js`: 2835 -> 2755 lines
-  - `extension/content.js`: 2755 -> 2592 lines
-  - `extension/content.js`: 2592 -> 2506 lines
-  - `extension/content.js`: 2506 -> 2421 lines
-  - `extension/content.js`: 2421 -> 2267 lines
-  - `extension/content.js`: 2267 -> 2154 lines
-  - `extension/content.js`: 2154 -> 1604 lines
-  - `extension/content.js`: 1604 -> 1200 lines
-  - `extension/content.js`: 1200 -> 1116 lines
-  - `extension/content.js`: 1116 -> 1072 lines
-  - `extension/content.js`: 1072 -> 999 lines
+  - `extension/Content.js`: 6476 -> 4308 lines
+  - `extension/Content.js`: 4308 -> 4137 lines
+  - `extension/Content.js`: 4137 -> 3907 lines
+  - `extension/Content.js`: 3907 -> 3764 lines
+  - `extension/Content.js`: 3764 -> 3639 lines
+  - `extension/Content.js`: 3639 -> 3549 lines
+  - `extension/Content.js`: 3549 -> 3463 lines
+  - `extension/Content.js`: 3463 -> 3342 lines
+  - `extension/Content.js`: 3342 -> 3220 lines
+  - `extension/Content.js`: 3220 -> 2835 lines
+  - `extension/Content.js`: 2835 -> 2755 lines
+  - `extension/Content.js`: 2755 -> 2592 lines
+  - `extension/Content.js`: 2592 -> 2506 lines
+  - `extension/Content.js`: 2506 -> 2421 lines
+  - `extension/Content.js`: 2421 -> 2267 lines
+  - `extension/Content.js`: 2267 -> 2154 lines
+  - `extension/Content.js`: 2154 -> 1604 lines
+  - `extension/Content.js`: 1604 -> 1200 lines
+  - `extension/Content.js`: 1200 -> 1116 lines
+  - `extension/Content.js`: 1116 -> 1072 lines
+  - `extension/Content.js`: 1072 -> 999 lines
+  - `extension/Content.js`: 999 -> 891 lines
   - `createCuratedCard`: 458 -> 36 lines
   - `ensureInterface`: 240 -> 56 lines
   - `preloadWatchHistoryForEntries`: 240 -> 84 lines
@@ -59,61 +60,62 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - `createControlsView`: 106 -> 8 lines
   - `createHistoryRepositoryPreloadContext`: 90 -> 12 lines
 - Extracted runtime modules now present and wired via manifest script ordering:
-  - `extension/src/runtime/runtime-store.ts`
-  - `extension/src/runtime/runtime-trace.ts`
-  - `extension/src/runtime/state-loader.ts`
-  - `extension/src/runtime/route-lifecycle.ts`
-  - `extension/src/runtime/preferred-audio-detector.ts`
-  - `extension/src/runtime/curated-renderable.ts`
-  - `extension/src/runtime/curated-panel.ts`
-  - `extension/src/runtime/curated-loader.ts`
-  - `extension/src/runtime/curated-interactions.ts`
-  - `extension/src/runtime/interface-shell.ts`
-  - `extension/src/runtime/native-bridge.ts`
-  - `extension/src/runtime/debug-api.ts`
-  - `extension/src/runtime/bootstrap-config.ts`
-  - `extension/src/runtime/bootstrap-helpers.ts`
-  - `extension/src/runtime/bootstrap-modules.ts`
-  - `extension/src/runtime/bootstrap-gate.ts`
-  - `extension/src/data/storage-adapter.ts`
-  - `extension/src/data/api-contracts.ts`
-  - `extension/src/data/auth-client.ts`
-  - `extension/src/data/watchlist-client.ts`
-  - `extension/src/data/watchlist-repository.ts`
-  - `extension/src/data/history-repository-cache.ts`
-  - `extension/src/data/history-repository-preload.ts`
-  - `extension/src/data/ratings-client.ts`
-  - `extension/src/data/ratings-repository.ts`
-  - `extension/src/data/history-repository.ts`
-  - `extension/src/data/preview-repository.ts`
-  - `extension/src/domain/core-primitives.ts`
-  - `extension/src/domain/image-variants.ts`
-  - `extension/src/domain/entry-normalizer.ts`
-  - `extension/src/domain/sort-metrics.ts`
-  - `extension/src/domain/entry-sorting.ts`
-  - `extension/src/ui/controls-view.ts`
-  - `extension/src/ui/curated-card-view.ts`
-  - `extension/src/ui/curated-card-shell.ts`
-  - `extension/src/ui/card-metadata.ts`
+  - `extension/src/Runtime/RuntimeStore.ts`
+  - `extension/src/Runtime/RuntimeTrace.ts`
+  - `extension/src/Runtime/StateLoader.ts`
+  - `extension/src/Runtime/RouteLifecycle.ts`
+  - `extension/src/Runtime/PreferredAudioDetector.ts`
+  - `extension/src/Runtime/CuratedRenderable.ts`
+  - `extension/src/Runtime/CuratedPanel.ts`
+  - `extension/src/Runtime/CuratedLoader.ts`
+  - `extension/src/Runtime/CuratedInteractions.ts`
+  - `extension/src/Runtime/InterfaceShell.ts`
+  - `extension/src/Runtime/NativeBridge.ts`
+  - `extension/src/Runtime/DebugApi.ts`
+  - `extension/src/Runtime/BootstrapConfig.ts`
+  - `extension/src/Runtime/BootstrapHelpers.ts`
+  - `extension/src/Runtime/BootstrapFinalize.ts`
+  - `extension/src/Runtime/BootstrapModules.ts`
+  - `extension/src/Runtime/BootstrapGate.ts`
+  - `extension/src/Data/StorageAdapter.ts`
+  - `extension/src/Data/ApiContracts.ts`
+  - `extension/src/Data/AuthClient.ts`
+  - `extension/src/Data/WatchlistClient.ts`
+  - `extension/src/Data/WatchlistRepository.ts`
+  - `extension/src/Data/HistoryRepositoryCache.ts`
+  - `extension/src/Data/HistoryRepositoryPreload.ts`
+  - `extension/src/Data/RatingsClient.ts`
+  - `extension/src/Data/RatingsRepository.ts`
+  - `extension/src/Data/HistoryRepository.ts`
+  - `extension/src/Data/PreviewRepository.ts`
+  - `extension/src/Domain/CorePrimitives.ts`
+  - `extension/src/Domain/ImageVariants.ts`
+  - `extension/src/Domain/EntryNormalizer.ts`
+  - `extension/src/Domain/SortMetrics.ts`
+  - `extension/src/Domain/EntrySorting.ts`
+  - `extension/src/Ui/ControlsView.ts`
+  - `extension/src/Ui/CuratedCardView.ts`
+  - `extension/src/Ui/CuratedCardShell.ts`
+  - `extension/src/Ui/CardMetadata.ts`
 - Legacy single spec (`tests/watchlist-curator.spec.js`, 800 lines) has been decomposed into focused suites.
-- Current largest Playwright spec is `tests/ranking-and-progress.spec.ts` at 430 lines.
+- Current largest Playwright spec is `tests/RankingAndProgress.spec.ts` at 430 lines.
 - `extension/manifest.json` content script matches `https://www.crunchyroll.com/*`, so strict route-gating and fast early-return behavior is mandatory.
-- Auth client credential string is now isolated in `extension/src/data/auth-client.ts` and should remain in auth-boundary ownership.
+- Auth client credential string is now isolated in `extension/src/Data/AuthClient.ts` and should remain in auth-boundary ownership.
 - Data-access extraction boundaries now include:
-  - `extension/src/data/auth-client.ts`
-  - `extension/src/data/watchlist-client.ts`
-  - `extension/src/data/watchlist-repository.ts`
-  - `extension/src/data/history-repository-cache.ts`
-  - `extension/src/data/history-repository-preload.ts`
-  - `extension/src/data/ratings-client.ts`
-  - `extension/src/data/ratings-repository.ts`
-  - `extension/src/data/history-repository.ts`
-  - `extension/src/data/preview-repository.ts`
+  - `extension/src/Data/AuthClient.ts`
+  - `extension/src/Data/WatchlistClient.ts`
+  - `extension/src/Data/WatchlistRepository.ts`
+  - `extension/src/Data/HistoryRepositoryCache.ts`
+  - `extension/src/Data/HistoryRepositoryPreload.ts`
+  - `extension/src/Data/RatingsClient.ts`
+  - `extension/src/Data/RatingsRepository.ts`
+  - `extension/src/Data/HistoryRepository.ts`
+  - `extension/src/Data/PreviewRepository.ts`
 - Build/lint/test state at review time:
   - `npm run typecheck`: pass
   - `npm run lint`: pass
   - `npm run format:check`: pass
-  - `npm run test:unit`: pass (97 passed)
+  - `npm run test:unit`: pass (107 passed)
   - `npm run pw:live:smoke`: pass
   - `npm run lint:firefox`: pass
   - `npm run test:e2e`: pass (75 passed)
@@ -126,12 +128,14 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - Biome lint/format stack is active with CI-enforced lint + formatter checks on the current scope.
   - Vitest unit-test layer is now active and CI-enforced for architecture-focused unit suites.
   - build/live/metrics script composition roots are now TypeScript-based (`scripts/*.mts`) and covered by `typecheck:scripts`.
-  - bootstrap module-resolution and guard/path/header ownership are now extracted to dedicated typed runtime modules (`runtime/bootstrap-modules.ts`, `runtime/bootstrap-gate.ts`).
-  - image normalization and card image selection ownership are extracted to a typed domain module (`extension/src/domain/image-variants.ts`) and covered by dedicated unit tests.
-  - sort/scoring/watch-progress metric ownership is extracted to a typed domain module (`extension/src/domain/sort-metrics.ts`) and covered by dedicated unit tests.
-  - entry sort-comparator ownership is extracted to a typed domain module (`extension/src/domain/entry-sorting.ts`) and covered by dedicated unit tests.
-  - card metadata/rating badge ownership is extracted to a typed UI module (`extension/src/ui/card-metadata.ts`) and covered by dedicated unit tests.
+  - bootstrap module-resolution and guard/path/header ownership are now extracted to dedicated typed runtime modules (`Runtime/BootstrapModules.ts`, `Runtime/BootstrapGate.ts`).
+  - image normalization and card image selection ownership are extracted to a typed domain module (`extension/src/Domain/ImageVariants.ts`) and covered by dedicated unit tests.
+  - sort/scoring/watch-progress metric ownership is extracted to a typed domain module (`extension/src/Domain/SortMetrics.ts`) and covered by dedicated unit tests.
+  - entry sort-comparator ownership is extracted to a typed domain module (`extension/src/Domain/EntrySorting.ts`) and covered by dedicated unit tests.
+  - card metadata/rating badge ownership is extracted to a typed UI module (`extension/src/Ui/CardMetadata.ts`) and covered by dedicated unit tests.
   - preferred-audio detection ownership is extracted to a typed runtime module and covered by dedicated unit tests.
+  - bootstrap finalization ownership (init/debug API exposure/state-loader+lifecycle wiring/storage accessor helpers) is extracted to `extension/src/Runtime/BootstrapFinalize.ts`, reducing composition-root boilerplate in `Content.js`.
+  - schema-first boundary hardening now covers ratings and preview repository boundaries with explicit malformed-payload contract warnings and dedicated unit suites.
   - architecture metrics now scan TS sources and split fixture-server modules, including function declarations plus function-expression/arrow assignments for hotspot detection.
   - architecture metrics now support per-file budget overrides for transitional composition roots to keep trend signal actionable while preserving strict refactor thresholds.
 
@@ -141,46 +145,53 @@ This plan converts the current monolithic extension runtime into a layered, Type
 
 ```text
 extension/
-  content.js                     # generated bootstrap/runtime artifact
-  content.css
+  Content.js                     # generated bootstrap/runtime artifact
+  Content.css
   manifest.json
   src/
-    runtime/
-      bootstrap.ts
-      bootstrap-config.ts
-      route-lifecycle.ts
-      runtime-store.ts
-      curated-renderable.ts
-      curated-panel.ts
-      curated-loader.ts
-      curated-interactions.ts
-      debug-api.ts
-    data/
-      auth-client.ts
-      watchlist-client.ts
-      watchlist-repository.ts
-      history-repository-cache.ts
-      history-repository-preload.ts
-      ratings-repository.ts
-      history-repository.ts
-      preview-repository.ts
-      storage-adapter.ts
-      api-contracts.ts
-    domain/
-      image-variants.ts
-      entry-normalizer.ts
-      watch-ready-policy.ts
-      filters.ts
-      sort-modes.ts
-      score-metrics.ts
-    ui/
-      host-shell.ts
-      controls-view.ts
-      curated-grid-view.ts
-      curated-card-view.ts
-      native-bridge.ts
-  types/
-    browser-globals.d.ts
+    Runtime/
+      BootstrapConfig.ts
+      BootstrapFinalize.ts
+      BootstrapGate.ts
+      BootstrapHelpers.ts
+      BootstrapModules.ts
+      CuratedInteractions.ts
+      CuratedLoader.ts
+      CuratedPanel.ts
+      CuratedRenderable.ts
+      DebugApi.ts
+      InterfaceShell.ts
+      NativeBridge.ts
+      PreferredAudioDetector.ts
+      RouteLifecycle.ts
+      RuntimeStore.ts
+      RuntimeTrace.ts
+      StateLoader.ts
+    Data/
+      ApiContracts.ts
+      AuthClient.ts
+      HistoryRepository.ts
+      HistoryRepositoryCache.ts
+      HistoryRepositoryPreload.ts
+      PreviewRepository.ts
+      RatingsClient.ts
+      RatingsRepository.ts
+      StorageAdapter.ts
+      WatchlistClient.ts
+      WatchlistRepository.ts
+    Domain/
+      CorePrimitives.ts
+      EntryNormalizer.ts
+      EntrySorting.ts
+      ImageVariants.ts
+      SortMetrics.ts
+    Ui/
+      CardMetadata.ts
+      ControlsView.ts
+      CuratedCardShell.ts
+      CuratedCardView.ts
+  Types/
+    BrowserGlobals.d.ts
   generated/
     runtime/**                   # deterministic transpile/bundle output consumed by packaging
 ```
@@ -189,19 +200,24 @@ extension/
 
 ```text
 tests/
-  e2e/
-    contracts/*.spec.ts
-    ui/*.spec.ts
-    resilience/*.spec.ts
-  unit/
-    domain/*.test.ts
-    data/*.test.ts
-  fixtures/
-    ...
-  helpers/
-    extension-fixture.ts
-  server/
-    fixture-server.ts
+  ManifestRouting.spec.ts
+  RankingAndProgress.spec.ts
+  ResilienceContracts.spec.ts
+  UiBehavior.spec.ts
+  Helpers/
+    ExtensionFixture.ts
+  Fixtures/
+    WatchlistFixture.html
+    NonWatchlistFixture.html
+  Server.ts
+  ServerRouter.ts
+  ServerFixtures.ts
+  ServerResponse.ts
+  Unit/
+    Domain/*.test.ts
+    Data/*.test.ts
+    Runtime/*.test.ts
+    Ui/*.test.ts
 ```
 
 ### Target toolchain stack
@@ -216,7 +232,7 @@ tests/
 
 1. Behavior-first: refactor must not change user-visible behavior unless explicitly planned.
 2. Extract-then-switch: add new module and adapter, migrate call sites, then remove old code.
-3. Keep `content.js` as temporary facade during migration.
+3. Keep `Content.js` as temporary facade during migration.
 4. One owner per mutable state surface.
 5. Every extraction step includes regression coverage before old paths are deleted.
 6. Introduce tooling foundations before broad `.ts` conversion (typecheck/lint/build parity first).
@@ -247,19 +263,19 @@ Exit criteria:
 
 Scope:
 
-- Introduce `extension/src/runtime/runtime-store.ts` owning mutable runtime state.
-- Introduce `extension/src/data/storage-adapter.ts` for `browser.storage`/`localStorage` fallback.
+- Introduce `extension/src/Runtime/RuntimeStore.ts` owning mutable runtime state.
+- Introduce `extension/src/Data/StorageAdapter.ts` for `browser.storage`/`localStorage` fallback.
 - Wire module registry loading through `manifest.json` content-script ordering.
 - Keep fixture loader aligned with manifest script order to preserve runtime parity in tests.
 
 Notes:
 
-- `content.js` delegates to new modules but remains execution entrypoint.
+- `Content.js` delegates to new modules but remains execution entrypoint.
 - No UI behavior changes.
 
 Exit criteria:
 
-- Runtime store and storage adapter logic removed from inlined `content.js` sections.
+- Runtime store and storage adapter logic removed from inlined `Content.js` sections.
 - Manifest and test fixtures both execute extracted modules before bootstrap.
 - Tests remain green.
 
@@ -277,19 +293,19 @@ Quality focus:
 
 Exit criteria:
 
-- `fetch*` and preload functions in `content.js` become thin delegations or removed.
+- `fetch*` and preload functions in `Content.js` become thin delegations or removed.
 - Endpoint strings are centralized.
 
 ### Phase 3: Extract Domain Logic
 
 Scope:
 
-- Move normalization, watch-ready policy, filters, and sorting/scoring into `domain/*`.
+- Move normalization, watch-ready policy, filters, and sorting/scoring into `Domain/*`.
 - Move pure calculations from UI-building functions into pure domain utilities.
 
 Current status:
 
-- `domain/entry-normalizer.ts`, `domain/image-variants.ts`, and `domain/sort-metrics.ts` extractions are in place; remaining runtime/bootstrap policy wiring is still concentrated in `content.js`.
+- `Domain/EntryNormalizer.ts`, `Domain/ImageVariants.ts`, and `Domain/SortMetrics.ts` extractions are in place; remaining runtime/bootstrap policy wiring is still concentrated in `Content.js`.
 
 Quality focus:
 
@@ -298,7 +314,7 @@ Quality focus:
 Exit criteria:
 
 - Domain logic callable without DOM globals.
-- Significant function-length reduction in `content.js`.
+- Significant function-length reduction in `Content.js`.
 
 ### Phase 4: Extract UI Components and Native Bridge
 
@@ -320,8 +336,8 @@ Exit criteria:
 
 Scope:
 
-- Introduce bundling (for example esbuild) from `extension/src/**` to `extension/content.js`.
-- Keep generated `content.js` deterministic and committed/released per current packaging flow.
+- Introduce bundling (for example esbuild) from `extension/src/**` to `extension/Content.js`.
+- Keep generated `Content.js` deterministic and committed/released per current packaging flow.
 
 Why:
 
@@ -354,7 +370,7 @@ Scope:
 
 Exit criteria:
 
-- `extension/content.js` reduced to thin bootstrap/facade.
+- `extension/Content.js` reduced to thin bootstrap/facade.
 - Major owners live in dedicated modules.
 - Docs reflect final architecture.
 
@@ -455,10 +471,10 @@ Use this section as a live tracker.
 | Milestone | Status | Owner | Notes |
 | --- | --- | --- | --- |
 | M1 | Completed | TBD | Runtime store + storage adapter extracted to `extension/src/**`, wired through `manifest.json`, and mirrored by fixture injection order. |
-| M2 | Completed | TBD | Auth/transport, watchlist transport/cache owner, ratings transport/cache owner, history cache/preload owner, and preview repository are extracted to dedicated `extension/src/data/**` modules and delegated from `content.js`. |
+| M2 | Completed | TBD | Auth/transport, watchlist transport/cache owner, ratings transport/cache owner, history cache/preload owner, and preview repository are extracted to dedicated `extension/src/Data/**` modules and delegated from `Content.js`. |
 | M3 | Completed | TBD | TypeScript foundation is landed: `tsconfig` set, deterministic `build:runtime`, packaging from generated runtime, and CI `typecheck` gate. |
-| M4 | Completed | TBD | Domain/UI/runtime owner extraction is in place across `extension/src/**`; bootstrap surface is reduced to `1000` and remains under the temporary composition-root warning override. |
-| M5 | Completed | TBD | Incremental `.ts` conversion for extracted owners is complete, including `extension/src/data/history-repository.ts`. |
+| M4 | Completed | TBD | Domain/UI/runtime owner extraction is in place across `extension/src/**`; bootstrap surface is reduced to `891` and remains under the temporary composition-root warning override. |
+| M5 | Completed | TBD | Incremental `.ts` conversion for extracted owners is complete, including `extension/src/Data/HistoryRepository.ts`. |
 | M6 | Completed | TBD | TS-aware metrics plus CI `typecheck`/lint/formatter/unit/E2E/build gates are active and green. |
 | M7 | Completed | TBD | Cleanup and standards lock for the defined transformation scope are complete; additional hardening remains as post-100 backlog. |
 
@@ -478,19 +494,19 @@ Transformation is complete when all are true:
 Completed in this pass:
 
 1. Split monolithic Playwright spec into concern-focused suites:
-   - `tests/manifest-routing.spec.ts`
-   - `tests/ui-behavior.spec.ts`
-   - `tests/ranking-and-progress.spec.ts`
-   - `tests/resilience-contracts.spec.ts`
+   - `tests/ManifestRouting.spec.ts`
+   - `tests/UiBehavior.spec.ts`
+   - `tests/RankingAndProgress.spec.ts`
+   - `tests/ResilienceContracts.spec.ts`
 2. Added shared fixture/test utility module:
-   - `tests/helpers/extension-fixture.ts`
+   - `tests/Helpers/ExtensionFixture.ts`
 3. Updated fixture injection to read content script order from `extension/manifest.json`, so tests execute runtime modules exactly like packaged builds.
 4. Added architecture metrics generation and tracker:
    - `scripts/architecture-metrics.mts`
    - `docs/architecture-progress.md`
 5. Added `npm` script:
    - `npm run arch:metrics`
-6. Reduced major runtime hotspot functions by extracting focused helper units in `extension/content.js`:
+6. Reduced major runtime hotspot functions by extracting focused helper units in `extension/Content.js`:
    - `createCuratedCard`: 458 -> 36 lines
    - `ensureInterface`: 240 -> 56 lines
    - `preloadWatchHistoryForEntries`: 240 -> 84 lines
@@ -502,17 +518,17 @@ Completed in this pass:
    - `renderCuratedPanel`: 115 -> 34 lines
    - `fetchRatingFromCmsObjects`: 104 -> 44 lines
 8. Extracted Phase 1/Phase 3 boundary modules and delegated runtime usage:
-   - `extension/src/runtime/runtime-store.ts`
-   - `extension/src/data/storage-adapter.ts`
-   - `extension/src/domain/entry-normalizer.ts`
-   - `extension/content.js` now delegates entry normalization through the domain module.
+   - `extension/src/Runtime/RuntimeStore.ts`
+   - `extension/src/Data/StorageAdapter.ts`
+   - `extension/src/Domain/EntryNormalizer.ts`
+   - `extension/Content.js` now delegates entry normalization through the domain module.
 9. Extracted Phase 2 auth/transport boundary and delegated runtime usage:
-   - `extension/src/data/auth-client.ts`
-   - `content.js` now delegates token lifecycle, auth refresh handling, and resilient transport calls through the auth module.
+   - `extension/src/Data/AuthClient.ts`
+   - `Content.js` now delegates token lifecycle, auth refresh handling, and resilient transport calls through the auth module.
 10. Extracted Phase 4 UI builders and delegated runtime usage:
-   - `extension/src/ui/controls-view.ts`
-   - `extension/src/ui/curated-card-view.ts`
-   - `content.js` now delegates `createCuratedInterfaceControls` and `createCuratedCardBody` through UI modules.
+   - `extension/src/Ui/ControlsView.ts`
+   - `extension/src/Ui/CuratedCardView.ts`
+   - `Content.js` now delegates `createCuratedInterfaceControls` and `createCuratedCardBody` through UI modules.
 11. Split new UI module hotspots into internal helpers to keep extracted module functions within warning budget:
    - `createCuratedInterfaceControls`: now `69` lines
    - `createCuratedCardBody`: now below warning threshold after helper extraction
@@ -520,10 +536,10 @@ Completed in this pass:
    - `fetchWithResilience`: 99 -> 69 lines
 13. Stabilized a flaky cache-revalidation E2E path by replacing page-context timeout usage in a route callback with Promise-based delay logic.
 14. Expanded architecture metrics coverage:
-   - function hotspot scan now includes `extension/content.js` and `extension/src/**/*.js`
+   - function hotspot scan now includes `extension/Content.js` and `extension/src/**/*.js`
    - progress tracker now surfaces extracted-module hotspots directly
 15. Improved architecture metrics function sizing accuracy by switching to AST-based function span parsing (acorn), avoiding false positives from declaration-order heuristics.
-16. Reduced `extension/content.js` size from 6476 to 5679 lines through extraction/decomposition work.
+16. Reduced `extension/Content.js` size from 6476 to 5679 lines through extraction/decomposition work.
 17. Verified all required architecture gates after refactor updates:
    - `npm run lint:firefox`
    - `npm run test:e2e` (75 passed)
@@ -534,13 +550,13 @@ Completed in this pass:
    - declared `acorn` as a direct `devDependency` for `scripts/architecture-metrics.mts`
    - made source scan resilient to temporarily missing directories during phased extraction (`ENOENT` safe return)
 19. Extracted Phase 2 ratings transport boundary and delegated runtime usage:
-   - `extension/src/data/ratings-client.ts`
-   - `content.js` now delegates ratings batch/CMS/legacy/series-page fetch paths through the ratings module.
-20. Reduced `extension/content.js` further from 5679 to 5432 lines by removing inlined ratings transport logic.
+   - `extension/src/Data/RatingsClient.ts`
+   - `Content.js` now delegates ratings batch/CMS/legacy/series-page fetch paths through the ratings module.
+20. Reduced `extension/Content.js` further from 5679 to 5432 lines by removing inlined ratings transport logic.
 21. Extracted Phase 2 ratings repository/cache boundary and delegated runtime usage:
-   - `extension/src/data/ratings-repository.ts`
-   - `content.js` now delegates ratings cache validity/merge/read/preload owner flows (`getSeriesRating`, `preloadRatingsForEntries`, `getCachedRating`, `isLocalizedRatingDataMissingForEntries`) through the repository module.
-22. Reduced `extension/content.js` further from 5432 to 5259 lines by removing inlined ratings cache owner logic.
+   - `extension/src/Data/RatingsRepository.ts`
+   - `Content.js` now delegates ratings cache validity/merge/read/preload owner flows (`getSeriesRating`, `preloadRatingsForEntries`, `getCachedRating`, `isLocalizedRatingDataMissingForEntries`) through the repository module.
+22. Reduced `extension/Content.js` further from 5432 to 5259 lines by removing inlined ratings cache owner logic.
 23. Re-verified required architecture gates after ratings repository extraction:
    - `npm run lint:firefox`
    - `npm run test:e2e` (75 passed)
@@ -548,30 +564,30 @@ Completed in this pass:
    - `npm run build:safari`
    - `npm run arch:metrics`
 24. Extracted Phase 2 watchlist transport boundary and delegated runtime usage:
-   - `extension/src/data/watchlist-client.ts`
-   - `content.js` now delegates watchlist page pagination/dedupe loading via `fetchAllWatchlistRows`.
+   - `extension/src/Data/WatchlistClient.ts`
+   - `Content.js` now delegates watchlist page pagination/dedupe loading via `fetchAllWatchlistRows`.
 25. Extracted Phase 2 preview repository boundary and delegated runtime usage:
-   - `extension/src/data/preview-repository.ts`
-   - `content.js` now delegates preview payload parsing/cache-key ownership/fetch flow via `fetchPreviewUrlForEntry`.
-26. Reduced `extension/content.js` further from 5259 to 5015 lines by removing inlined watchlist transport and preview repository logic.
+   - `extension/src/Data/PreviewRepository.ts`
+   - `Content.js` now delegates preview payload parsing/cache-key ownership/fetch flow via `fetchPreviewUrlForEntry`.
+26. Reduced `extension/Content.js` further from 5259 to 5015 lines by removing inlined watchlist transport and preview repository logic.
 27. Re-verified required architecture gates after watchlist/preview extraction:
    - `npm run lint:firefox`
    - `npm run test:e2e` (75 passed)
    - `npm run build:webext`
    - `npm run build:safari`
    - `npm run arch:metrics`
-28. Extracted remaining Phase 2 repository owners and delegated `content.js` usage:
-   - `extension/src/data/watchlist-repository.ts`
-   - `extension/src/data/history-repository.ts`
-29. Reduced `extension/content.js` further from 5015 to 4308 lines by removing inlined watchlist cache/revalidation and watch-history cache/preload owner logic.
+28. Extracted remaining Phase 2 repository owners and delegated `Content.js` usage:
+   - `extension/src/Data/WatchlistRepository.ts`
+   - `extension/src/Data/HistoryRepository.ts`
+29. Reduced `extension/Content.js` further from 5015 to 4308 lines by removing inlined watchlist cache/revalidation and watch-history cache/preload owner logic.
 30. Split extracted factory wrappers into thin composition functions with top-level helpers:
    - `createEntryNormalizer`: `291 -> 11` lines
    - `createCardView`: `118 -> 7` lines
    - `createControlsView`: `106 -> 8` lines
 31. Updated architecture metrics after hotspot cleanup:
    - no refactor-level function hotspots remain
-   - only file-level refactor hotspot is `extension/content.js`
-   - warning file-level hotspot added: `extension/src/data/history-repository.ts` (`1176` lines)
+   - only file-level refactor hotspot is `extension/Content.js`
+   - warning file-level hotspot added: `extension/src/Data/HistoryRepository.ts` (`1176` lines)
 32. Re-verified required architecture gates after repository extraction and factory cleanup:
    - `npm run lint:firefox`
    - `npm run test:e2e` (75 passed)
@@ -596,15 +612,15 @@ Completed in this pass:
    - `npm run typecheck`
    - CI `build-extensions` workflow now runs a `Typecheck` step.
 40. Added ambient runtime declarations:
-   - `extension/types/browser-globals.d.ts`
-   - `tests/types/playwright.d.ts`
+   - `extension/Types/BrowserGlobals.d.ts`
+   - `tests/Types/Playwright.d.ts`
 41. Started Phase 9 conversion by converting owner modules to TypeScript:
-   - `extension/src/runtime/runtime-store.ts`
-   - `extension/src/data/storage-adapter.ts`
-   - `extension/src/data/watchlist-client.ts`
-   - `extension/src/data/watchlist-repository.ts`
+   - `extension/src/Runtime/RuntimeStore.ts`
+   - `extension/src/Data/StorageAdapter.ts`
+   - `extension/src/Data/WatchlistClient.ts`
+   - `extension/src/Data/WatchlistRepository.ts`
 42. Hardened test fixture injection for mixed JS/TS migration states:
-   - `tests/helpers/extension-fixture.ts` now transpiles `.ts` content scripts on-the-fly when `.js` source paths are absent.
+   - `tests/Helpers/ExtensionFixture.ts` now transpiles `.ts` content scripts on-the-fly when `.js` source paths are absent.
 43. Improved architecture metrics TS coverage:
    - `scripts/architecture-metrics.mts` now includes TS runtime sources and transpiles TS for hotspot parsing before AST scans.
 44. Re-verified architecture gates after TypeScript foundation + conversion slice:
@@ -615,12 +631,12 @@ Completed in this pass:
    - `npm run build:safari`
    - `npm run arch:metrics`
 45. Improved live-debug workflow parity:
-   - `scripts/live-webkit-watchlist.mts` now injects manifest-ordered assets (not only `content.js`) and transpiles `.ts` content-script sources on the fly when needed.
-   - hot reload now watches `extension/**/*.(js|ts|css|json)` instead of only `content.js` and `content.css`.
-46. Extracted runtime bootstrap/state orchestration into typed runtime modules and delegated `content.js` usage:
-   - `extension/src/runtime/state-loader.ts`
-   - `extension/src/runtime/route-lifecycle.ts`
-47. Reduced `extension/content.js` further from 4308 to 4137 lines by removing inlined state-load and route-lifecycle orchestration.
+   - `scripts/live-webkit-watchlist.mts` now injects manifest-ordered assets (not only `Content.js`) and transpiles `.ts` content-script sources on the fly when needed.
+   - hot reload now watches `extension/**/*.(js|ts|css|json)` instead of only `Content.js` and `Content.css`.
+46. Extracted runtime bootstrap/state orchestration into typed runtime modules and delegated `Content.js` usage:
+   - `extension/src/Runtime/StateLoader.ts`
+   - `extension/src/Runtime/RouteLifecycle.ts`
+47. Reduced `extension/Content.js` further from 4308 to 4137 lines by removing inlined state-load and route-lifecycle orchestration.
 48. Investigated lint/format stack options and standardized on Biome for the current cycle:
    - added `@biomejs/biome`,
    - added `biome.json`,
@@ -635,13 +651,13 @@ Completed in this pass:
    - `npm run build:safari`
    - `npm run arch:metrics`
 50. Advanced Phase 9 conversion by converting additional extracted owner modules to TypeScript:
-   - `extension/src/data/auth-client.ts`
-   - `extension/src/data/ratings-client.ts`
-   - `extension/src/data/ratings-repository.ts`
-   - `extension/src/data/preview-repository.ts`
-   - `extension/src/domain/entry-normalizer.ts`
-   - `extension/src/ui/controls-view.ts`
-   - `extension/src/ui/curated-card-view.ts`
+   - `extension/src/Data/AuthClient.ts`
+   - `extension/src/Data/RatingsClient.ts`
+   - `extension/src/Data/RatingsRepository.ts`
+   - `extension/src/Data/PreviewRepository.ts`
+   - `extension/src/Domain/EntryNormalizer.ts`
+   - `extension/src/Ui/ControlsView.ts`
+   - `extension/src/Ui/CuratedCardView.ts`
 51. Re-verified required architecture gates after TypeScript conversion slice:
    - `npm run typecheck`
    - `npm run lint`
@@ -654,15 +670,15 @@ Completed in this pass:
    - `npm run format:check` passed locally; CI formatter gating was added later in the cycle (see item 63).
 53. Completed Playwright suite migration to TypeScript:
    - converted suite files to `.ts` and removed legacy `.js` spec variants.
-   - converted shared helper to `tests/helpers/extension-fixture.ts`.
+   - converted shared helper to `tests/Helpers/ExtensionFixture.ts`.
 54. Completed Phase 9 owner migration by converting history repository to TypeScript:
-   - renamed and migrated `extension/src/data/history-repository.ts`.
+   - renamed and migrated `extension/src/Data/HistoryRepository.ts`.
    - preserved runtime parity through manifest-ordered generated runtime output.
 55. Performed repo-wide formatting pass under expanded Biome include scope:
    - `npm run format` executed successfully.
    - `npm run format:check` now reports clean local formatting.
 56. Fixed lint-compatibility issues surfaced by broader lint scope:
-   - adjusted callback-return usage in `extension/content.js`.
+   - adjusted callback-return usage in `extension/Content.js`.
    - simplified registry initialization in history repository extraction path.
 57. Re-verified required architecture gates after TypeScript migration + formatting updates:
    - `npm run typecheck`
@@ -673,14 +689,14 @@ Completed in this pass:
    - `npm run build:safari`
    - `npm run arch:metrics`
 58. Regenerated architecture metrics after the history-owner decomposition:
-   - `extension/content.js`: `4155` lines (refactor-level file hotspot, unchanged)
-   - `extension/src/data/history-repository-preload.ts`: `798` lines (near warning threshold)
-   - `extension/src/data/history-repository-cache.ts`: `566` lines (within budget)
-   - `extension/src/data/history-repository.ts`: `203` lines (composition root)
+   - `extension/Content.js`: `4155` lines (refactor-level file hotspot, unchanged)
+   - `extension/src/Data/HistoryRepositoryPreload.ts`: `798` lines (near warning threshold)
+   - `extension/src/Data/HistoryRepositoryCache.ts`: `566` lines (within budget)
+   - `extension/src/Data/HistoryRepository.ts`: `203` lines (composition root)
 59. Completed high-risk history repository decomposition into explicit owners:
-   - added `extension/src/data/history-repository-cache.ts` for cache normalization/lookups/progress replacement policy.
-   - added `extension/src/data/history-repository-preload.ts` for watch-history fetch/preload/merge orchestration.
-   - reduced `extension/src/data/history-repository.ts` to dependency wiring/composition.
+   - added `extension/src/Data/HistoryRepositoryCache.ts` for cache normalization/lookups/progress replacement policy.
+   - added `extension/src/Data/HistoryRepositoryPreload.ts` for watch-history fetch/preload/merge orchestration.
+   - reduced `extension/src/Data/HistoryRepository.ts` to dependency wiring/composition.
    - updated `extension/manifest.json` script order to load history modules deterministically.
 60. Re-verified all architecture gates after decomposition:
    - `npm run typecheck`
@@ -698,10 +714,10 @@ Completed in this pass:
    - added `vitest` plus `vitest.config.ts`.
    - added scripts: `npm run test:unit`, `npm run test:unit:watch`.
    - added unit suites:
-     - `tests/unit/data/history-repository-cache.test.ts`
-     - `tests/unit/data/history-repository-preload.test.ts`
-     - `tests/unit/data/history-repository-composition.test.ts`
-     - `tests/unit/domain/entry-normalizer.test.ts`
+     - `tests/Unit/Data/HistoryRepositoryCache.test.ts`
+     - `tests/Unit/Data/HistoryRepositoryPreload.test.ts`
+     - `tests/Unit/Data/HistoryRepositoryComposition.test.ts`
+     - `tests/Unit/Domain/EntryNormalizer.test.ts`
 63. Strengthened CI quality gates in `build-extensions` verification:
    - added `npm run format:check` gate.
    - added `npm run test:unit` gate.
@@ -718,8 +734,8 @@ Completed in this pass:
    - `npm run build:safari`
    - `npm run arch:metrics`
 66. Expanded unit-test coverage into additional extracted owners:
-   - `tests/unit/runtime/runtime-store.test.ts`
-   - `tests/unit/data/watchlist-repository.test.ts`
+   - `tests/Unit/Runtime/RuntimeStore.test.ts`
+   - `tests/Unit/Data/WatchlistRepository.test.ts`
 67. Documented the test-runner decision for architecture standards:
    - standardized on Vitest over `node:test` for this repo's TypeScript-first migration path and CI ergonomics.
 68. Updated architecture standards and transformation docs to align with current CI-enforced quality gates and expanded unit baseline.
@@ -749,7 +765,7 @@ Completed in this pass:
    - `npm run arch:metrics`
 72. Removed remaining runtime-path compatibility fallback surfaces:
    - `build:runtime` now targets dedicated dev output (`.tmp/extension-runtime-dev`) instead of the old shared `.tmp/extension-runtime` path.
-   - `tests/helpers/extension-fixture.ts` no longer falls back to `.tmp/extension-runtime` or raw `extension/**` source discovery.
+   - `tests/Helpers/ExtensionFixture.ts` no longer falls back to `.tmp/extension-runtime` or raw `extension/**` source discovery.
    - E2E fixture injection now strictly consumes generated runtime assets from `EXTENSION_RUNTIME_DIR`.
 73. Updated architecture/testing docs to reflect strict generated-runtime loading and modernized runtime output paths.
 74. Re-verified architecture gates after legacy runtime-path fallback removal:
@@ -768,13 +784,13 @@ Completed in this pass:
    - removed source-first script loading and on-the-fly TypeScript transpile fallback from the live-debug path.
 76. Updated architecture/testing docs to capture strict generated-runtime usage and live-debug parity improvements.
 77. Converted the Playwright fixture server from legacy JavaScript to TypeScript:
-   - replaced `tests/server.ts` with `tests/server.ts` and added strict function/type annotations under the existing TypeScript test config.
+   - replaced `tests/Server.ts` with `tests/Server.ts` and added strict function/type annotations under the existing TypeScript test config.
 78. Converted Playwright configuration to TypeScript and aligned web-server startup:
    - replaced `playwright.config.ts` with `playwright.config.ts`.
-   - switched `webServer.command` to `tsx tests/server.ts`.
+   - switched `webServer.command` to `tsx tests/Server.ts`.
    - included `playwright.config.ts` in `tsconfig.tests.json` typecheck scope.
 79. Hardened architecture metrics for fixture-server migration compatibility:
-   - `scripts/architecture-metrics.mts` now resolves `tests/server.ts` first with a fallback probe to `tests/server.ts` for migration resilience.
+   - `scripts/architecture-metrics.mts` now resolves `tests/Server.ts` first with a fallback probe to `tests/Server.ts` for migration resilience.
 80. Re-verified architecture gates after fixture-server/config TypeScript migration:
    - `npm run typecheck`
    - `npm run lint`
@@ -785,7 +801,7 @@ Completed in this pass:
    - `npm run build:webext`
    - `npm run build:safari`
    - `npm run arch:metrics`
-81. Updated architecture standards/testing docs to reflect `tests/server.ts` and `playwright.config.ts` composition roots.
+81. Updated architecture standards/testing docs to reflect `tests/Server.ts` and `playwright.config.ts` composition roots.
 82. Decomposed `history-repository-preload` context initialization into explicit helper groups:
    - extracted required dependency resolution, optional callback resolution, and numeric-option resolution into dedicated helpers.
    - reduced `createHistoryRepositoryPreloadContext` from warning-level size to a thin assembly function.
@@ -799,14 +815,14 @@ Completed in this pass:
    - `npm run build:webext`
    - `npm run build:safari`
    - `npm run arch:metrics`
-84. Extracted preferred-audio detection ownership out of the `content.js` bootstrap surface:
-   - added `extension/src/runtime/preferred-audio-detector.ts`.
+84. Extracted preferred-audio detection ownership out of the `Content.js` bootstrap surface:
+   - added `extension/src/Runtime/PreferredAudioDetector.ts`.
    - moved storage/global/browser preferred-audio detection heuristics behind a typed runtime module boundary.
-   - updated `extension/content.js` to consume detector ownership via module registry composition.
-   - updated manifest script ordering to load the runtime detector before `content.js`.
+   - updated `extension/Content.js` to consume detector ownership via module registry composition.
+   - updated manifest script ordering to load the runtime detector before `Content.js`.
 85. Reduced runtime hotspot and expanded fast-unit coverage:
-   - `extension/content.js`: `4137 -> 3907` lines after preferred-audio extraction.
-   - added `tests/unit/runtime/preferred-audio-detector.test.ts` (4 tests), increasing `test:unit` coverage baseline from 21 to 25 tests.
+   - `extension/Content.js`: `4137 -> 3907` lines after preferred-audio extraction.
+   - added `tests/Unit/Runtime/PreferredAudioDetector.test.ts` (4 tests), increasing `test:unit` coverage baseline from 21 to 25 tests.
 86. Re-verified architecture gates after preferred-audio extraction:
    - `npm run typecheck`
    - `npm run lint`
@@ -817,13 +833,13 @@ Completed in this pass:
    - `npm run build:webext`
    - `npm run build:safari`
    - `npm run arch:metrics`
-87. Extracted renderable-entry merge/filter/build ownership from `content.js` into a typed runtime module:
-   - added `extension/src/runtime/curated-renderable.ts`.
+87. Extracted renderable-entry merge/filter/build ownership from `Content.js` into a typed runtime module:
+   - added `extension/src/Runtime/CuratedRenderable.ts`.
    - moved `resolveRenderableFilterContext`, `mergeRenderableEntry`, and renderable filter/build pipeline logic behind module-registry composition.
-   - updated `extension/content.js` to consume module-owned `buildRenderableEntries` wiring.
-   - updated manifest script ordering to load `src/runtime/curated-renderable.js` before bootstrap.
+   - updated `extension/Content.js` to consume module-owned `buildRenderableEntries` wiring.
+   - updated manifest script ordering to load `src/Runtime/CuratedRenderable.js` before bootstrap.
 88. Expanded unit coverage for extracted runtime ownership:
-   - added `tests/unit/runtime/curated-renderable.test.ts` (3 tests), increasing unit baseline from 25 to 28 tests.
+   - added `tests/Unit/Runtime/CuratedRenderable.test.ts` (3 tests), increasing unit baseline from 25 to 28 tests.
 89. Re-verified architecture gates after renderable extraction:
    - `npm run typecheck`
    - `npm run lint`
@@ -837,19 +853,19 @@ Completed in this pass:
 90. Noted cross-browser E2E friction in this environment:
    - `npm run test:e2e` surfaced multiple Firefox/WebKit `beforeEach` timeouts (`browserContext.newPage` / `page.goto` fixture URL timeouts) while Chromium remained stable.
 91. Ran targeted cross-browser routing sanity checks after the unstable full-suite run:
-   - `npm run test:e2e:firefox -- tests/manifest-routing.spec.ts` (pass, 3 tests).
-   - `npm run test:e2e:webkit -- tests/manifest-routing.spec.ts` (pass, 3 tests).
-92. Decomposed `runtime/curated-renderable` internals to remove the refactor-level factory hotspot:
+   - `npm run test:e2e:firefox -- tests/ManifestRouting.spec.ts` (pass, 3 tests).
+   - `npm run test:e2e:webkit -- tests/ManifestRouting.spec.ts` (pass, 3 tests).
+92. Decomposed `Runtime/CuratedRenderable` internals to remove the refactor-level factory hotspot:
    - split dependency resolution and renderable operations into top-level helper functions.
    - reduced maximum function size from `createCuratedRenderable` (`178`) to warning-level internals (`<= 60`).
    - hardened merge behavior by evaluating `isEntryWatchReady` against merged status output.
-93. Extracted curated panel rendering ownership from `content.js` into a typed runtime module:
-   - added `extension/src/runtime/curated-panel.ts`.
+93. Extracted curated panel rendering ownership from `Content.js` into a typed runtime module:
+   - added `extension/src/Runtime/CuratedPanel.ts`.
    - moved curated grid empty-state/signature rendering, stats text resolution, and localized preload queue orchestration behind module-registry composition.
-   - reduced `extension/content.js` from `3764 -> 3639` lines.
+   - reduced `extension/Content.js` from `3764 -> 3639` lines.
 94. Expanded unit coverage for new runtime ownership boundaries:
-   - updated `tests/unit/runtime/curated-renderable.test.ts` with merged-status watch-ready regression coverage.
-   - added `tests/unit/runtime/curated-panel.test.ts`.
+   - updated `tests/Unit/Runtime/CuratedRenderable.test.ts` with merged-status watch-ready regression coverage.
+   - added `tests/Unit/Runtime/CuratedPanel.test.ts`.
    - unit baseline increased from 28 to 30 passing tests.
 95. Re-verified architecture gates after hotspot decomposition + panel extraction:
    - `npm run typecheck`
@@ -858,21 +874,21 @@ Completed in this pass:
    - `npm run test:unit` (30 passed)
    - `npm run test:e2e` (75 passed)
    - `npm run test:e2e:chromium` (25 passed)
-   - `npm run test:e2e:firefox -- tests/manifest-routing.spec.ts` (3 passed)
-   - `npm run test:e2e:webkit -- tests/manifest-routing.spec.ts` (3 passed)
+   - `npm run test:e2e:firefox -- tests/ManifestRouting.spec.ts` (3 passed)
+   - `npm run test:e2e:webkit -- tests/ManifestRouting.spec.ts` (3 passed)
    - `npm run lint:firefox`
    - `npm run build:webext`
    - `npm run build:safari`
    - `npm run arch:metrics`
 96. Noted a deterministic concurrency friction during validation:
    - running Firefox and WebKit targeted E2E commands in parallel can race on `.tmp/extension-runtime-e2e` and trigger `EEXIST` in the runtime build step.
-97. Extracted curated loading/revalidation ownership from `content.js` into a typed runtime module:
-   - added `extension/src/runtime/curated-loader.ts`.
+97. Extracted curated loading/revalidation ownership from `Content.js` into a typed runtime module:
+   - added `extension/src/Runtime/CuratedLoader.ts`.
    - moved `loadCuratedEntries` / `ensureCuratedDataLoad` orchestration and background revalidation observer flow behind module-registry composition.
-   - updated manifest script ordering to load `src/runtime/curated-loader.js` before bootstrap.
-   - reduced `extension/content.js` from `3639 -> 3549` lines.
+   - updated manifest script ordering to load `src/Runtime/CuratedLoader.js` before bootstrap.
+   - reduced `extension/Content.js` from `3639 -> 3549` lines.
 98. Expanded unit coverage for extracted loader ownership:
-   - added `tests/unit/runtime/curated-loader.test.ts` (3 tests).
+   - added `tests/Unit/Runtime/CuratedLoader.test.ts` (3 tests).
    - unit baseline increased from 30 to 33 passing tests.
 99. Re-verified architecture gates after curated-loader extraction:
    - `npm run typecheck`
@@ -884,20 +900,20 @@ Completed in this pass:
    - `npm run build:webext`
    - `npm run build:safari`
    - `npm run arch:metrics`
-100. Extracted curated card-actions and controls binding ownership from `content.js` into a typed runtime module:
-   - added `extension/src/runtime/curated-interactions.ts`.
+100. Extracted curated card-actions and controls binding ownership from `Content.js` into a typed runtime module:
+   - added `extension/src/Runtime/CuratedInteractions.ts`.
    - moved `createCuratedCardActions` and `bindCuratedInterfaceControls` orchestration behind module-registry composition.
-   - reduced `extension/content.js` from `3549 -> 3463` lines.
+   - reduced `extension/Content.js` from `3549 -> 3463` lines.
 101. Resolved a regression introduced during interactions extraction:
-   - preserved shared runtime `state` object identity in `runtime/curated-interactions` context wiring (no state cloning).
+   - preserved shared runtime `state` object identity in `Runtime/CuratedInteractions` context wiring (no state cloning).
    - restored expected cross-module settings/cache behavior and stabilized E2E parity.
-102. Extracted image normalization and card image-selection ownership from `content.js` into a typed domain module:
-   - added `extension/src/domain/image-variants.ts`.
+102. Extracted image normalization and card image-selection ownership from `Content.js` into a typed domain module:
+   - added `extension/src/Domain/ImageVariants.ts`.
    - moved `normalizeImageUrlCandidate`, cover image extraction/scoring, and thumbnail selection ownership behind domain composition.
-   - updated manifest script ordering to load `src/domain/image-variants.js` before bootstrap.
-   - reduced `extension/content.js` from `3463 -> 3342` lines.
+   - updated manifest script ordering to load `src/Domain/ImageVariants.js` before bootstrap.
+   - reduced `extension/Content.js` from `3463 -> 3342` lines.
 103. Expanded unit coverage for new domain ownership:
-   - added `tests/unit/domain/image-variants.test.ts` (3 tests).
+   - added `tests/Unit/Domain/ImageVariants.test.ts` (3 tests).
    - unit baseline increased from 33 to 38 passing tests.
 104. Re-verified architecture gates after interactions and image-variants extraction:
    - `npm run typecheck`
@@ -915,7 +931,7 @@ Completed in this pass:
    - this removes default shared-output collisions when running E2E commands concurrently.
 106. Reduced parallel E2E fixture-server startup friction:
    - `scripts/run-playwright-suite.mts` now allocates a per-run fixture server port and passes it via `PW_FIXTURE_SERVER_PORT`.
-   - updated `playwright.config.ts`, `tests/server.ts`, and `tests/helpers/extension-fixture.ts` to consume dynamic fixture ports.
+   - updated `playwright.config.ts`, `tests/Server.ts`, and `tests/Helpers/ExtensionFixture.ts` to consume dynamic fixture ports.
    - this removes default `EADDRINUSE` collisions on `127.0.0.1:4173` during concurrent E2E runs.
 107. Normalized parent E2E runner env configuration:
    - E2E wrapper now normalizes conflicting `NO_COLOR` + `FORCE_COLOR` env combinations before launching Playwright.
@@ -934,12 +950,12 @@ Completed in this pass:
    - replaced `scripts/build-webextensions.mts`, `scripts/live-webkit-watchlist.mts`, and `scripts/architecture-metrics.mts` as active script entrypoints.
    - removed remaining legacy `.mjs` script entrypoints from `package.json` command paths.
    - kept all script commands green under strict `typecheck:scripts`.
-110. Extracted debug series-data ownership from `content.js` into a typed runtime module:
-   - added `extension/src/runtime/debug-api.ts`.
-   - updated `extension/manifest.json` script ordering to load `src/runtime/debug-api.js` before bootstrap.
-   - reduced `extension/content.js` from `3342 -> 3220` lines by delegating `listSeries`/`dumpSeriesApiData`/`printSeriesApiData`.
+110. Extracted debug series-data ownership from `Content.js` into a typed runtime module:
+   - added `extension/src/Runtime/DebugApi.ts`.
+   - updated `extension/manifest.json` script ordering to load `src/Runtime/DebugApi.js` before bootstrap.
+   - reduced `extension/Content.js` from `3342 -> 3220` lines by delegating `listSeries`/`dumpSeriesApiData`/`printSeriesApiData`.
 111. Expanded fast unit coverage for the new runtime debug boundary:
-   - added `tests/unit/runtime/debug-api.test.ts` (3 tests).
+   - added `tests/Unit/Runtime/DebugApi.test.ts` (3 tests).
    - unit baseline increased from 38 to 41 passing tests.
 112. Re-verified architecture gates after script migration + debug extraction:
    - `npm run typecheck`
@@ -952,21 +968,21 @@ Completed in this pass:
    - `npm run build:safari`
    - `npm run arch:metrics`
 113. Regenerated architecture metrics after this pass:
-   - `extension/content.js`: `3220` lines (refactor-level file hotspot; improved from `3342`).
+   - `extension/Content.js`: `3220` lines (refactor-level file hotspot; improved from `3342`).
    - top remaining warning function is still `preloadWatchHistoryForEntriesInternal` (`71` lines).
-114. Extracted native watchlist bridge ownership from `content.js` into a typed runtime module:
-   - added `extension/src/runtime/native-bridge.ts`.
+114. Extracted native watchlist bridge ownership from `Content.js` into a typed runtime module:
+   - added `extension/src/Runtime/NativeBridge.ts`.
    - moved native action forwarding and curated preview/session ownership (`triggerNativeCardAction`, `installCuratedCardPreview`) behind typed runtime composition.
-   - updated `extension/manifest.json` script ordering to load `src/runtime/native-bridge.js` before bootstrap.
-   - reduced `extension/content.js` from `3220 -> 2835` lines.
+   - updated `extension/manifest.json` script ordering to load `src/Runtime/NativeBridge.js` before bootstrap.
+   - reduced `extension/Content.js` from `3220 -> 2835` lines.
 115. Decomposed the typed fixture server by concern:
-   - kept `tests/server.ts` as the thin composition root/startup entry.
-   - added `tests/server-router.ts` for endpoint routing.
-   - added `tests/server-response.ts` for response and asset helpers.
-   - retained `tests/server-fixtures.ts` as fixture payload ownership.
+   - kept `tests/Server.ts` as the thin composition root/startup entry.
+   - added `tests/ServerRouter.ts` for endpoint routing.
+   - added `tests/ServerResponse.ts` for response and asset helpers.
+   - retained `tests/ServerFixtures.ts` as fixture payload ownership.
 116. Improved architecture metrics coverage for the decomposed fixture server:
-   - `scripts/architecture-metrics.mts` now tracks `tests/server*.ts` modules instead of only the startup file.
-   - tracker visibility now includes `tests/server-fixtures.ts`, `tests/server-router.ts`, and `tests/server-response.ts`.
+   - `scripts/architecture-metrics.mts` now tracks `tests/Server*.ts` modules instead of only the startup file.
+   - tracker visibility now includes `tests/ServerFixtures.ts`, `tests/ServerRouter.ts`, and `tests/ServerResponse.ts`.
 117. Re-verified architecture gates after native-bridge extraction and fixture-server decomposition:
    - `npm run typecheck`
    - `npm run lint`
@@ -978,16 +994,16 @@ Completed in this pass:
    - `npm run build:safari`
    - `npm run arch:metrics`
 118. Regenerated architecture metrics with the expanded tracker:
-   - `extension/content.js`: `2835` lines (still refactor-level, now below the prior `< 3000` milestone).
-   - `tests/server.ts`: `16` lines (composition root only).
-   - split fixture modules: `tests/server-router.ts` (`263`), `tests/server-fixtures.ts` (`358`), `tests/server-response.ts` (`50`).
-119. Extracted sort/scoring/watch-progress metric ownership from `content.js` into a typed domain module:
-   - added `extension/src/domain/sort-metrics.ts`.
+   - `extension/Content.js`: `2835` lines (still refactor-level, now below the prior `< 3000` milestone).
+   - `tests/Server.ts`: `16` lines (composition root only).
+   - split fixture modules: `tests/ServerRouter.ts` (`263`), `tests/ServerFixtures.ts` (`358`), `tests/ServerResponse.ts` (`50`).
+119. Extracted sort/scoring/watch-progress metric ownership from `Content.js` into a typed domain module:
+   - added `extension/src/Domain/SortMetrics.ts`.
    - moved star-distribution scoring, controversy/quality-floor scoring, quick-win/dormant/rewatch scoring, and unwatched-estimate calculations behind domain composition.
-   - updated `extension/manifest.json` script ordering to load `src/domain/sort-metrics.js` before bootstrap.
-   - reduced `extension/content.js` from `2835 -> 2755` lines by replacing inlined metric logic with delegated wrappers.
+   - updated `extension/manifest.json` script ordering to load `src/Domain/SortMetrics.js` before bootstrap.
+   - reduced `extension/Content.js` from `2835 -> 2755` lines by replacing inlined metric logic with delegated wrappers.
 120. Expanded fast unit coverage for the new domain owner:
-   - added `tests/unit/domain/sort-metrics.test.ts` (8 tests).
+   - added `tests/Unit/Domain/SortMetrics.test.ts` (8 tests).
    - unit baseline increased from 41 to 49 passing tests.
 121. Re-verified all architecture gates after the sort-metrics extraction:
    - `npm run typecheck`
@@ -1000,24 +1016,24 @@ Completed in this pass:
    - `npm run build:safari`
    - `npm run arch:metrics`
 122. Regenerated architecture metrics after this pass:
-   - `extension/content.js`: `2755` lines (still refactor-level and the primary structural hotspot).
-   - `extension/src/domain/sort-metrics.ts`: `355` lines (within budget).
+   - `extension/Content.js`: `2755` lines (still refactor-level and the primary structural hotspot).
+   - `extension/src/Domain/SortMetrics.ts`: `355` lines (within budget).
    - remaining warning hotspot unchanged: `preloadWatchHistoryForEntriesInternal` (`71` lines).
-123. Extracted render-sort ownership from `content.js` into a typed domain module:
-   - added `extension/src/domain/entry-sorting.ts`.
-   - updated `extension/manifest.json` script ordering to load `src/domain/entry-sorting.js` before bootstrap.
-   - reduced `extension/content.js` from `2755 -> 2592` lines.
-124. Extracted card metadata ownership from `content.js` into a typed UI module:
-   - added `extension/src/ui/card-metadata.ts`.
+123. Extracted render-sort ownership from `Content.js` into a typed domain module:
+   - added `extension/src/Domain/EntrySorting.ts`.
+   - updated `extension/manifest.json` script ordering to load `src/Domain/EntrySorting.js` before bootstrap.
+   - reduced `extension/Content.js` from `2755 -> 2592` lines.
+124. Extracted card metadata ownership from `Content.js` into a typed UI module:
+   - added `extension/src/Ui/CardMetadata.ts`.
    - moved rating badge, histogram, last-watched presentation, labeled metadata, and scope-pair builders behind typed UI composition.
-   - updated `extension/manifest.json` script ordering to load `src/ui/card-metadata.js` before bootstrap.
-   - reduced `extension/content.js` from `2592 -> 2506` lines.
-125. Removed dead legacy wrapper surfaces from `content.js` after direct module delegate wiring:
+   - updated `extension/manifest.json` script ordering to load `src/Ui/CardMetadata.js` before bootstrap.
+   - reduced `extension/Content.js` from `2592 -> 2506` lines.
+125. Removed dead legacy wrapper surfaces from `Content.js` after direct module delegate wiring:
    - removed obsolete local helper wrappers now fully owned by extracted modules.
-   - reduced `extension/content.js` from `2506 -> 2421` lines.
+   - reduced `extension/Content.js` from `2506 -> 2421` lines.
 126. Expanded fast unit coverage for the new extracted owners:
-   - added `tests/unit/domain/entry-sorting.test.ts` (5 tests).
-   - added `tests/unit/ui/card-metadata.test.ts` (4 tests).
+   - added `tests/Unit/Domain/EntrySorting.test.ts` (5 tests).
+   - added `tests/Unit/Ui/CardMetadata.test.ts` (4 tests).
    - unit baseline increased from 49 to 58 passing tests.
 127. Completed curated-panel and controls-view cleanup after helper extraction:
    - moved select-options/loading-indicator helper ownership into typed module internals.
@@ -1033,22 +1049,22 @@ Completed in this pass:
    - `npm run build:safari`
    - `npm run arch:metrics`
 129. Regenerated architecture metrics after this pass:
-   - `extension/content.js`: `2421` lines (still refactor-level and the primary structural hotspot, now below the near-term `< 2500` target).
-   - `extension/src/domain/entry-sorting.ts`: `340` lines (within budget).
-   - `extension/src/ui/card-metadata.ts`: `339` lines (within budget).
+   - `extension/Content.js`: `2421` lines (still refactor-level and the primary structural hotspot, now below the near-term `< 2500` target).
+   - `extension/src/Domain/EntrySorting.ts`: `340` lines (within budget).
+   - `extension/src/Ui/CardMetadata.ts`: `339` lines (within budget).
    - remaining warning hotspot unchanged: `preloadWatchHistoryForEntriesInternal` (`71` lines).
-130. Extracted interface shell ownership from `content.js` into a typed runtime module:
-   - added `extension/src/runtime/interface-shell.ts`.
+130. Extracted interface shell ownership from `Content.js` into a typed runtime module:
+   - added `extension/src/Runtime/InterfaceShell.ts`.
    - moved root frame creation, tab shell wiring, native visibility coordination, and refresh cache-reset shell behaviors behind typed runtime composition.
-   - updated `extension/manifest.json` script ordering to load `src/runtime/interface-shell.js` before bootstrap.
-   - reduced `extension/content.js` from `2421 -> 2267` lines.
-131. Extracted curated card shell ownership from `content.js` into a typed UI module:
-   - added `extension/src/ui/curated-card-shell.ts`.
+   - updated `extension/manifest.json` script ordering to load `src/Runtime/InterfaceShell.js` before bootstrap.
+   - reduced `extension/Content.js` from `2421 -> 2267` lines.
+131. Extracted curated card shell ownership from `Content.js` into a typed UI module:
+   - added `extension/src/Ui/CuratedCardShell.ts`.
    - moved card header/thumb/navigation/card-shell assembly behind typed UI composition.
-   - updated `extension/manifest.json` script ordering to load `src/ui/curated-card-shell.js` before bootstrap.
-   - reduced `extension/content.js` from `2267 -> 2154` lines.
+   - updated `extension/manifest.json` script ordering to load `src/Ui/CuratedCardShell.js` before bootstrap.
+   - reduced `extension/Content.js` from `2267 -> 2154` lines.
 132. Expanded fast unit coverage for the latest extracted owners:
-   - retained `tests/unit/runtime/interface-shell.test.ts` coverage and added `tests/unit/ui/curated-card-shell.test.ts`.
+   - retained `tests/Unit/Runtime/InterfaceShell.test.ts` coverage and added `tests/Unit/Ui/CuratedCardShell.test.ts`.
    - unit baseline increased from 58 to 63 passing tests.
 133. Re-verified architecture gates after the interface-shell/card-shell extraction pass:
    - `npm run typecheck`
@@ -1061,25 +1077,25 @@ Completed in this pass:
    - `npm run build:safari`
    - `npm run arch:metrics`
 134. Regenerated architecture metrics after this pass:
-   - `extension/content.js`: `2154` lines (still refactor-level and the primary structural hotspot, now below the near-term `< 2200` target).
-   - `extension/src/runtime/interface-shell.ts`: `479` lines (within budget).
-   - `extension/src/ui/curated-card-shell.ts`: `304` lines (within budget).
+   - `extension/Content.js`: `2154` lines (still refactor-level and the primary structural hotspot, now below the near-term `< 2200` target).
+   - `extension/src/Runtime/InterfaceShell.ts`: `479` lines (within budget).
+   - `extension/src/Ui/CuratedCardShell.ts`: `304` lines (within budget).
    - remaining warning hotspot unchanged: `preloadWatchHistoryForEntriesInternal` (`71` lines).
-135. Extracted parser/sanitizer/value-derivation ownership from `content.js` into a typed domain module:
-   - added `extension/src/domain/core-primitives.ts`.
+135. Extracted parser/sanitizer/value-derivation ownership from `Content.js` into a typed domain module:
+   - added `extension/src/Domain/CorePrimitives.ts`.
    - moved rating/date/locale normalization, episode-key derivation, CMS row parsing, map normalization, display-status derivation, and series-id/title selectors behind typed domain composition.
-   - updated `extension/manifest.json` ordering to load `src/domain/core-primitives.js` before bootstrap.
-136. Extracted API contract/retry/URL helper ownership from `content.js` into a typed data module:
-   - added `extension/src/data/api-contracts.ts`.
+   - updated `extension/manifest.json` ordering to load `src/Domain/CorePrimitives.js` before bootstrap.
+136. Extracted API contract/retry/URL helper ownership from `Content.js` into a typed data module:
+   - added `extension/src/Data/ApiContracts.ts`.
    - moved retry delay parsing, retry-status policy, contract error/warning emission, payload contract guards, and API href/locale helpers behind typed data composition.
-   - updated `extension/manifest.json` ordering to load `src/data/api-contracts.js` before bootstrap.
-137. Reduced bootstrap surface after core-primitives/api-contracts delegation:
-   - reduced `extension/content.js` from `2154 -> 1604` lines.
+   - updated `extension/manifest.json` ordering to load `src/Data/ApiContracts.js` before bootstrap.
+137. Reduced bootstrap surface after core-primitives/ApiContracts delegation:
+   - reduced `extension/Content.js` from `2154 -> 1604` lines.
 138. Expanded fast unit coverage for new extracted owners:
-   - added `tests/unit/domain/core-primitives.test.ts` (3 tests).
-   - added `tests/unit/data/api-contracts.test.ts` (3 tests).
+   - added `tests/Unit/Domain/CorePrimitives.test.ts` (3 tests).
+   - added `tests/Unit/Data/ApiContracts.test.ts` (3 tests).
    - unit baseline increased from 63 to 69 passing tests.
-139. Re-verified architecture gates after the core-primitives/api-contracts extraction pass:
+139. Re-verified architecture gates after the core-primitives/ApiContracts extraction pass:
    - `npm run typecheck`
    - `npm run lint`
    - `npm run format:check`
@@ -1090,19 +1106,19 @@ Completed in this pass:
    - `npm run build:safari`
    - `npm run arch:metrics`
 140. Regenerated architecture metrics after this pass:
-   - `extension/content.js`: `1604` lines (still refactor-level and the primary structural hotspot, now below the near-term `< 2000` target).
-   - `extension/src/domain/core-primitives.ts`: `735` lines (within budget; near warning threshold).
-   - `extension/src/data/api-contracts.ts`: `321` lines (within budget).
+   - `extension/Content.js`: `1604` lines (still refactor-level and the primary structural hotspot, now below the near-term `< 2000` target).
+   - `extension/src/Domain/CorePrimitives.ts`: `735` lines (within budget; near warning threshold).
+   - `extension/src/Data/ApiContracts.ts`: `321` lines (within budget).
    - remaining warning hotspots unchanged: `createInterfaceShellContext` (`75`) and `preloadWatchHistoryForEntriesInternal` (`71`).
-141. Extracted bootstrap sort/settings configuration ownership from `content.js` into a typed runtime module:
-   - added `extension/src/runtime/bootstrap-config.ts`.
-   - updated `extension/manifest.json` ordering to load `src/runtime/bootstrap-config.js` before bootstrap.
-   - added `tests/unit/runtime/bootstrap-config.test.ts` (2 tests).
-142. Reduced `content.js` bootstrap scaffolding and indirection by:
+141. Extracted bootstrap sort/settings configuration ownership from `Content.js` into a typed runtime module:
+   - added `extension/src/Runtime/BootstrapConfig.ts`.
+   - updated `extension/manifest.json` ordering to load `src/Runtime/BootstrapConfig.js` before bootstrap.
+   - added `tests/Unit/Runtime/BootstrapConfig.test.ts` (2 tests).
+142. Reduced `Content.js` bootstrap scaffolding and indirection by:
    - replacing repetitive module method guards with a shared runtime assertion helper,
    - removing dead delegate wrappers and flattening temporary bootstrap fallback scaffolding,
    - tightening selector/path helpers and save scheduling helpers.
-143. Reduced bootstrap file size from `1604 -> 1200` lines (`extension/content.js`), bringing runtime file size out of refactor-level status and meeting the transformation DoD threshold (`no runtime source file exceeds 1200 lines`).
+143. Reduced bootstrap file size from `1604 -> 1200` lines (`extension/Content.js`), bringing runtime file size out of refactor-level status and meeting the transformation DoD threshold (`no runtime source file exceeds 1200 lines`).
 144. Re-verified architecture gates after this pass:
    - `npm run typecheck`
    - `npm run lint`
@@ -1114,14 +1130,14 @@ Completed in this pass:
    - `npm run build:safari`
    - `npm run arch:metrics`
 145. Regenerated architecture metrics after this pass:
-   - `extension/content.js`: `1200` lines (warning-level edge, no longer refactor-level).
-   - `extension/src/runtime/bootstrap-config.ts`: `121` lines.
-   - remaining warning-level structural pressure is file-level only (`content.js` at `1200`).
+   - `extension/Content.js`: `1200` lines (warning-level edge, no longer refactor-level).
+   - `extension/src/Runtime/BootstrapConfig.ts`: `121` lines.
+   - remaining warning-level structural pressure is file-level only (`Content.js` at `1200`).
 146. Cleared remaining warning-level function hotspots and strict file-size misses:
    - reduced `preloadWatchHistoryForEntriesInternal` from `71 -> 67` lines.
-   - reduced `history-repository-preload.ts` from `796 -> 783` lines.
+   - reduced `HistoryRepositoryPreload.ts` from `796 -> 783` lines.
    - split `createInterfaceShellContext` dependency assembly into focused helpers (hotspot removed).
-   - reduced `native-bridge.ts` from `611 -> 599` lines (back under strict `<= 600` target).
+   - reduced `NativeBridge.ts` from `611 -> 599` lines (back under strict `<= 600` target).
 147. Expanded architecture metrics hotspot coverage:
    - `scripts/architecture-metrics.mts` now scans function declarations plus function-expression/arrow assignments inferred from variable/property/assignment names.
 148. Hardened E2E wrapper env normalization:
@@ -1137,17 +1153,17 @@ Completed in this pass:
    - `npm run build:webext`
    - `npm run build:safari`
    - `npm run arch:metrics`
-150. Extracted bootstrap runtime helper ownership from `content.js`:
-   - added `extension/src/runtime/bootstrap-helpers.ts`.
+150. Extracted bootstrap runtime helper ownership from `Content.js`:
+   - added `extension/src/Runtime/BootstrapHelpers.ts`.
    - delegated save scheduling, preferred-audio cache detection, localized preload orchestration, curated favorite/removal actions, watch-ready/media checks, observer muting, card-layout UI application, and settings persistence to the extracted owner.
-   - reduced `extension/content.js` from `1200 -> 1116` lines.
+   - reduced `extension/Content.js` from `1200 -> 1116` lines.
 151. Added unit coverage for the new bootstrap helper owner:
-   - added `tests/unit/runtime/bootstrap-helpers.test.ts` for preferred-audio cache behavior, locale preload dedupe, scheduled persistence, and curated-entry mutation actions.
+   - added `tests/Unit/Runtime/BootstrapHelpers.test.ts` for preferred-audio cache behavior, locale preload dedupe, scheduled persistence, and curated-entry mutation actions.
    - updated unit baseline to `75` tests passing.
-152. Extracted runtime trace ownership from `content.js`:
-   - added `extension/src/runtime/runtime-trace.ts`.
+152. Extracted runtime trace ownership from `Content.js`:
+   - added `extension/src/Runtime/RuntimeTrace.ts`.
    - delegated runtime event history and API trace ring-buffer ownership out of bootstrap.
-   - reduced `extension/content.js` from `1116 -> 1072` lines.
+   - reduced `extension/Content.js` from `1116 -> 1072` lines.
 153. Hardened architecture progress signal quality:
    - updated `scripts/architecture-metrics.mts` opportunities to include warning-threshold pressure (not only refactor-threshold violations), improving early visibility of growth risk.
 154. Re-verified architecture gates after the runtime-trace and metrics updates:
@@ -1160,10 +1176,10 @@ Completed in this pass:
    - `npm run build:webext`
    - `npm run build:safari`
    - `npm run arch:metrics`
-155. Extracted bootstrap module-resolution and runtime gate ownership from `content.js`:
-   - added `extension/src/runtime/bootstrap-modules.ts` and `extension/src/runtime/bootstrap-gate.ts`.
+155. Extracted bootstrap module-resolution and runtime gate ownership from `Content.js`:
+   - added `extension/src/Runtime/BootstrapModules.ts` and `extension/src/Runtime/BootstrapGate.ts`.
    - updated `extension/manifest.json` ordering to load both modules before bootstrap.
-   - reduced `extension/content.js` from `1072 -> 999` lines.
+   - reduced `extension/Content.js` from `1072 -> 999` lines.
 156. Expanded unit coverage for remaining runtime/data owners:
    - added tests for bootstrap modules/gate, state-loader, route-lifecycle, and auth-client.
    - unit baseline increased from `79 -> 91` passing tests.
@@ -1171,12 +1187,12 @@ Completed in this pass:
    - added `scripts/live-runtime-smoke.mts` and package script `pw:live:smoke`.
    - added CI enforcement for live runtime smoke parity in `.github/workflows/build-extensions.yml`.
 158. Hardened ad-hoc Playwright bypass behavior:
-   - updated `tests/helpers/extension-fixture.ts` to require explicit `EXTENSION_RUNTIME_DIR` for direct playwright runs.
+   - updated `tests/Helpers/ExtensionFixture.ts` to require explicit `EXTENSION_RUNTIME_DIR` for direct playwright runs.
 159. Reduced toolchain warning friction:
    - added `scripts/lint-firefox.mts` and routed `lint:firefox` through it to suppress transitive `web-ext`/Node deprecation warning noise in routine runs.
 160. Decomposed bootstrap module hotspot and calibrated metrics signal:
    - split `createBootstrapModules` into focused resolver helpers (removed final refactor-threshold function hotspot).
-   - added per-file budget override support in `scripts/architecture-metrics.mts` for transitional composition roots (`extension/content.js` warning threshold set to `> 1000` while refactor threshold stays `> 1200`).
+   - added per-file budget override support in `scripts/architecture-metrics.mts` for transitional composition roots (`extension/Content.js` warning threshold set to `> 1000` while refactor threshold stays `> 1200`).
 161. Re-verified full architecture gate chain after these updates:
    - `npm run pw:live:smoke`
    - `npm run lint:firefox`
@@ -1189,11 +1205,11 @@ Completed in this pass:
    - `npm run test:unit` (91 passed)
    - `npm run arch:metrics`
 162. Expanded remaining high-value runtime/data unit coverage:
-   - added `tests/unit/data/ratings-client.test.ts` for batch normalization and cms->legacy->series-page fallback sequencing.
-   - added `tests/unit/runtime/native-bridge.test.ts` for native action-forwarding contract behavior.
+   - added `tests/Unit/Data/RatingsClient.test.ts` for batch normalization and cms->legacy->series-page fallback sequencing.
+   - added `tests/Unit/Runtime/NativeBridge.test.ts` for native action-forwarding contract behavior.
    - unit baseline increased from `91 -> 97` passing tests.
 163. Fixed fallback rating parsing edge case discovered by new coverage:
-   - updated `parseSeriesPageRatingPayload` in `extension/src/data/ratings-client.ts` to normalize plain and escaped decimal rating forms.
+   - updated `parseSeriesPageRatingPayload` in `extension/src/Data/RatingsClient.ts` to normalize plain and escaped decimal rating forms.
    - this prevents series-page fallback ratings from truncating decimal values during parse.
 164. Re-verified type/lint/unit gates after coverage and fallback parsing updates:
    - `npm run typecheck`
@@ -1217,15 +1233,68 @@ Completed in this pass:
    - `npm run format:check`
    - `npm run test:unit` (97 passed)
    - `npm run arch:metrics`
+168. Standardized source/test naming to PascalCase:
+   - renamed source-owner folders/files under `extension/src/**` to PascalCase segments (`Runtime`, `Data`, `Domain`, `Ui`, and module files).
+   - renamed extension entry assets to `extension/Content.js` and `extension/Content.css`.
+   - renamed test fixtures/helpers/unit suites to PascalCase stems and folder segments under `tests/**`.
+169. Rewired runtime, build, and test composition roots for renamed paths:
+   - updated `extension/manifest.json` runtime module ordering to PascalCase paths.
+   - updated scripts/tooling references (`build-extension-runtime`, `live-runtime-smoke`, `live-webkit-watchlist`, metrics, tsconfig, Vitest, Playwright wiring).
+   - updated fixture server and unit module-loader path references to match PascalCase module paths.
+170. Resolved migration friction introduced during rename sweep:
+   - corrected manifest contract key usage (`content_scripts`) across runtime/test tooling.
+   - corrected API endpoint/request casing and Playwright route-fulfill option casing regressions (`contentType`, `domcontentloaded`).
+   - restored fixture-server route and fixture-file lookups to behavior-parity paths.
+171. Re-verified architecture gates after naming migration and friction fixes:
+   - `npm run pw:live:smoke`
+   - `npm run lint:firefox`
+   - `npm run test:e2e` (75 passed)
+   - `npm run build:webext`
+   - `npm run build:safari`
+   - `npm run typecheck`
+   - `npm run lint`
+   - `npm run format`
+   - `npm run format:check`
+   - `npm run test:unit` (97 passed)
+   - `npm run arch:metrics`
+172. Updated agent operating standards for maintainability:
+   - expanded `AGENTS.md` structure tree to current folder/module layout.
+   - added explicit PascalCase source/test naming standard and root-anchor exceptions.
+   - retained function-change guardrails: high-value unit test validation first and high-value comments only when needed.
+173. Reduced composition-root bootstrap friction by extracting finalization ownership:
+   - added `extension/src/Runtime/BootstrapFinalize.ts` for storage accessors, safe JSON parsing, lifecycle/state-loader wiring, and init/debug-API exposure.
+   - updated `extension/manifest.json` module order to load `Runtime/BootstrapFinalize.js` before `Content.js`.
+   - reduced `extension/Content.js` from `999 -> 891` lines while preserving behavior parity.
+174. Hardened schema-first boundary handling in data owners:
+   - `extension/src/Data/RatingsRepository.ts` now normalizes unknown single/batch payload roots and emits explicit `ratings-contract-warning` events for malformed boundary data.
+   - `extension/src/Data/PreviewRepository.ts` now emits explicit `preview-contract-warning` events for invalid JSON/payload roots and uses extracted helpers to keep preview-fetch flow deterministic.
+175. Expanded high-value unit coverage for boundary-heavy data/runtime owners:
+   - added `tests/Unit/Data/RatingsRepository.test.ts` for malformed payload normalization, contract-warning emission, and typed batch value coercion.
+   - added `tests/Unit/Data/PreviewRepository.test.ts` for invalid payload contracts, inflight dedupe, and missing-stream guard behavior.
+   - added `tests/Unit/Runtime/BootstrapFinalize.test.ts` for storage accessor delegation, parse fallback behavior, and init wiring/debug API exposure.
+   - unit baseline increased from `97 -> 107` passing tests.
+176. Re-verified architecture gates after bootstrap extraction + boundary hardening + test expansion:
+   - `npm run typecheck`
+   - `npm run lint`
+   - `npm run format`
+   - `npm run format:check`
+   - `npm run test:unit` (107 passed)
+   - `npm run pw:live:smoke`
+   - `npm run lint:firefox`
+   - `npm run test:e2e` (75 passed)
+   - `npm run build:webext`
+   - `npm run build:safari`
+   - `npm run arch:metrics`
 
 Observed new/confirmed opportunities:
 
-1. `extension/content.js` is now `1000` lines; keep reducing toward `< 900` so the composition-root exception can eventually be retired.
-2. `history-repository-preload.ts` (`783`) remains near warning threshold and should preserve headroom under `800`.
-3. `core-primitives.ts` (`735`) remains broad and should be kept from drifting toward warning-level size.
-4. Unit coverage now spans runtime/data/domain/UI owners with 97 passing unit tests (including state-loader, route-lifecycle, auth-client, bootstrap-modules, bootstrap-gate, ratings-client, and native-bridge action forwarding); next leverage is deeper ratings-repository and preview-session edge paths.
+1. `extension/Content.js` is now `891` lines; next leverage is reducing toward `<= 800` so the composition-root exception can continue shrinking toward retirement.
+2. `HistoryRepositoryPreload.ts` (`783`) remains near warning threshold and should preserve headroom under `800`.
+3. `CorePrimitives.ts` (`735`) remains broad and should be kept from drifting toward warning-level size.
+4. Unit coverage now spans runtime/data/domain/UI owners with 107 passing unit tests, including ratings-repository, preview-repository, and bootstrap-finalize boundaries.
 5. Dependency/tooling hygiene remains open (`web-ext` major review path and audit follow-up work).
 6. Metrics hotspot scanning now covers declarations plus function expressions/arrows with calibrated composition-root thresholds; continue tuning only if report noise regresses.
+7. Naming-standard drift risk is now concentrated at composition roots (`manifest.json`, test fixture loader, runtime smoke checks); keep these path contracts explicitly validated in unit/fixture tests.
 
 ## 11) Research Inputs (2026-02-23)
 
@@ -1240,7 +1309,7 @@ Primary-source references used for migration direction:
    - [ESLint flat config](https://eslint.org/docs/latest/use/configure/configuration-files)
    - [typescript-eslint typed linting](https://typescript-eslint.io/getting-started/typed-linting/)
 3. Runtime/tooling compatibility:
-   - [Playwright TypeScript support](https://playwright.dev/docs/test-typescript)
+   - [Playwright TypeScript support](https://Playwright.dev/docs/test-typescript)
    - [esbuild TypeScript support](https://esbuild.github.io/content-types/#typescript)
 
 ### 11.1) Test Runner Decision (2026-02-24)
@@ -1256,29 +1325,29 @@ Why this is the better fit for current architecture direction:
 
 ## 12) Immediate Next Priorities (Post-Review)
 
-1. Keep `extension/content.js` at or below `1000` lines and continue reducing toward `< 900` without re-centralizing owner logic.
-2. Keep `history-repository-preload.ts` (`783`) and `core-primitives.ts` (`735`) stable under warning thresholds while preserving headroom.
-3. Expand unit coverage from the current 97-test baseline into deeper ratings-repository and preview-session edge paths to keep feedback fast as refactors continue.
-4. Expand quality stack coverage:
+1. Keep `extension/Content.js` at or below `891` lines and continue reducing toward `<= 800` without re-centralizing owner logic.
+2. Keep `HistoryRepositoryPreload.ts` (`783`) and `CorePrimitives.ts` (`735`) stable under warning thresholds while preserving headroom.
+3. Expand quality stack coverage:
    - keep Biome scope repo-wide and tighten rule strictness incrementally,
-   - add schema-validation safeguards at API boundaries where unknown payloads enter typed owners.
-5. Continue toolchain/dependency hygiene (`web-ext` major review path, transitive deprecation monitoring, and audit follow-up work).
+   - extend schema-validation safeguards to remaining data boundaries where unknown payloads enter typed owners.
+4. Continue toolchain/dependency hygiene (`web-ext` major review path, transitive deprecation monitoring, and audit follow-up work).
+5. Add typed fixture payload builders for fixture-server routes to reduce payload drift and improve test maintainability.
 6. Keep existing runtime gates (`typecheck`, `lint`, `format:check`, `test:unit`, `pw:live:smoke`, `lint:firefox`, `test:e2e`, `build:webext`, `build:safari`, `arch:metrics`) mandatory.
 
 ## 13) Prioritized Execution Queue (Reviewed 2026-02-24)
 
 Use this order for the next implementation cycle:
 
-1. Priority 0 (Do First): reduce `extension/content.js` from `1000` toward `< 900` while preserving composition-only responsibilities.
+1. Priority 0 (Do First): reduce `extension/Content.js` from `891` toward `<= 800` while preserving composition-only responsibilities.
    - Success signal: bootstrap keeps shrinking without reintroducing owner logic.
-2. Priority 0 (Do Second): expand fast unit coverage for deeper ratings-repository and preview-session edge scenarios.
-   - Success signal: highest-risk regressions fail in unit scope before E2E.
-3. Priority 1 (Do Third): harden schema-first contracts at external payload boundaries.
+2. Priority 1 (Do Second): harden schema-first contracts at remaining external payload boundaries (watchlist/history) to match ratings/preview depth.
    - Success signal: contract-drift handling becomes explicit and typed at each boundary module.
-4. Priority 1 (Do Fourth): finalize dependency/toolchain hygiene (`web-ext` major review path + audit actions).
+3. Priority 1 (Do Third): finalize dependency/toolchain hygiene (`web-ext` major review path + audit actions).
    - Success signal: deterministic artifact parity remains while dependency risk is reduced.
-5. Priority 2 (Do Fifth): protect near-threshold owner files (`history-repository-preload.ts`, `core-primitives.ts`) from line-count drift.
+4. Priority 2 (Do Fourth): protect near-threshold owner files (`HistoryRepositoryPreload.ts`, `CorePrimitives.ts`) from line-count drift.
    - Success signal: both stay under warning thresholds with measurable headroom.
+5. Priority 2 (Do Fifth): add typed fixture payload builders for server routes.
+   - Success signal: fixture contract changes become explicit and easier to review.
 6. Priority 2 (Do Sixth): continue CI throughput improvements without reducing cross-browser/Safari confidence.
    - Success signal: wall-clock CI time trends down while all architecture gates stay mandatory.
 
@@ -1290,25 +1359,25 @@ Definition-of-done check:
 
 1. Runtime architecture follows standards layering: met.
 2. No refactor-threshold runtime function hotspots remain: met.
-3. No runtime source file exceeds `1200` lines: met (`extension/content.js` now `1000`).
+3. No runtime source file exceeds `1200` lines: met (`extension/Content.js` now `891`).
 4. Cross-browser/Safari build and test gates are green: met.
 5. Architecture docs reflect implemented module ownership and boundaries: met.
 6. TypeScript/lint/format/unit gates are active and green: met.
 
 Post-100 hardening backlog (not blockers for transformation completion):
 
-1. `extension/content.js` remains above the long-term runtime target (`<= 600`) despite being within transitional composition-root budget (`1000`).
-2. `history-repository-preload.ts` (`783`) and `core-primitives.ts` (`735`) remain near warning thresholds and need headroom protection.
-3. Unit coverage is still growing for deeper ratings-repository and preview-session edge paths.
-4. Schema-first validation coverage is not yet uniform across every external payload boundary.
+1. `extension/Content.js` remains above the long-term runtime target (`<= 600`) despite improving to `891`.
+2. `HistoryRepositoryPreload.ts` (`783`) and `CorePrimitives.ts` (`735`) remain near warning thresholds and need headroom protection.
+3. Schema-first validation coverage is not yet uniform across every external payload boundary.
+4. Typed fixture payload builders are not yet implemented for all fixture-server routes.
 5. Dependency/toolchain hygiene remains open (`web-ext` major path + audit follow-ups).
 
 Current blocker status:
 
 - No hard blocker is currently preventing progress.
 - Highest-friction items are:
-  - `extension/content.js` at transitional-budget ceiling (`1000`) and still above long-term target (`<= 600`),
-  - near-threshold `history-repository-preload.ts` (`783`) and `core-primitives.ts` (`735`) surfaces,
-  - still-growing unit coverage for deeper ratings-repository and preview-session edge paths,
-  - boundary schema-validation depth is uneven across data-access owners,
+  - `extension/Content.js` still above long-term target (`<= 600`) even after reduction to `891`,
+  - near-threshold `HistoryRepositoryPreload.ts` (`783`) and `CorePrimitives.ts` (`735`) surfaces,
+  - boundary schema-validation depth is still uneven across data-access owners outside ratings/preview,
+  - fixture-server route payload contracts still rely on ad hoc object literals,
   - remaining dependency/toolchain hygiene follow-ups (`web-ext` major path and audit actions).

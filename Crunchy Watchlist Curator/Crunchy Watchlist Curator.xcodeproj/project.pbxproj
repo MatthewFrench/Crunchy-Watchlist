@@ -29,12 +29,12 @@
 		C85B09552F4A30020074A3BE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C85B09152F4A30020074A3BE /* Assets.xcassets */; };
 		C85B09562F4A30020074A3BE /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C85B09172F4A30020074A3BE /* SafariWebExtensionHandler.swift */; };
 		C85B09572F4A30020074A3BE /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C85B09172F4A30020074A3BE /* SafariWebExtensionHandler.swift */; };
-		C85B096C2F4A30030074A3BE /* content.css in Resources */ = {isa = PBXBuildFile; fileRef = C85B09692F4A30030074A3BE /* content.css */; };
+		C85B096C2F4A30030074A3BE /* Content.css in Resources */ = {isa = PBXBuildFile; fileRef = C85B09692F4A30030074A3BE /* Content.css */; };
 		C85B096D2F4A30030074A3BE /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = C85B096A2F4A30030074A3BE /* manifest.json */; };
-		C85B096E2F4A30030074A3BE /* content.js in Resources */ = {isa = PBXBuildFile; fileRef = C85B096B2F4A30030074A3BE /* content.js */; };
-		C85B096F2F4A30030074A3BE /* content.css in Resources */ = {isa = PBXBuildFile; fileRef = C85B09692F4A30030074A3BE /* content.css */; };
+		C85B096E2F4A30030074A3BE /* Content.js in Resources */ = {isa = PBXBuildFile; fileRef = C85B096B2F4A30030074A3BE /* Content.js */; };
+		C85B096F2F4A30030074A3BE /* Content.css in Resources */ = {isa = PBXBuildFile; fileRef = C85B09692F4A30030074A3BE /* Content.css */; };
 		C85B09702F4A30030074A3BE /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = C85B096A2F4A30030074A3BE /* manifest.json */; };
-		C85B09712F4A30030074A3BE /* content.js in Resources */ = {isa = PBXBuildFile; fileRef = C85B096B2F4A30030074A3BE /* content.js */; };
+		C85B09712F4A30030074A3BE /* Content.js in Resources */ = {isa = PBXBuildFile; fileRef = C85B096B2F4A30030074A3BE /* Content.js */; };
 		C85B09752F4A30030074A3BE /* icons in Resources */ = {isa = PBXBuildFile; fileRef = C85B09742F4A30030074A3BE /* icons */; };
 		C85B09762F4A30030074A3BE /* icons in Resources */ = {isa = PBXBuildFile; fileRef = C85B09742F4A30030074A3BE /* icons */; };
 /* End PBXBuildFile section */
@@ -103,9 +103,9 @@
 		C85B093F2F4A30020074A3BE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C85B09442F4A30020074A3BE /* Crunchy Watchlist Curator Extension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Crunchy Watchlist Curator Extension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		C85B09492F4A30020074A3BE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		C85B09692F4A30030074A3BE /* content.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; name = content.css; path = ../../extension/content.css; sourceTree = "<group>"; };
+		C85B09692F4A30030074A3BE /* Content.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; name = Content.css; path = ../../extension/Content.css; sourceTree = "<group>"; };
 		C85B096A2F4A30030074A3BE /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = manifest.json; path = ../../extension/manifest.json; sourceTree = "<group>"; };
-		C85B096B2F4A30030074A3BE /* content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = content.js; path = ../../extension/content.js; sourceTree = "<group>"; };
+		C85B096B2F4A30030074A3BE /* Content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = Content.js; path = ../../extension/Content.js; sourceTree = "<group>"; };
 		C85B09742F4A30030074A3BE /* icons */ = {isa = PBXFileReference; lastKnownFileType = folder; name = icons; path = ../../extension/icons; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -236,9 +236,9 @@
 		C85B09682F4A30030074A3BE /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				C85B09692F4A30030074A3BE /* content.css */,
+				C85B09692F4A30030074A3BE /* Content.css */,
 				C85B096A2F4A30030074A3BE /* manifest.json */,
-				C85B096B2F4A30030074A3BE /* content.js */,
+				C85B096B2F4A30030074A3BE /* Content.js */,
 				C85B09742F4A30030074A3BE /* icons */,
 			);
 			name = Resources;
@@ -406,10 +406,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C85B09712F4A30030074A3BE /* content.js in Resources */,
+				C85B09712F4A30030074A3BE /* Content.js in Resources */,
 				C85B09752F4A30030074A3BE /* icons in Resources */,
 				C85B09702F4A30030074A3BE /* manifest.json in Resources */,
-				C85B096F2F4A30030074A3BE /* content.css in Resources */,
+				C85B096F2F4A30030074A3BE /* Content.css in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -417,10 +417,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C85B096E2F4A30030074A3BE /* content.js in Resources */,
+				C85B096E2F4A30030074A3BE /* Content.js in Resources */,
 				C85B09762F4A30030074A3BE /* icons in Resources */,
 				C85B096D2F4A30030074A3BE /* manifest.json in Resources */,
-				C85B096C2F4A30030074A3BE /* content.css in Resources */,
+				C85B096C2F4A30030074A3BE /* Content.css in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

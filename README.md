@@ -45,7 +45,7 @@ People open their watchlists, see too many titles, and end up re-sorting mentall
 
 - **Works on**: Chromium, Edge, Firefox, Safari (via macOS wrapper)
 - **Goal**: Make watchlist browsing fast and intentional
-- **Mode**: Browser extension (`content.js` + `content.css`)
+- **Mode**: Browser extension (`Content.js` + `Content.css`)
 - **License**: GPL-3.0-only
 - **Type**: Unofficial community project (not affiliated with Crunchyroll)
 
@@ -167,8 +167,8 @@ This means sorting stays stable and fast even with large lists.
 ## Files that matter
 
 - `extension/manifest.json`
-- `extension/content.js`
-- `extension/content.css`
+- `extension/Content.js`
+- `extension/Content.css`
 - `scripts/*` (build / release tooling)
 - `tests/*` (e2e + fixtures)
 - `docs/*` (installation, release, and findings)
