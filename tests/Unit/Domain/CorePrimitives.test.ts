@@ -15,7 +15,10 @@ type CorePrimitivesModule = {
   createCorePrimitives: (deps: Record<string, unknown>) => CorePrimitivesRuntime
 }
 
-const moduleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Domain', 'CorePrimitives.ts')).href
+const coreModuleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Domain', 'CorePrimitives.ts')).href
+const episodeModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Domain', 'EpisodePrimitives.ts'),
+).href
 
 function getCorePrimitivesModule(): CorePrimitivesModule {
   const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
@@ -40,7 +43,7 @@ function createCorePrimitivesRuntime(): CorePrimitivesRuntime {
 
 describe('core-primitives domain module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([moduleUrl])
+    await loadRuntimeModules([episodeModuleUrl, coreModuleUrl])
   })
 
   afterEach(() => {

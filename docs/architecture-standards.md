@@ -260,6 +260,7 @@ Current-state findings from this repository:
    - `extension/src/Data/HistoryRepositoryPreload.ts`
    - `extension/src/Data/HistoryRepository.ts`
    - `extension/src/Data/PreviewRepository.ts`
+   - `extension/src/Domain/EpisodePrimitives.ts`
    - `extension/src/Domain/CorePrimitives.ts`
    - `extension/src/Domain/ImageVariants.ts`
    - `extension/src/Domain/EntryNormalizer.ts`
@@ -332,7 +333,7 @@ Current-state findings from this repository:
    - `createControlsView`: `106 -> 8` lines
 6. Current hotspots to monitor include:
    - `extension/Content.js` file size (`892` lines; below `< 900` next-cycle target but still above long-term target)
-   - `extension/src/Domain/CorePrimitives.ts` file size (`735` lines, largest remaining runtime owner file)
+   - `extension/src/Domain/CorePrimitives.ts` file size (`639` lines, improved after episode-primitives extraction and still above strict target)
    - architecture metrics currently report no warning-level file/function hotspots.
 7. Playwright coverage is split into concern-specific spec files with shared helpers, and each spec file is within size budget.
 8. Current strengths to preserve:
@@ -357,7 +358,7 @@ Current-state findings from this repository:
    - `npm run typecheck`
    - `npm run lint`
    - `npm run format:check`
-   - `npm run test:unit` (120 passed)
+   - `npm run test:unit` (123 passed)
    - `npm run pw:live:smoke`
    - `npm run lint:firefox`
    - `npm run test:e2e` (78 passed)

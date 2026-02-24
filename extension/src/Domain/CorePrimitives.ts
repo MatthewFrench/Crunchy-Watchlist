@@ -17,6 +17,25 @@
 
   type CountType = 'season' | 'episode'
 
+  type EpisodePrimitivesDeps = {
+    sanitizePositiveInt: (value: unknown) => number | null
+    pickFirstPositiveInt: (values: unknown[]) => number | null
+    normalizeAudioLocale: (locale: unknown) => string | null
+    normalizeAudioLocaleCountMap: (value: unknown) => Record<string, number>
+  }
+
+  type EpisodePrimitivesRuntime = {
+    extractSeasonCoreFromSeasonId: (value: unknown) => number | null
+    parseCanonicalEpisodeIdentifier: (
+      value: unknown,
+    ) => { seriesId: string; seasonCore: number; episodeNumber: number; canonicalEpisodeKey: string } | null
+    buildCanonicalEpisodeKey: (seriesId: unknown, seasonCore: unknown, episodeNumber: unknown) => string | null
+    deriveCanonicalEpisodeKeyFromEpisodeMetadata: (meta: unknown, fallbackSeriesId?: unknown) => string | null
+    getAbsoluteEpisodeNumberFromEpisodeMetadata: (meta: unknown) => number | null
+    getEpisodeAvailabilityByAudioLocale: (meta: unknown) => Record<string, number>
+    mergeEpisodeAvailabilityByAudioLocale: (previousMap: unknown, nextMap: unknown) => Record<string, number>
+  }
+
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
     root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
@@ -37,6 +56,40 @@
         deps.extractCoverImagesFromApiImages,
       ) as CorePrimitivesContext['extractCoverImagesFromApiImages'],
     }
+  }
+
+  function createEpisodePrimitivesRuntime(deps: EpisodePrimitivesDeps): EpisodePrimitivesRuntime {
+    const domainRegistry =
+      moduleRegistry.domain && typeof moduleRegistry.domain === 'object'
+        ? (moduleRegistry.domain as Record<string, unknown>)
+        : {}
+    const episodePrimitivesModule =
+      domainRegistry.episodePrimitives && typeof domainRegistry.episodePrimitives === 'object'
+        ? (domainRegistry.episodePrimitives as Record<string, unknown>)
+        : {}
+    const createEpisodePrimitives = episodePrimitivesModule.createEpisodePrimitives
+    if (typeof createEpisodePrimitives !== 'function') {
+      throw new Error('[CW] Missing primitive dependency: createEpisodePrimitives')
+    }
+    const runtime = (createEpisodePrimitives as (deps: EpisodePrimitivesDeps) => unknown)(
+      deps,
+    ) as Partial<EpisodePrimitivesRuntime>
+    const requiredMethods = [
+      'extractSeasonCoreFromSeasonId',
+      'parseCanonicalEpisodeIdentifier',
+      'buildCanonicalEpisodeKey',
+      'deriveCanonicalEpisodeKeyFromEpisodeMetadata',
+      'getAbsoluteEpisodeNumberFromEpisodeMetadata',
+      'getEpisodeAvailabilityByAudioLocale',
+      'mergeEpisodeAvailabilityByAudioLocale',
+    ] as const
+    for (const methodName of requiredMethods) {
+      if (typeof runtime?.[methodName] !== 'function') {
+        throw new Error(`[CW] Missing episode primitive method: ${methodName}`)
+      }
+    }
+
+    return runtime as EpisodePrimitivesRuntime
   }
 
   function sanitizeRating(value: unknown): number | null {
@@ -398,166 +451,6 @@
     return sanitizePositiveInt(normalizedMap[locale.toLowerCase()])
   }
 
-  function extractSeasonCoreFromSeasonId(value: unknown): number | null {
-    if (value == null) {
-      return null
-    }
-
-    const text = String(value).trim()
-    if (!text) {
-      return null
-    }
-
-    const seasonIdMatch = text.match(/^GS(\d+)(?:[A-Z]{4})?$/i)
-    if (seasonIdMatch?.[1]) {
-      return sanitizePositiveInt(seasonIdMatch[1])
-    }
-
-    const compactMatch = text.match(/^S(\d+)$/i)
-    if (compactMatch?.[1]) {
-      return sanitizePositiveInt(compactMatch[1])
-    }
-
-    return null
-  }
-
-  function parseCanonicalEpisodeIdentifier(
-    value: unknown,
-  ): { seriesId: string; seasonCore: number; episodeNumber: number; canonicalEpisodeKey: string } | null {
-    if (value == null) {
-      return null
-    }
-
-    const text = String(value).trim()
-    if (!text) {
-      return null
-    }
-
-    const match = text.match(/^([^|]+)\|S(\d+)\|E(\d+)$/i)
-    if (!match) {
-      return null
-    }
-
-    const seriesId = String(match[1] || '').trim()
-    const seasonCore = sanitizePositiveInt(match[2])
-    const episodeNumber = sanitizePositiveInt(match[3])
-
-    if (!seriesId || seasonCore == null || episodeNumber == null) {
-      return null
-    }
-
-    return {
-      seriesId,
-      seasonCore,
-      episodeNumber,
-      canonicalEpisodeKey: `${seriesId}|S${seasonCore}|E${episodeNumber}`,
-    }
-  }
-
-  function buildCanonicalEpisodeKey(seriesId: unknown, seasonCore: unknown, episodeNumber: unknown): string | null {
-    const normalizedSeriesId = typeof seriesId === 'string' ? seriesId.trim() : ''
-    const normalizedSeasonCore = sanitizePositiveInt(seasonCore)
-    const normalizedEpisodeNumber = sanitizePositiveInt(episodeNumber)
-
-    if (!normalizedSeriesId || normalizedSeasonCore == null || normalizedEpisodeNumber == null) {
-      return null
-    }
-
-    return `${normalizedSeriesId}|S${normalizedSeasonCore}|E${normalizedEpisodeNumber}`
-  }
-
-  function deriveCanonicalEpisodeKeyFromEpisodeMetadata(
-    meta: unknown,
-    fallbackSeriesId: unknown = null,
-  ): string | null {
-    const metadata = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {}
-    const parsedIdentifier = parseCanonicalEpisodeIdentifier(metadata.identifier)
-    if (parsedIdentifier) {
-      if (!fallbackSeriesId || parsedIdentifier.seriesId === fallbackSeriesId) {
-        return parsedIdentifier.canonicalEpisodeKey
-      }
-    }
-
-    const seriesId =
-      typeof fallbackSeriesId === 'string' && fallbackSeriesId
-        ? fallbackSeriesId
-        : typeof metadata.series_id === 'string'
-          ? metadata.series_id
-          : ''
-    const seasonCore = pickFirstPositiveInt([
-      extractSeasonCoreFromSeasonId(metadata.season_id),
-      sanitizePositiveInt(metadata.season_number),
-    ])
-    const episodeNumber = sanitizePositiveInt(metadata.episode_number)
-
-    return buildCanonicalEpisodeKey(seriesId, seasonCore, episodeNumber)
-  }
-
-  function getAbsoluteEpisodeNumberFromEpisodeMetadata(meta: unknown): number | null {
-    const metadata = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {}
-    const seasonNumber = sanitizePositiveInt(metadata.season_number)
-    const episodeNumber = sanitizePositiveInt(metadata.episode_number)
-    return pickFirstPositiveInt([
-      sanitizePositiveInt(metadata.sequence_number),
-      sanitizePositiveInt(metadata.episode_sequence_number),
-      sanitizePositiveInt(metadata.global_episode_number),
-      sanitizePositiveInt(metadata.global_episode_num),
-      seasonNumber === 1 ? episodeNumber : null,
-    ])
-  }
-
-  function getEpisodeAvailabilityByAudioLocale(meta: unknown): Record<string, number> {
-    const metadata = meta && typeof meta === 'object' ? (meta as Record<string, unknown>) : {}
-    const absoluteEpisodeNumber = getAbsoluteEpisodeNumberFromEpisodeMetadata(metadata)
-    if (absoluteEpisodeNumber == null) {
-      return {}
-    }
-
-    const byAudioLocale: Record<string, number> = {}
-    const panelAudioLocale = normalizeAudioLocale(metadata.audio_locale)
-    if (panelAudioLocale) {
-      byAudioLocale[panelAudioLocale.toLowerCase()] = absoluteEpisodeNumber
-    }
-
-    if (Array.isArray(metadata.versions)) {
-      for (const version of metadata.versions) {
-        const record = version && typeof version === 'object' ? (version as Record<string, unknown>) : {}
-        const locale = normalizeAudioLocale(record.audio_locale)
-        if (!locale) {
-          continue
-        }
-
-        const localeKey = locale.toLowerCase()
-        const previous = sanitizePositiveInt(byAudioLocale[localeKey]) ?? 0
-        byAudioLocale[localeKey] = Math.max(previous, absoluteEpisodeNumber)
-      }
-    }
-
-    return byAudioLocale
-  }
-
-  function mergeEpisodeAvailabilityByAudioLocale(previousMap: unknown, nextMap: unknown): Record<string, number> {
-    const merged = { ...normalizeAudioLocaleCountMap(previousMap) }
-    if (!nextMap || typeof nextMap !== 'object' || Array.isArray(nextMap)) {
-      return merged
-    }
-
-    const entries = Object.entries(nextMap as Record<string, unknown>)
-    for (const [localeKey, value] of entries) {
-      const locale = normalizeAudioLocale(localeKey)
-      const absoluteEpisodeNumber = sanitizePositiveInt(value)
-      if (!locale || absoluteEpisodeNumber == null) {
-        continue
-      }
-
-      const storageKey = locale.toLowerCase()
-      const previous = sanitizePositiveInt(merged[storageKey]) ?? 0
-      merged[storageKey] = Math.max(previous, absoluteEpisodeNumber)
-    }
-
-    return merged
-  }
-
   function chunkArray(values: unknown, chunkSize: unknown): unknown[][] {
     if (!Array.isArray(values) || !values.length || Number(chunkSize) <= 0) {
       return []
@@ -684,6 +577,12 @@
 
   function createCorePrimitives(deps: CorePrimitivesDeps = {}) {
     const context = createCorePrimitivesContext(deps)
+    const episodePrimitives = createEpisodePrimitivesRuntime({
+      sanitizePositiveInt,
+      pickFirstPositiveInt,
+      normalizeAudioLocale,
+      normalizeAudioLocaleCountMap,
+    })
     return {
       sanitizeRating,
       sanitizeVotes,
@@ -703,13 +602,18 @@
       normalizeAudioLocaleCountMap,
       mergeAudioLocaleCountMap,
       getAudioLocaleCountFromMap,
-      extractSeasonCoreFromSeasonId,
-      parseCanonicalEpisodeIdentifier,
-      buildCanonicalEpisodeKey,
-      deriveCanonicalEpisodeKeyFromEpisodeMetadata,
-      getAbsoluteEpisodeNumberFromEpisodeMetadata,
-      getEpisodeAvailabilityByAudioLocale,
-      mergeEpisodeAvailabilityByAudioLocale,
+      extractSeasonCoreFromSeasonId: (value: unknown) => episodePrimitives.extractSeasonCoreFromSeasonId(value),
+      parseCanonicalEpisodeIdentifier: (value: unknown) => episodePrimitives.parseCanonicalEpisodeIdentifier(value),
+      buildCanonicalEpisodeKey: (seriesId: unknown, seasonCore: unknown, episodeNumber: unknown) =>
+        episodePrimitives.buildCanonicalEpisodeKey(seriesId, seasonCore, episodeNumber),
+      deriveCanonicalEpisodeKeyFromEpisodeMetadata: (meta: unknown, fallbackSeriesId: unknown = null) =>
+        episodePrimitives.deriveCanonicalEpisodeKeyFromEpisodeMetadata(meta, fallbackSeriesId),
+      getAbsoluteEpisodeNumberFromEpisodeMetadata: (meta: unknown) =>
+        episodePrimitives.getAbsoluteEpisodeNumberFromEpisodeMetadata(meta),
+      getEpisodeAvailabilityByAudioLocale: (meta: unknown) =>
+        episodePrimitives.getEpisodeAvailabilityByAudioLocale(meta),
+      mergeEpisodeAvailabilityByAudioLocale: (previousMap: unknown, nextMap: unknown) =>
+        episodePrimitives.mergeEpisodeAvailabilityByAudioLocale(previousMap, nextMap),
       chunkArray,
       getWatchlistSeriesId,
       getWatchHistorySeriesId,
