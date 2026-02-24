@@ -1,0 +1,238 @@
+;(() => {
+  type AnyFn = (...args: unknown[]) => unknown
+
+  type TokenEntry = {
+    accountId?: string
+    accessToken?: string
+  }
+
+  type WatchlistRow = Record<string, unknown>
+
+  type FetchWithResilience = (
+    url: string,
+    requestInit: RequestInit,
+    options: {
+      label: string
+      bearerToken?: string
+      refreshBearerToken?: unknown
+    },
+  ) => Promise<Response>
+
+  type WatchlistContext = {
+    fetchWithResilience: FetchWithResilience
+    createAuthRefreshHandler: (tokenEntry: TokenEntry | undefined) => unknown
+    resolveApiHref: (pathWithQuery: string) => string
+    requirePayloadDataArray: (endpoint: string, payload: unknown) => WatchlistRow[]
+    auditWatchlistRowsContract: (rows: WatchlistRow[]) => void
+    getPreferredAudioLanguage: () => string
+    getLocale: () => string
+    getWatchlistSeriesId: (row: WatchlistRow) => string | null
+    pushApiTrace: (endpoint: string, record: unknown) => void
+    watchlistPageSize: number
+    watchlistMaxPages: number
+  }
+
+  type WatchlistClientOptions = {
+    fetchWithResilience?: unknown
+    createAuthRefreshHandler?: unknown
+    resolveApiHref?: unknown
+    requirePayloadDataArray?: unknown
+    auditWatchlistRowsContract?: unknown
+    getPreferredAudioLanguage?: unknown
+    getLocale?: unknown
+    getWatchlistSeriesId?: unknown
+    pushApiTrace?: unknown
+    watchlistPageSize?: unknown
+    watchlistMaxPages?: unknown
+  }
+
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+  }
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
+
+  function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
+    if (typeof value !== 'function') {
+      throw new Error(`[CW] Missing watchlist dependency: ${name}`)
+    }
+    return value as T
+  }
+
+  function createWatchlistContext(options: WatchlistClientOptions = {}): WatchlistContext {
+    return {
+      fetchWithResilience: requireFunction('fetchWithResilience', options.fetchWithResilience) as FetchWithResilience,
+      createAuthRefreshHandler: requireFunction(
+        'createAuthRefreshHandler',
+        options.createAuthRefreshHandler,
+      ) as WatchlistContext['createAuthRefreshHandler'],
+      resolveApiHref: requireFunction('resolveApiHref', options.resolveApiHref) as WatchlistContext['resolveApiHref'],
+      requirePayloadDataArray: requireFunction(
+        'requirePayloadDataArray',
+        options.requirePayloadDataArray,
+      ) as WatchlistContext['requirePayloadDataArray'],
+      auditWatchlistRowsContract: requireFunction(
+        'auditWatchlistRowsContract',
+        options.auditWatchlistRowsContract,
+      ) as WatchlistContext['auditWatchlistRowsContract'],
+      getPreferredAudioLanguage: requireFunction(
+        'getPreferredAudioLanguage',
+        options.getPreferredAudioLanguage,
+      ) as WatchlistContext['getPreferredAudioLanguage'],
+      getLocale: requireFunction('getLocale', options.getLocale) as WatchlistContext['getLocale'],
+      getWatchlistSeriesId: requireFunction(
+        'getWatchlistSeriesId',
+        options.getWatchlistSeriesId,
+      ) as WatchlistContext['getWatchlistSeriesId'],
+      pushApiTrace:
+        typeof options.pushApiTrace === 'function'
+          ? (options.pushApiTrace as WatchlistContext['pushApiTrace'])
+          : () => {},
+      watchlistPageSize: Math.max(1, Number(options.watchlistPageSize) || 1),
+      watchlistMaxPages: Math.max(1, Number(options.watchlistMaxPages) || 1),
+    }
+  }
+
+  function getPayloadTotal(payload: unknown, fallback: number): number {
+    if (!payload || typeof payload !== 'object') {
+      return fallback
+    }
+
+    return Number((payload as Record<string, unknown>).total || fallback)
+  }
+
+  function getPanelId(row: WatchlistRow): string {
+    const panel = row.panel
+    if (!panel || typeof panel !== 'object') {
+      return ''
+    }
+
+    const panelId = (panel as Record<string, unknown>).id
+    return typeof panelId === 'string' ? panelId : ''
+  }
+
+  async function fetchWatchlistPageInternal(
+    context: WatchlistContext,
+    tokenEntry: TokenEntry | undefined,
+    start: number,
+  ): Promise<{ rows: WatchlistRow[]; total: number }> {
+    const accountId = tokenEntry?.accountId
+    const params = new root.URLSearchParams({
+      order: 'desc',
+      n: String(context.watchlistPageSize),
+      preferred_audio_language: context.getPreferredAudioLanguage(),
+      locale: context.getLocale(),
+    })
+
+    if (start > 0) {
+      params.set('start', String(start))
+    }
+
+    const url = context.resolveApiHref(
+      `/content/v2/discover/${encodeURIComponent(String(accountId))}/watchlist?${params.toString()}`,
+    )
+    const requestOptions: {
+      label: string
+      bearerToken?: string
+      refreshBearerToken?: unknown
+    } = {
+      label: 'watchlist page request',
+      refreshBearerToken: context.createAuthRefreshHandler(tokenEntry),
+    }
+    if (typeof tokenEntry?.accessToken === 'string') {
+      requestOptions.bearerToken = tokenEntry.accessToken
+    }
+
+    const response = await context.fetchWithResilience(
+      url,
+      {
+        credentials: 'include',
+      },
+      requestOptions,
+    )
+
+    if (!response.ok) {
+      throw new Error(`watchlist page request failed: ${response.status}`)
+    }
+
+    const payload = (await response.json()) as unknown
+    const rows = context.requirePayloadDataArray('watchlist', payload)
+    context.auditWatchlistRowsContract(rows)
+    const total = getPayloadTotal(payload, rows.length)
+
+    context.pushApiTrace('watchlist', {
+      at: Date.now(),
+      request: {
+        url,
+        start: Math.max(0, Number(start) || 0),
+        n: context.watchlistPageSize,
+        preferred_audio_language: params.get('preferred_audio_language'),
+        locale: params.get('locale'),
+      },
+      response: {
+        total,
+        rowCount: rows.length,
+      },
+      data: rows,
+    })
+
+    return {
+      rows,
+      total,
+    }
+  }
+
+  async function fetchAllWatchlistRowsInternal(
+    context: WatchlistContext,
+    tokenEntry: TokenEntry | undefined,
+  ): Promise<WatchlistRow[]> {
+    const allRows: WatchlistRow[] = []
+    const seenRowKeys = new Set<string>()
+    let start = 0
+    let total: number | null = null
+    let pages = 0
+
+    while (pages < context.watchlistMaxPages) {
+      pages += 1
+      const page = await fetchWatchlistPageInternal(context, tokenEntry, start)
+
+      if (total == null) {
+        total = page.total
+      }
+
+      page.rows.forEach((row) => {
+        const seriesId = context.getWatchlistSeriesId(row) || ''
+        const panelId = getPanelId(row)
+        const rowKey = `${seriesId}|${panelId}`
+        if (rowKey !== '|' && seenRowKeys.has(rowKey)) {
+          return
+        }
+        if (rowKey !== '|') {
+          seenRowKeys.add(rowKey)
+        }
+        allRows.push(row)
+      })
+      start += context.watchlistPageSize
+
+      if (page.rows.length < context.watchlistPageSize) {
+        break
+      }
+      if (total != null && start >= total) {
+        break
+      }
+    }
+
+    return allRows
+  }
+
+  function createWatchlistClient(options: WatchlistClientOptions = {}) {
+    const context = createWatchlistContext(options)
+    return {
+      fetchAllWatchlistRows: (tokenEntry: TokenEntry | undefined) => fetchAllWatchlistRowsInternal(context, tokenEntry),
+    }
+  }
+
+  moduleRegistry.watchlistClient = {
+    createWatchlistClient,
+  }
+})()
