@@ -6,6 +6,7 @@ import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/Modu
 type RouteLifecycleRuntime = {
   processWatchlist: () => Promise<void>
   syncRoute: () => void
+  startRouteWatcher: () => void
 }
 
 type RouteLifecycleModule = {
@@ -64,6 +65,11 @@ describe('runtime route-lifecycle', () => {
   afterEach(() => {
     clearRuntimeModulesRegistry()
     delete (globalThis as Record<string, unknown>).location
+    delete (globalThis as Record<string, unknown>).document
+    delete (globalThis as Record<string, unknown>).history
+    delete (globalThis as Record<string, unknown>).MutationObserver
+    delete (globalThis as Record<string, unknown>).addEventListener
+    vi.useRealTimers()
   })
 
   it('runs processWatchlist orchestration when mounted on watchlist route', async () => {
@@ -127,5 +133,85 @@ describe('runtime route-lifecycle', () => {
     expect(state.hostEl).toBeNull()
     expect(state.tabCrunchyrollEl).toBeNull()
     expect(state.curatedObservedPromise).toBeNull()
+  })
+
+  it('syncs routes when pathname changes during DOM churn even if patched history is bypassed', () => {
+    vi.useFakeTimers()
+    setPathname('/watch/GSERIES1')
+
+    const observerCallbacks: MutationCallback[] = []
+    class FakeMutationObserver {
+      callback: MutationCallback
+
+      constructor(callback: MutationCallback) {
+        this.callback = callback
+        observerCallbacks.push(callback)
+      }
+
+      observe(): void {}
+      disconnect(): void {}
+      takeRecords(): MutationRecord[] {
+        return []
+      }
+    }
+
+    Object.defineProperty(globalThis, 'MutationObserver', {
+      configurable: true,
+      writable: true,
+      value: FakeMutationObserver,
+    })
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      writable: true,
+      value: {
+        body: {},
+        documentElement: {},
+      },
+    })
+    Object.defineProperty(globalThis, 'history', {
+      configurable: true,
+      writable: true,
+      value: {
+        pushState: () => {},
+        replaceState: () => {},
+      },
+    })
+    Object.defineProperty(globalThis, 'addEventListener', {
+      configurable: true,
+      writable: true,
+      value: () => {},
+    })
+
+    const state = createBaseState()
+    state.mounted = false
+
+    const debounceProcess = vi.fn()
+    const runtimeEvents: string[] = []
+
+    const runtime = getRouteLifecycleModule().createRouteLifecycle({
+      state,
+      runtimeEvent: (event: string) => {
+        runtimeEvents.push(event)
+      },
+      isWatchlistPath: (pathname: string) => pathname.endsWith('/watchlist'),
+      ensureInterface: vi.fn(),
+      applyTabUi: vi.fn(),
+      ensureCuratedDataLoad: vi.fn(async () => undefined),
+      renderCuratedPanel: vi.fn(),
+      setNativeVisibility: vi.fn(),
+      clearRootFrame: vi.fn(),
+      debounceProcess,
+    })
+
+    runtime.startRouteWatcher()
+    setPathname('/watchlist')
+    observerCallbacks[0]?.([{ target: {} } as MutationRecord], {} as MutationObserver)
+
+    vi.runAllTimers()
+
+    expect(state.mounted).toBe(true)
+    expect(debounceProcess).toHaveBeenCalled()
+    expect(runtimeEvents).toContain('route-structure-observer-started')
+    expect(runtimeEvents).toContain('mounted')
   })
 })

@@ -357,10 +357,10 @@ Current-state findings from this repository:
    - `npm run typecheck`
    - `npm run lint`
    - `npm run format:check`
-   - `npm run test:unit` (119 passed)
+   - `npm run test:unit` (120 passed)
    - `npm run pw:live:smoke`
    - `npm run lint:firefox`
-   - `npm run test:e2e` (75 passed)
+   - `npm run test:e2e` (78 passed)
    - `npm run build:webext`
    - `npm run build:safari`
    - `npm run arch:metrics`
@@ -368,6 +368,7 @@ Current-state findings from this repository:
    - TypeScript foundations are now in place (`tsconfig.*`, deterministic `build:runtime`, and CI `typecheck` gate).
    - generated runtime output isolation is in place for webext/safari/e2e flows, reducing prior cross-command race friction.
    - dependency hygiene pass is completed for current review scope (`web-ext` upgraded to `^9.3.0`) and Firefox lint remains green.
+   - Playwright lockfile casing was normalized (`playwright` lowercase package keys/paths) to restore `npm ci` parity on Node 20 CI runners.
    - `test:e2e*` scripts now run through an isolated runtime wrapper (`scripts/run-playwright-suite.mts`), preventing default shared-output collisions across concurrent E2E runs.
    - E2E wrapper now invokes `@playwright/test` CLI directly (`scripts/run-playwright-suite.mts`), avoiding runner-context mismatch regressions from bin resolution drift.
    - Playwright fixture server startup now supports per-run dynamic ports (`PW_FIXTURE_SERVER_PORT`) to avoid `EADDRINUSE` conflicts in parallel E2E runs.
@@ -384,12 +385,14 @@ Current-state findings from this repository:
    - Phase 9 conversion for extracted owners is complete (`extension/src/**` owner modules are now TypeScript-based).
    - build/live/metrics script composition roots are now TypeScript-based (`scripts/*.mts`) with strict typecheck coverage.
    - Biome lint/format stack is active and CI-enforced for format checks on current migration surfaces.
-   - Vitest unit-test layer is active in CI with coverage for history/domain plus runtime-store, runtime-trace, watchlist repository/client, preferred-audio detector, bootstrap-helpers, bootstrap-finalize, curated-renderable, curated-panel, curated-loader, curated-interactions, interface-shell, bootstrap-config, bootstrap-gate, bootstrap-modules, state-loader, route-lifecycle, auth-client, ratings-client, ratings-repository, preview-repository, history preload planning/collector/preload, native-bridge action-forwarding, image-variants, sort-metrics, entry-sorting, core-primitives, api-contracts, card-metadata, curated-card-shell, and debug-api owners (119 tests).
+   - Vitest unit-test layer is active in CI with coverage for history/domain plus runtime-store, runtime-trace, watchlist repository/client, preferred-audio detector, bootstrap-helpers, bootstrap-finalize, curated-renderable, curated-panel, curated-loader, curated-interactions, interface-shell, bootstrap-config, bootstrap-gate, bootstrap-modules, state-loader, route-lifecycle, auth-client, ratings-client, ratings-repository, preview-repository, history preload planning/collector/preload, native-bridge action-forwarding, image-variants, sort-metrics, entry-sorting, core-primitives, api-contracts, card-metadata, curated-card-shell, and debug-api owners (120 tests).
    - schema-first boundary hardening was expanded in data owners (`RatingsRepository.ts`, `PreviewRepository.ts`) with explicit malformed-payload contract warnings/events and unit coverage.
    - ratings series-page fallback parsing now normalizes plain and escaped decimal payload forms to avoid silent rating truncation in fallback mode.
    - fixture server payload contracts now use explicit typed payload builders (`tests/Helpers/FixturePayloadBuilders.ts`), reducing route-payload drift risk.
    - live-debug injection (`pw:live`) now rebuilds and injects generated-runtime assets, reducing execution-path drift versus packaged/test flows.
    - non-interactive generated-runtime smoke validation is now automated through `npm run pw:live:smoke` and enforced in CI.
+   - route lifecycle now includes a DOM-churn pathname-change fallback watcher to mount correctly when SPA navigation bypasses patched history methods.
+   - Safari app icon asset mapping was corrected (`512x512@1x` now points to a 512 image), removing prior app-icon dimension warnings from `npm run build:safari`.
    - source/test module paths are now standardized to PascalCase across `extension/src/**` and `tests/**`; manifest/build/test harness references are aligned to that convention.
    - repository-level `AGENTS.md` now documents structure-tree ownership context and function-change guardrails (high-value unit-test checks first, high-value comments only when needed).
    - architecture metrics now include TS sources, split server modules, function declarations, and function-expression/arrow assignments for broader hotspot visibility.
@@ -437,8 +440,8 @@ For each architecture PR:
 Priority order for the next architecture cycle:
 
 1. Priority 0: continue decomposing `extension/Content.js` from `892` toward `<= 800` while keeping composition-only ownership and behavior parity.
-2. Priority 1: preserve schema-first boundary guarantees and contract-warning coverage as new endpoints/features are added.
-3. Priority 1: keep dependency/tooling hygiene green (ongoing audit follow-ups and Playwright/toolchain drift checks).
+2. Priority 1: keep dependency/tooling hygiene green (ongoing audit follow-ups, Playwright/toolchain drift checks, and lockfile parity checks on Node 20 CI semantics).
+3. Priority 1: preserve schema-first boundary guarantees and contract-warning coverage as new endpoints/features are added.
 4. Priority 2: keep near-threshold files (`CorePrimitives.ts`) from warning-level growth with explicit headroom guardrails.
 5. Priority 2: continue CI throughput optimization without reducing cross-browser/Safari confidence.
 6. Priority 2: continue reducing composition-root complexity by extracting remaining bootstrap orchestration from `Content.js`.
@@ -450,6 +453,7 @@ Definition of successful next cycle:
 - TypeScript typecheck gate remains active and green in CI.
 - History preload internals remain below warning-level function thresholds with file-size headroom kept below `800`.
 - `NativeBridge.ts` is back under the strict runtime file-size target (`<= 600`).
+- `npm ci` stays deterministic on CI runners with lockfile/package parity intact.
 - Remaining runtime orchestration in `Content.js` stays limited to composition/root wiring with no direct ownership logic regrowth.
 - No additional refactor-threshold functions are introduced.
 - Architecture metrics hotspot scanning continues to include declarations plus function-expression/arrow surfaces.

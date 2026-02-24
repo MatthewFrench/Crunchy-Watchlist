@@ -118,10 +118,10 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - `npm run typecheck`: pass
   - `npm run lint`: pass
   - `npm run format:check`: pass
-  - `npm run test:unit`: pass (119 passed)
+  - `npm run test:unit`: pass (120 passed)
   - `npm run pw:live:smoke`: pass
   - `npm run lint:firefox`: pass
-  - `npm run test:e2e`: pass (75 passed)
+  - `npm run test:e2e`: pass (78 passed)
   - `npm run build:webext`: pass
   - `npm run build:safari`: pass
   - `npm run arch:metrics`: pass
@@ -140,6 +140,8 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - bootstrap finalization ownership (init/debug API exposure/state-loader+lifecycle wiring/storage accessor helpers) is extracted to `extension/src/Runtime/BootstrapFinalize.ts`, reducing composition-root boilerplate in `Content.js`.
   - schema-first boundary hardening now covers ratings, preview, watchlist, and watch-history transport boundaries with explicit malformed-payload contract warnings and dedicated unit suites.
   - history preload orchestration is split into dedicated planning and collector owners (`HistoryRepositoryPreloadPlanning.ts`, `HistoryRepositoryPreloadCollector.ts`), reducing preload owner size and restoring threshold headroom.
+  - route lifecycle now includes a DOM-churn pathname-change fallback path to handle SPA transitions that bypass patched `history` methods.
+  - lockfile package casing for Playwright was normalized to restore `npm ci` parity on Node 20 Linux CI runners.
   - fixture-server payload contracts are now centralized behind typed builders (`tests/Helpers/FixturePayloadBuilders.ts`), reducing ad hoc route-payload drift.
   - dependency hygiene was advanced by upgrading `web-ext` to `^9.3.0` while preserving Firefox lint parity.
   - E2E wrapper execution is pinned to `@playwright/test` CLI (`scripts/run-playwright-suite.mts`) to avoid runner-context mismatch from bin resolution drift.
@@ -1327,12 +1329,38 @@ Completed in this pass:
    - `npm run build:webext`
    - `npm run build:safari`
    - `npm run arch:metrics`
+184. Restored CI `npm ci` determinism for Playwright dependencies:
+   - normalized `package-lock.json` Playwright casing from invalid uppercase keys/paths to canonical lowercase `playwright`.
+   - validated lockfile install parity with `npm ci` under Node 20 + npm 10 semantics.
+185. Hardened route lifecycle mounting for SPA navigation edge cases:
+   - `extension/src/Runtime/RouteLifecycle.ts` now tracks pathname changes via a dedicated DOM-churn fallback observer to catch route transitions when routers use saved native history references.
+   - added high-value fallback rationale comment to preserve context for future maintainers.
+186. Added regression coverage for the reported watch-page -> watchlist mount issue:
+   - added Playwright regression in `tests/ManifestRouting.spec.ts` that captures native `history.pushState` before extension injection and verifies mount after route change.
+   - added unit coverage in `tests/Unit/Runtime/RouteLifecycle.test.ts` for pathname-change sync via fallback observer path.
+   - unit baseline increased from `119 -> 120` passing tests.
+187. Re-verified full architecture gates after CI + route lifecycle hardening:
+   - `npm ci`
+   - `npm run typecheck`
+   - `npm run lint`
+   - `npm run format`
+   - `npm run format:check`
+   - `npm run test:unit` (120 passed)
+   - `npm run pw:live:smoke`
+   - `npm run lint:firefox`
+   - `npm run test:e2e` (78 passed)
+   - `npm run build:webext`
+   - `npm run build:safari`
+   - `npm run arch:metrics`
+188. Closed Safari asset-catalog warning friction:
+   - corrected `AppIcon.appiconset` 512x512@1x asset mapping to use a true 512x512 icon (`icon-512.png`).
+   - re-ran `npm run build:safari`; app-icon dimension warnings are no longer emitted.
 
 Observed new/confirmed opportunities:
 
 1. `extension/Content.js` is now `892` lines; next leverage is reducing toward `<= 800` so the composition-root exception can continue shrinking toward retirement.
 2. `CorePrimitives.ts` (`735`) remains the largest non-bootstrap owner and should be kept from drifting toward warning-level size.
-3. Unit coverage now spans runtime/data/domain/UI owners with 119 passing unit tests, including watchlist/history boundary hardening and fixture-payload contract builders.
+3. Unit coverage now spans runtime/data/domain/UI owners with 120 passing unit tests, including SPA route-lifecycle fallback coverage.
 4. Metrics hotspot scanning now reports no warning-level structural opportunities; preserve this baseline with gate discipline.
 5. Naming-standard drift risk is concentrated at composition roots (`manifest.json`, test fixture loader, runtime smoke checks); keep these path contracts explicitly validated in unit/fixture tests.
 
@@ -1367,8 +1395,8 @@ Why this is the better fit for current architecture direction:
 
 1. Keep `extension/Content.js` at or below `892` lines and continue reducing toward `<= 800` without re-centralizing owner logic.
 2. Keep `CorePrimitives.ts` (`735`) stable with explicit headroom and begin targeted decomposition if growth resumes.
-3. Keep schema-first boundary validation/test depth aligned as new APIs are introduced.
-4. Continue dependency/toolchain hygiene (audit follow-ups, dependency drift checks, and periodic review cadence).
+3. Continue dependency/toolchain hygiene (audit follow-ups, dependency drift checks, and lockfile parity checks under Node 20 CI semantics).
+4. Keep schema-first boundary validation/test depth aligned as new APIs are introduced.
 5. Continue CI throughput improvements without reducing cross-browser/Safari confidence.
 6. Keep existing runtime gates (`typecheck`, `lint`, `format:check`, `test:unit`, `pw:live:smoke`, `lint:firefox`, `test:e2e`, `build:webext`, `build:safari`, `arch:metrics`) mandatory.
 
@@ -1380,8 +1408,8 @@ Use this order for the next implementation cycle:
    - Success signal: bootstrap keeps shrinking without reintroducing owner logic.
 2. Priority 1 (Do Second): control owner-module growth, starting with `CorePrimitives.ts`.
    - Success signal: largest non-bootstrap owner files remain well below warning thresholds.
-3. Priority 1 (Do Third): keep dependency/toolchain hygiene current after `web-ext` upgrade.
-   - Success signal: deterministic artifact parity remains while dependency risk stays low.
+3. Priority 1 (Do Third): keep dependency/toolchain hygiene current after `web-ext` upgrade and lockfile normalization.
+   - Success signal: deterministic artifact parity remains while dependency risk stays low and `npm ci` remains stable on Node 20 CI runners.
 4. Priority 2 (Do Fourth): keep schema-first contract coverage and warning telemetry intact for new boundary integrations.
    - Success signal: contract drift remains explicit, typed, and test-backed.
 5. Priority 2 (Do Fifth): continue CI throughput improvements without reducing cross-browser/Safari confidence.
@@ -1406,7 +1434,7 @@ Post-100 hardening backlog (not blockers for transformation completion):
 
 1. `extension/Content.js` remains above the long-term runtime target (`<= 600`) despite improving to `892`.
 2. `CorePrimitives.ts` (`735`) remains the largest non-bootstrap owner and needs headroom protection.
-3. Dependency/toolchain hygiene is improved but needs ongoing audit/version cadence.
+3. Dependency/toolchain hygiene is improved but needs ongoing audit/version cadence and lockfile parity monitoring.
 4. CI throughput still has optimization headroom (especially around cross-browser + Safari stages).
 5. Composition-root exception retirement (`Content.js` override) remains an open long-term objective.
 
@@ -1416,5 +1444,5 @@ Current blocker status:
 - Highest-friction items are:
   - `extension/Content.js` still above long-term target (`<= 600`) even after reduction to `892`,
   - `CorePrimitives.ts` breadth (`735`) as the largest non-bootstrap owner,
-  - maintaining dependency/audit hygiene over time as toolchains evolve,
+  - maintaining dependency/audit hygiene over time as toolchains evolve while preserving lockfile CI parity,
   - maintaining full cross-browser/Safari confidence while optimizing CI runtime.

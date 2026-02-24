@@ -35,6 +35,11 @@
     debounceProcess: () => void
   }
 
+  type RouteWatcherState = {
+    lastObservedPathname: string
+    routeStructureObserver: MutationObserver | null
+  }
+
   type RouteLifecycleOptions = {
     state?: unknown
     runtimeEvent?: unknown
@@ -103,8 +108,13 @@
     }
   }
 
+  function readCurrentPathname(): string {
+    const locationRef = root.location as { pathname?: unknown } | undefined
+    return typeof locationRef?.pathname === 'string' ? locationRef.pathname : ''
+  }
+
   async function processWatchlistInternal(context: RouteLifecycleContext): Promise<void> {
-    if (!context.state.mounted || !context.isWatchlistPath(root.location.pathname)) {
+    if (!context.state.mounted || !context.isWatchlistPath(readCurrentPathname())) {
       return
     }
 
@@ -205,7 +215,7 @@
   }
 
   function syncRouteInternal(context: RouteLifecycleContext): void {
-    if (context.isWatchlistPath(root.location.pathname)) {
+    if (context.isWatchlistPath(readCurrentPathname())) {
       mountInternal(context)
       context.debounceProcess()
       return
@@ -225,7 +235,52 @@
     }, 0)
   }
 
-  function patchHistoryForRouteSyncInternal(context: RouteLifecycleContext): void {
+  function notifyPathnameRouteSyncInternal(context: RouteLifecycleContext, routeWatcherState: RouteWatcherState): void {
+    routeWatcherState.lastObservedPathname = readCurrentPathname()
+    scheduleRouteSyncInternal(context)
+  }
+
+  function syncWhenPathnameChangesInternal(context: RouteLifecycleContext, routeWatcherState: RouteWatcherState): void {
+    const pathname = readCurrentPathname()
+    if (pathname === routeWatcherState.lastObservedPathname) {
+      return
+    }
+
+    routeWatcherState.lastObservedPathname = pathname
+    scheduleRouteSyncInternal(context)
+  }
+
+  function startRouteStructureObserverInternal(
+    context: RouteLifecycleContext,
+    routeWatcherState: RouteWatcherState,
+  ): void {
+    if (routeWatcherState.routeStructureObserver || typeof MutationObserver !== 'function') {
+      return
+    }
+
+    const documentRef = root.document as Document | undefined
+    const target = documentRef?.body || documentRef?.documentElement
+    if (!target) {
+      return
+    }
+
+    // Some SPA routers call saved native history references that bypass patched history methods.
+    // Detect pathname changes during DOM churn so route syncing still runs for those transitions.
+    const observer = new MutationObserver(() => {
+      syncWhenPathnameChangesInternal(context, routeWatcherState)
+    })
+    observer.observe(target, {
+      childList: true,
+      subtree: true,
+    })
+    routeWatcherState.routeStructureObserver = observer
+    context.runtimeEvent('route-structure-observer-started')
+  }
+
+  function patchHistoryForRouteSyncInternal(
+    context: RouteLifecycleContext,
+    routeWatcherState: RouteWatcherState,
+  ): void {
     const historyRef = root.history as unknown as Record<string, unknown>
     if (!historyRef) {
       return
@@ -240,7 +295,7 @@
       try {
         historyRef[methodName] = function patchedHistoryState(this: unknown, ...args: unknown[]) {
           const result = (original as (...innerArgs: unknown[]) => unknown).apply(this, args)
-          scheduleRouteSyncInternal(context)
+          notifyPathnameRouteSyncInternal(context, routeWatcherState)
           return result
         }
       } catch (_error) {
@@ -249,26 +304,33 @@
     })
   }
 
-  function startRouteWatcherInternal(context: RouteLifecycleContext): void {
+  function startRouteWatcherInternal(context: RouteLifecycleContext, routeWatcherState: RouteWatcherState): void {
     if (context.state.routeWatcherStarted) {
       return
     }
 
     context.state.routeWatcherStarted = true
-    patchHistoryForRouteSyncInternal(context)
+    routeWatcherState.lastObservedPathname = readCurrentPathname()
+    patchHistoryForRouteSyncInternal(context, routeWatcherState)
+    startRouteStructureObserverInternal(context, routeWatcherState)
     root.addEventListener('popstate', () => {
-      scheduleRouteSyncInternal(context)
+      notifyPathnameRouteSyncInternal(context, routeWatcherState)
     })
     root.addEventListener('hashchange', () => {
-      scheduleRouteSyncInternal(context)
+      notifyPathnameRouteSyncInternal(context, routeWatcherState)
     })
     root.addEventListener('pageshow', () => {
-      scheduleRouteSyncInternal(context)
+      notifyPathnameRouteSyncInternal(context, routeWatcherState)
     })
   }
 
   function createRouteLifecycle(options: RouteLifecycleOptions = {}) {
     const context = createRouteLifecycleContext(options)
+    const routeWatcherState: RouteWatcherState = {
+      lastObservedPathname: readCurrentPathname(),
+      routeStructureObserver: null,
+    }
+
     return {
       processWatchlist: () => processWatchlistInternal(context),
       startObserver: () => startObserverInternal(context),
@@ -277,7 +339,7 @@
       unmount: () => unmountInternal(context),
       syncRoute: () => syncRouteInternal(context),
       scheduleRouteSync: () => scheduleRouteSyncInternal(context),
-      startRouteWatcher: () => startRouteWatcherInternal(context),
+      startRouteWatcher: () => startRouteWatcherInternal(context, routeWatcherState),
     }
   }
 

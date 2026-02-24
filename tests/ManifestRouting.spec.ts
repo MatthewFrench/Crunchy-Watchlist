@@ -3,6 +3,10 @@ import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import { NON_WATCHLIST_URL, gotoFixture, injectExtension, loadExtensionAssets } from './Helpers/ExtensionFixture'
 
+type WindowWithSavedPushState = Window & {
+  __CW_TEST_NATIVE_PUSH_STATE__?: (state: unknown, title: string, url?: string | URL | null) => void
+}
+
 test('manifest injects on all Crunchyroll pages for SPA watchlist navigation', async () => {
   const manifestPath = path.join(process.cwd(), 'extension', 'manifest.json')
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
@@ -52,6 +56,37 @@ test.describe('Routing and Mounting', () => {
     await page.evaluate(() => {
       history.pushState({}, '', '/watchlist')
     })
+    await expect(page.locator('.cw-host')).toBeVisible()
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4')
+  })
+
+  test('mounts when SPA navigation uses native history references captured before extension injection', async ({
+    page,
+  }) => {
+    await page.goto(NON_WATCHLIST_URL, { waitUntil: 'domcontentloaded' })
+    await page.evaluate(() => {
+      const windowWithSavedPushState = window as WindowWithSavedPushState
+      windowWithSavedPushState.__CW_TEST_NATIVE_PUSH_STATE__ = history.pushState.bind(history)
+    })
+
+    await loadExtensionAssets(page)
+    await expect(page.locator('.cw-host')).toHaveCount(0)
+
+    await page.evaluate(async () => {
+      const windowWithSavedPushState = window as WindowWithSavedPushState
+      const savedPushState = windowWithSavedPushState.__CW_TEST_NATIVE_PUSH_STATE__
+      if (typeof savedPushState === 'function') {
+        savedPushState({}, '', '/watchlist')
+      }
+
+      const watchlistResponse = await fetch('/watchlist')
+      const watchlistHtml = await watchlistResponse.text()
+      const bodyMatch = watchlistHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+      if (bodyMatch?.[1]) {
+        document.body.innerHTML = bodyMatch[1]
+      }
+    })
+
     await expect(page.locator('.cw-host')).toBeVisible()
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4')
   })
