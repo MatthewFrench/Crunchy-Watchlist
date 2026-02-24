@@ -116,6 +116,7 @@
         { optionValue: 'none', title: 'None' },
         { optionValue: 'dim', title: 'Dim not watch-ready' },
         { optionValue: 'hide', title: 'Hide not watch-ready' },
+        { optionValue: 'hide_not_started', title: 'Hide not watched / not started' },
       ],
     )
   }
@@ -137,6 +138,7 @@
   function createGenreFilterControlInternal(settings: ControlsSettings): SelectFieldResult {
     return createSelectFieldInternal('cw-genre-filter', 'Genre:', getString(settings.genreFilter, 'any'), [
       { optionValue: 'any', title: 'Any genre' },
+      { optionValue: '__favorites__', title: 'Favorites' },
     ])
   }
 

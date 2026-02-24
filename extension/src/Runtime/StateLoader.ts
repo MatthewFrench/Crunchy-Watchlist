@@ -78,6 +78,131 @@
     return typeof value === 'number' && Number.isFinite(value) ? value : fallback
   }
 
+  function applyLegacyAudioSettingsInternal(
+    nextSettings: Record<string, unknown>,
+    storedSettings: Record<string, unknown>,
+  ): void {
+    if (typeof nextSettings.audioLocaleFilter === 'string') {
+      return
+    }
+
+    if (typeof storedSettings.requireEnglishAudio === 'boolean') {
+      nextSettings.audioLocaleFilter = storedSettings.requireEnglishAudio ? 'en-US' : 'any'
+      return
+    }
+
+    if (typeof storedSettings.requireDubTag === 'boolean') {
+      nextSettings.audioLocaleFilter = storedSettings.requireDubTag ? 'en-US' : 'any'
+    }
+  }
+
+  function applyLegacyWatchReadySettingsInternal(
+    nextSettings: Record<string, unknown>,
+    storedSettings: Record<string, unknown>,
+  ): void {
+    if (typeof storedSettings.watchReadyFilterMode === 'string') {
+      nextSettings.watchReadyFilterMode = storedSettings.watchReadyFilterMode
+      return
+    }
+
+    if (typeof storedSettings.actionabilityMode === 'string') {
+      nextSettings.watchReadyFilterMode = storedSettings.actionabilityMode
+      return
+    }
+
+    if (typeof storedSettings.hideNonActionable === 'boolean') {
+      nextSettings.watchReadyFilterMode = storedSettings.hideNonActionable ? 'hide' : 'none'
+    }
+  }
+
+  function normalizeWatchReadyFilterModeInternal(value: unknown): 'none' | 'dim' | 'hide' | 'hide_not_started' {
+    if (value === 'none' || value === 'dim' || value === 'hide' || value === 'hide_not_started') {
+      return value
+    }
+    return 'hide'
+  }
+
+  function normalizeSortSettingsInternal(context: StateLoaderContext, nextSettings: Record<string, unknown>): void {
+    const sortMode = typeof nextSettings.sortMode === 'string' ? nextSettings.sortMode : ''
+    if (!context.validSortModes.has(sortMode)) {
+      nextSettings.sortMode = context.defaultSortMode
+    }
+
+    const defaultSecondarySortMode = getString(context.defaultSettings.secondarySortMode, 'none')
+    const secondarySortMode = typeof nextSettings.secondarySortMode === 'string' ? nextSettings.secondarySortMode : ''
+    if (!context.validSortModes.has(secondarySortMode)) {
+      nextSettings.secondarySortMode = defaultSecondarySortMode
+    }
+
+    if (nextSettings.secondarySortMode === nextSettings.sortMode) {
+      nextSettings.secondarySortMode = defaultSecondarySortMode
+    }
+  }
+
+  function normalizeSettingsInternal(context: StateLoaderContext, storedSettingsRaw: unknown): Record<string, unknown> {
+    const storedSettings = toRecord(storedSettingsRaw)
+    const nextSettings: Record<string, unknown> = {
+      ...context.defaultSettings,
+      ...storedSettings,
+    }
+
+    applyLegacyAudioSettingsInternal(nextSettings, storedSettings)
+    applyLegacyWatchReadySettingsInternal(nextSettings, storedSettings)
+
+    nextSettings.audioLocaleFilter = getString(nextSettings.audioLocaleFilter, 'any')
+    nextSettings.genreFilter = getString(nextSettings.genreFilter, 'any')
+
+    if (nextSettings.cardLayout !== 'portrait' && nextSettings.cardLayout !== 'landscape') {
+      nextSettings.cardLayout = 'portrait'
+    }
+
+    nextSettings.watchReadyFilterMode = normalizeWatchReadyFilterModeInternal(nextSettings.watchReadyFilterMode)
+    normalizeSortSettingsInternal(context, nextSettings)
+    return nextSettings
+  }
+
+  async function hydrateRatingCacheInternal(context: StateLoaderContext): Promise<void> {
+    const rawRatingCache = await context.storageGet(context.ratingCacheKey, {})
+    if (rawRatingCache && typeof rawRatingCache === 'object') {
+      context.state.ratingCache = rawRatingCache as Record<string, unknown>
+    }
+  }
+
+  async function hydrateWatchHistoryCacheInternal(context: StateLoaderContext): Promise<void> {
+    const rawWatchHistoryCache = await context.storageGet(context.watchHistoryCacheKey, null)
+    if (rawWatchHistoryCache && typeof rawWatchHistoryCache === 'object') {
+      context.state.watchHistoryCache = context.normalizeStoredWatchHistoryCache(rawWatchHistoryCache)
+    }
+
+    context.state.watchHistoryStatus = context.isWatchHistoryCacheValid(context.state.watchHistoryCache)
+      ? 'ready'
+      : 'idle'
+  }
+
+  async function hydrateWatchlistCacheInternal(context: StateLoaderContext): Promise<void> {
+    const rawWatchlistCache = await context.storageGet(context.watchlistCacheKey, null)
+    if (rawWatchlistCache && typeof rawWatchlistCache === 'object') {
+      context.state.watchlistCache = context.normalizeStoredWatchlistCache(rawWatchlistCache)
+    }
+
+    if (!context.isWatchlistCacheValid(context.state.watchlistCache)) {
+      return
+    }
+
+    const watchlistCacheRecord = toRecord(context.state.watchlistCache)
+    const rows = Array.isArray(watchlistCacheRecord.rows) ? watchlistCacheRecord.rows : []
+    const updatedAt = getNumber(watchlistCacheRecord.updatedAt, 0)
+
+    context.state.curatedEntries = context.normalizeEntriesFromApiRows(rows)
+    context.state.curatedSource = 'cache'
+    context.state.curatedLastRevalidateAt = updatedAt
+
+    context.runtimeEvent('curated-cache-hydrated', {
+      total: context.state.curatedEntries.length,
+      updatedAt,
+    })
+  }
+
   function createStateLoaderContext(options: StateLoaderOptions = {}): StateLoaderContext {
     const state = options.state && typeof options.state === 'object' ? (options.state as RuntimeState) : null
     if (!state) {
@@ -127,91 +252,10 @@
 
   async function loadInitialStateInternal(context: StateLoaderContext): Promise<void> {
     const storedSettingsRaw = await context.storageGet(context.settingsKey, context.defaultSettings)
-    const storedSettings = toRecord(storedSettingsRaw)
-    const nextSettings: Record<string, unknown> = {
-      ...context.defaultSettings,
-      ...storedSettings,
-    }
-
-    if (typeof nextSettings.audioLocaleFilter !== 'string' && typeof storedSettings.requireEnglishAudio === 'boolean') {
-      nextSettings.audioLocaleFilter = storedSettings.requireEnglishAudio ? 'en-US' : 'any'
-    }
-
-    if (typeof nextSettings.audioLocaleFilter !== 'string' && typeof storedSettings.requireDubTag === 'boolean') {
-      nextSettings.audioLocaleFilter = storedSettings.requireDubTag ? 'en-US' : 'any'
-    }
-
-    nextSettings.audioLocaleFilter = getString(nextSettings.audioLocaleFilter, 'any')
-    nextSettings.genreFilter = getString(nextSettings.genreFilter, 'any')
-
-    if (nextSettings.cardLayout !== 'portrait' && nextSettings.cardLayout !== 'landscape') {
-      nextSettings.cardLayout = 'portrait'
-    }
-
-    if (typeof storedSettings.watchReadyFilterMode === 'string') {
-      nextSettings.watchReadyFilterMode = storedSettings.watchReadyFilterMode
-    } else if (typeof storedSettings.actionabilityMode === 'string') {
-      nextSettings.watchReadyFilterMode = storedSettings.actionabilityMode
-    } else if (typeof storedSettings.hideNonActionable === 'boolean') {
-      nextSettings.watchReadyFilterMode = storedSettings.hideNonActionable ? 'hide' : 'none'
-    }
-
-    if (
-      nextSettings.watchReadyFilterMode !== 'none' &&
-      nextSettings.watchReadyFilterMode !== 'dim' &&
-      nextSettings.watchReadyFilterMode !== 'hide'
-    ) {
-      nextSettings.watchReadyFilterMode = 'hide'
-    }
-
-    const sortMode = typeof nextSettings.sortMode === 'string' ? nextSettings.sortMode : ''
-    if (!context.validSortModes.has(sortMode)) {
-      nextSettings.sortMode = context.defaultSortMode
-    }
-    const defaultSecondarySortMode = getString(context.defaultSettings.secondarySortMode, 'none')
-    const secondarySortMode = typeof nextSettings.secondarySortMode === 'string' ? nextSettings.secondarySortMode : ''
-    if (!context.validSortModes.has(secondarySortMode)) {
-      nextSettings.secondarySortMode = defaultSecondarySortMode
-    }
-    if (nextSettings.secondarySortMode === nextSettings.sortMode) {
-      nextSettings.secondarySortMode = defaultSecondarySortMode
-    }
-
-    context.state.settings = nextSettings
-
-    const rawRatingCache = await context.storageGet(context.ratingCacheKey, {})
-    if (rawRatingCache && typeof rawRatingCache === 'object') {
-      context.state.ratingCache = rawRatingCache as Record<string, unknown>
-    }
-
-    const rawWatchHistoryCache = await context.storageGet(context.watchHistoryCacheKey, null)
-    if (rawWatchHistoryCache && typeof rawWatchHistoryCache === 'object') {
-      context.state.watchHistoryCache = context.normalizeStoredWatchHistoryCache(rawWatchHistoryCache)
-    }
-
-    context.state.watchHistoryStatus = context.isWatchHistoryCacheValid(context.state.watchHistoryCache)
-      ? 'ready'
-      : 'idle'
-
-    const rawWatchlistCache = await context.storageGet(context.watchlistCacheKey, null)
-    if (rawWatchlistCache && typeof rawWatchlistCache === 'object') {
-      context.state.watchlistCache = context.normalizeStoredWatchlistCache(rawWatchlistCache)
-    }
-
-    if (context.isWatchlistCacheValid(context.state.watchlistCache)) {
-      const watchlistCacheRecord = toRecord(context.state.watchlistCache)
-      const rows = Array.isArray(watchlistCacheRecord.rows) ? watchlistCacheRecord.rows : []
-      const updatedAt = getNumber(watchlistCacheRecord.updatedAt, 0)
-
-      context.state.curatedEntries = context.normalizeEntriesFromApiRows(rows)
-      context.state.curatedSource = 'cache'
-      context.state.curatedLastRevalidateAt = updatedAt
-
-      context.runtimeEvent('curated-cache-hydrated', {
-        total: context.state.curatedEntries.length,
-        updatedAt,
-      })
-    }
+    context.state.settings = normalizeSettingsInternal(context, storedSettingsRaw)
+    await hydrateRatingCacheInternal(context)
+    await hydrateWatchHistoryCacheInternal(context)
+    await hydrateWatchlistCacheInternal(context)
 
     context.runtimeEvent('state-load-done', {
       tab: context.state.settings.activeTab,

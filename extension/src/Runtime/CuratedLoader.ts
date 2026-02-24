@@ -7,10 +7,17 @@
     curatedEntries: unknown[]
     curatedInflight: Promise<unknown[]> | null
     curatedPendingRequests: string[]
+    curatedPendingRequestStartedCount: number
+    curatedPendingRequestCompletedCount: number
     curatedSource: string
     curatedLastRevalidateAt: number
     curatedObservedPromise: Promise<unknown[]> | null
     settings: Record<string, unknown>
+  }
+
+  type PendingRequestProgress = {
+    started: number
+    completed: number
   }
 
   type TokenEntry = {
@@ -94,15 +101,17 @@
     return typeof value === 'string' ? value.trim() : ''
   }
 
-  function normalizePendingRequestLabels(activeRequests: Set<string>): string[] {
-    const labels: string[] = []
-    activeRequests.forEach((label) => {
-      const normalizedLabel = getString(label)
-      if (normalizedLabel) {
-        labels.push(normalizedLabel)
-      }
-    })
-    return labels
+  function normalizePendingRequestLabels(activeRequests: string[]): string[] {
+    return activeRequests.map((label) => getString(label)).filter((label) => Boolean(label))
+  }
+
+  function getPendingRequestProgress(state: RuntimeState): PendingRequestProgress {
+    const started = Number(state.curatedPendingRequestStartedCount)
+    const completed = Number(state.curatedPendingRequestCompletedCount)
+    return {
+      started: Number.isFinite(started) && started >= 0 ? Math.round(started) : 0,
+      completed: Number.isFinite(completed) && completed >= 0 ? Math.round(completed) : 0,
+    }
   }
 
   function areStringArraysEqual(left: string[], right: string[]): boolean {
@@ -119,17 +128,28 @@
     return true
   }
 
-  function syncPendingRequestDiagnostics(context: CuratedLoaderContext, activeRequests: Set<string>): void {
+  function syncPendingRequestDiagnostics(
+    context: CuratedLoaderContext,
+    activeRequests: string[],
+    progress: PendingRequestProgress,
+  ): void {
     const nextPendingRequests = normalizePendingRequestLabels(activeRequests)
     const currentPendingRequests = Array.isArray(context.state.curatedPendingRequests)
       ? context.state.curatedPendingRequests
       : []
+    const currentProgress = getPendingRequestProgress(context.state)
 
-    if (areStringArraysEqual(currentPendingRequests, nextPendingRequests)) {
+    if (
+      areStringArraysEqual(currentPendingRequests, nextPendingRequests) &&
+      currentProgress.started === progress.started &&
+      currentProgress.completed === progress.completed
+    ) {
       return
     }
 
     context.state.curatedPendingRequests = nextPendingRequests
+    context.state.curatedPendingRequestStartedCount = progress.started
+    context.state.curatedPendingRequestCompletedCount = progress.completed
 
     if (!context.state.mounted || !context.isWatchlistPath(context.locationRef.pathname)) {
       return
@@ -138,21 +158,31 @@
     context.renderCuratedPanel()
   }
 
+  function removePendingRequestLabel(activeRequests: string[], label: string): void {
+    const index = activeRequests.indexOf(label)
+    if (index >= 0) {
+      activeRequests.splice(index, 1)
+    }
+  }
+
   async function withTrackedPendingRequest<T>(
     context: CuratedLoaderContext,
-    activeRequests: Set<string>,
+    activeRequests: string[],
+    progress: PendingRequestProgress,
     label: string,
     work: () => Promise<T>,
   ): Promise<T> {
-    // Track active API ownership so loading UI can show what is currently blocking first render.
-    activeRequests.add(label)
-    syncPendingRequestDiagnostics(context, activeRequests)
+    // Preserve duplicate labels because multiple requests of the same type may overlap.
+    activeRequests.push(label)
+    progress.started += 1
+    syncPendingRequestDiagnostics(context, activeRequests, progress)
 
     try {
       return await work()
     } finally {
-      activeRequests.delete(label)
-      syncPendingRequestDiagnostics(context, activeRequests)
+      removePendingRequestLabel(activeRequests, label)
+      progress.completed += 1
+      syncPendingRequestDiagnostics(context, activeRequests, progress)
     }
   }
 
@@ -224,108 +254,185 @@
     return Boolean(value) && typeof (value as Promise<unknown>).finally === 'function'
   }
 
+  async function loadAuthorizedTokenInternal(
+    context: CuratedLoaderContext,
+    activeRequests: string[],
+    progress: PendingRequestProgress,
+  ): Promise<{ tokenEntry: TokenEntry; accountId: string }> {
+    const tokenEntry = await withTrackedPendingRequest(
+      context,
+      activeRequests,
+      progress,
+      'Authorizing Crunchyroll API token (/auth/v1/token)',
+      () => context.getAccessToken(false),
+    )
+    const accessToken = getString(tokenEntry?.accessToken)
+    const accountId = getString(tokenEntry?.accountId)
+
+    if (!accessToken || !accountId) {
+      throw new Error('Unable to load curated watchlist: Crunchyroll API auth is unavailable.')
+    }
+
+    return {
+      tokenEntry: tokenEntry as TokenEntry,
+      accountId,
+    }
+  }
+
+  async function loadRowsAndEntriesInternal(
+    context: CuratedLoaderContext,
+    activeRequests: string[],
+    progress: PendingRequestProgress,
+    tokenEntry: TokenEntry,
+  ): Promise<{ rows: unknown[]; entries: unknown[] }> {
+    const rows = await withTrackedPendingRequest(
+      context,
+      activeRequests,
+      progress,
+      'Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)',
+      () => context.fetchAllWatchlistRows(tokenEntry),
+    )
+
+    return {
+      rows,
+      entries: context.normalizeEntriesFromApiRows(rows),
+    }
+  }
+
+  async function preloadPrimaryLocaleDataInternal(
+    context: CuratedLoaderContext,
+    activeRequests: string[],
+    progress: PendingRequestProgress,
+    entries: unknown[],
+    tokenEntry: TokenEntry,
+    force: boolean,
+  ): Promise<void> {
+    await Promise.all([
+      withTrackedPendingRequest(
+        context,
+        activeRequests,
+        progress,
+        'Fetching ratings (/content-reviews/v3/rating/series/{series_id})',
+        () => context.preloadRatingsForEntries(entries, tokenEntry),
+      ),
+      withTrackedPendingRequest(
+        context,
+        activeRequests,
+        progress,
+        'Fetching watch history (/content/v2/{account_id}/watch-history)',
+        () => context.preloadWatchHistoryForEntries(entries, tokenEntry, force),
+      ),
+    ])
+  }
+
+  function resolveSelectedAudioLocaleForPreloadInternal(context: CuratedLoaderContext): string | null {
+    const selectedAudioLocale = context.normalizeAudioLocale(context.state.settings.audioLocaleFilter)
+    if (!selectedAudioLocale) {
+      return null
+    }
+
+    if (selectedAudioLocale.toLowerCase() === context.getPreferredAudioLanguage().toLowerCase()) {
+      return null
+    }
+
+    return selectedAudioLocale
+  }
+
+  async function preloadSelectedAudioLocaleDataInternal(
+    context: CuratedLoaderContext,
+    activeRequests: string[],
+    progress: PendingRequestProgress,
+    entries: unknown[],
+    tokenEntry: TokenEntry,
+  ): Promise<void> {
+    const selectedAudioLocale = resolveSelectedAudioLocaleForPreloadInternal(context)
+    if (!selectedAudioLocale) {
+      return
+    }
+
+    await Promise.all([
+      withTrackedPendingRequest(
+        context,
+        activeRequests,
+        progress,
+        `Fetching ${selectedAudioLocale} ratings (/content-reviews/v3/rating/series/{series_id})`,
+        () => context.preloadRatingsForEntries(entries, tokenEntry, selectedAudioLocale),
+      ),
+      withTrackedPendingRequest(
+        context,
+        activeRequests,
+        progress,
+        `Fetching ${selectedAudioLocale} watch history (/content/v2/{account_id}/watch-history)`,
+        () => context.preloadWatchHistoryForEntries(entries, tokenEntry, true, selectedAudioLocale),
+      ),
+    ])
+  }
+
+  function commitCuratedEntriesFromApiInternal(
+    context: CuratedLoaderContext,
+    accountId: string,
+    rows: unknown[],
+    entries: unknown[],
+  ): unknown[] {
+    context.setWatchlistCacheRows(accountId, rows, Date.now())
+    context.state.curatedEntries = entries
+    context.state.curatedSource = 'api'
+    context.state.curatedError = null
+    context.state.curatedLastRevalidateAt = Date.now()
+
+    context.runtimeEvent('curated-load-done', {
+      source: 'api',
+      total: entries.length,
+    })
+
+    return entries
+  }
+
+  function handleCuratedLoadFailureInternal(context: CuratedLoaderContext, error: unknown): unknown[] {
+    const hadCachedOrExistingEntries = context.state.curatedEntries.length > 0
+    if (!hadCachedOrExistingEntries) {
+      context.state.curatedEntries = []
+      context.state.curatedSource = 'none'
+    }
+
+    context.state.curatedError = hadCachedOrExistingEntries
+      ? 'Showing cached data; latest refresh failed.'
+      : (error as { message?: unknown })?.message || 'Unable to load curated watchlist from Crunchyroll API.'
+
+    context.runtimeEvent('curated-load-failed', {
+      message: (error as { message?: unknown })?.message || context.state.curatedError,
+    })
+    return context.state.curatedEntries
+  }
+
   async function loadCuratedEntriesInternal(context: CuratedLoaderContext, force = false): Promise<unknown[]> {
     if (context.state.curatedInflight) {
       return context.state.curatedInflight
     }
 
-    const activeRequests = new Set<string>()
+    const activeRequests: string[] = []
+    const pendingProgress: PendingRequestProgress = {
+      started: 0,
+      completed: 0,
+    }
     const inflight = (async () => {
       context.runtimeEvent('curated-load-start')
       context.state.curatedError = null
-      syncPendingRequestDiagnostics(context, activeRequests)
+      syncPendingRequestDiagnostics(context, activeRequests, pendingProgress)
 
-      const tokenEntry = await withTrackedPendingRequest(
-        context,
-        activeRequests,
-        'Authorizing Crunchyroll API token (/auth/v1/token)',
-        () => context.getAccessToken(false),
-      )
-      const accessToken = getString(tokenEntry?.accessToken)
-      const accountId = getString(tokenEntry?.accountId)
-
-      if (!accessToken || !accountId) {
-        throw new Error('Unable to load curated watchlist: Crunchyroll API auth is unavailable.')
-      }
-
+      const { tokenEntry, accountId } = await loadAuthorizedTokenInternal(context, activeRequests, pendingProgress)
       context.resetWatchlistCacheOnAccountMismatch(accountId)
+      const { rows, entries } = await loadRowsAndEntriesInternal(context, activeRequests, pendingProgress, tokenEntry)
+      await preloadPrimaryLocaleDataInternal(context, activeRequests, pendingProgress, entries, tokenEntry, force)
+      await preloadSelectedAudioLocaleDataInternal(context, activeRequests, pendingProgress, entries, tokenEntry)
 
-      const rows = await withTrackedPendingRequest(
-        context,
-        activeRequests,
-        'Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)',
-        () => context.fetchAllWatchlistRows(tokenEntry as TokenEntry),
-      )
-      const entries = context.normalizeEntriesFromApiRows(rows)
-
-      await Promise.all([
-        withTrackedPendingRequest(
-          context,
-          activeRequests,
-          'Fetching ratings (/content-reviews/v3/rating/series/{series_id})',
-          () => context.preloadRatingsForEntries(entries, tokenEntry as TokenEntry),
-        ),
-        withTrackedPendingRequest(
-          context,
-          activeRequests,
-          'Fetching watch history (/content/v2/{account_id}/watch-history)',
-          () => context.preloadWatchHistoryForEntries(entries, tokenEntry as TokenEntry, force),
-        ),
-      ])
-
-      const selectedAudioLocale = context.normalizeAudioLocale(context.state.settings.audioLocaleFilter)
-      if (
-        selectedAudioLocale &&
-        selectedAudioLocale.toLowerCase() !== context.getPreferredAudioLanguage().toLowerCase()
-      ) {
-        await Promise.all([
-          withTrackedPendingRequest(
-            context,
-            activeRequests,
-            `Fetching ${selectedAudioLocale} ratings (/content-reviews/v3/rating/series/{series_id})`,
-            () => context.preloadRatingsForEntries(entries, tokenEntry as TokenEntry, selectedAudioLocale),
-          ),
-          withTrackedPendingRequest(
-            context,
-            activeRequests,
-            `Fetching ${selectedAudioLocale} watch history (/content/v2/{account_id}/watch-history)`,
-            () => context.preloadWatchHistoryForEntries(entries, tokenEntry as TokenEntry, true, selectedAudioLocale),
-          ),
-        ])
-      }
-
-      context.setWatchlistCacheRows(accountId, rows, Date.now())
-
-      context.state.curatedEntries = entries
-      context.state.curatedSource = 'api'
-      context.state.curatedError = null
-      context.state.curatedLastRevalidateAt = Date.now()
-
-      context.runtimeEvent('curated-load-done', {
-        source: 'api',
-        total: entries.length,
-      })
-
-      return entries
+      return commitCuratedEntriesFromApiInternal(context, accountId, rows, entries)
     })()
-      .catch((error: unknown) => {
-        const hadCachedOrExistingEntries = context.state.curatedEntries.length > 0
-        if (!hadCachedOrExistingEntries) {
-          context.state.curatedEntries = []
-          context.state.curatedSource = 'none'
-        }
-        context.state.curatedError = hadCachedOrExistingEntries
-          ? 'Showing cached data; latest refresh failed.'
-          : (error as { message?: unknown })?.message || 'Unable to load curated watchlist from Crunchyroll API.'
-        context.runtimeEvent('curated-load-failed', {
-          message: (error as { message?: unknown })?.message || context.state.curatedError,
-        })
-        return context.state.curatedEntries
-      })
+      .catch((error: unknown) => handleCuratedLoadFailureInternal(context, error))
       .finally(() => {
         context.state.curatedInflight = null
-        activeRequests.clear()
-        syncPendingRequestDiagnostics(context, activeRequests)
+        activeRequests.length = 0
+        syncPendingRequestDiagnostics(context, activeRequests, pendingProgress)
       })
 
     context.state.curatedInflight = inflight

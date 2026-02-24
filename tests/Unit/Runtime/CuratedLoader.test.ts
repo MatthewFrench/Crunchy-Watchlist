@@ -43,6 +43,12 @@ function createDeferred<T>(): Deferred<T> {
   }
 }
 
+async function flushMicrotasks(iterations = 5): Promise<void> {
+  for (let index = 0; index < iterations; index += 1) {
+    await Promise.resolve()
+  }
+}
+
 function getCuratedLoaderModule() {
   const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as CuratedLoaderModule
   return registry.runtimeCuratedLoader
@@ -57,6 +63,8 @@ function createCuratedLoaderHarness(overrides: Record<string, unknown> = {}) {
     curatedEntries: [] as unknown[],
     curatedInflight: null as Promise<unknown[]> | null,
     curatedPendingRequests: [] as string[],
+    curatedPendingRequestStartedCount: 0,
+    curatedPendingRequestCompletedCount: 0,
     curatedSource: 'none',
     curatedLastRevalidateAt: 0,
     curatedObservedPromise: null as Promise<unknown[]> | null,
@@ -132,6 +140,8 @@ describe('curated-loader runtime', () => {
         curatedEntries: [],
         curatedInflight: null,
         curatedPendingRequests: [],
+        curatedPendingRequestStartedCount: 0,
+        curatedPendingRequestCompletedCount: 0,
         curatedSource: 'none',
         curatedLastRevalidateAt: 0,
         curatedObservedPromise: null,
@@ -150,6 +160,8 @@ describe('curated-loader runtime', () => {
     expect(harness.dependencies.preloadRatingsForEntries).toHaveBeenCalledTimes(2)
     expect(harness.dependencies.preloadWatchHistoryForEntries).toHaveBeenCalledTimes(2)
     expect(harness.state.curatedPendingRequests).toEqual([])
+    expect(harness.state.curatedPendingRequestStartedCount).toBe(6)
+    expect(harness.state.curatedPendingRequestCompletedCount).toBe(6)
     expect(harness.runtimeEvents.map((entry) => entry.event)).toEqual(
       expect.arrayContaining(['curated-load-start', 'curated-load-done']),
     )
@@ -162,18 +174,21 @@ describe('curated-loader runtime', () => {
     })
 
     const loadPromise = harness.runtime.loadCuratedEntries(false)
-    await Promise.resolve()
-    await Promise.resolve()
+    await flushMicrotasks()
 
     expect(harness.state.curatedPendingRequests).toContain(
       'Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)',
     )
+    expect(harness.state.curatedPendingRequestStartedCount).toBe(2)
+    expect(harness.state.curatedPendingRequestCompletedCount).toBe(1)
     expect(harness.dependencies.renderCuratedPanel).toHaveBeenCalled()
 
     fetchRowsDeferred.resolve([{ id: 'row-1' }])
     await loadPromise
 
     expect(harness.state.curatedPendingRequests).toEqual([])
+    expect(harness.state.curatedPendingRequestStartedCount).toBe(4)
+    expect(harness.state.curatedPendingRequestCompletedCount).toBe(4)
   })
 
   it('returns existing entries and performs background revalidate when stale', async () => {
@@ -187,6 +202,8 @@ describe('curated-loader runtime', () => {
         curatedEntries: cachedEntries,
         curatedInflight: null,
         curatedPendingRequests: [],
+        curatedPendingRequestStartedCount: 0,
+        curatedPendingRequestCompletedCount: 0,
         curatedSource: 'api',
         curatedLastRevalidateAt: Date.now() - 200_000,
         curatedObservedPromise: null,
@@ -200,7 +217,7 @@ describe('curated-loader runtime', () => {
 
     const result = await harness.runtime.ensureCuratedDataLoad(false)
     expect(result).toBe(cachedEntries)
-    await Promise.resolve()
+    await flushMicrotasks()
     expect(harness.dependencies.fetchAllWatchlistRows).toHaveBeenCalledTimes(1)
     expect(harness.state.curatedInflight).not.toBeNull()
 

@@ -32,9 +32,7 @@ type ControlsViewModule = {
   createControlsView: () => ControlsViewRuntime
 }
 
-const controlsViewModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Ui', 'ControlsView.ts'),
-).href
+const controlsViewModuleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Ui', 'ControlsView.ts')).href
 
 function createFakeDocument() {
   return {
@@ -111,5 +109,39 @@ describe('controls-view ui module', () => {
     expect(secondarySelect.children.map((child) => child.value)).toEqual(['none', 'rating_desc'])
     expect(secondarySelect.children[0]?.textContent).toBe('Disabled (primary sort only)')
     expect(secondarySelect.children[0]?.selected).toBe(true)
+  })
+
+  it('includes hide-not-started mode in watch-ready filter options', () => {
+    const runtime = getControlsViewModule().createControlsView()
+    const controls = runtime.createCuratedInterfaceControls(
+      {
+        watchReadyFilterMode: 'hide_not_started',
+      },
+      [{ optionValue: 'rating_desc', title: 'Rating high to low' }],
+    )
+
+    const watchReadyFilterControl = controls.watchReadyFilterControl as Record<string, unknown>
+    const watchReadySelect = watchReadyFilterControl.select as FakeElement
+    expect(watchReadySelect.id).toBe('cw-watch-ready-mode')
+    expect(watchReadySelect.children.map((child) => child.value)).toEqual(['none', 'dim', 'hide', 'hide_not_started'])
+    expect(watchReadySelect.children[3]?.textContent).toBe('Hide not watched / not started')
+    expect(watchReadySelect.children[3]?.selected).toBe(true)
+  })
+
+  it('includes favorites in genre filter options', () => {
+    const runtime = getControlsViewModule().createControlsView()
+    const controls = runtime.createCuratedInterfaceControls(
+      {
+        genreFilter: '__favorites__',
+      },
+      [{ optionValue: 'rating_desc', title: 'Rating high to low' }],
+    )
+
+    const genreFilterControl = controls.genreFilterControl as Record<string, unknown>
+    const genreSelect = genreFilterControl.select as FakeElement
+    expect(genreSelect.id).toBe('cw-genre-filter')
+    expect(genreSelect.children.map((child) => child.value)).toEqual(['any', '__favorites__'])
+    expect(genreSelect.children[1]?.textContent).toBe('Favorites')
+    expect(genreSelect.children[1]?.selected).toBe(true)
   })
 })

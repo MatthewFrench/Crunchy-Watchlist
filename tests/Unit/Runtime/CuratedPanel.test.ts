@@ -112,6 +112,8 @@ describe('curated-panel runtime', () => {
       curatedEntries: [],
       curatedInflight: null,
       curatedPendingRequests: [],
+      curatedPendingRequestStartedCount: 0,
+      curatedPendingRequestCompletedCount: 0,
       curatedGridRenderSignature: '',
       gridEl,
       statsEl,
@@ -189,7 +191,10 @@ describe('curated-panel runtime', () => {
       curatedPendingRequests: [
         'Authorizing Crunchyroll API token (/auth/v1/token)',
         'Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)',
+        'Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)',
       ],
+      curatedPendingRequestStartedCount: 4,
+      curatedPendingRequestCompletedCount: 1,
       curatedGridRenderSignature: '',
       gridEl,
       statsEl,
@@ -234,9 +239,70 @@ describe('curated-panel runtime', () => {
     runtime.renderCuratedPanel()
 
     const requestsList = findElementByClassName(gridEl, 'cw-loading__requests')
+    const progressLine = findElementByClassName(gridEl, 'cw-loading__progress')
     expect(requestsList).not.toBeNull()
     expect(requestsList?.children.map((child) => child.textContent)).toEqual(state.curatedPendingRequests)
+    expect(progressLine?.textContent).toBe('Completed 1 of 4 • In progress 3')
     expect(loadingIndicatorEl.style.display).toBe('inline-flex')
     expect(statsEl.textContent).toBe('Loading...')
+  })
+
+  it('shows filtered-count stats for hide_not_started mode', () => {
+    const gridEl = createFakeElement()
+    const statsEl = createFakeElement()
+    const loadingIndicatorEl = createFakeElement()
+
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [],
+      curatedInflight: null,
+      curatedPendingRequests: [],
+      curatedPendingRequestStartedCount: 0,
+      curatedPendingRequestCompletedCount: 0,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    }
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: {
+        createElement: () => ({ ...createFakeElement(), value: '' }),
+        createDocumentFragment: () => createFakeElement(),
+      },
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: () => createFakeElement(),
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => ({
+        mode: 'hide_not_started',
+        total: 5,
+        visible: [{ seriesId: 'series-1' }, { seriesId: 'series-2' }],
+        audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+        genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+        selectedAudioFilter: 'any',
+        selectedGenreFilter: 'any',
+      }),
+      withMutedObserver: (work: () => void) => {
+        work()
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    })
+
+    runtime.renderCuratedPanel()
+
+    expect(statsEl.textContent).toBe('Showing 2 of 5')
   })
 })

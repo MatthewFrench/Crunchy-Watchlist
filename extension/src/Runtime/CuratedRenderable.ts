@@ -42,7 +42,7 @@
   }
 
   type BuildRenderableEntriesResult = {
-    mode: 'none' | 'dim' | 'hide'
+    mode: 'none' | 'dim' | 'hide' | 'hide_not_started'
     total: number
     visible: Record<string, unknown>[]
     audioOptions: Array<{ optionValue: string; title: string }>
@@ -82,7 +82,8 @@
     compareRenderableEntries: CompareRenderableEntriesFn
   }
 
-  const VALID_WATCH_READY_FILTER_MODES = new Set(['none', 'dim', 'hide'])
+  const VALID_WATCH_READY_FILTER_MODES = new Set(['none', 'dim', 'hide', 'hide_not_started'])
+  const FAVORITES_GENRE_FILTER_VALUE = '__favorites__'
 
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
@@ -118,9 +119,44 @@
     ]
   }
 
-  function resolveWatchReadyFilterMode(value: unknown): 'none' | 'dim' | 'hide' {
+  function buildGenreFilterOptions(selectedFilter: string, values: string[]) {
+    const options = [{ optionValue: 'any', title: 'Any genre' }]
+    if (
+      selectedFilter !== 'any' &&
+      selectedFilter !== FAVORITES_GENRE_FILTER_VALUE &&
+      !values.includes(selectedFilter)
+    ) {
+      options.push({
+        optionValue: selectedFilter,
+        title: `${selectedFilter} (no matches)`,
+      })
+    }
+
+    options.push({
+      optionValue: FAVORITES_GENRE_FILTER_VALUE,
+      title: 'Favorites',
+    })
+
+    values.forEach((value) => {
+      if (value === FAVORITES_GENRE_FILTER_VALUE) {
+        return
+      }
+      options.push({
+        optionValue: value,
+        title: value,
+      })
+    })
+
+    return options
+  }
+
+  function isFavoritesGenreFilter(value: string): boolean {
+    return value.trim().toLowerCase() === FAVORITES_GENRE_FILTER_VALUE
+  }
+
+  function resolveWatchReadyFilterMode(value: unknown): 'none' | 'dim' | 'hide' | 'hide_not_started' {
     if (typeof value === 'string' && VALID_WATCH_READY_FILTER_MODES.has(value)) {
-      return value as 'none' | 'dim' | 'hide'
+      return value as 'none' | 'dim' | 'hide' | 'hide_not_started'
     }
     return 'hide'
   }
@@ -309,6 +345,41 @@
     ).sort((left, right) => left.localeCompare(right))
   }
 
+  function hasPlaybackProgress(value: unknown): boolean {
+    const number = Number(value)
+    return Number.isFinite(number) && number > 0
+  }
+
+  // "Hide not watched / not started" focuses the list on series with activity by removing
+  // items still in a cold-start state (never watched, no playhead, no watch-history progress).
+  function isEntryNotWatchedAndNotStartedInternal(entry: Record<string, unknown>): boolean {
+    const statusBase = String(entry.statusBase || '')
+      .trim()
+      .toLowerCase()
+    if (statusBase === 'start watching') {
+      return true
+    }
+
+    if (!entry.neverWatched) {
+      return false
+    }
+
+    if (hasPlaybackProgress(entry.playheadMs) || hasPlaybackProgress(entry.lastWatchedMs)) {
+      return false
+    }
+
+    const watchHistoryProgressEntry = asRecord(entry.watchHistoryProgressEntry)
+    if (watchHistoryProgressEntry.fullyWatched) {
+      return false
+    }
+
+    return !(
+      hasPlaybackProgress(watchHistoryProgressEntry.playhead) ||
+      hasPlaybackProgress(watchHistoryProgressEntry.playheadMs) ||
+      hasPlaybackProgress(watchHistoryProgressEntry.progressMs)
+    )
+  }
+
   function applyRenderableEntryFiltersInternal(
     mergedEntries: Record<string, unknown>[],
     filterContext: FilterContext,
@@ -326,13 +397,20 @@
     }
 
     if (effectiveGenreFilter !== 'any') {
-      filtered = filtered.filter((entry) =>
-        asArray(entry.genreTags).some((tag) => String(tag).toLowerCase() === effectiveGenreFilter.toLowerCase()),
-      )
+      if (isFavoritesGenreFilter(effectiveGenreFilter)) {
+        filtered = filtered.filter((entry) => Boolean(entry.isFavorite))
+      } else {
+        filtered = filtered.filter((entry) =>
+          asArray(entry.genreTags).some((tag) => String(tag).toLowerCase() === effectiveGenreFilter.toLowerCase()),
+        )
+      }
     }
 
     if (watchReadyFilterMode === 'hide') {
       filtered = filtered.filter((entry) => Boolean(entry.watchReady))
+    }
+    if (watchReadyFilterMode === 'hide_not_started') {
+      filtered = filtered.filter((entry) => !isEntryNotWatchedAndNotStartedInternal(entry))
     }
 
     return filtered
@@ -420,7 +498,7 @@
       total: merged.length,
       visible: decorated,
       audioOptions: buildCuratedFilterOptions('Any language', effectiveAudioFilter, audioValues),
-      genreOptions: buildCuratedFilterOptions('Any genre', effectiveGenreFilter, genreValues),
+      genreOptions: buildGenreFilterOptions(effectiveGenreFilter, genreValues),
       selectedAudioFilter: effectiveAudioFilter,
       selectedGenreFilter: effectiveGenreFilter,
     }

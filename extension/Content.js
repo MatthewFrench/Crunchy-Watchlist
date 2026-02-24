@@ -2,8 +2,7 @@
   const updateDiagnostics = (patch = {}) => {
     try {
       const existing =
-        window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__ &&
-        typeof window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__ === 'object'
+        window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__ && typeof window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__ === 'object'
           ? window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__
           : {}
       window.__CW_WATCHLIST_CURATOR_DIAGNOSTICS__ = {

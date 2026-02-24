@@ -97,6 +97,11 @@ test.describe('UI Behavior', () => {
     await injectExtension(page, { activeTab: 'curated' }, { waitForLoaded: false })
     await expect(page.locator('.cw-loading-indicator')).toBeVisible()
     await expect(page.locator('.cw-empty .cw-spinner')).toBeVisible()
+    await expect(page.locator('.cw-empty .cw-loading__request')).toHaveText(
+      'Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)',
+    )
+    await expect(page.locator('.cw-empty .cw-loading__details-title')).toHaveText('Request progress')
+    await expect(page.locator('.cw-empty .cw-loading__progress')).toHaveText('Completed 1 of 2 • In progress 1')
 
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4')
     await expect(page.locator('.cw-loading-indicator')).toBeHidden()

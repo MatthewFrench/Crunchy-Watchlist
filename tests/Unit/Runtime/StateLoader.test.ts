@@ -213,4 +213,44 @@ describe('runtime state-loader', () => {
       },
     })
   })
+
+  it('preserves hide_not_started watch-ready mode when stored in settings', async () => {
+    const state = createBaseState()
+    const stateLoader = getStateLoaderModule().createStateLoader({
+      state,
+      storageGet: createStorageGet({
+        cw_settings_v1: {
+          watchReadyFilterMode: 'hide_not_started',
+        },
+        cw_rating_cache_v2: {},
+        cw_watch_history_cache_v1: {},
+        cw_watchlist_cache_v1: null,
+      }),
+      runtimeEvent: () => {},
+      normalizeStoredWatchHistoryCache: (raw: unknown) => raw,
+      isWatchHistoryCacheValid: () => false,
+      normalizeStoredWatchlistCache: (raw: unknown) => raw,
+      isWatchlistCacheValid: () => false,
+      normalizeEntriesFromApiRows: (rows: unknown[]) => rows,
+      defaultSettings: {
+        activeTab: 'curated',
+        audioLocaleFilter: 'any',
+        genreFilter: 'any',
+        cardLayout: 'portrait',
+        watchReadyFilterMode: 'hide',
+        sortMode: 'none',
+        secondarySortMode: 'none',
+      },
+      validSortModes: new Set(['none']),
+      defaultSortMode: 'none',
+      settingsKey: 'cw_settings_v1',
+      ratingCacheKey: 'cw_rating_cache_v2',
+      watchHistoryCacheKey: 'cw_watch_history_cache_v1',
+      watchlistCacheKey: 'cw_watchlist_cache_v1',
+    })
+
+    await stateLoader.loadInitialState()
+
+    expect((state.settings as Record<string, unknown>).watchReadyFilterMode).toBe('hide_not_started')
+  })
 })
