@@ -391,7 +391,7 @@
       return 'API load failed'
     }
     if (loading && total === 0) {
-      return 'Loading...'
+      return ''
     }
     if (loading && total > 0) {
       const base = shouldShowFilteredCount ? `Showing ${visibleCount} of ${total}` : `${total} shows`

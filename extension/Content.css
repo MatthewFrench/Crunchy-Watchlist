@@ -273,7 +273,7 @@
 .cw-host[data-cw-card-layout="landscape"] .cw-curated-card__media {
   width: 100%;
   max-width: none;
-  align-items: center;
+  align-items: stretch;
 }
 
 .cw-curated-card--not-watch-ready {
@@ -466,6 +466,10 @@
   overflow: hidden;
 }
 
+.cw-host[data-cw-card-layout="portrait"] .cw-curated-card__description {
+  -webkit-line-clamp: 3;
+}
+
 .cw-curated-card__rating-meta {
   font-size: 13px;
   color: #dde1f0;
@@ -572,4 +576,14 @@
 
 .cw-empty .cw-loading__details {
   font-size: 13px;
+}
+
+@keyframes cw-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }

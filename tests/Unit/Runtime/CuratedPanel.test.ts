@@ -244,7 +244,7 @@ describe('curated-panel runtime', () => {
     expect(requestsList?.children.map((child) => child.textContent)).toEqual(state.curatedPendingRequests)
     expect(progressLine?.textContent).toBe('Completed 1 of 4 • In progress 3')
     expect(loadingIndicatorEl.style.display).toBe('inline-flex')
-    expect(statsEl.textContent).toBe('Loading...')
+    expect(statsEl.textContent).toBe('')
   })
 
   it('shows filtered-count stats for hide_not_started mode', () => {

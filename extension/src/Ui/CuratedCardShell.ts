@@ -242,6 +242,22 @@
     }
   }
 
+  function moveDescriptionIntoMediaInternal(media: HTMLElement, body: HTMLElement): void {
+    const searchableBody = body as HTMLElement & {
+      querySelector?: (selectors: string) => Element | null
+    }
+    if (typeof searchableBody.querySelector !== 'function') {
+      return
+    }
+
+    const description = searchableBody.querySelector('.cw-curated-card__description')
+    if (!description) {
+      return
+    }
+
+    media.appendChild(description as HTMLElement)
+  }
+
   function createCuratedCardInternal(context: CardShellContext, inputEntry: unknown): HTMLElement {
     const entry = toEntry(inputEntry)
 
@@ -271,6 +287,7 @@
     const body = context.createCuratedCardBody(entry, actions)
 
     media.appendChild(thumbLink)
+    moveDescriptionIntoMediaInternal(media, body)
     item.appendChild(header)
     item.appendChild(media)
     item.appendChild(body)

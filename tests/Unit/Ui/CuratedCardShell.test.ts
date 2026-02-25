@@ -35,6 +35,7 @@ type FakeElement = {
   setAttribute: (name: string, value: string) => void
   addEventListener: (eventName: string, listener: (event: FakeMouseEvent) => void) => void
   dispatch: (eventName: string, event?: Partial<FakeMouseEvent>) => void
+  querySelector?: (selector: string) => FakeElement | null
 }
 
 type FakeDocument = {
@@ -231,6 +232,32 @@ describe('curated-card-shell ui module', () => {
     expect(installCuratedCardPreview).toHaveBeenCalledTimes(1)
     expect(installCuratedCardPreview.mock.calls[0]?.[2]).toBe('portrait.jpg')
     expect(installCuratedCardPreview.mock.calls[0]?.[3]).toBe('hover.jpg')
+  })
+
+  it('moves description under the card thumbnail when available', () => {
+    const { runtime, documentRef } = createCardShellRuntime({
+      createCuratedCardBody: () => {
+        const body = documentRef.createElement('section')
+        const description = documentRef.createElement('div')
+        description.className = 'cw-curated-card__description'
+        body.appendChild(description)
+        body.querySelector = (selector: string) =>
+          selector === '.cw-curated-card__description' ? description : null
+        return body
+      },
+    })
+
+    const card = runtime.createCuratedCard({
+      seriesId: 'series-1',
+      title: 'Series title',
+      href: '/series/series-1',
+      portraitImageUrl: 'portrait.jpg',
+    })
+
+    const media = card.children[1]
+    expect(media?.className).toBe('cw-curated-card__media')
+    expect(media?.children[0]?.className).toBe('cw-curated-card__thumb')
+    expect(media?.children[1]?.className).toBe('cw-curated-card__description')
   })
 
   it('navigates only for safe card click events', () => {
