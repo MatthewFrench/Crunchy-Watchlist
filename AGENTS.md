@@ -79,6 +79,11 @@ When modifying an existing production function (or adding a new one), follow the
    - Do **not** add comments that restate obvious code.
    - Apply the same standard to helper functions: comment only when it materially improves maintainability.
 
+3. **Manual Playwright verification for implemented features**:
+   - After implementing user-visible runtime/UI behavior, run a focused manual verification using Playwright-capable tooling.
+   - Keep this verification safe and read-only against production-like pages (no destructive account mutations or bulk data actions).
+   - Prioritize the exact interaction paths that changed (for example: toggle actions, sorting/filtering, or route transitions).
+
 ## Quality Gates
 
 Before concluding substantial refactors, keep these green:

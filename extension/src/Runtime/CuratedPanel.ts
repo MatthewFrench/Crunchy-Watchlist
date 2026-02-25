@@ -32,6 +32,13 @@
     inProgress: number
   }
 
+  type FavoriteButtonLike = Element & {
+    className?: string
+    textContent: string | null
+    title?: string
+    setAttribute?: (name: string, value: string) => void
+  }
+
   type CuratedPanelContext = {
     state: RuntimeState
     documentRef: Document
@@ -169,6 +176,148 @@
       return 'no-match'
     }
     return 'no-watchlist'
+  }
+
+  function getEntrySeriesId(entry: Record<string, unknown>): string {
+    const value = entry.seriesId
+    if (typeof value === 'string') {
+      return value.trim()
+    }
+    if (value == null) {
+      return ''
+    }
+    return String(value).trim()
+  }
+
+  function buildCuratedCardContentSignature(entry: Record<string, unknown>): string {
+    const { isFavorite: _ignoredFavorite, ...rest } = entry
+    try {
+      return JSON.stringify(rest) || ''
+    } catch {
+      return ''
+    }
+  }
+
+  function getElementDataAttribute(element: Element, datasetKey: string, attributeName: string): string {
+    const datasetValue = (element as Element & { dataset?: Record<string, unknown> }).dataset?.[datasetKey]
+    if (typeof datasetValue === 'string') {
+      return datasetValue
+    }
+    if (typeof element.getAttribute !== 'function') {
+      return ''
+    }
+    return element.getAttribute(attributeName) || ''
+  }
+
+  function setElementDataAttribute(element: Element, datasetKey: string, attributeName: string, value: string): void {
+    const dataset = (element as Element & { dataset?: Record<string, unknown> }).dataset
+    if (dataset && typeof dataset === 'object') {
+      dataset[datasetKey] = value
+      return
+    }
+    if (typeof element.setAttribute === 'function') {
+      element.setAttribute(attributeName, value)
+    }
+  }
+
+  function toggleClassNameToken(className: string, token: string, enabled: boolean): string {
+    const classTokens = className
+      .split(' ')
+      .map((item) => item.trim())
+      .filter(Boolean)
+    const hasToken = classTokens.includes(token)
+    if (enabled && !hasToken) {
+      classTokens.push(token)
+    }
+    if (!enabled && hasToken) {
+      return classTokens.filter((item) => item !== token).join(' ')
+    }
+    return classTokens.join(' ')
+  }
+
+  function patchFavoriteButtonState(card: Element, isFavorite: boolean): void {
+    const searchableCard = card as Element & {
+      querySelector?: (selectors: string) => Element | null
+    }
+    if (typeof searchableCard.querySelector !== 'function') {
+      return
+    }
+
+    const favoriteButton = searchableCard.querySelector(
+      'button[data-cw-action="favorite"]',
+    ) as FavoriteButtonLike | null
+    if (!favoriteButton) {
+      return
+    }
+
+    favoriteButton.className = toggleClassNameToken(favoriteButton.className || '', 'is-active', isFavorite)
+    if (typeof favoriteButton.setAttribute === 'function') {
+      favoriteButton.setAttribute('aria-label', isFavorite ? 'Unfavorite' : 'Favorite')
+      favoriteButton.setAttribute('aria-pressed', isFavorite ? 'true' : 'false')
+    }
+    favoriteButton.title = isFavorite ? 'Unfavorite' : 'Favorite'
+    favoriteButton.textContent = isFavorite ? '♥' : '♡'
+  }
+
+  function annotateCuratedCardElement(
+    card: Element,
+    seriesId: string,
+    contentSignature: string,
+    isFavorite: boolean,
+  ): void {
+    setElementDataAttribute(card, 'cwSeriesId', 'data-cw-series-id', seriesId)
+    setElementDataAttribute(card, 'cwCardContentSignature', 'data-cw-card-content-signature', contentSignature)
+    patchFavoriteButtonState(card, isFavorite)
+  }
+
+  function createOrReuseCuratedCard(
+    context: CuratedPanelContext,
+    existingCardsBySeriesId: Map<string, Element>,
+    usedSeriesIds: Set<string>,
+    entry: Record<string, unknown>,
+  ): Element {
+    const seriesId = getEntrySeriesId(entry)
+    const isFavorite = Boolean(entry.isFavorite)
+    const contentSignature = buildCuratedCardContentSignature(entry)
+    const existingCard = seriesId && !usedSeriesIds.has(seriesId) ? existingCardsBySeriesId.get(seriesId) || null : null
+
+    if (seriesId) {
+      usedSeriesIds.add(seriesId)
+    }
+
+    if (existingCard) {
+      const previousSignature = getElementDataAttribute(
+        existingCard,
+        'cwCardContentSignature',
+        'data-cw-card-content-signature',
+      )
+      if (previousSignature === contentSignature) {
+        annotateCuratedCardElement(existingCard, seriesId, contentSignature, isFavorite)
+        return existingCard
+      }
+    }
+
+    const nextCard = context.createCuratedCard(entry)
+    annotateCuratedCardElement(nextCard, seriesId, contentSignature, isFavorite)
+    return nextCard
+  }
+
+  function reorderCuratedGridChildren(gridElement: Element, nextCards: Element[]): void {
+    nextCards.forEach((nextCard, index) => {
+      const currentChild = gridElement.children[index] || null
+      if (currentChild === nextCard) {
+        return
+      }
+      gridElement.insertBefore(nextCard, currentChild)
+    })
+
+    while (gridElement.children.length > nextCards.length) {
+      const overflow = gridElement.children[nextCards.length]
+      if (!overflow) {
+        break
+      }
+      gridElement.removeChild(overflow)
+    }
   }
 
   function buildCuratedGridRenderSignature(
@@ -364,16 +513,22 @@
       return
     }
 
-    context.state.gridEl.textContent = ''
-
     if (!visible.length) {
+      context.state.gridEl.textContent = ''
       context.state.gridEl.appendChild(createCuratedGridEmptyElement(context, total, loading))
     } else {
-      const fragment = context.documentRef.createDocumentFragment()
-      visible.forEach((entry) => {
-        fragment.appendChild(context.createCuratedCard(entry))
+      const existingCardsBySeriesId = new Map<string, Element>()
+      Array.from(context.state.gridEl.children).forEach((child) => {
+        const seriesId = getElementDataAttribute(child, 'cwSeriesId', 'data-cw-series-id')
+        if (seriesId && !existingCardsBySeriesId.has(seriesId)) {
+          existingCardsBySeriesId.set(seriesId, child)
+        }
       })
-      context.state.gridEl.appendChild(fragment)
+      const usedSeriesIds = new Set<string>()
+      const nextCards = visible.map((entry) =>
+        createOrReuseCuratedCard(context, existingCardsBySeriesId, usedSeriesIds, entry),
+      )
+      reorderCuratedGridChildren(context.state.gridEl, nextCards)
     }
 
     context.state.curatedGridRenderSignature = gridRenderSignature

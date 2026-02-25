@@ -24,6 +24,7 @@ type FakeElement = {
   listeners: Record<string, FakeListener[]>
   appendChild: (child: FakeElement) => FakeElement
   setAttribute: (name: string, value: string) => void
+  getAttribute: (name: string) => string | null
   addEventListener: (eventName: string, listener: FakeListener) => void
   dispatch: (eventName: string, event?: FakeEvent) => Promise<void>
 }
@@ -62,6 +63,9 @@ function createFakeElement(): FakeElement {
     },
     setAttribute(name: string, value: string) {
       this.dataset[`attr:${name}`] = value
+    },
+    getAttribute(name: string) {
+      return this.dataset[`attr:${name}`] || null
     },
     addEventListener(eventName: string, listener: FakeListener) {
       const existing = this.listeners[eventName] || []
@@ -147,6 +151,50 @@ describe('curated-interactions runtime', () => {
     expect(toggleCuratedFavorite).toHaveBeenCalledWith('series-1')
     expect(removeCuratedSeries).toHaveBeenCalledWith('series-1')
     expect(renderCuratedPanel).toHaveBeenCalledTimes(2)
+  })
+
+  it('derives next favorite state from current aria-pressed attribute', async () => {
+    const triggerNativeCardAction = vi.fn(async () => true)
+    const runtime = getCuratedInteractionsModule().createCuratedInteractionsRuntime({
+      documentRef: {
+        createElement: () => createFakeElement(),
+      },
+      alertRef: vi.fn(),
+      confirmRef: vi.fn(() => true),
+      triggerNativeCardAction,
+      toggleCuratedFavorite: vi.fn(),
+      removeCuratedSeries: vi.fn(),
+      renderCuratedPanel: vi.fn(),
+      state: {
+        mounted: true,
+        settings: {},
+      },
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      persistSettings: vi.fn(async () => null),
+      normalizeAudioLocale: vi.fn(() => null),
+      preloadRatingsForSelectedAudioLocale: vi.fn(async () => null),
+      preloadWatchHistoryForSelectedAudioLocale: vi.fn(async () => null),
+      isWatchlistPath: vi.fn(() => true),
+      resetCuratedCachesForRefresh: vi.fn(async () => null),
+      ensureCuratedDataLoad: vi.fn(async () => null),
+      debounceProcess: vi.fn(),
+    })
+
+    const actions = runtime.createCuratedCardActions({
+      seriesId: 'series-2',
+      title: 'Already Favorite Show',
+      isFavorite: true,
+    })
+    const favoriteButton = actions.children[0]
+    if (!favoriteButton) {
+      throw new Error('Missing favorite button')
+    }
+
+    await favoriteButton.dispatch('click')
+
+    expect(triggerNativeCardAction).toHaveBeenCalledWith('series-2', 'favorite', false)
   })
 
   it('binds control listeners and updates runtime settings/refresh flow', async () => {

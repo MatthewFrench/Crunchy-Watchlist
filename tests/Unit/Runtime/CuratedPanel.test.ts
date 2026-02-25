@@ -4,18 +4,25 @@ import { pathToFileURL } from 'node:url'
 import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
 
 type FakeElement = {
+  tagName: string
   className: string
   textContent: string | null
+  dataset: Record<string, string>
+  attributes: Record<string, string>
   style: Record<string, string>
   children: FakeElement[]
+  parentNode: FakeElement | null
+  value?: string
+  title?: string
   appendChild: (child: FakeElement) => FakeElement
+  insertBefore: (child: FakeElement, reference: FakeElement | null) => FakeElement
+  removeChild: (child: FakeElement) => FakeElement
   setAttribute: (name: string, value: string) => void
+  getAttribute: (name: string) => string | null
+  querySelector: (selector: string) => FakeElement | null
 }
 
-type FakeSelectOption = {
-  value: string
-  textContent: string | null
-}
+type FakeSelectOption = FakeElement & { value: string }
 
 type FakeSelectElement = FakeElement & {
   options: FakeSelectOption[]
@@ -37,27 +44,134 @@ const curatedPanelModuleUrl = pathToFileURL(
 ).href
 
 function createFakeElement(): FakeElement {
+  const toDatasetKey = (attributeName: string): string =>
+    attributeName.replace(/^data-/, '').replace(/-([a-z])/g, (_match, character: string) => character.toUpperCase())
+
+  const detachFromParent = (child: FakeElement): void => {
+    if (!child.parentNode) {
+      return
+    }
+    const parent = child.parentNode
+    const index = parent.children.indexOf(child)
+    if (index >= 0) {
+      parent.children.splice(index, 1)
+    }
+    child.parentNode = null
+  }
+
+  let textContentValue: string | null = ''
   const element: FakeElement = {
+    tagName: 'div',
     className: '',
     textContent: '',
+    dataset: {},
+    attributes: {},
     style: {},
     children: [],
+    parentNode: null,
     appendChild(child: FakeElement) {
+      detachFromParent(child)
       this.children.push(child)
+      child.parentNode = this
       return child
     },
-    setAttribute() {},
+    insertBefore(child: FakeElement, reference: FakeElement | null) {
+      detachFromParent(child)
+      if (!reference) {
+        this.children.push(child)
+        child.parentNode = this
+        return child
+      }
+      const index = this.children.indexOf(reference)
+      if (index < 0) {
+        this.children.push(child)
+      } else {
+        this.children.splice(index, 0, child)
+      }
+      child.parentNode = this
+      return child
+    },
+    removeChild(child: FakeElement) {
+      const index = this.children.indexOf(child)
+      if (index >= 0) {
+        this.children.splice(index, 1)
+        child.parentNode = null
+      }
+      return child
+    },
+    setAttribute(name: string, value: string) {
+      this.attributes[name] = value
+      if (name === 'class') {
+        this.className = value
+      }
+      if (name.startsWith('data-')) {
+        this.dataset[toDatasetKey(name)] = value
+      }
+    },
+    getAttribute(name: string) {
+      if (name === 'class') {
+        return this.className || null
+      }
+      if (name.startsWith('data-')) {
+        const dataValue = this.dataset[toDatasetKey(name)]
+        if (typeof dataValue === 'string') {
+          return dataValue
+        }
+      }
+      return this.attributes[name] ?? null
+    },
+    querySelector(selector: string) {
+      const matchesSelector = (candidate: FakeElement): boolean => {
+        if (selector === 'button[data-cw-action="favorite"]') {
+          return candidate.tagName === 'button' && candidate.dataset.cwAction === 'favorite'
+        }
+        return false
+      }
+
+      const visit = (candidate: FakeElement): FakeElement | null => {
+        for (const child of candidate.children) {
+          if (matchesSelector(child)) {
+            return child
+          }
+          const nested = visit(child)
+          if (nested) {
+            return nested
+          }
+        }
+        return null
+      }
+
+      return visit(this)
+    },
   }
+  Object.defineProperty(element, 'textContent', {
+    get() {
+      return textContentValue
+    },
+    set(value: string | null) {
+      textContentValue = value
+      if (typeof value === 'string') {
+        element.children = []
+        if (Array.isArray((element as FakeSelectElement).options)) {
+          ;(element as FakeSelectElement).options = []
+        }
+      }
+    },
+    enumerable: true,
+    configurable: true,
+  })
   return element
 }
 
 function createFakeSelectElement(): FakeSelectElement {
   const element = createFakeElement() as FakeSelectElement
+  element.tagName = 'select'
   element.options = []
   element.value = ''
+  const appendChild = element.appendChild.bind(element)
   element.appendChild = function appendOption(child: FakeElement) {
-    this.children.push(child)
-    const option = child as unknown as FakeSelectOption
+    appendChild(child)
+    const option = child as FakeSelectOption
     if (typeof option.value === 'string') {
       this.options.push(option)
     }
@@ -69,6 +183,24 @@ function createFakeSelectElement(): FakeSelectElement {
 function getCuratedPanelModule() {
   const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as CuratedPanelModule
   return registry.runtimeCuratedPanel
+}
+
+function createFakeDocumentRef() {
+  return {
+    createElement: (tagName = 'div') => {
+      const element = createFakeElement()
+      element.tagName = String(tagName).toLowerCase()
+      if (element.tagName === 'option') {
+        element.value = ''
+      }
+      return element
+    },
+    createDocumentFragment: () => {
+      const fragment = createFakeElement()
+      fragment.tagName = '#document-fragment'
+      return fragment
+    },
+  }
 }
 
 function hasClassName(element: FakeElement, className: string): boolean {
@@ -129,10 +261,7 @@ describe('curated-panel runtime', () => {
 
     const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
       state,
-      documentRef: {
-        createElement: () => ({ ...createFakeElement(), value: '' }),
-        createDocumentFragment: () => createFakeElement(),
-      },
+      documentRef: createFakeDocumentRef(),
       locationRef: {
         pathname: '/watchlist',
       },
@@ -208,10 +337,7 @@ describe('curated-panel runtime', () => {
 
     const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
       state,
-      documentRef: {
-        createElement: () => ({ ...createFakeElement(), value: '' }),
-        createDocumentFragment: () => createFakeElement(),
-      },
+      documentRef: createFakeDocumentRef(),
       locationRef: {
         pathname: '/watchlist',
       },
@@ -273,10 +399,7 @@ describe('curated-panel runtime', () => {
 
     const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
       state,
-      documentRef: {
-        createElement: () => ({ ...createFakeElement(), value: '' }),
-        createDocumentFragment: () => createFakeElement(),
-      },
+      documentRef: createFakeDocumentRef(),
       locationRef: {
         pathname: '/watchlist',
       },
@@ -304,5 +427,176 @@ describe('curated-panel runtime', () => {
     runtime.renderCuratedPanel()
 
     expect(statsEl.textContent).toBe('Showing 2 of 5')
+  })
+
+  it('reuses existing card nodes and reorders them when render order changes', () => {
+    const gridEl = createFakeElement()
+    const statsEl = createFakeElement()
+    const loadingIndicatorEl = createFakeElement()
+    const renderables = [
+      [
+        { seriesId: 'series-1', title: 'Series 1' },
+        { seriesId: 'series-2', title: 'Series 2' },
+        { seriesId: 'series-3', title: 'Series 3' },
+      ],
+      [
+        { seriesId: 'series-3', title: 'Series 3' },
+        { seriesId: 'series-1', title: 'Series 1' },
+        { seriesId: 'series-2', title: 'Series 2' },
+      ],
+    ]
+    let renderIndex = 0
+    let createdCards = 0
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state: {
+        mounted: true,
+        curatedError: null,
+        curatedEntries: [],
+        curatedInflight: null,
+        curatedPendingRequests: [],
+        curatedPendingRequestStartedCount: 0,
+        curatedPendingRequestCompletedCount: 0,
+        curatedGridRenderSignature: '',
+        gridEl,
+        statsEl,
+        loadingIndicatorEl,
+        audioFilterSelectEl: createFakeSelectElement(),
+        genreFilterSelectEl: createFakeSelectElement(),
+        settings: {
+          cardLayout: 'portrait',
+        },
+      },
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: (entry: Record<string, unknown>) => {
+        createdCards += 1
+        const card = createFakeElement()
+        card.tagName = 'article'
+        card.className = 'cw-curated-card'
+        card.dataset.cwSeriesId = String(entry.seriesId || '')
+        return card
+      },
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => {
+        const visible = renderables[renderIndex] || []
+        return {
+          mode: 'hide',
+          total: visible.length,
+          visible,
+          audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+          genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+          selectedAudioFilter: 'any',
+          selectedGenreFilter: 'any',
+        }
+      },
+      withMutedObserver: (work: () => void) => {
+        work()
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    })
+
+    runtime.renderCuratedPanel()
+    const firstRenderCards = [...gridEl.children]
+
+    renderIndex = 1
+    runtime.renderCuratedPanel()
+
+    expect(createdCards).toBe(3)
+    expect(gridEl.children).toEqual([firstRenderCards[2], firstRenderCards[0], firstRenderCards[1]])
+  })
+
+  it('patches favorite button state in place without recreating the card', () => {
+    const gridEl = createFakeElement()
+    const statsEl = createFakeElement()
+    const loadingIndicatorEl = createFakeElement()
+    const renderables = [
+      [{ seriesId: 'series-1', title: 'Series 1', isFavorite: false, rating: 4.5 }],
+      [{ seriesId: 'series-1', title: 'Series 1', isFavorite: true, rating: 4.5 }],
+    ]
+    let renderIndex = 0
+    let createdCards = 0
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state: {
+        mounted: true,
+        curatedError: null,
+        curatedEntries: [],
+        curatedInflight: null,
+        curatedPendingRequests: [],
+        curatedPendingRequestStartedCount: 0,
+        curatedPendingRequestCompletedCount: 0,
+        curatedGridRenderSignature: '',
+        gridEl,
+        statsEl,
+        loadingIndicatorEl,
+        audioFilterSelectEl: createFakeSelectElement(),
+        genreFilterSelectEl: createFakeSelectElement(),
+        settings: {
+          cardLayout: 'portrait',
+        },
+      },
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: () => {
+        createdCards += 1
+        const card = createFakeElement()
+        card.tagName = 'article'
+        card.className = 'cw-curated-card'
+        const favoriteButton = createFakeElement()
+        favoriteButton.tagName = 'button'
+        favoriteButton.className = 'cw-card-action cw-card-action--favorite'
+        favoriteButton.dataset.cwAction = 'favorite'
+        favoriteButton.setAttribute('data-cw-action', 'favorite')
+        favoriteButton.textContent = '♡'
+        card.appendChild(favoriteButton)
+        return card
+      },
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => {
+        const visible = renderables[renderIndex] || []
+        return {
+          mode: 'hide',
+          total: visible.length,
+          visible,
+          audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+          genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+          selectedAudioFilter: 'any',
+          selectedGenreFilter: 'any',
+        }
+      },
+      withMutedObserver: (work: () => void) => {
+        work()
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    })
+
+    runtime.renderCuratedPanel()
+    const firstCard = gridEl.children[0]
+    const favoriteButton = firstCard?.querySelector('button[data-cw-action="favorite"]')
+    expect(favoriteButton?.textContent).toBe('♡')
+    expect(favoriteButton?.className.includes('is-active')).toBe(false)
+
+    renderIndex = 1
+    runtime.renderCuratedPanel()
+
+    expect(createdCards).toBe(1)
+    expect(gridEl.children[0]).toBe(firstCard)
+    expect(favoriteButton?.textContent).toBe('♥')
+    expect(favoriteButton?.className.includes('is-active')).toBe(true)
+    expect(favoriteButton?.getAttribute('aria-pressed')).toBe('true')
+    expect(favoriteButton?.getAttribute('aria-label')).toBe('Unfavorite')
   })
 })

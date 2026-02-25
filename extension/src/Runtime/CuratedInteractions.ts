@@ -29,11 +29,7 @@
     documentRef: Document
     alertRef: (message: string) => void
     confirmRef: (message: string) => boolean
-    triggerNativeCardAction: (
-      seriesId: string,
-      actionType: string,
-      favoriteValue?: unknown,
-    ) => Promise<boolean>
+    triggerNativeCardAction: (seriesId: string, actionType: string, favoriteValue?: unknown) => Promise<boolean>
     toggleCuratedFavorite: (seriesId: string) => void
     removeCuratedSeries: (seriesId: string) => void
     renderCuratedPanel: () => void
@@ -238,7 +234,7 @@
   function createCuratedCardActionsInternal(context: CuratedInteractionsContext, entry: unknown): HTMLElement {
     const entryRecord = toRecord(entry)
     const seriesId = getString(entryRecord.seriesId)
-    const isFavorite = Boolean(entryRecord.isFavorite)
+    const initialFavorite = Boolean(entryRecord.isFavorite)
     const title = getString(entryRecord.title)
 
     const actions = context.documentRef.createElement('div')
@@ -246,12 +242,12 @@
 
     const favoriteButton = context.documentRef.createElement('button')
     favoriteButton.type = 'button'
-    favoriteButton.className = `cw-card-action cw-card-action--favorite${isFavorite ? ' is-active' : ''}`
+    favoriteButton.className = `cw-card-action cw-card-action--favorite${initialFavorite ? ' is-active' : ''}`
     favoriteButton.dataset.cwAction = 'favorite'
-    favoriteButton.setAttribute('aria-label', isFavorite ? 'Unfavorite' : 'Favorite')
-    favoriteButton.setAttribute('aria-pressed', isFavorite ? 'true' : 'false')
-    favoriteButton.title = isFavorite ? 'Unfavorite' : 'Favorite'
-    favoriteButton.textContent = isFavorite ? '♥' : '♡'
+    favoriteButton.setAttribute('aria-label', initialFavorite ? 'Unfavorite' : 'Favorite')
+    favoriteButton.setAttribute('aria-pressed', initialFavorite ? 'true' : 'false')
+    favoriteButton.title = initialFavorite ? 'Unfavorite' : 'Favorite'
+    favoriteButton.textContent = initialFavorite ? '♥' : '♡'
 
     const removeButton = context.documentRef.createElement('button')
     removeButton.type = 'button'
@@ -280,7 +276,8 @@
       removeButton.disabled = true
 
       try {
-        const applied = await context.triggerNativeCardAction(seriesId, 'favorite', !isFavorite)
+        const nextFavorite = favoriteButton.getAttribute('aria-pressed') !== 'true'
+        const applied = await context.triggerNativeCardAction(seriesId, 'favorite', nextFavorite)
         if (!applied) {
           context.alertRef(failedActionMessage)
           return
