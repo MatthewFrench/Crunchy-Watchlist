@@ -51,6 +51,9 @@
       seasonNumber?: unknown
       episodeNumber?: unknown
       fullyWatched?: unknown
+      playhead?: unknown
+      playheadMs?: unknown
+      progressMs?: unknown
     } | null
   }
 
@@ -199,14 +202,30 @@
       return 0
     }
 
-    if (entry.neverWatched) {
-      return totalEpisodes
-    }
-
     const overrideEpisodeIndex = context.pickFirstPositiveInt([
       filteredProgressEntry?.absoluteEpisodeNumber,
       filteredProgressEntry?.seasonNumber === 1 ? filteredProgressEntry?.episodeNumber : null,
     ])
+    const hasOverrideProgressSignal =
+      overrideEpisodeIndex != null ||
+      Number(filteredProgressEntry?.playhead || 0) > 0 ||
+      Number(filteredProgressEntry?.playheadMs || 0) > 0 ||
+      Number(filteredProgressEntry?.progressMs || 0) > 0
+    const hasEntryProgressSignal =
+      Number(entry.playheadMs || 0) > 0 ||
+      context.pickFirstPositiveInt([
+        entry.absoluteEpisodeNumber,
+        entry.seasonNumber === 1 ? entry.episodeNumber : null,
+      ]) != null
+
+    if (entry.neverWatched && !hasOverrideProgressSignal && !hasEntryProgressSignal) {
+      return totalEpisodes
+    }
+
+    if (filteredProgressEntry?.fullyWatched && overrideEpisodeIndex != null && overrideEpisodeIndex >= totalEpisodes) {
+      return 0
+    }
+
     const overrideNextEpisodeIndex =
       overrideEpisodeIndex != null ? overrideEpisodeIndex + (filteredProgressEntry?.fullyWatched ? 1 : 0) : null
 

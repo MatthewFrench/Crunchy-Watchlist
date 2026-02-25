@@ -10,6 +10,7 @@ type WatchHistoryEntry = {
   seasonNumber: number | null
   episodeNumber: number | null
   absoluteEpisodeNumber: number | null
+  episodeDurationMs?: number | null
   episodeId: string | null
   identifier: string
   canonicalEpisodeKey: string
@@ -191,6 +192,7 @@ describe('HistoryRepositoryCache', () => {
               season_number: 1,
               episode_number: 2,
               sequence_number: 2,
+              duration_ms: 1_420_087,
               identifier: 's1-e2',
               audio_locale: 'en-US',
             },
@@ -210,6 +212,7 @@ describe('HistoryRepositoryCache', () => {
                 season_number: 1,
                 episode_number: 1,
                 sequence_number: 1,
+                duration_ms: 1_410_000,
                 identifier: 's1-e1',
                 audio_locale: 'en-US',
               },
@@ -226,6 +229,7 @@ describe('HistoryRepositoryCache', () => {
                 season_number: 1,
                 episode_number: 2,
                 sequence_number: 2,
+                duration_ms: 1_420_087,
                 identifier: 's1-e2',
                 audio_locale: 'en-US',
               },
@@ -243,6 +247,7 @@ describe('HistoryRepositoryCache', () => {
     expect(localized).not.toBeUndefined()
     expect(localized?.episodeId).toBe('episode-2')
     expect(localized?.datePlayedMs).toBe(Date.parse(newerPlayed))
+    expect(localized?.episodeDurationMs).toBe(1_420_087)
   })
 
   it('prefers locale-specific history and falls back to series history when allowed', () => {

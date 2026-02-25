@@ -113,6 +113,7 @@ describe('HistoryRepositoryPreloadCollector', () => {
               sequence_number: 1,
               season_number: 1,
               episode_number: 1,
+              duration_ms: 1_420_087,
               audio_locale: 'en-us',
             },
           },
@@ -131,6 +132,7 @@ describe('HistoryRepositoryPreloadCollector', () => {
               sequence_number: 1,
               season_number: 1,
               episode_number: 1,
+              duration_ms: 1_420_087,
               audio_locale: 'en-us',
             },
           },
@@ -159,6 +161,7 @@ describe('HistoryRepositoryPreloadCollector', () => {
     expect(buckets.pages).toBe(1)
     expect(buckets.remainingSeriesIds.size).toBe(0)
     expect(Object.keys(buckets.seriesUpdates)).toContain('series-a')
+    expect(buckets.seriesUpdates['series-a']?.episodeDurationMs).toBe(1_420_087)
     expect(buckets.seenRowKeys.size).toBe(1)
   })
 

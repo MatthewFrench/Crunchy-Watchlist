@@ -1,10 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
 
 type NativeBridgeRuntime = {
-  triggerNativeCardAction: (seriesId: unknown, actionType: unknown) => boolean
+  triggerNativeCardAction: (seriesId: unknown, actionType: unknown, favoriteValue?: unknown) => Promise<boolean>
 }
 
 type NativeBridgeModule = {
@@ -65,8 +65,27 @@ function getNativeBridgeModule() {
   return registry.runtimeNativeBridge
 }
 
-function createNativeBridgeRuntime(cards: FakeElement[]) {
+function createNativeBridgeRuntime(
+  cards: FakeElement[],
+  overrides: {
+    getAccessToken?: (forceRefresh?: boolean) => Promise<unknown>
+    fetchWithResilience?: ReturnType<typeof vi.fn>
+    createAuthRefreshHandler?: ReturnType<typeof vi.fn>
+    resolveApiHref?: (pathWithQuery: string) => string
+  } = {},
+) {
   const runtimeEvents: RuntimeEventRecord[] = []
+  const getAccessToken = overrides.getAccessToken ?? vi.fn(async () => ({ accountId: 'account-1', accessToken: 'token' }))
+  const fetchWithResilience = (
+    overrides.fetchWithResilience ??
+    vi.fn(async () => {
+      return new Response(null, { status: 200 })
+    })
+  ) as ReturnType<typeof vi.fn>
+  const createAuthRefreshHandler = (overrides.createAuthRefreshHandler ?? vi.fn(() => 'refresh-handler')) as ReturnType<
+    typeof vi.fn
+  >
+  const resolveApiHref = overrides.resolveApiHref ?? ((pathWithQuery: string) => `https://api.crunchyroll.test${pathWithQuery}`)
   const runtime = getNativeBridgeModule().createNativeBridgeRuntime({
     documentRef: {
       querySelectorAll: (selector: string) => (selector === '[data-t="watch-list-card"]' ? cards : []),
@@ -78,6 +97,10 @@ function createNativeBridgeRuntime(cards: FakeElement[]) {
       clearTimeout: () => {},
     },
     runtimeEvent: (event: string, data?: unknown) => runtimeEvents.push({ event, data }),
+    getAccessToken,
+    fetchWithResilience,
+    createAuthRefreshHandler,
+    resolveApiHref,
     normalizeImageUrlCandidate: (value: unknown) => (typeof value === 'string' ? value.trim() : ''),
     fetchPreviewUrlForEntry: async () => '',
     isLikelyVideoUrl: () => false,
@@ -87,6 +110,9 @@ function createNativeBridgeRuntime(cards: FakeElement[]) {
   return {
     runtime,
     runtimeEvents,
+    getAccessToken,
+    fetchWithResilience,
+    createAuthRefreshHandler,
   }
 }
 
@@ -105,14 +131,15 @@ describe('native-bridge runtime', () => {
     clearRuntimeModulesRegistry()
   })
 
-  it('returns false for unsupported or missing native action requests', () => {
-    const { runtime } = createNativeBridgeRuntime([])
-
-    expect(runtime.triggerNativeCardAction('', 'favorite')).toBe(false)
-    expect(runtime.triggerNativeCardAction('series-1', 'unknown')).toBe(false)
+  it('returns false for unsupported or missing native action requests', async () => {
+    const { runtime, fetchWithResilience } = createNativeBridgeRuntime([])
+    await expect(runtime.triggerNativeCardAction('', 'favorite', true)).resolves.toBe(false)
+    await expect(runtime.triggerNativeCardAction('series-1', 'unknown')).resolves.toBe(false)
+    await expect(runtime.triggerNativeCardAction('series-1', 'favorite')).resolves.toBe(false)
+    expect(fetchWithResilience).not.toHaveBeenCalled()
   })
 
-  it('forwards favorite actions to the matching native card control', () => {
+  it('sends favorite updates through the watchlist api without native forwarding', async () => {
     const nativeCard = new FakeElement()
     const seriesLink = new FakeElement()
     seriesLink.setAttribute('href', '/series/series-42')
@@ -121,14 +148,39 @@ describe('native-bridge runtime', () => {
     const favoriteButton = new FakeElement()
     nativeCard.setQuerySelector('[data-cw-native-action="favorite"]', favoriteButton)
 
-    const { runtime, runtimeEvents } = createNativeBridgeRuntime([nativeCard])
-    const didForward = runtime.triggerNativeCardAction('series-42', 'favorite')
+    const { runtime, runtimeEvents, fetchWithResilience, createAuthRefreshHandler } = createNativeBridgeRuntime(
+      [nativeCard],
+      {
+        getAccessToken: vi.fn(async () => ({ accountId: 'account-123', accessToken: 'token-abc' })),
+      },
+    )
+    const didApply = await runtime.triggerNativeCardAction('series-42', 'favorite', false)
 
-    expect(didForward).toBe(true)
-    expect(favoriteButton.clickCount).toBe(1)
+    expect(didApply).toBe(true)
+    expect(favoriteButton.clickCount).toBe(0)
+    expect(createAuthRefreshHandler).toHaveBeenCalledWith({
+      accountId: 'account-123',
+      accessToken: 'token-abc',
+    })
+    expect(fetchWithResilience).toHaveBeenCalledTimes(1)
+    const [requestUrl, requestInit, requestOptions] = fetchWithResilience.mock.calls[0] ?? []
+    expect(requestUrl).toBe('https://api.crunchyroll.test/content/v2/account-123/watchlist/series-42')
+    expect(requestInit).toMatchObject({
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'content-type': 'application/json',
+      },
+    })
+    expect(requestInit.body).toBe(JSON.stringify({ is_favorite: false }))
+    expect(requestOptions).toMatchObject({
+      label: 'watchlist favorite request',
+      bearerToken: 'token-abc',
+      refreshBearerToken: 'refresh-handler',
+    })
     expect(runtimeEvents).toEqual([
       {
-        event: 'native-action-forwarded',
+        event: 'watchlist-action-complete',
         data: {
           seriesId: 'series-42',
           actionType: 'favorite',
@@ -137,16 +189,60 @@ describe('native-bridge runtime', () => {
     ])
   })
 
-  it('returns false when no matching native action button exists', () => {
-    const nativeCard = new FakeElement()
-    const seriesLink = new FakeElement()
-    seriesLink.setAttribute('href', '/series/series-404')
-    nativeCard.setQuerySelectorAll('a[href*="/series/"]', [seriesLink])
+  it('sends remove actions through the watchlist delete endpoint', async () => {
+    const { runtime, fetchWithResilience } = createNativeBridgeRuntime([], {
+      getAccessToken: vi.fn(async () => ({ accountId: 'account-123', accessToken: 'token-abc' })),
+    })
 
-    const { runtime, runtimeEvents } = createNativeBridgeRuntime([nativeCard])
-    const didForward = runtime.triggerNativeCardAction('series-404', 'remove')
+    const didApply = await runtime.triggerNativeCardAction('series-404', 'remove')
+    expect(didApply).toBe(true)
+    expect(fetchWithResilience).toHaveBeenCalledTimes(1)
+    const [requestUrl, requestInit] = fetchWithResilience.mock.calls[0] ?? []
+    expect(requestUrl).toBe('https://api.crunchyroll.test/content/v2/account-123/watchlist/series-404')
+    expect(requestInit).toMatchObject({
+      method: 'DELETE',
+      credentials: 'include',
+    })
+    expect(requestInit.body).toBeUndefined()
+  })
 
-    expect(didForward).toBe(false)
-    expect(runtimeEvents).toEqual([])
+  it('returns false when account id is unavailable', async () => {
+    const { runtime, fetchWithResilience, runtimeEvents } = createNativeBridgeRuntime([], {
+      getAccessToken: vi.fn(async () => ({ accessToken: 'token-only' })),
+    })
+
+    const didApply = await runtime.triggerNativeCardAction('series-404', 'remove')
+    expect(didApply).toBe(false)
+    expect(fetchWithResilience).not.toHaveBeenCalled()
+    expect(runtimeEvents).toEqual([
+      {
+        event: 'watchlist-action-missing-account-id',
+        data: {
+          seriesId: 'series-404',
+          actionType: 'remove',
+        },
+      },
+    ])
+  })
+
+  it('returns false when the watchlist request fails', async () => {
+    const { runtime, runtimeEvents } = createNativeBridgeRuntime([], {
+      fetchWithResilience: vi.fn(async () => {
+        throw new Error('request failed')
+      }),
+    })
+
+    const didApply = await runtime.triggerNativeCardAction('series-505', 'remove')
+    expect(didApply).toBe(false)
+    expect(runtimeEvents).toEqual([
+      {
+        event: 'watchlist-action-failed',
+        data: {
+          seriesId: 'series-505',
+          actionType: 'remove',
+          message: 'request failed',
+        },
+      },
+    ])
   })
 })

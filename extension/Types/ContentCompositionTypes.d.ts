@@ -29,6 +29,8 @@ type ContentCompositionDependencies = {
   preloadRatingsForSelectedAudioLocale: AnyFn
   preloadWatchHistoryForSelectedAudioLocale: AnyFn
   getAccessToken: AnyFn
+  fetchWithResilience: AnyFn
+  createAuthRefreshHandler: AnyFn
   resetWatchlistCacheOnAccountMismatch: AnyFn
   fetchAllWatchlistRows: AnyFn
   preloadRatingsForEntries: AnyFn
@@ -89,7 +91,7 @@ type CuratedRuntime = {
   buildRenderableEntries: () => unknown
   renderCuratedPanel: () => unknown
   ensureCuratedDataLoad: (force?: unknown) => Promise<unknown>
-  triggerNativeCardAction: (seriesId: unknown, actionType: unknown) => unknown
+  triggerNativeCardAction: (seriesId: unknown, actionType: unknown, favoriteValue?: unknown) => Promise<boolean>
   installCuratedCardPreview: DeferredCompositionCallbacks['installCuratedCardPreview']
 }
 
@@ -120,7 +122,7 @@ type ContentCompositionRuntime = {
   buildRenderableEntries: () => unknown
   createCuratedCardActions: (entry: unknown) => unknown
   compareRenderableEntries: (left: unknown, right: unknown, sortMode?: unknown) => unknown
-  triggerNativeCardAction: (seriesId: unknown, actionType: unknown) => unknown
+  triggerNativeCardAction: (seriesId: unknown, actionType: unknown, favoriteValue?: unknown) => Promise<boolean>
   installCuratedCardPreview: DeferredCompositionCallbacks['installCuratedCardPreview']
   bindCuratedInterfaceControls: () => unknown
   ensureCuratedDataLoad: (force?: unknown) => Promise<unknown>

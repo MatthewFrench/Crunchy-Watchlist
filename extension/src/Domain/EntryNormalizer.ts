@@ -34,6 +34,7 @@
     seasonNumber: number | null
     episodeNumber: number | null
     absoluteEpisodeNumber: number | null
+    episodeDurationMs: number | null
     playheadMs: number
     fullyWatched: boolean
     neverWatched: boolean
@@ -389,6 +390,7 @@
     const seasonNumber = context.sanitizePositiveInt(meta.season_number)
     const episodeNumber = context.sanitizePositiveInt(meta.episode_number)
     const absoluteEpisodeNumber = context.getAbsoluteEpisodeNumberFromEpisodeMetadata(meta)
+    const episodeDurationMs = context.sanitizePositiveInt(meta.duration_ms ?? meta.durationMs)
     const canonicalEpisodeKey = context.deriveCanonicalEpisodeKeyFromEpisodeMetadata(meta, seriesId)
     const nextEpisodeLabel = context.formatEpisodeIdentifier(seasonNumber, episodeNumber)
     const statusText = nextEpisodeLabel ? `${statusBase}: ${nextEpisodeLabel}` : statusBase
@@ -432,6 +434,7 @@
       seasonNumber,
       episodeNumber,
       absoluteEpisodeNumber,
+      episodeDurationMs,
       playheadMs,
       fullyWatched,
       neverWatched,

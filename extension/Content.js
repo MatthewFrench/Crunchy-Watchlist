@@ -481,6 +481,8 @@
         preloadRatingsForSelectedAudioLocale,
         preloadWatchHistoryForSelectedAudioLocale,
         getAccessToken,
+        fetchWithResilience,
+        createAuthRefreshHandler,
         resetWatchlistCacheOnAccountMismatch,
         fetchAllWatchlistRows,
         preloadRatingsForEntries,

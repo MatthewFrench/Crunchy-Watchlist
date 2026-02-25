@@ -85,6 +85,7 @@ function createCuratedRenderableRuntime(
     progressBySeriesId?: Record<string, Record<string, unknown>>
     progressBySeriesIdAudio?: Record<string, Record<string, unknown>>
     preferredAudioLanguage?: string
+    getLocalizedSeriesCount?: (ratingEntry: unknown, audioLocale: unknown, countType: unknown) => number | null
     deriveDisplayStatusBase?: (entry: unknown, watchHistoryEntry: unknown) => string
     isEntryWatchReady?: (entry: unknown) => boolean
     compareRenderableEntries?: (left: unknown, right: unknown, sortMode?: unknown) => number
@@ -97,6 +98,7 @@ function createCuratedRenderableRuntime(
     progressBySeriesId = {},
     progressBySeriesIdAudio = {},
     preferredAudioLanguage = 'en-us',
+    getLocalizedSeriesCount = () => null,
     deriveDisplayStatusBase = (_entry: unknown, watchHistoryEntry: unknown) => (watchHistoryEntry ? 'continue' : 'new'),
     isEntryWatchReady = (entry: unknown) => Boolean((entry as Record<string, unknown>).watchReadyHint),
     compareRenderableEntries = (left: unknown, right: unknown) =>
@@ -153,7 +155,7 @@ function createCuratedRenderableRuntime(
       const number = Number(value)
       return Number.isFinite(number) && number > 0 ? Math.round(number) : null
     },
-    getLocalizedSeriesCount: () => null,
+    getLocalizedSeriesCount,
     sanitizePositiveInt: (value: unknown) => {
       const number = Number(value)
       return Number.isFinite(number) && number > 0 ? Math.round(number) : null
@@ -390,6 +392,122 @@ describe('curated-renderable runtime', () => {
 
     expect(filterContext.selectedAudioIsDefaultPreferred).toBe(true)
     expect(merged.watchHistoryProgressEntry).toBe(fallbackProgress)
+  })
+
+  it('uses series progress fallback when no audio locale filter is selected', () => {
+    const fallbackProgress = { progressMs: 3000 }
+    const runtime = createCuratedRenderableRuntime({
+      progressBySeriesId: {
+        'series-1': fallbackProgress,
+      },
+      preferredAudioLanguage: 'en-us',
+    })
+
+    const filterContext = runtime.resolveRenderableFilterContext({
+      audioLocaleFilter: 'any',
+      genreFilter: 'any',
+    })
+    const merged = runtime.mergeRenderableEntry(
+      {
+        seriesId: 'series-1',
+        title: 'First Show',
+        audioLocales: ['en-US'],
+        genreTags: ['Action'],
+      },
+      filterContext,
+    )
+
+    expect(filterContext.selectedAudioLocale).toBeNull()
+    expect(merged.watchHistoryProgressEntry).toBe(fallbackProgress)
+  })
+
+  it('marks entries as complete when last known episode is watched past the completion threshold', () => {
+    const runtime = createCuratedRenderableRuntime({
+      progressBySeriesId: {
+        'series-finished': {
+          absoluteEpisodeNumber: 10,
+          fullyWatched: true,
+        },
+      },
+      deriveDisplayStatusBase: (entry: unknown) =>
+        (entry as Record<string, unknown>).fullyWatched ? 'Watch Again' : 'Continue',
+      isEntryWatchReady: () => true,
+    })
+
+    const filterContext = runtime.resolveRenderableFilterContext({
+      audioLocaleFilter: 'any',
+      genreFilter: 'any',
+    })
+    const merged = runtime.mergeRenderableEntry(
+      {
+        seriesId: 'series-finished',
+        episodeCount: 10,
+        neverWatched: true,
+        audioLocales: ['en-US'],
+        genreTags: ['Action'],
+      },
+      filterContext,
+    )
+
+    expect(merged.fullyWatched).toBe(true)
+    expect(merged.neverWatched).toBe(false)
+    expect(merged.statusBase).toBe('Watch Again')
+    expect(merged.watchReady).toBe(false)
+  })
+
+  it('derives thumbnail progress ratios from playhead and episode duration', () => {
+    const runtime = createCuratedRenderableRuntime({
+      progressBySeriesId: {
+        'series-progress': {
+          playhead: 700,
+          episodeDurationMs: 1_400_000,
+          fullyWatched: false,
+        },
+      },
+      deriveDisplayStatusBase: () => 'Continue',
+      isEntryWatchReady: () => true,
+    })
+
+    const filterContext = runtime.resolveRenderableFilterContext({
+      audioLocaleFilter: 'any',
+      genreFilter: 'any',
+    })
+    const merged = runtime.mergeRenderableEntry(
+      {
+        seriesId: 'series-progress',
+        episodeCount: 12,
+        audioLocales: ['en-US'],
+        genreTags: ['Action'],
+      },
+      filterContext,
+    )
+
+    expect(merged.episodeWatchProgressRatio).toBeCloseTo(0.5, 2)
+  })
+
+  it('keeps ratings locale episode totals primary with known maxima as fallback', () => {
+    const runtime = createCuratedRenderableRuntime({
+      getLocalizedSeriesCount: (_ratingEntry, _audioLocale, countType) => (countType === 'episode' ? 12 : null),
+    })
+
+    const filterContext = runtime.resolveRenderableFilterContext({
+      audioLocaleFilter: 'en-US',
+      genreFilter: 'any',
+    })
+    const merged = runtime.mergeRenderableEntry(
+      {
+        seriesId: 'series-locale-max',
+        episodeCount: 20,
+        knownEpisodeMaxByAudioLocale: {
+          'en-us': 10,
+        },
+        audioLocales: ['en-US'],
+        genreTags: ['Action'],
+      },
+      filterContext,
+    )
+
+    expect(merged.episodeCount).toBe(12)
   })
 
   it('evaluates watch-ready state against the merged status base', () => {

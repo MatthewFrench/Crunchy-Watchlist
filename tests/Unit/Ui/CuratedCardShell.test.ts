@@ -241,8 +241,7 @@ describe('curated-card-shell ui module', () => {
         const description = documentRef.createElement('div')
         description.className = 'cw-curated-card__description'
         body.appendChild(description)
-        body.querySelector = (selector: string) =>
-          selector === '.cw-curated-card__description' ? description : null
+        body.querySelector = (selector: string) => (selector === '.cw-curated-card__description' ? description : null)
         return body
       },
     })
@@ -258,6 +257,25 @@ describe('curated-card-shell ui module', () => {
     expect(media?.className).toBe('cw-curated-card__media')
     expect(media?.children[0]?.className).toBe('cw-curated-card__thumb')
     expect(media?.children[1]?.className).toBe('cw-curated-card__description')
+  })
+
+  it('renders a thumbnail progress bar for partial episode progress', () => {
+    const { runtime } = createCardShellRuntime()
+
+    const card = runtime.createCuratedCard({
+      seriesId: 'series-progress',
+      title: 'Series with progress',
+      href: '/series/series-progress',
+      portraitImageUrl: 'portrait.jpg',
+      episodeWatchProgressRatio: 0.42,
+    })
+
+    const media = card.children[1]
+    expect(media?.className).toBe('cw-curated-card__media')
+    expect(media?.children[0]?.className).toBe('cw-curated-card__thumb')
+    expect(media?.children[1]?.className).toBe('cw-curated-card__thumb-progress')
+    expect(media?.children[1]?.children[0]?.className).toBe('cw-curated-card__thumb-progress-fill')
+    expect(media?.children[1]?.children[0]?.style.width).toBe('42%')
   })
 
   it('navigates only for safe card click events', () => {

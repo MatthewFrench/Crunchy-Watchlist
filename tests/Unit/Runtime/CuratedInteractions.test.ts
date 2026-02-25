@@ -92,7 +92,7 @@ describe('curated-interactions runtime', () => {
   })
 
   it('creates card action controls and forwards favorite/remove interactions', async () => {
-    const triggerNativeCardAction = vi.fn((seriesId: string, actionType: string) => seriesId && actionType)
+    const triggerNativeCardAction = vi.fn(async () => true)
     const toggleCuratedFavorite = vi.fn()
     const removeCuratedSeries = vi.fn()
     const renderCuratedPanel = vi.fn()
@@ -142,7 +142,7 @@ describe('curated-interactions runtime', () => {
     await favoriteButton.dispatch('click')
     await removeButton.dispatch('click')
 
-    expect(triggerNativeCardAction).toHaveBeenCalledWith('series-1', 'favorite')
+    expect(triggerNativeCardAction).toHaveBeenCalledWith('series-1', 'favorite', true)
     expect(triggerNativeCardAction).toHaveBeenCalledWith('series-1', 'remove')
     expect(toggleCuratedFavorite).toHaveBeenCalledWith('series-1')
     expect(removeCuratedSeries).toHaveBeenCalledWith('series-1')
@@ -176,7 +176,7 @@ describe('curated-interactions runtime', () => {
       },
       alertRef: vi.fn(),
       confirmRef: vi.fn(() => true),
-      triggerNativeCardAction: vi.fn(() => true),
+      triggerNativeCardAction: vi.fn(async () => true),
       toggleCuratedFavorite: vi.fn(),
       removeCuratedSeries: vi.fn(),
       renderCuratedPanel,

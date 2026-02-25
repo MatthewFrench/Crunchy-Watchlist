@@ -295,6 +295,21 @@
   aspect-ratio: 2 / 3;
 }
 
+.cw-curated-card__thumb-progress {
+  position: relative;
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.cw-curated-card__thumb-progress-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ff8fa3, #ffc45a);
+}
+
 .cw-curated-card__thumb img {
   display: block;
   width: 100%;

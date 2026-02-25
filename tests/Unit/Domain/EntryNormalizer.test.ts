@@ -8,6 +8,7 @@ type UnknownRecord = Record<string, unknown>
 type NormalizedEntry = {
   seriesId: string
   knownEpisodeMaxByAudioLocale: Record<string, number>
+  episodeDurationMs: number | null
   hasEnglishAudio: boolean
   watchReadyBase: boolean
 }
@@ -136,6 +137,7 @@ function createApiRow(
         season_number: 1,
         episode_number: sequenceNumber,
         sequence_number: sequenceNumber,
+        duration_ms: 1420000,
         identifier: `s1-e${sequenceNumber}`,
         audio_locale: audioLocale,
         availability_status: 'available',
@@ -168,6 +170,7 @@ describe('EntryNormalizer', () => {
     expect(normalized).toHaveLength(1)
     expect(normalized[0]?.knownEpisodeMaxByAudioLocale['en-us']).toBe(1)
     expect(normalized[0]?.knownEpisodeMaxByAudioLocale['ja-jp']).toBe(2)
+    expect(normalized[0]?.episodeDurationMs).toBe(1420000)
     expect(normalized[0]?.hasEnglishAudio).toBe(true)
   })
 

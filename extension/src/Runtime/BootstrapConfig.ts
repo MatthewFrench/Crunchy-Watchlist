@@ -139,7 +139,7 @@
     processDebounceMs: 180,
     watchlistPageSize: 100,
     watchlistMaxPages: 30,
-    watchlistRevalidateCooldownMs: 90 * 1000,
+    watchlistRevalidateCooldownMs: 10 * 60 * 1000,
     watchHistoryPageSize: 100,
     watchHistoryMaxPages: 40,
     watchHistoryNoMatchPageLimit: 5,

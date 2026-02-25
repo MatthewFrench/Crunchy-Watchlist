@@ -246,7 +246,7 @@
         'renderCuratedPanel',
         options.renderCuratedPanel,
       ) as CuratedLoaderContext['renderCuratedPanel'],
-      watchlistRevalidateCooldownMs: normalizePositiveNumber(options.watchlistRevalidateCooldownMs, 90_000),
+      watchlistRevalidateCooldownMs: normalizePositiveNumber(options.watchlistRevalidateCooldownMs, 600_000),
     }
   }
 

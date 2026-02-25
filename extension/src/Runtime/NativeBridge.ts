@@ -6,6 +6,10 @@
     windowRef: Window
     runtimeEvent: (event: string, data?: unknown) => void
     nativeActionBridgeRuntime: NativeActionBridgeRuntime
+    getAccessToken: (forceRefresh?: boolean) => Promise<TokenEntry | null>
+    fetchWithResilience: FetchWithResilience
+    createAuthRefreshHandler: (tokenEntry: TokenEntry | null) => unknown
+    resolveApiHref: (pathWithQuery: string) => string
     normalizeImageUrlCandidate: (value: unknown) => string
     fetchPreviewUrlForEntry: (entry: unknown) => Promise<unknown>
     isLikelyVideoUrl: (url: unknown) => boolean
@@ -16,6 +20,10 @@
     documentRef?: unknown
     windowRef?: unknown
     runtimeEvent?: unknown
+    getAccessToken?: unknown
+    fetchWithResilience?: unknown
+    createAuthRefreshHandler?: unknown
+    resolveApiHref?: unknown
     normalizeImageUrlCandidate?: unknown
     fetchPreviewUrlForEntry?: unknown
     isLikelyVideoUrl?: unknown
@@ -34,7 +42,11 @@
   }
 
   type NativeBridgeRuntime = {
-    triggerNativeCardAction: (seriesId: unknown, actionType: unknown) => boolean
+    triggerNativeCardAction: (
+      seriesId: unknown,
+      actionType: unknown,
+      favoriteValue?: unknown,
+    ) => Promise<boolean>
     installCuratedCardPreview: (
       thumbLink: unknown,
       entry: unknown,
@@ -44,13 +56,29 @@
     ) => void
   }
 
+  type TokenEntry = {
+    accountId?: unknown
+    accessToken?: unknown
+  } & Record<string, unknown>
+
+  type FetchWithResilience = (
+    url: string,
+    requestInit: RequestInit,
+    options: {
+      label: string
+      bearerToken?: string
+      refreshBearerToken?: unknown
+    },
+  ) => Promise<Response>
+
+  type NativeActionType = 'favorite' | 'remove'
+
   type EntryLike = {
     seriesId?: unknown
     streamsLink?: unknown
   }
 
   type NativeActionBridgeRuntime = {
-    triggerNativeCardAction: (seriesId: unknown, actionType: unknown) => boolean
     findNativeCardBySeriesId: (seriesId: unknown) => HTMLElement | null
   }
 
@@ -116,10 +144,6 @@
     })
 
     return {
-      triggerNativeCardAction: requireFunction(
-        'runtimeNativeActionBridge.triggerNativeCardAction',
-        nativeActionBridgeRuntime.triggerNativeCardAction,
-      ) as NativeActionBridgeRuntime['triggerNativeCardAction'],
       findNativeCardBySeriesId: requireFunction(
         'runtimeNativeActionBridge.findNativeCardBySeriesId',
         nativeActionBridgeRuntime.findNativeCardBySeriesId,
@@ -136,6 +160,16 @@
       windowRef: resolveWindowRef(options.windowRef),
       runtimeEvent,
       nativeActionBridgeRuntime: resolveNativeActionBridgeRuntime(documentRef, runtimeEvent),
+      getAccessToken: requireFunction('getAccessToken', options.getAccessToken) as NativeBridgeContext['getAccessToken'],
+      fetchWithResilience: requireFunction(
+        'fetchWithResilience',
+        options.fetchWithResilience,
+      ) as NativeBridgeContext['fetchWithResilience'],
+      createAuthRefreshHandler: requireFunction(
+        'createAuthRefreshHandler',
+        options.createAuthRefreshHandler,
+      ) as NativeBridgeContext['createAuthRefreshHandler'],
+      resolveApiHref: requireFunction('resolveApiHref', options.resolveApiHref) as NativeBridgeContext['resolveApiHref'],
       normalizeImageUrlCandidate: requireFunction(
         'normalizeImageUrlCandidate',
         options.normalizeImageUrlCandidate,
@@ -149,6 +183,139 @@
         options.isLikelyVideoUrl,
       ) as NativeBridgeContext['isLikelyVideoUrl'],
       previewHoverDelayMs: normalizePositiveNumber(options.previewHoverDelayMs, 220),
+    }
+  }
+
+  function toTokenEntry(value: unknown): TokenEntry | null {
+    if (!value || typeof value !== 'object') {
+      return null
+    }
+    return value as TokenEntry
+  }
+
+  function toActionType(value: unknown): NativeActionType | null {
+    const actionType = getString(value).toLowerCase()
+    if (actionType === 'favorite' || actionType === 'remove') {
+      return actionType
+    }
+    return null
+  }
+
+  function createWatchlistActionUrl(context: NativeBridgeContext, accountId: string, seriesId: string): string {
+    return context.resolveApiHref(
+      `/content/v2/${encodeURIComponent(accountId)}/watchlist/${encodeURIComponent(seriesId)}`,
+    )
+  }
+
+  function createWatchlistActionRequestOptions(
+    context: NativeBridgeContext,
+    tokenEntry: TokenEntry | null,
+    actionType: NativeActionType,
+  ): {
+    label: string
+    bearerToken?: string
+    refreshBearerToken?: unknown
+  } {
+    const requestOptions: {
+      label: string
+      bearerToken?: string
+      refreshBearerToken?: unknown
+    } = {
+      label: actionType === 'favorite' ? 'watchlist favorite request' : 'watchlist remove request',
+      refreshBearerToken: context.createAuthRefreshHandler(tokenEntry),
+    }
+
+    if (typeof tokenEntry?.accessToken === 'string' && tokenEntry.accessToken) {
+      requestOptions.bearerToken = tokenEntry.accessToken
+    }
+
+    return requestOptions
+  }
+
+  function createWatchlistActionRequestInit(
+    actionType: NativeActionType,
+    favoriteValue: unknown,
+  ): RequestInit | null {
+    if (actionType === 'favorite') {
+      if (typeof favoriteValue !== 'boolean') {
+        return null
+      }
+
+      return {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          is_favorite: favoriteValue,
+        }),
+      }
+    }
+
+    return {
+      method: 'DELETE',
+      credentials: 'include',
+    }
+  }
+
+  async function triggerNativeCardActionInternal(
+    context: NativeBridgeContext,
+    seriesIdValue: unknown,
+    actionTypeValue: unknown,
+    favoriteValue: unknown,
+  ): Promise<boolean> {
+    const seriesId = getString(seriesIdValue)
+    const actionType = toActionType(actionTypeValue)
+    if (!seriesId || !actionType) {
+      return false
+    }
+
+    const requestInit = createWatchlistActionRequestInit(actionType, favoriteValue)
+    if (!requestInit) {
+      context.runtimeEvent('watchlist-action-invalid-request', {
+        seriesId,
+        actionType,
+      })
+      return false
+    }
+
+    const tokenEntry = toTokenEntry(await context.getAccessToken(false))
+    const accountId = getString(tokenEntry?.accountId)
+    if (!accountId) {
+      context.runtimeEvent('watchlist-action-missing-account-id', {
+        seriesId,
+        actionType,
+      })
+      return false
+    }
+
+    const requestUrl = createWatchlistActionUrl(context, accountId, seriesId)
+    const requestOptions = createWatchlistActionRequestOptions(context, tokenEntry, actionType)
+
+    try {
+      const response = await context.fetchWithResilience(requestUrl, requestInit, requestOptions)
+      if (!response.ok) {
+        context.runtimeEvent('watchlist-action-failed', {
+          seriesId,
+          actionType,
+          status: response.status,
+        })
+        return false
+      }
+
+      context.runtimeEvent('watchlist-action-complete', {
+        seriesId,
+        actionType,
+      })
+      return true
+    } catch (error) {
+      context.runtimeEvent('watchlist-action-failed', {
+        seriesId,
+        actionType,
+        message: error instanceof Error ? error.message : 'unknown',
+      })
+      return false
     }
   }
 
@@ -521,8 +688,8 @@
     const context = createNativeBridgeContext(options)
 
     return {
-      triggerNativeCardAction: (seriesId, actionType) =>
-        context.nativeActionBridgeRuntime.triggerNativeCardAction(seriesId, actionType),
+      triggerNativeCardAction: (seriesId, actionType, favoriteValue) =>
+        triggerNativeCardActionInternal(context, seriesId, actionType, favoriteValue),
       installCuratedCardPreview: (thumbLink, entry, coverImageUrl, hoverPreviewImageUrl, thumbImage) => {
         installCuratedCardPreviewInternal(context, thumbLink, entry, coverImageUrl, hoverPreviewImageUrl, thumbImage)
       },

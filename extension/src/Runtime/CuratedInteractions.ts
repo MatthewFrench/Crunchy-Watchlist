@@ -29,7 +29,11 @@
     documentRef: Document
     alertRef: (message: string) => void
     confirmRef: (message: string) => boolean
-    triggerNativeCardAction: (seriesId: string, actionType: string) => boolean
+    triggerNativeCardAction: (
+      seriesId: string,
+      actionType: string,
+      favoriteValue?: unknown,
+    ) => Promise<boolean>
     toggleCuratedFavorite: (seriesId: string) => void
     removeCuratedSeries: (seriesId: string) => void
     renderCuratedPanel: () => void
@@ -262,38 +266,63 @@
       removeButton.disabled = true
     }
 
-    const missingActionMessage =
-      'Crunchyroll action controls are not loaded for this show yet. Open the Crunchyroll tab and scroll this show into view once, then retry.'
+    const failedActionMessage = 'Crunchyroll watchlist update failed. Please refresh and try again.'
 
-    favoriteButton.addEventListener('click', (event) => {
+    favoriteButton.addEventListener('click', async (event) => {
       stopCardActionEvent(event)
-
-      const forwarded = context.triggerNativeCardAction(seriesId, 'favorite')
-      if (!forwarded) {
-        context.alertRef(missingActionMessage)
+      if (!seriesId) {
         return
       }
 
-      context.toggleCuratedFavorite(seriesId)
-      context.renderCuratedPanel()
+      const wasFavoriteButtonDisabled = favoriteButton.disabled
+      const wasRemoveButtonDisabled = removeButton.disabled
+      favoriteButton.disabled = true
+      removeButton.disabled = true
+
+      try {
+        const applied = await context.triggerNativeCardAction(seriesId, 'favorite', !isFavorite)
+        if (!applied) {
+          context.alertRef(failedActionMessage)
+          return
+        }
+
+        context.toggleCuratedFavorite(seriesId)
+        context.renderCuratedPanel()
+      } finally {
+        favoriteButton.disabled = wasFavoriteButtonDisabled
+        removeButton.disabled = wasRemoveButtonDisabled
+      }
     })
 
-    removeButton.addEventListener('click', (event) => {
+    removeButton.addEventListener('click', async (event) => {
       stopCardActionEvent(event)
+      if (!seriesId) {
+        return
+      }
 
       const confirmed = context.confirmRef(`Remove "${title}" from your Crunchyroll watchlist?`)
       if (!confirmed) {
         return
       }
 
-      const forwarded = context.triggerNativeCardAction(seriesId, 'remove')
-      if (!forwarded) {
-        context.alertRef(missingActionMessage)
-        return
-      }
+      const wasFavoriteButtonDisabled = favoriteButton.disabled
+      const wasRemoveButtonDisabled = removeButton.disabled
+      favoriteButton.disabled = true
+      removeButton.disabled = true
 
-      context.removeCuratedSeries(seriesId)
-      context.renderCuratedPanel()
+      try {
+        const applied = await context.triggerNativeCardAction(seriesId, 'remove')
+        if (!applied) {
+          context.alertRef(failedActionMessage)
+          return
+        }
+
+        context.removeCuratedSeries(seriesId)
+        context.renderCuratedPanel()
+      } finally {
+        favoriteButton.disabled = wasFavoriteButtonDisabled
+        removeButton.disabled = wasRemoveButtonDisabled
+      }
     })
 
     actions.appendChild(favoriteButton)

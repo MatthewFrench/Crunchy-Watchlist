@@ -14,6 +14,7 @@
     seasonNumber: number | null
     episodeNumber: number | null
     absoluteEpisodeNumber: number | null
+    episodeDurationMs: number | null
     episodeId: string | null
     identifier: string
     canonicalEpisodeKey: string
@@ -304,6 +305,12 @@
       typeof value?.canonicalEpisodeKey === 'string' && value.canonicalEpisodeKey
         ? value.canonicalEpisodeKey
         : context.deriveCanonicalEpisodeKeyFromEpisodeMetadata(value?.panel?.episode_metadata || {}, seriesId)
+    const episodeDurationMs = context.sanitizePositiveInt(
+      value?.episodeDurationMs ??
+        value?.durationMs ??
+        value?.duration_ms ??
+        value?.panel?.episode_metadata?.duration_ms,
+    )
 
     return {
       seriesId,
@@ -312,6 +319,7 @@
       seasonNumber,
       episodeNumber,
       absoluteEpisodeNumber,
+      episodeDurationMs,
       episodeId,
       identifier,
       canonicalEpisodeKey,

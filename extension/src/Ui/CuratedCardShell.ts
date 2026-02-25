@@ -20,6 +20,7 @@
     coverImageUrl: string
     hoverPreviewImageUrl: string
     thumbImage: HTMLImageElement | null
+    progressBar: HTMLElement | null
   }
 
   type CardShellContext = {
@@ -111,6 +112,14 @@
 
   function normalizeCardLayout(value: unknown): 'portrait' | 'landscape' {
     return value === 'landscape' ? 'landscape' : 'portrait'
+  }
+
+  function sanitizeEpisodeProgressRatio(value: unknown): number | null {
+    const normalized = Number(value)
+    if (!Number.isFinite(normalized) || normalized <= 0 || normalized >= 1) {
+      return null
+    }
+    return normalized
   }
 
   function createCardShellContext(deps: CardShellDeps = {}): CardShellContext {
@@ -234,11 +243,33 @@
       thumbLink.appendChild(placeholder)
     }
 
+    const episodeWatchProgressRatio = sanitizeEpisodeProgressRatio(entry.episodeWatchProgressRatio)
+    let progressBar: HTMLElement | null = null
+    if (episodeWatchProgressRatio != null) {
+      const progressTrack = context.documentRef.createElement('div')
+      progressTrack.className = 'cw-curated-card__thumb-progress'
+      progressTrack.setAttribute('role', 'progressbar')
+      progressTrack.setAttribute('aria-valuemin', '0')
+      progressTrack.setAttribute('aria-valuemax', '100')
+      progressTrack.setAttribute('aria-valuenow', String(Math.round(episodeWatchProgressRatio * 100)))
+      progressTrack.setAttribute(
+        'aria-label',
+        `${Math.round(episodeWatchProgressRatio * 100)}% of current episode watched`,
+      )
+
+      const progressFill = context.documentRef.createElement('span')
+      progressFill.className = 'cw-curated-card__thumb-progress-fill'
+      progressFill.style.width = `${Math.max(1, Math.round(episodeWatchProgressRatio * 1000) / 10)}%`
+      progressTrack.appendChild(progressFill)
+      progressBar = progressTrack
+    }
+
     return {
       thumbLink,
       coverImageUrl,
       hoverPreviewImageUrl,
       thumbImage,
+      progressBar,
     }
   }
 
@@ -277,7 +308,7 @@
     const media = context.documentRef.createElement('div')
     media.className = 'cw-curated-card__media'
 
-    const { thumbLink, coverImageUrl, hoverPreviewImageUrl, thumbImage } = createCuratedCardThumbInternal(
+    const { thumbLink, coverImageUrl, hoverPreviewImageUrl, thumbImage, progressBar } = createCuratedCardThumbInternal(
       context,
       entry,
     )
@@ -287,6 +318,9 @@
     const body = context.createCuratedCardBody(entry, actions)
 
     media.appendChild(thumbLink)
+    if (progressBar) {
+      media.appendChild(progressBar)
+    }
     moveDescriptionIntoMediaInternal(media, body)
     item.appendChild(header)
     item.appendChild(media)

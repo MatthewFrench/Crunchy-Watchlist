@@ -172,7 +172,7 @@ describe('content composition runtime module', () => {
         },
         runtimeNativeBridgeModule: {
           createNativeBridgeRuntime: () => ({
-            triggerNativeCardAction: () => true,
+            triggerNativeCardAction: async () => true,
             installCuratedCardPreview,
           }),
         },
@@ -213,6 +213,8 @@ describe('content composition runtime module', () => {
         preloadRatingsForSelectedAudioLocale: async () => undefined,
         preloadWatchHistoryForSelectedAudioLocale: async () => undefined,
         getAccessToken: async () => null,
+        fetchWithResilience: async () => new Response(null, { status: 200 }),
+        createAuthRefreshHandler: () => undefined,
         resetWatchlistCacheOnAccountMismatch: () => undefined,
         fetchAllWatchlistRows: async () => [],
         preloadRatingsForEntries: async () => undefined,

@@ -9,6 +9,7 @@
     seasonNumber: number | null
     episodeNumber: number | null
     absoluteEpisodeNumber: number | null
+    episodeDurationMs: number | null
     episodeId: string | null
     identifier: string
     canonicalEpisodeKey: string

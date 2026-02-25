@@ -109,6 +109,144 @@
     return Array.isArray(value) ? value : []
   }
 
+  function sanitizePositiveNumber(value: unknown): number | null {
+    const normalized = Number(value)
+    if (!Number.isFinite(normalized) || normalized <= 0) {
+      return null
+    }
+    return normalized
+  }
+
+  function pickFirstPositiveNumber(values: unknown[]): number | null {
+    for (const value of values) {
+      const parsed = sanitizePositiveNumber(value)
+      if (parsed != null) {
+        return parsed
+      }
+    }
+    return null
+  }
+
+  function resolveEpisodeIndexValue(
+    dependencies: CuratedRenderableDependencies,
+    entry: Record<string, unknown>,
+  ): number | null {
+    return (
+      dependencies.sanitizePositiveInt(entry.absoluteEpisodeNumber) ??
+      (dependencies.sanitizePositiveInt(entry.seasonNumber) === 1
+        ? dependencies.sanitizePositiveInt(entry.episodeNumber)
+        : null)
+    )
+  }
+
+  function resolveProgressRatioFromPlayhead(playhead: number | null, durationMs: number | null): number | null {
+    if (playhead == null || durationMs == null || durationMs <= 0) {
+      return null
+    }
+
+    const ratioFromMilliseconds = playhead / durationMs
+    const ratioFromSeconds = (playhead * 1000) / durationMs
+    const boundedCandidates = [ratioFromMilliseconds, ratioFromSeconds].filter(
+      (candidate) => Number.isFinite(candidate) && candidate > 0 && candidate <= 1.05,
+    )
+
+    if (!boundedCandidates.length) {
+      return null
+    }
+
+    return Math.min(1, Math.max(...boundedCandidates))
+  }
+
+  function resolveEpisodeProgressRatio(
+    entryRecord: Record<string, unknown>,
+    progressRecord: Record<string, unknown>,
+  ): number | null {
+    if (Boolean(entryRecord.fullyWatched) || Boolean(progressRecord.fullyWatched)) {
+      return null
+    }
+
+    const playhead = pickFirstPositiveNumber([
+      progressRecord.playhead,
+      progressRecord.playheadMs,
+      progressRecord.progressMs,
+      entryRecord.playheadMs,
+      entryRecord.playhead,
+    ])
+    const durationMs = pickFirstPositiveNumber([
+      progressRecord.episodeDurationMs,
+      progressRecord.durationMs,
+      progressRecord.duration_ms,
+      entryRecord.episodeDurationMs,
+      entryRecord.durationMs,
+      entryRecord.duration_ms,
+    ])
+    const ratio = resolveProgressRatioFromPlayhead(playhead, durationMs)
+
+    if (ratio == null || ratio <= 0 || ratio >= 1) {
+      return null
+    }
+
+    return ratio
+  }
+
+  function estimateWatchedEpisodeCount(
+    totalEpisodes: number | null,
+    episodeIndex: number | null,
+    episodeCompleted: boolean,
+  ): number | null {
+    if (totalEpisodes == null || episodeIndex == null) {
+      return null
+    }
+
+    const watchedEpisodes = episodeCompleted ? episodeIndex : Math.max(0, episodeIndex - 1)
+    return Math.max(0, Math.min(totalEpisodes, watchedEpisodes))
+  }
+
+  function deriveEffectiveCompletionState(
+    dependencies: CuratedRenderableDependencies,
+    entryRecord: Record<string, unknown>,
+    progressRecord: Record<string, unknown>,
+    totalEpisodes: number | null,
+  ): {
+    fullyWatched: boolean
+    neverWatched: boolean
+    watchedRatio: number | null
+  } {
+    const entryEpisodeIndex = resolveEpisodeIndexValue(dependencies, entryRecord)
+    const progressEpisodeIndex = resolveEpisodeIndexValue(dependencies, progressRecord)
+    const resolvedEpisodeIndex = progressEpisodeIndex ?? entryEpisodeIndex
+    const entryCompleted = Boolean(entryRecord.fullyWatched)
+    const progressCompleted = Boolean(progressRecord.fullyWatched)
+    const watchedEpisodeCount = estimateWatchedEpisodeCount(
+      totalEpisodes,
+      resolvedEpisodeIndex,
+      progressCompleted || entryCompleted,
+    )
+    const watchedRatio =
+      watchedEpisodeCount != null && totalEpisodes != null && totalEpisodes > 0
+        ? watchedEpisodeCount / totalEpisodes
+        : null
+    const hasProgressSignal =
+      progressEpisodeIndex != null ||
+      entryEpisodeIndex != null ||
+      sanitizePositiveNumber(progressRecord.playhead) != null ||
+      sanitizePositiveNumber(progressRecord.playheadMs) != null ||
+      sanitizePositiveNumber(progressRecord.progressMs) != null ||
+      sanitizePositiveNumber(entryRecord.playheadMs) != null
+    const reachedSeriesEnd =
+      progressCompleted &&
+      progressEpisodeIndex != null &&
+      totalEpisodes != null &&
+      progressEpisodeIndex >= totalEpisodes
+    const effectivelyComplete = entryCompleted || (reachedSeriesEnd && watchedRatio != null && watchedRatio >= 0.6)
+
+    return {
+      fullyWatched: effectivelyComplete,
+      neverWatched: Boolean(entryRecord.neverWatched) && !hasProgressSignal && !effectivelyComplete,
+      watchedRatio,
+    }
+  }
+
   function buildCuratedFilterOptions(anyTitle: string, selectedFilter: string, values: string[]) {
     return [
       { optionValue: 'any', title: anyTitle },
@@ -255,11 +393,13 @@
     const localeWatchHistoryProgressEntry = selectedAudioLocale
       ? dependencies.getCachedWatchHistoryProgress(seriesId, selectedAudioLocale, false)
       : null
+    const useSeriesProgressFallback = !selectedAudioLocale || selectedAudioIsDefaultPreferred
+    const useSeriesHistoryFallback = !selectedAudioLocale || selectedAudioIsDefaultPreferred
     const watchHistoryProgressEntry =
       localeWatchHistoryProgressEntry ||
-      (selectedAudioIsDefaultPreferred ? watchHistoryProgressFallback : null) ||
+      (useSeriesProgressFallback ? watchHistoryProgressFallback : null) ||
       localeWatchHistoryEntry ||
-      (selectedAudioIsDefaultPreferred ? watchHistoryEntry : null)
+      (useSeriesHistoryFallback ? watchHistoryEntry : null)
     const rating = ratingEntry.rating ?? null
     const votes = ratingEntry.votes ?? null
     const distribution = ratingEntry.distribution ?? null
@@ -278,10 +418,13 @@
     const knownEpisodeCountForSelectedAudio = localizedAudioForCounts
       ? dependencies.getAudioLocaleCountFromMap(entryRecord.knownEpisodeMaxByAudioLocale, localizedAudioForCounts)
       : null
-    const episodeCount =
-      dependencies.getLocalizedSeriesCount(ratingEntry, localizedAudioForCounts, 'episode') ??
-      knownEpisodeCountForSelectedAudio ??
-      dependencies.sanitizePositiveInt(entryRecord.episodeCount)
+    const localizedEpisodeCountFromRatings = dependencies.getLocalizedSeriesCount(
+      ratingEntry,
+      localizedAudioForCounts,
+      'episode',
+    )
+    const baseEpisodeCount = dependencies.sanitizePositiveInt(entryRecord.episodeCount)
+    const episodeCount = localizedEpisodeCountFromRatings ?? knownEpisodeCountForSelectedAudio ?? baseEpisodeCount
     const seasonCount =
       dependencies.getLocalizedSeriesCount(ratingEntry, localizedAudioForCounts, 'season') ??
       dependencies.sanitizePositiveInt(entryRecord.seasonCount)
@@ -303,6 +446,9 @@
       asRecord(watchHistoryEntry).datePlayedMs,
       entryRecord.lastWatchedMs,
     ])
+    const progressRecord = asRecord(watchHistoryProgressEntry)
+    const completionState = deriveEffectiveCompletionState(dependencies, entryRecord, progressRecord, episodeCount)
+    const episodeWatchProgressRatio = resolveEpisodeProgressRatio(entryRecord, progressRecord)
     const mergedEntry = {
       ...entryRecord,
       description,
@@ -316,6 +462,10 @@
       landscapeImageUrl,
       hoverPreviewImageUrl,
       lastWatchedMs,
+      fullyWatched: completionState.fullyWatched,
+      neverWatched: completionState.neverWatched,
+      watchedRatio: completionState.watchedRatio,
+      episodeWatchProgressRatio,
       watchHistoryProgressEntry,
       imageUrl: portraitImageUrl || landscapeImageUrl || dependencies.normalizeImageUrlCandidate(entryRecord.imageUrl),
       rating,
@@ -326,7 +476,7 @@
       ...mergedEntry,
       statusBase,
     }
-    const watchReady = dependencies.isEntryWatchReady(mergedEntryWithStatus)
+    const watchReady = completionState.fullyWatched ? false : dependencies.isEntryWatchReady(mergedEntryWithStatus)
 
     return {
       ...mergedEntryWithStatus,

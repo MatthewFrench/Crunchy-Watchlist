@@ -155,6 +155,13 @@ describe('sort-metrics domain module', () => {
     expect(runtime.estimateUnwatchedEpisodesLeft({ episodeCount: 24, fullyWatched: true })).toBe(0)
     expect(
       runtime.estimateUnwatchedEpisodesLeft({
+        episodeCount: 24,
+        neverWatched: true,
+        absoluteEpisodeNumber: 6,
+      }),
+    ).toBe(19)
+    expect(
+      runtime.estimateUnwatchedEpisodesLeft({
         episodeCount: 12,
         absoluteEpisodeNumber: 3,
         watchHistoryProgressEntry: {
@@ -163,6 +170,16 @@ describe('sort-metrics domain module', () => {
         },
       }),
     ).toBe(7)
+    expect(
+      runtime.estimateUnwatchedEpisodesLeft({
+        episodeCount: 12,
+        neverWatched: true,
+        watchHistoryProgressEntry: {
+          absoluteEpisodeNumber: 12,
+          fullyWatched: true,
+        },
+      }),
+    ).toBe(0)
   })
 
   it('applies watch-ready penalties and watched-episode estimates for quick wins', () => {

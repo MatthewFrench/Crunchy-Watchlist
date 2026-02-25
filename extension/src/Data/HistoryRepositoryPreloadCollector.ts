@@ -18,6 +18,7 @@
     seasonNumber: number | null
     episodeNumber: number | null
     absoluteEpisodeNumber: number | null
+    episodeDurationMs: number | null
     episodeId: string | null
     identifier: string
     canonicalEpisodeKey: string
@@ -108,6 +109,7 @@
     const seasonNumber = options.sanitizePositiveInt(meta?.season_number)
     const episodeNumber = options.sanitizePositiveInt(meta?.episode_number)
     const absoluteEpisodeNumber = options.getAbsoluteEpisodeNumberFromEpisodeMetadata(meta)
+    const episodeDurationMs = options.sanitizePositiveInt(meta?.duration_ms ?? meta?.durationMs)
     const explicitAudioLocale = options.normalizeAudioLocale(
       meta?.audio_locale || entry?.panel?.audio_locale || entry?.audio_locale || entry?.audioLocale,
     )
@@ -124,6 +126,7 @@
       seasonNumber,
       episodeNumber,
       absoluteEpisodeNumber,
+      episodeDurationMs,
       episodeId,
       identifier,
       canonicalEpisodeKey,
