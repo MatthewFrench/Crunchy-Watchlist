@@ -1,6 +1,6 @@
 # Crunchy Watchlist Curator Architecture Standards
 
-Last updated: 2026-02-24
+Last updated: 2026-02-25
 
 This document is the architecture contract for this repository. It defines required boundaries, ownership, and quality gates for extension runtime code, build/distribution tooling, and automated tests.
 
@@ -225,7 +225,7 @@ These budgets are enforcement triggers.
 - Max parameters per exported function: `<= 6` (otherwise use typed object argument).
 - Cyclomatic hotspots should be decomposed into named helpers before adding new branches.
 
-## 16) Conformance Review Snapshot (2026-02-24)
+## 16) Conformance Review Snapshot (2026-02-25)
 
 Current-state findings from this repository:
 
@@ -239,36 +239,43 @@ Current-state findings from this repository:
    - `extension/src/Runtime/ContentBootstrap.ts`
    - `tests/Unit/Runtime/ContentBootstrap.test.ts`
    - `extension/manifest.json` updated to load `src/Runtime/ContentBootstrap.js` before `Content.js`.
-3. Composition and data preload type-surface noise was removed from large runtime owners by extracting ambient contracts to:
+3. Native action forwarding ownership was extracted from `extension/src/Runtime/NativeBridge.ts` to:
+   - `extension/src/Runtime/NativeActionBridge.ts`
+   - `tests/Unit/Runtime/NativeActionBridge.test.ts`
+   - `extension/manifest.json` updated to load `src/Runtime/NativeActionBridge.js` before `src/Runtime/NativeBridge.js`.
+   - `NativeBridge.ts` reduced from `599` to `536` lines.
+4. Composition and data preload type-surface noise was removed from large runtime owners by extracting ambient contracts to:
    - `extension/Types/CommonRuntimeTypes.d.ts`
    - `extension/Types/ContentCompositionTypes.d.ts`
    - `extension/Types/HistoryRepositoryPreloadTypes.d.ts`
-4. Runtime boundaries remain cleanly owned by typed modules:
+5. Runtime boundaries remain cleanly owned by typed modules:
    - Runtime orchestration: `extension/src/Runtime/**`
    - Data/access boundaries: `extension/src/Data/**`
    - Domain/pure logic: `extension/src/Domain/**`
    - UI rendering/composition: `extension/src/Ui/**`
-5. User-facing behavior coverage remains aligned with recent feature work:
+6. User-facing behavior coverage remains aligned with recent feature work:
    - merged status-line labels (`Up Next`/`Continue`) without separate “Next unwatched” row,
    - favorites genre mode (`__favorites__`),
    - watch-ready hide-not-started mode,
    - loading diagnostics that preserve duplicate in-flight requests and show `Completed X of Y • In progress Z`.
-6. Verified full architecture gates in this cycle:
+7. Verified full architecture gates in this cycle:
    - `npm ci`
    - `npm audit --json` (`0` vulnerabilities)
    - `npm run typecheck`
    - `npm run lint`
    - `npm run format:check`
-   - `npm run test:unit` (`146` passed)
+   - `npm run test:unit` (`149` passed)
    - `npm run pw:live:smoke`
    - `npm run lint:firefox`
    - `npm run test:e2e` (`81` passed)
    - `npm run build:webext`
    - `npm run build:safari` (Xcode build succeeded)
    - `npm run arch:metrics`
-7. Remaining friction to track:
+8. Remaining friction to track:
    - No hard blockers are currently open.
    - Full cross-browser + Safari gate runs are still high-cost; keep release-affecting validation cadence explicit.
+   - Xcode still emits a non-blocking AppIntents metadata notice in this toolchain (`Metadata extraction skipped. No AppIntents.framework dependency found.`).
+   - Signed/notarized Safari release packaging now depends on configured Apple CI secrets; `main` release builds fail fast when those secrets are missing (intentional safety gate).
 
 ## 17) Transitional Exceptions (Tracked)
 
@@ -307,16 +314,17 @@ For each architecture PR:
 - Do not introduce new JavaScript-only modules in `extension/src/**` once TypeScript migration starts for that layer.
 - Do not bypass schema validation at API boundaries by casting unknown payloads directly to typed shapes.
 
-## 20) Prioritized Next Items (Post-Completion Optimization Queue, Reviewed 2026-02-24)
+## 20) Prioritized Next Items (Post-Completion Optimization Queue, Reviewed 2026-02-25)
 
 Priority order for the next optimization cycle:
 
-1. Priority 0: preserve dependency hygiene and lockfile parity (`npm ci` + `npm audit` remain clean) during upgrade windows, with full gate verification.
-2. Priority 1: prevent regrowth in top runtime owners (`NativeBridge.ts`, `AuthClient.ts`, `ContentComposition.ts`, `HistoryRepositoryCache.ts`, `Content.js`) under tightened warning/refactor budgets.
+1. Priority 0: preserve dependency hygiene and lockfile parity (`npm ci` + `npm audit` remain clean) during upgrade windows, with full gate verification and CI `npm audit --audit-level=moderate` enforcement.
+2. Priority 1: prevent regrowth in top runtime owners (`Content.js`, `AuthClient.ts`, `ContentComposition.ts`, `HistoryRepositoryCache.ts`) under tightened warning/refactor budgets.
 3. Priority 1: preserve schema-first contract hardening as API surfaces evolve (watchlist/history/ratings/preview), including explicit contract-drift telemetry and focused unit coverage.
-4. Priority 1: keep composition-root boundaries thin (`Content.js`, `ContentBootstrap.ts`, `ContentComposition.ts`) and avoid ownership regression into bootstrap.
-5. Priority 2: continue CI/runtime throughput improvements without reducing cross-browser + Safari confidence.
-6. Priority 2: keep architecture baseline/status documentation synchronized with every structural change cycle.
+4. Priority 1: keep Safari release-signing configuration stable (Developer ID cert import, notarization API key, and fail-fast secret validation in CI) so downloaded app artifacts remain Gatekeeper-valid.
+5. Priority 1: keep composition-root boundaries thin (`Content.js`, `ContentBootstrap.ts`, `ContentComposition.ts`) and avoid ownership regression into bootstrap.
+6. Priority 2: continue CI/runtime throughput improvements without reducing cross-browser + Safari confidence.
+7. Priority 2: keep architecture baseline/status documentation synchronized with every structural change cycle.
 
 Definition of successful next cycle:
 

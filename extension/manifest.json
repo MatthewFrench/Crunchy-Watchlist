@@ -48,6 +48,7 @@
         "src/Runtime/CuratedRenderable.js",
         "src/Runtime/CuratedPanel.js",
         "src/Runtime/CuratedLoader.js",
+        "src/Runtime/NativeActionBridge.js",
         "src/Runtime/NativeBridge.js",
         "src/Runtime/CuratedInteractions.js",
         "src/Runtime/InterfaceShell.js",

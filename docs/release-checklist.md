@@ -27,6 +27,14 @@ Use this checklist for each public release across Chrome, Edge, Firefox, and Saf
 ## 4) CI and release quality gates
 
 - [ ] Ensure `.github/workflows/build-extensions.yml` passes on the target commit.
+- [ ] For `main` release pushes, confirm Safari signing/notarization secrets are configured:
+  - `APPLE_DEVELOPER_ID_CERT_P12_BASE64`
+  - `APPLE_DEVELOPER_ID_CERT_PASSWORD`
+  - `APPLE_TEAM_ID`
+  - `APPLE_NOTARY_API_KEY_P8_BASE64`
+  - `APPLE_NOTARY_KEY_ID`
+  - `APPLE_NOTARY_ISSUER_ID`
+  - optional: `APPLE_DEVELOPER_ID_APPLICATION_IDENTITY` (explicit certificate common name)
 - [ ] Verify CI uploaded artifacts: `extension-chrome`, `extension-edge`, `extension-firefox`, `extension-safari`.
 - [ ] Verify CI published a release to GitHub Releases for the `main` commit.
 - [ ] Verify GitHub release naming follows repo convention.
@@ -35,6 +43,7 @@ Use this checklist for each public release across Chrome, Edge, Firefox, and Saf
 - [ ] Verify browser packages include expected `manifest.json`, `Content.js`, `Content.css`, and `icons/`.
 - [ ] Verify Firefox package includes `browser_specific_settings.gecko.id`.
 - [ ] Verify Safari package includes app wrapper build output.
+- [ ] Verify Safari package came from signed/notarized path (workflow fails `main` builds when required signing/notary secrets are missing).
 - [ ] Verify generated web-extension artifacts exist and contain expected icons:
   - `dist/chrome/crunchy-watchlist-curator-chrome.zip`
   - `dist/edge/crunchy-watchlist-curator-edge.zip`
@@ -70,6 +79,9 @@ Safari/macOS hardening:
 - [ ] Confirm app and extension bundle IDs match planned production values.
 - [ ] Build archived/macOS App Store package in Xcode (`Product > Archive`) from the macOS scheme.
 - [ ] Export and notarize a signed package suitable for distribution.
+- [ ] Validate notarized app bundle before publishing:
+  - `spctl --assess --type execute --verbose "/path/to/Crunchy Watchlist Curator.app"`
+  - `xcrun stapler validate "/path/to/Crunchy Watchlist Curator.app"`
 - [ ] Upload package, complete extension metadata, and set up a TestFlight or store review build.
 - [ ] Verify extension controls and `Curated` tab in the signed artifact before requesting review.
 

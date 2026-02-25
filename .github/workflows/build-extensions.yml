@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Dependency audit
+        run: npm audit --audit-level=moderate
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -125,8 +128,79 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate Safari signing configuration (main releases)
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        env:
+          APPLE_DEVELOPER_ID_CERT_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERT_P12_BASE64 }}
+          APPLE_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_NOTARY_API_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_API_KEY_P8_BASE64 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: |
+          missing=()
+          [[ -z "$APPLE_DEVELOPER_ID_CERT_P12_BASE64" ]] && missing+=("APPLE_DEVELOPER_ID_CERT_P12_BASE64")
+          [[ -z "$APPLE_DEVELOPER_ID_CERT_PASSWORD" ]] && missing+=("APPLE_DEVELOPER_ID_CERT_PASSWORD")
+          [[ -z "$APPLE_TEAM_ID" ]] && missing+=("APPLE_TEAM_ID")
+          [[ -z "$APPLE_NOTARY_API_KEY_P8_BASE64" ]] && missing+=("APPLE_NOTARY_API_KEY_P8_BASE64")
+          [[ -z "$APPLE_NOTARY_KEY_ID" ]] && missing+=("APPLE_NOTARY_KEY_ID")
+          [[ -z "$APPLE_NOTARY_ISSUER_ID" ]] && missing+=("APPLE_NOTARY_ISSUER_ID")
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::Missing required Safari signing/notarization secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Configure Apple signing keychain
+        if: ${{ secrets.APPLE_DEVELOPER_ID_CERT_P12_BASE64 != '' && secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+        env:
+          APPLE_DEVELOPER_ID_CERT_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERT_P12_BASE64 }}
+          APPLE_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
+          APPLE_DEVELOPER_ID_APPLICATION_IDENTITY: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/safari-signing.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/safari-developer-id.p12"
+          KEYCHAIN_PASSWORD="$(uuidgen)-$RANDOM"
+
+          printf '%s' "$APPLE_DEVELOPER_ID_CERT_P12_BASE64" | openssl base64 -d -A > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$APPLE_DEVELOPER_ID_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+
+          echo "SAFARI_SIGNED_BUILD=1" >> "$GITHUB_ENV"
+          echo "SAFARI_DEVELOPMENT_TEAM=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
+          echo "SAFARI_KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          if [[ -n "$APPLE_DEVELOPER_ID_APPLICATION_IDENTITY" ]]; then
+            echo "SAFARI_CODE_SIGN_IDENTITY=$APPLE_DEVELOPER_ID_APPLICATION_IDENTITY" >> "$GITHUB_ENV"
+          fi
+
+      - name: Configure Apple notarization credentials
+        if: ${{ secrets.APPLE_NOTARY_API_KEY_P8_BASE64 != '' && secrets.APPLE_NOTARY_KEY_ID != '' && secrets.APPLE_NOTARY_ISSUER_ID != '' }}
+        env:
+          APPLE_NOTARY_API_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_API_KEY_P8_BASE64 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: |
+          NOTARY_KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_NOTARY_KEY_ID}.p8"
+          printf '%s' "$APPLE_NOTARY_API_KEY_P8_BASE64" | openssl base64 -d -A > "$NOTARY_KEY_PATH"
+          chmod 600 "$NOTARY_KEY_PATH"
+
+          echo "SAFARI_NOTARIZE=1" >> "$GITHUB_ENV"
+          echo "SAFARI_NOTARY_KEY_PATH=$NOTARY_KEY_PATH" >> "$GITHUB_ENV"
+          echo "SAFARI_NOTARY_KEY_ID=$APPLE_NOTARY_KEY_ID" >> "$GITHUB_ENV"
+          echo "SAFARI_NOTARY_ISSUER_ID=$APPLE_NOTARY_ISSUER_ID" >> "$GITHUB_ENV"
+
       - name: Build Safari artifacts
-        run: npm run build:safari
+        run: |
+          if [[ "${SAFARI_SIGNED_BUILD:-0}" != "1" ]]; then
+            echo "::warning::Building unsigned Safari artifact (no signing/notarization secrets available)."
+          fi
+          npm run build:safari
 
       - name: Upload Safari artifacts
         uses: actions/upload-artifact@v4
@@ -134,6 +208,13 @@ jobs:
           name: extension-safari
           path: dist/safari
           if-no-files-found: error
+
+      - name: Cleanup Apple signing keychain
+        if: ${{ always() }}
+        run: |
+          if [[ -n "${SAFARI_KEYCHAIN_PATH:-}" && -f "$SAFARI_KEYCHAIN_PATH" ]]; then
+            security delete-keychain "$SAFARI_KEYCHAIN_PATH" || true
+          fi
 
   release:
     name: Publish release artifacts

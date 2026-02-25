@@ -1,6 +1,6 @@
 # Crunchy Watchlist Curator Architecture Transformation Plan
 
-Last updated: 2026-02-24
+Last updated: 2026-02-25
 
 This plan converts the current monolithic extension runtime into a layered, TypeScript-first architecture while preserving behavior and release readiness across Chromium, Firefox, WebKit, and Safari wrapper distribution.
 
@@ -14,7 +14,7 @@ This plan converts the current monolithic extension runtime into a layered, Type
 6. Introduce static typing and type-aware quality gates to reduce regression risk.
 7. Improve developer velocity with deterministic build, lint, and test workflows.
 
-## 2) Current Baseline (Reviewed 2026-02-24)
+## 2) Current Baseline (Reviewed 2026-02-25)
 
 - `extension/Content.js`: 597 lines (strict target `<= 600` satisfied).
 - `extension/src/Runtime/ContentComposition.ts`: 568 lines (strict target `<= 600` satisfied).
@@ -1546,16 +1546,48 @@ Completed in this pass:
    - `npm run build:webext`
    - `npm run build:safari`
    - `npm run arch:metrics`
+219. Reduced remaining near-threshold runtime regrowth risk by decomposing native action forwarding:
+   - extracted native action ownership from `extension/src/Runtime/NativeBridge.ts` into `extension/src/Runtime/NativeActionBridge.ts`.
+   - `NativeBridge.ts` reduced from `599` to `536` lines while preserving delegated behavior.
+   - updated `extension/manifest.json` order to load `src/Runtime/NativeActionBridge.js` before `src/Runtime/NativeBridge.js`.
+220. Expanded unit coverage to lock the new action-bridge boundary:
+   - added `tests/Unit/Runtime/NativeActionBridge.test.ts` for action forwarding, card lookup, and event emission.
+   - updated `tests/Unit/Runtime/NativeBridge.test.ts` module-loading order to include `NativeActionBridge.ts`.
+   - unit baseline increased from `146` to `149` passing tests.
+221. Hardened dependency hygiene enforcement in CI verify stage:
+   - added a `Dependency audit` step (`npm audit --audit-level=moderate`) to `.github/workflows/build-extensions.yml`.
+222. Re-verified full architecture and release-confidence gates after native-action decomposition and CI audit hardening:
+   - `npm ci`
+   - `npm audit --audit-level=moderate`
+   - `npm run typecheck`
+   - `npm run lint`
+   - `npm run format:check`
+   - `npm run test:unit` (149 passed)
+   - `npm run pw:live:smoke`
+   - `npm run lint:firefox`
+   - `npm run test:e2e` (81 passed)
+   - `npm run build:webext`
+   - `npm run build:safari`
+   - `npm run arch:metrics`
+223. Implemented signed/notarized Safari release pipeline support to eliminate Gatekeeper "app is damaged" failures:
+   - `scripts/build-safari-macos.sh` now supports signed builds (`SAFARI_SIGNED_BUILD=1`) with configurable team, identity, and keychain path.
+   - added optional notarization path (`SAFARI_NOTARIZE=1`) using `xcrun notarytool`, followed by stapling/validation before final app zip packaging.
+224. Hardened Safari CI release safety gates:
+   - `.github/workflows/build-extensions.yml` now validates required signing/notarization secrets on `main` push releases and fails fast when missing.
+   - workflow config now imports Developer ID certificate into an ephemeral keychain, wires signing/notary env vars, and cleans up keychain state after build.
+225. Updated release operational documentation for signed Safari distribution:
+   - `docs/release-checklist.md` now includes required CI secret names and stapler/spctl validation checks for notarized app bundles.
 
 Observed new/confirmed opportunities:
 
 1. Strict architecture size targets are now satisfied on the tracked runtime/style surfaces (`Content.js`, `ContentComposition.ts`, `HistoryRepositoryPreload.ts`, `Content.css`).
-2. Unit coverage now spans runtime/data/domain/UI owners with 146 passing unit tests, including bootstrap and composition/deferred-callback coverage.
+2. Unit coverage now spans runtime/data/domain/UI owners with 149 passing unit tests, including native action bridge and bootstrap/composition/deferred-callback coverage.
 3. Metrics hotspot scanning still reports no warning-level structural opportunities; preserve this baseline with gate discipline.
 4. Safari build remains clean and successful with explicit arch destination + generated-runtime CI build path; keep pbxproj output declarations synchronized when script phases change.
-5. Dependency/toolchain hygiene is currently clean (`npm ci` + `npm audit` report `0` vulnerabilities); preserve this with controlled upgrade windows and full gate parity.
+5. Dependency/toolchain hygiene is currently clean (`npm ci` + `npm audit` report `0` vulnerabilities), and CI now enforces an explicit moderate-level audit gate.
 6. Naming/order drift risk remains concentrated at composition roots (`manifest.json`, fixture loader, runtime smoke checks); keep these contracts validated.
 7. Full cross-browser + Safari verification remains high-cost; preserve explicit cadence discipline to avoid confidence drift.
+8. Signed/notarized Safari release artifacts now depend on correctly configured Apple CI secrets; keep secret rotation and validity checks explicit in release operations.
 
 ## 11) Research Inputs (2026-02-23)
 
@@ -1587,13 +1619,15 @@ Why this is the better fit for current architecture direction:
 ## 12) Immediate Next Priorities (Post-Completion Optimization Queue)
 
 1. Preserve dependency/toolchain hygiene (`npm ci` + `npm audit` currently clean) via controlled upgrades and full gate verification windows.
-2. Prevent regrowth in near-threshold owners (`NativeBridge.ts`, `Content.js`, `AuthClient.ts`, `ContentComposition.ts`, `HistoryRepositoryCache.ts`) under tightened warning/refactor guardrails.
+2. Prevent regrowth in near-threshold owners (`Content.js`, `AuthClient.ts`, `ContentComposition.ts`, `HistoryRepositoryCache.ts`) under tightened warning/refactor guardrails.
 3. Preserve schema-first boundary enforcement and contract-warning telemetry as watchlist/history/ratings/preview surfaces evolve.
 4. Keep architecture gate discipline: `typecheck`, `lint`, `format:check`, `test:unit`, `arch:metrics` as baseline; run `lint:firefox` + `test:e2e` + `build:webext` + `build:safari` on release-affecting cycles.
 5. Keep architecture docs and progress logs synchronized in the same cycle as structural changes.
 6. Keep Safari CI/local composition deterministic (`npm run build:safari` generated-runtime path + arch-aware `xcodebuild` destination) to avoid packaging/runtime drift.
+7. Keep CI dependency-audit enforcement green (`npm audit --audit-level=moderate`) when updating toolchain dependencies.
+8. Keep Safari signing/notarization secrets valid and rotated without breaking release cadence.
 
-## 13) Prioritized Execution Queue (Reviewed 2026-02-24)
+## 13) Prioritized Execution Queue (Reviewed 2026-02-25)
 
 Use this order for the next implementation cycle:
 
@@ -1604,7 +1638,7 @@ Use this order for the next implementation cycle:
 5. Priority 2: keep CI-runtime cost stable while preserving cross-browser confidence (parallel-safe generated-runtime paths and fixture-port isolation remain mandatory).
 6. Priority 2: keep baseline/status sections current and treat historical logs as append-only history.
 
-## 14) Transformation Status Snapshot (2026-02-24)
+## 14) Transformation Status Snapshot (2026-02-25)
 
 Overall status indicator:
 
@@ -1624,11 +1658,14 @@ Post-completion optimization backlog (not required for v1 completion):
 1. Keep dependency/audit hygiene clean while preserving `npm ci` parity and release-confidence gate stability after future upgrades.
 2. Keep top runtime owners below strict targets while feature work continues.
 3. Keep CI/runtime script composition deterministic (`npm run build:safari` generated-runtime path, arch-aware destination handling, race-safe generated-runtime outputs).
-4. Architecture docs baseline/status sections updated in the same cycle as structural changes.
+4. Keep CI dependency-audit enforcement stable while dependency versions evolve (`npm audit --audit-level=moderate` remains green).
+5. Keep Safari signing/notarization credentials and pipeline validation healthy to avoid unsigned Gatekeeper-blocked release artifacts.
+6. Architecture docs baseline/status sections updated in the same cycle as structural changes.
 
 Current unresolved blockers and high-friction items:
 
 1. No hard blockers currently prevent execution.
-2. High-size owner drift risk remains in `NativeBridge.ts` (`599`), `Content.js` (`597`), `AuthClient.ts` (`578`), and `ContentComposition.ts` (`568`) as features expand.
+2. High-size owner drift risk remains in `Content.js` (`597`), `AuthClient.ts` (`578`), `ContentComposition.ts` (`568`), and `HistoryRepositoryCache.ts` (`566`) as features expand.
 3. Full cross-browser + Safari validation is reliable but expensive, so cadence discipline must stay explicit to avoid confidence drift.
 4. Xcode can still emit non-blocking metadata notices (for example AppIntents extraction warnings) depending on local toolchain/Xcode version, but destination-selection ambiguity is resolved.
+5. `main` Safari release builds now intentionally fail when required Apple signing/notarization secrets are missing or invalid.

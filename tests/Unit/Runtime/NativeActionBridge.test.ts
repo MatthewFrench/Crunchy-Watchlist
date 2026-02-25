@@ -3,24 +3,17 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
 
-type NativeBridgeRuntime = {
+type NativeActionBridgeRuntime = {
   triggerNativeCardAction: (seriesId: unknown, actionType: unknown) => boolean
+  findNativeCardBySeriesId: (seriesId: unknown) => FakeElement | null
 }
 
-type NativeBridgeModule = {
-  runtimeNativeBridge: {
-    createNativeBridgeRuntime: (options: Record<string, unknown>) => NativeBridgeRuntime
+type NativeActionBridgeModule = {
+  runtimeNativeActionBridge: {
+    createNativeActionBridgeRuntime: (options: Record<string, unknown>) => NativeActionBridgeRuntime
   }
 }
 
-type RuntimeEventRecord = {
-  event: string
-  data?: unknown
-}
-
-const nativeBridgeModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeBridge.ts'),
-).href
 const nativeActionBridgeModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeActionBridge.ts'),
 ).href
@@ -60,28 +53,18 @@ class FakeElement {
   }
 }
 
-function getNativeBridgeModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as NativeBridgeModule
-  return registry.runtimeNativeBridge
+function getNativeActionBridgeModule() {
+  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as NativeActionBridgeModule
+  return registry.runtimeNativeActionBridge
 }
 
-function createNativeBridgeRuntime(cards: FakeElement[]) {
-  const runtimeEvents: RuntimeEventRecord[] = []
-  const runtime = getNativeBridgeModule().createNativeBridgeRuntime({
+function createNativeActionBridgeRuntime(cards: FakeElement[]) {
+  const runtimeEvents: Array<{ event: string; data?: unknown }> = []
+  const runtime = getNativeActionBridgeModule().createNativeActionBridgeRuntime({
     documentRef: {
       querySelectorAll: (selector: string) => (selector === '[data-t="watch-list-card"]' ? cards : []),
     },
-    windowRef: {
-      location: { origin: 'https://www.crunchyroll.com' },
-      getComputedStyle: () => ({ backgroundImage: '' }),
-      setTimeout: () => 0,
-      clearTimeout: () => {},
-    },
     runtimeEvent: (event: string, data?: unknown) => runtimeEvents.push({ event, data }),
-    normalizeImageUrlCandidate: (value: unknown) => (typeof value === 'string' ? value.trim() : ''),
-    fetchPreviewUrlForEntry: async () => '',
-    isLikelyVideoUrl: () => false,
-    previewHoverDelayMs: 220,
   })
 
   return {
@@ -90,12 +73,12 @@ function createNativeBridgeRuntime(cards: FakeElement[]) {
   }
 }
 
-describe('native-bridge runtime', () => {
+describe('native-action-bridge runtime', () => {
   const runtimeGlobal = globalThis as Record<string, unknown>
   let originalHTMLElement: unknown
 
   beforeEach(async () => {
-    await loadRuntimeModules([nativeActionBridgeModuleUrl, nativeBridgeModuleUrl])
+    await loadRuntimeModules([nativeActionBridgeModuleUrl])
     originalHTMLElement = runtimeGlobal.HTMLElement
     runtimeGlobal.HTMLElement = FakeElement
   })
@@ -105,14 +88,14 @@ describe('native-bridge runtime', () => {
     clearRuntimeModulesRegistry()
   })
 
-  it('returns false for unsupported or missing native action requests', () => {
-    const { runtime } = createNativeBridgeRuntime([])
+  it('returns false for missing series id or unsupported action', () => {
+    const { runtime } = createNativeActionBridgeRuntime([])
 
     expect(runtime.triggerNativeCardAction('', 'favorite')).toBe(false)
     expect(runtime.triggerNativeCardAction('series-1', 'unknown')).toBe(false)
   })
 
-  it('forwards favorite actions to the matching native card control', () => {
+  it('forwards favorite action and emits runtime event for matching native card', () => {
     const nativeCard = new FakeElement()
     const seriesLink = new FakeElement()
     seriesLink.setAttribute('href', '/series/series-42')
@@ -121,10 +104,9 @@ describe('native-bridge runtime', () => {
     const favoriteButton = new FakeElement()
     nativeCard.setQuerySelector('[data-cw-native-action="favorite"]', favoriteButton)
 
-    const { runtime, runtimeEvents } = createNativeBridgeRuntime([nativeCard])
-    const didForward = runtime.triggerNativeCardAction('series-42', 'favorite')
-
-    expect(didForward).toBe(true)
+    const { runtime, runtimeEvents } = createNativeActionBridgeRuntime([nativeCard])
+    expect(runtime.triggerNativeCardAction('series-42', 'favorite')).toBe(true)
+    expect(runtime.findNativeCardBySeriesId('series-42')).toBe(nativeCard)
     expect(favoriteButton.clickCount).toBe(1)
     expect(runtimeEvents).toEqual([
       {
@@ -137,16 +119,8 @@ describe('native-bridge runtime', () => {
     ])
   })
 
-  it('returns false when no matching native action button exists', () => {
-    const nativeCard = new FakeElement()
-    const seriesLink = new FakeElement()
-    seriesLink.setAttribute('href', '/series/series-404')
-    nativeCard.setQuerySelectorAll('a[href*="/series/"]', [seriesLink])
-
-    const { runtime, runtimeEvents } = createNativeBridgeRuntime([nativeCard])
-    const didForward = runtime.triggerNativeCardAction('series-404', 'remove')
-
-    expect(didForward).toBe(false)
-    expect(runtimeEvents).toEqual([])
+  it('returns null when no matching card exists for find-native-card lookup', () => {
+    const { runtime } = createNativeActionBridgeRuntime([])
+    expect(runtime.findNativeCardBySeriesId('missing-series')).toBe(null)
   })
 })
