@@ -30,11 +30,12 @@ Use this checklist for each public release across Chrome, Edge, Firefox, and Saf
 - [ ] For `main` release pushes, confirm Safari signing/notarization secrets are configured:
   - `APPLE_DEVELOPER_ID_CERT_P12_BASE64`
   - `APPLE_DEVELOPER_ID_CERT_PASSWORD`
-  - `APPLE_TEAM_ID`
+  - `APPLE_TEAM_ID` (should match certificate team ID in `Developer ID Application: ... (TEAMID)`)
   - `APPLE_NOTARY_API_KEY_P8_BASE64`
   - `APPLE_NOTARY_KEY_ID`
   - `APPLE_NOTARY_ISSUER_ID`
   - optional: `APPLE_DEVELOPER_ID_APPLICATION_IDENTITY` (explicit certificate common name; CI auto-discovers a matching `Developer ID Application` identity when omitted or mismatched)
+  - note: build signing now binds to the selected certificate team ID. If `APPLE_TEAM_ID` is wrong, CI warns and uses the certificate team for `xcodebuild`.
 - [ ] Verify CI uploaded artifacts: `extension-chrome`, `extension-edge`, `extension-firefox`, `extension-safari`.
 - [ ] Verify CI published a release to GitHub Releases for the `main` commit.
 - [ ] Verify GitHub release naming follows repo convention.

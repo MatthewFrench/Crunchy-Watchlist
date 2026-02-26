@@ -209,8 +209,18 @@ jobs:
             exit 1
           fi
 
+          SELECTED_TEAM_ID="$(printf '%s\n' "$SELECTED_IDENTITY" | sed -n 's/.*(\([A-Z0-9]\{10\}\)).*/\1/p')"
+          if [[ -z "$SELECTED_TEAM_ID" ]]; then
+            echo "::error::Unable to parse team id from selected signing identity: $SELECTED_IDENTITY"
+            exit 1
+          fi
+
+          if [[ "$SELECTED_TEAM_ID" != "$APPLE_TEAM_ID" ]]; then
+            echo "::warning::APPLE_TEAM_ID ($APPLE_TEAM_ID) does not match selected signing identity team ($SELECTED_TEAM_ID); using certificate team for build signing."
+          fi
+
           echo "SAFARI_SIGNED_BUILD=1" >> "$GITHUB_ENV"
-          echo "SAFARI_DEVELOPMENT_TEAM=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
+          echo "SAFARI_DEVELOPMENT_TEAM=$SELECTED_TEAM_ID" >> "$GITHUB_ENV"
           echo "SAFARI_KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "SAFARI_CODE_SIGN_IDENTITY=$SELECTED_IDENTITY" >> "$GITHUB_ENV"
 

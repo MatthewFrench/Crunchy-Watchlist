@@ -27,6 +27,14 @@ if [[ "$SAFARI_BUILD_ARCH" == "arm64" || "$SAFARI_BUILD_ARCH" == "x86_64" ]]; th
   XCODE_DESTINATION="platform=macOS,arch=$SAFARI_BUILD_ARCH"
 fi
 
+identity_team_from_name="$(printf '%s\n' "$SAFARI_CODE_SIGN_IDENTITY" | sed -n 's/.*(\([A-Z0-9]\{10\}\)).*/\1/p')"
+if [[ -n "$identity_team_from_name" ]]; then
+  if [[ -n "$SAFARI_DEVELOPMENT_TEAM" && "$SAFARI_DEVELOPMENT_TEAM" != "$identity_team_from_name" ]]; then
+    echo "SAFARI_DEVELOPMENT_TEAM ($SAFARI_DEVELOPMENT_TEAM) does not match certificate team ($identity_team_from_name); using certificate team."
+  fi
+  SAFARI_DEVELOPMENT_TEAM="$identity_team_from_name"
+fi
+
 if ! command -v xcodebuild >/dev/null 2>&1; then
   echo "xcodebuild is required to build Safari artifacts."
   exit 1
