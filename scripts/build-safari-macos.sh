@@ -179,13 +179,13 @@ if [[ "$SAFARI_NOTARIZE" == "1" ]]; then
   fi
 
   if [[ -f "$extension_executable_path" ]]; then
-    sign_with_timestamp "$extension_executable_path" "none"
+    sign_with_timestamp "$extension_executable_path" "runtime"
   fi
   if [[ -d "$extension_bundle_path" ]]; then
-    sign_with_timestamp "$extension_bundle_path" "none"
+    sign_with_timestamp "$extension_bundle_path" "runtime"
   fi
   if [[ -f "$app_executable_path" ]]; then
-    sign_with_timestamp "$app_executable_path" "none"
+    sign_with_timestamp "$app_executable_path" "runtime"
   fi
   sign_with_timestamp "$APP_PATH" "runtime"
 
