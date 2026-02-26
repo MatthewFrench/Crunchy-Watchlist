@@ -104,29 +104,95 @@ if [[ "$SAFARI_NOTARIZE" == "1" ]]; then
     exit 1
   fi
 
-  app_signature_details="$(codesign -d --verbose=4 "$APP_PATH" 2>&1 || true)"
-  if printf '%s\n' "$app_signature_details" | grep -q "Timestamp=none"; then
-    echo "App signature is missing secure timestamp; re-signing app bundle with timestamp for notarization."
-    resign_args=(
+  app_executable_path="$APP_PATH/Contents/MacOS/Crunchy Watchlist Curator"
+  extension_bundle_path="$APP_PATH/Contents/PlugIns/Crunchy Watchlist Curator Extension.appex"
+  extension_executable_path="$extension_bundle_path/Contents/MacOS/Crunchy Watchlist Curator Extension"
+  resign_tmp_dir="$(mktemp -d)"
+
+  cleanup_resign_tmp_dir() {
+    rm -rf "$resign_tmp_dir"
+  }
+
+  extract_sanitized_entitlements() {
+    local code_path="$1"
+    local entitlements_out="$2"
+    if ! /usr/bin/codesign -d --entitlements :- "$code_path" >"$entitlements_out" 2>/dev/null; then
+      return 1
+    fi
+    if [[ ! -s "$entitlements_out" ]]; then
+      return 1
+    fi
+
+    # get-task-allow must never be present in notarized distribution signatures.
+    /usr/libexec/PlistBuddy -c "Delete :com.apple.security.get-task-allow" "$entitlements_out" >/dev/null 2>&1 || true
+    return 0
+  }
+
+  sign_with_timestamp() {
+    local code_path="$1"
+    local runtime_mode="$2"
+    local entitlements_path="$resign_tmp_dir/$(basename "$code_path").entitlements.plist"
+    local sign_args=(
       --force
       --sign "$SAFARI_CODE_SIGN_IDENTITY"
       --timestamp
-      --preserve-metadata=entitlements,requirements,flags,runtime
     )
     if [[ -n "$SAFARI_KEYCHAIN_PATH" ]]; then
-      resign_args+=(
-        --keychain "$SAFARI_KEYCHAIN_PATH"
-      )
+      sign_args+=(--keychain "$SAFARI_KEYCHAIN_PATH")
+    fi
+    if [[ "$runtime_mode" == "runtime" ]]; then
+      sign_args+=(--options runtime)
+    fi
+    if extract_sanitized_entitlements "$code_path" "$entitlements_path"; then
+      sign_args+=(--entitlements "$entitlements_path")
     fi
 
-    /usr/bin/codesign "${resign_args[@]}" "$APP_PATH"
-    codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+    /usr/bin/codesign "${sign_args[@]}" "$code_path"
+  }
 
-    app_signature_details="$(codesign -d --verbose=4 "$APP_PATH" 2>&1 || true)"
-    if printf '%s\n' "$app_signature_details" | grep -q "Timestamp=none"; then
-      echo "Failed to apply secure timestamp to app signature."
-      exit 1
+  assert_secure_timestamp() {
+    local code_path="$1"
+    local signature_details
+    signature_details="$(/usr/bin/codesign -d --verbose=4 "$code_path" 2>&1 || true)"
+    if printf '%s\n' "$signature_details" | grep -q "Timestamp=none"; then
+      echo "Signature timestamp is missing for: $code_path"
+      return 1
     fi
+    if ! printf '%s\n' "$signature_details" | grep -q "Timestamp="; then
+      echo "Unable to read signature timestamp for: $code_path"
+      return 1
+    fi
+    return 0
+  }
+
+  # Re-sign nested binaries/bundles to ensure secure timestamps and sanitized entitlements.
+  if [[ -d "$APP_PATH/Contents/Frameworks" ]]; then
+    while IFS= read -r -d '' framework_binary; do
+      sign_with_timestamp "$framework_binary" "none"
+    done < <(find "$APP_PATH/Contents/Frameworks" -type f \( -name "*.dylib" -o -name "*.so" \) -print0)
+  fi
+
+  if [[ -d "$extension_bundle_path/Contents/Frameworks" ]]; then
+    while IFS= read -r -d '' framework_binary; do
+      sign_with_timestamp "$framework_binary" "none"
+    done < <(find "$extension_bundle_path/Contents/Frameworks" -type f \( -name "*.dylib" -o -name "*.so" \) -print0)
+  fi
+
+  if [[ -f "$extension_executable_path" ]]; then
+    sign_with_timestamp "$extension_executable_path" "none"
+  fi
+  if [[ -d "$extension_bundle_path" ]]; then
+    sign_with_timestamp "$extension_bundle_path" "none"
+  fi
+  if [[ -f "$app_executable_path" ]]; then
+    sign_with_timestamp "$app_executable_path" "none"
+  fi
+  sign_with_timestamp "$APP_PATH" "runtime"
+
+  /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+  assert_secure_timestamp "$app_executable_path"
+  if [[ -f "$extension_executable_path" ]]; then
+    assert_secure_timestamp "$extension_executable_path"
   fi
 
   notarize_zip_path="$OUTPUT_DIR/crunchy-watchlist-curator-safari-macos-notary-upload.zip"
@@ -159,6 +225,7 @@ if [[ "$SAFARI_NOTARIZE" == "1" ]]; then
   xcrun stapler staple "$APP_PATH"
   xcrun stapler validate "$APP_PATH"
 
+  cleanup_resign_tmp_dir
   rm -f "$notarize_zip_path"
 fi
 
