@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
@@ -76,6 +76,167 @@ describe('bootstrap-gate runtime', () => {
 
     expect(firstRun).toBe(true)
     expect(secondRun).toBe(false)
+  })
+
+  it('allows same-version rebootstrap when previous runtime exposes shutdown control', () => {
+    const runtime = getBootstrapGateRuntime()
+    const shutdown = vi.fn()
+    const topWindow = {
+      top: null as unknown,
+      __CW_WATCHLIST_CURATOR_MODULES__: {},
+      __CW_WATCHLIST_CURATOR_LOADED__: undefined as unknown,
+      __CW_WATCHLIST_CURATOR_CONTROL__: {
+        shutdown,
+      },
+      location: {
+        pathname: '/watchlist',
+      },
+      document: {
+        querySelector: () => null,
+      },
+    }
+    topWindow.top = topWindow
+
+    const firstRun = runtime.shouldRun({
+      windowRef: topWindow,
+      browserRef: {
+        runtime: {
+          getManifest: () => ({ version: '1.2.3' }),
+        },
+      },
+    })
+    const secondRun = runtime.shouldRun({
+      windowRef: topWindow,
+      browserRef: {
+        runtime: {
+          getManifest: () => ({ version: '1.2.3' }),
+        },
+      },
+    })
+
+    expect(firstRun).toBe(true)
+    expect(secondRun).toBe(true)
+    expect(shutdown).toHaveBeenCalledTimes(1)
+    expect(shutdown).toHaveBeenCalledWith({
+      reason: 'same-version-rebootstrap',
+      staleShellDetected: false,
+    })
+  })
+
+  it('allows same-version rebootstrap when a stale framed shell exists without control hooks', () => {
+    const runtime = getBootstrapGateRuntime()
+    const watchlistRoot = {
+      classList: {
+        contains: (name: string) => name === 'cw-watchlist-frame',
+      },
+      querySelector: (_selector: string) => null,
+      contains: (element: unknown) => element != null && (element as { kind?: string }).kind === 'host',
+    }
+    const host = {
+      kind: 'host',
+      querySelector: (selector: string) => {
+        if (selector === '.cw-tabs' || selector === '.cw-panel') {
+          return {}
+        }
+        if (selector === '.cw-curated-grid') {
+          return {
+            children: [],
+            querySelector: () => null,
+          }
+        }
+        return null
+      },
+    }
+    const topWindow = {
+      top: null as unknown,
+      __CW_WATCHLIST_CURATOR_MODULES__: {},
+      __CW_WATCHLIST_CURATOR_LOADED__: undefined as unknown,
+      location: {
+        pathname: '/watchlist',
+      },
+      document: {
+        querySelector: (selector: string) => {
+          if (selector === '.erc-watchlist') {
+            return watchlistRoot
+          }
+          if (selector === '.cw-host') {
+            return host
+          }
+          return null
+        },
+      },
+    }
+    topWindow.top = topWindow
+
+    const firstRun = runtime.shouldRun({
+      windowRef: topWindow,
+      browserRef: {
+        runtime: {
+          getManifest: () => ({ version: '1.2.3' }),
+        },
+      },
+    })
+    const secondRun = runtime.shouldRun({
+      windowRef: topWindow,
+      browserRef: {
+        runtime: {
+          getManifest: () => ({ version: '1.2.3' }),
+        },
+      },
+    })
+
+    expect(firstRun).toBe(true)
+    expect(secondRun).toBe(true)
+  })
+
+  it('allows same-version rebootstrap when framed watchlist residue exists without host nodes', () => {
+    const runtime = getBootstrapGateRuntime()
+    const watchlistRoot = {
+      classList: {
+        contains: (name: string) => name === 'cw-watchlist-frame',
+      },
+      querySelector: (_selector: string) => null,
+    }
+    const topWindow = {
+      top: null as unknown,
+      __CW_WATCHLIST_CURATOR_MODULES__: {},
+      __CW_WATCHLIST_CURATOR_LOADED__: undefined as unknown,
+      location: {
+        pathname: '/watchlist',
+      },
+      document: {
+        querySelector: (selector: string) => {
+          if (selector === '.erc-watchlist') {
+            return watchlistRoot
+          }
+          if (selector === '.cw-host') {
+            return null
+          }
+          return null
+        },
+      },
+    }
+    topWindow.top = topWindow
+
+    const firstRun = runtime.shouldRun({
+      windowRef: topWindow,
+      browserRef: {
+        runtime: {
+          getManifest: () => ({ version: '1.2.3' }),
+        },
+      },
+    })
+    const secondRun = runtime.shouldRun({
+      windowRef: topWindow,
+      browserRef: {
+        runtime: {
+          getManifest: () => ({ version: '1.2.3' }),
+        },
+      },
+    })
+
+    expect(firstRun).toBe(true)
+    expect(secondRun).toBe(true)
   })
 
   it('detects watchlist paths only for trailing watchlist segment', () => {

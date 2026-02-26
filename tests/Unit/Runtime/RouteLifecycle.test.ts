@@ -7,6 +7,7 @@ type RouteLifecycleRuntime = {
   processWatchlist: () => Promise<void>
   syncRoute: () => void
   startRouteWatcher: () => void
+  stopRouteWatcher: () => void
 }
 
 type RouteLifecycleModule = {
@@ -69,6 +70,7 @@ describe('runtime route-lifecycle', () => {
     delete (globalThis as Record<string, unknown>).history
     delete (globalThis as Record<string, unknown>).MutationObserver
     delete (globalThis as Record<string, unknown>).addEventListener
+    delete (globalThis as Record<string, unknown>).removeEventListener
     vi.useRealTimers()
   })
 
@@ -213,5 +215,225 @@ describe('runtime route-lifecycle', () => {
     expect(debounceProcess).toHaveBeenCalled()
     expect(runtimeEvents).toContain('route-structure-observer-started')
     expect(runtimeEvents).toContain('mounted')
+  })
+
+  it('debounces processing when host-only dom churn occurs outside muted extension writes', () => {
+    setPathname('/watchlist')
+
+    const observerCallbacks: MutationCallback[] = []
+    class FakeMutationObserver {
+      callback: MutationCallback
+
+      constructor(callback: MutationCallback) {
+        this.callback = callback
+        observerCallbacks.push(callback)
+      }
+
+      observe(): void {}
+      disconnect(): void {}
+      takeRecords(): MutationRecord[] {
+        return []
+      }
+    }
+
+    Object.defineProperty(globalThis, 'MutationObserver', {
+      configurable: true,
+      writable: true,
+      value: FakeMutationObserver,
+    })
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      writable: true,
+      value: {
+        body: {},
+        documentElement: {},
+      },
+    })
+
+    const state = createBaseState()
+    state.mounted = false
+
+    const debounceProcess = vi.fn()
+    const runtime = getRouteLifecycleModule().createRouteLifecycle({
+      state,
+      runtimeEvent: vi.fn(),
+      isWatchlistPath: (pathname: string) => pathname.endsWith('/watchlist'),
+      ensureInterface: vi.fn(),
+      applyTabUi: vi.fn(),
+      ensureCuratedDataLoad: vi.fn(async () => undefined),
+      renderCuratedPanel: vi.fn(),
+      setNativeVisibility: vi.fn(),
+      clearRootFrame: vi.fn(),
+      debounceProcess,
+    })
+
+    runtime.syncRoute()
+    debounceProcess.mockClear()
+
+    observerCallbacks[0]?.([{ target: {} } as MutationRecord], {} as MutationObserver)
+
+    expect(debounceProcess).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops route watcher listeners and prevents route sync after teardown', () => {
+    vi.useFakeTimers()
+    setPathname('/watch/GSERIES1')
+
+    const observerCallbacks: MutationCallback[] = []
+    class FakeMutationObserver {
+      callback: MutationCallback
+
+      constructor(callback: MutationCallback) {
+        this.callback = callback
+        observerCallbacks.push(callback)
+      }
+
+      observe(): void {}
+      disconnect(): void {}
+      takeRecords(): MutationRecord[] {
+        return []
+      }
+    }
+
+    const eventHandlers = new Map<string, (() => void)[]>()
+    Object.defineProperty(globalThis, 'MutationObserver', {
+      configurable: true,
+      writable: true,
+      value: FakeMutationObserver,
+    })
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      writable: true,
+      value: {
+        body: {},
+        documentElement: {},
+      },
+    })
+    Object.defineProperty(globalThis, 'history', {
+      configurable: true,
+      writable: true,
+      value: {
+        pushState: () => {},
+        replaceState: () => {},
+      },
+    })
+    Object.defineProperty(globalThis, 'addEventListener', {
+      configurable: true,
+      writable: true,
+      value: (eventName: string, handler: () => void) => {
+        const existing = eventHandlers.get(eventName) || []
+        existing.push(handler)
+        eventHandlers.set(eventName, existing)
+      },
+    })
+    Object.defineProperty(globalThis, 'removeEventListener', {
+      configurable: true,
+      writable: true,
+      value: (eventName: string, handler: () => void) => {
+        const existing = eventHandlers.get(eventName) || []
+        eventHandlers.set(
+          eventName,
+          existing.filter((candidate) => candidate !== handler),
+        )
+      },
+    })
+
+    const state = createBaseState()
+    state.mounted = false
+
+    const debounceProcess = vi.fn()
+    const runtimeEvents: string[] = []
+
+    const runtime = getRouteLifecycleModule().createRouteLifecycle({
+      state,
+      runtimeEvent: (event: string) => {
+        runtimeEvents.push(event)
+      },
+      isWatchlistPath: (pathname: string) => pathname.endsWith('/watchlist'),
+      ensureInterface: vi.fn(),
+      applyTabUi: vi.fn(),
+      ensureCuratedDataLoad: vi.fn(async () => undefined),
+      renderCuratedPanel: vi.fn(),
+      setNativeVisibility: vi.fn(),
+      clearRootFrame: vi.fn(),
+      debounceProcess,
+    })
+
+    runtime.startRouteWatcher()
+    runtime.stopRouteWatcher()
+    expect(state.routeWatcherStarted).toBe(false)
+    expect(runtimeEvents).toContain('route-watcher-stopped')
+
+    setPathname('/watchlist')
+    const popstateHandlers = eventHandlers.get('popstate') || []
+    popstateHandlers.forEach((handler) => {
+      handler()
+    })
+    observerCallbacks.forEach((callback) => {
+      callback([{ target: {} } as MutationRecord], {} as MutationObserver)
+    })
+    vi.runAllTimers()
+
+    expect(state.mounted).toBe(false)
+    expect(debounceProcess).not.toHaveBeenCalled()
+  })
+
+  it('ignores observer churn when runtime ownership is no longer active', () => {
+    setPathname('/watchlist')
+
+    const observerCallbacks: MutationCallback[] = []
+    class FakeMutationObserver {
+      callback: MutationCallback
+
+      constructor(callback: MutationCallback) {
+        this.callback = callback
+        observerCallbacks.push(callback)
+      }
+
+      observe(): void {}
+      disconnect(): void {}
+      takeRecords(): MutationRecord[] {
+        return []
+      }
+    }
+
+    Object.defineProperty(globalThis, 'MutationObserver', {
+      configurable: true,
+      writable: true,
+      value: FakeMutationObserver,
+    })
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      writable: true,
+      value: {
+        body: {},
+        documentElement: {},
+      },
+    })
+
+    const state = createBaseState()
+    state.mounted = false
+    let active = true
+    const debounceProcess = vi.fn()
+    const runtime = getRouteLifecycleModule().createRouteLifecycle({
+      state,
+      runtimeEvent: vi.fn(),
+      isRuntimeActive: () => active,
+      isWatchlistPath: (pathname: string) => pathname.endsWith('/watchlist'),
+      ensureInterface: vi.fn(),
+      applyTabUi: vi.fn(),
+      ensureCuratedDataLoad: vi.fn(async () => undefined),
+      renderCuratedPanel: vi.fn(),
+      setNativeVisibility: vi.fn(),
+      clearRootFrame: vi.fn(),
+      debounceProcess,
+    })
+
+    runtime.syncRoute()
+    debounceProcess.mockClear()
+    active = false
+    observerCallbacks[0]?.([{ target: {} } as MutationRecord], {} as MutationObserver)
+
+    expect(debounceProcess).not.toHaveBeenCalled()
   })
 })

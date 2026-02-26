@@ -8,6 +8,7 @@ type BootstrapFinalizeRuntime = {
   startRouteWatcher: () => void
   syncRoute: () => void
   loadInitialState: () => Promise<void>
+  destroy: () => void
   init: () => Promise<void>
 }
 
@@ -106,6 +107,7 @@ describe('bootstrap-finalize runtime', () => {
     runtime.startRouteWatcher()
     runtime.syncRoute()
     await runtime.loadInitialState()
+    runtime.destroy()
     await runtime.init()
 
     expect(processWatchlist).toHaveBeenCalledTimes(1)
@@ -122,5 +124,32 @@ describe('bootstrap-finalize runtime', () => {
       query: 'series',
       printed: true,
     })
+  })
+
+  it('calls route lifecycle teardown delegates during destroy', () => {
+    const runtimeModule = getBootstrapFinalizeModule()
+    const stopRouteWatcher = vi.fn(() => {})
+    const stopObserver = vi.fn(() => {})
+    const unmount = vi.fn(() => {})
+
+    const runtime = runtimeModule.createBootstrapFinalizeRuntime({
+      runtimeLifecycleModule: {
+        createRouteLifecycle: () => ({
+          processWatchlist: async () => {},
+          startRouteWatcher: () => {},
+          stopRouteWatcher,
+          syncRoute: () => {},
+          stopObserver,
+          unmount,
+        }),
+      },
+      runtimeLifecycleOptions: {},
+    })
+
+    runtime.destroy()
+
+    expect(stopRouteWatcher).toHaveBeenCalledTimes(1)
+    expect(stopObserver).toHaveBeenCalledTimes(1)
+    expect(unmount).toHaveBeenCalledTimes(1)
   })
 })

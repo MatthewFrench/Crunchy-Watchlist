@@ -28,6 +28,7 @@
     startRouteWatcher: () => void
     syncRoute: () => void
     loadInitialState: () => Promise<void>
+    destroy: () => void
     init: () => Promise<void>
   }
 
@@ -46,7 +47,10 @@
   type RuntimeLifecycle = {
     processWatchlist: () => Promise<void>
     startRouteWatcher: () => void
+    stopRouteWatcher?: () => void
     syncRoute: () => void
+    stopObserver?: () => void
+    unmount?: () => void
   }
 
   type StateLoader = {
@@ -168,6 +172,7 @@
     let startRouteWatcher = () => {}
     let syncRoute = () => {}
     let loadInitialState: () => Promise<void> = async () => {}
+    let destroy = () => {}
 
     if (typeof lifecycleFactory === 'function') {
       try {
@@ -176,6 +181,23 @@
           processWatchlist = () => lifecycle.processWatchlist()
           startRouteWatcher = () => lifecycle.startRouteWatcher()
           syncRoute = () => lifecycle.syncRoute()
+          destroy = () => {
+            try {
+              lifecycle.stopRouteWatcher?.()
+            } catch {
+              // no-op
+            }
+            try {
+              lifecycle.stopObserver?.()
+            } catch {
+              // no-op
+            }
+            try {
+              lifecycle.unmount?.()
+            } catch {
+              // no-op
+            }
+          }
         }
       } catch (_) {
         // no-op
@@ -215,6 +237,7 @@
       startRouteWatcher: () => startRouteWatcher(),
       syncRoute: () => syncRoute(),
       loadInitialState: () => loadInitialState(),
+      destroy: () => destroy(),
       init: () => init(),
     }
   }

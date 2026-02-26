@@ -1,5 +1,133 @@
 ;(() => {
+  const runtimeInstanceId = `cw-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  const domRuntimeLockOwnerAttribute = 'data-cw-runtime-owner'
+  const domRuntimeLockTimestampAttribute = 'data-cw-runtime-owner-ts'
+  const domRuntimeLockStaleMs = 15_000
+  const domRuntimeLockHeartbeatMs = 3_000
+  const runtimeControl =
+    window.__CW_WATCHLIST_CURATOR_CONTROL__ && typeof window.__CW_WATCHLIST_CURATOR_CONTROL__ === 'object'
+      ? window.__CW_WATCHLIST_CURATOR_CONTROL__
+      : {}
+  window.__CW_WATCHLIST_CURATOR_CONTROL__ = runtimeControl
+
+  const setRuntimeControl = (patch) => {
+    Object.assign(runtimeControl, patch)
+    window.__CW_WATCHLIST_CURATOR_CONTROL__ = runtimeControl
+  }
+
+  const isCurrentRuntimeOwner = () =>
+    window.__CW_WATCHLIST_CURATOR_CONTROL__ &&
+    window.__CW_WATCHLIST_CURATOR_CONTROL__.activeInstanceId === runtimeInstanceId
+
+  const isCurrentRuntimeActive = () =>
+    window.__CW_WATCHLIST_CURATOR_CONTROL__ &&
+    window.__CW_WATCHLIST_CURATOR_CONTROL__.activeInstanceId === runtimeInstanceId &&
+    window.__CW_WATCHLIST_CURATOR_CONTROL__.active !== false
+
+  const isWatchlistPathWithoutRuntime = (pathname) =>
+    typeof pathname === 'string' && pathname.split('/').filter(Boolean).slice(-1)[0] === 'watchlist'
+
+  const resolveRuntimeLockNode = () => window.document.documentElement || window.document.body
+
+  const readRuntimeLockTimestamp = (value) => {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+  }
+
+  const tryAcquireDomRuntimeLock = () => {
+    if (!isWatchlistPathWithoutRuntime(window.location.pathname)) {
+      return true
+    }
+    const runtimeLockNode = resolveRuntimeLockNode()
+    if (!runtimeLockNode) {
+      return true
+    }
+
+    const ownerId = runtimeLockNode.getAttribute(domRuntimeLockOwnerAttribute) || ''
+    const ownerTimestamp = readRuntimeLockTimestamp(runtimeLockNode.getAttribute(domRuntimeLockTimestampAttribute))
+    const hasFreshForeignOwner =
+      ownerId && ownerId !== runtimeInstanceId && Date.now() - ownerTimestamp < domRuntimeLockStaleMs
+    if (hasFreshForeignOwner) {
+      return false
+    }
+
+    const now = Date.now()
+    runtimeLockNode.setAttribute(domRuntimeLockOwnerAttribute, runtimeInstanceId)
+    runtimeLockNode.setAttribute(domRuntimeLockTimestampAttribute, String(now))
+    return runtimeLockNode.getAttribute(domRuntimeLockOwnerAttribute) === runtimeInstanceId
+  }
+
+  const releaseDomRuntimeLock = () => {
+    const runtimeLockNode = resolveRuntimeLockNode()
+    if (!runtimeLockNode) {
+      return
+    }
+    if (runtimeLockNode.getAttribute(domRuntimeLockOwnerAttribute) !== runtimeInstanceId) {
+      return
+    }
+    runtimeLockNode.removeAttribute(domRuntimeLockOwnerAttribute)
+    runtimeLockNode.removeAttribute(domRuntimeLockTimestampAttribute)
+  }
+
+  const clearStaleInjectedShell = (reason) => {
+    if (runtimeControl.active === true && !isCurrentRuntimeOwner()) {
+      return
+    }
+
+    const hosts = Array.from(window.document.querySelectorAll('.cw-host'))
+    hosts.forEach((host) => {
+      try {
+        host.remove()
+      } catch {
+        // no-op
+      }
+    })
+
+    const framedRoots = Array.from(window.document.querySelectorAll('.cw-watchlist-frame'))
+    framedRoots.forEach((rootEl) => {
+      try {
+        rootEl.classList.remove('cw-watchlist-frame')
+      } catch {
+        // no-op
+      }
+    })
+
+    const hiddenNativeNodes = Array.from(window.document.querySelectorAll('[data-cw-prev-display]'))
+    hiddenNativeNodes.forEach((node) => {
+      try {
+        node.style.display = node.dataset.cwPrevDisplay != null ? node.dataset.cwPrevDisplay : ''
+        delete node.dataset.cwPrevDisplay
+      } catch {
+        // no-op
+      }
+    })
+
+    window.__CW_WATCHLIST_CURATOR_LOADED__ = undefined
+    releaseDomRuntimeLock()
+    setRuntimeControl({
+      active: false,
+      activeInstanceId: isCurrentRuntimeOwner() ? null : runtimeControl.activeInstanceId || null,
+      lastShutdownAt: Date.now(),
+      lastShutdownPayload: {
+        reason,
+        cleanupOnly: true,
+      },
+    })
+  }
+
   const moduleRegistry = window.__CW_WATCHLIST_CURATOR_MODULES__ || {}
+  if (!tryAcquireDomRuntimeLock()) {
+    setRuntimeControl({
+      active: false,
+      activeInstanceId: null,
+      lastShutdownAt: Date.now(),
+      lastShutdownPayload: {
+        reason: 'dom-runtime-lock-held',
+      },
+    })
+    return
+  }
+
   const runtimeContentBootstrapModule = moduleRegistry.runtimeContentBootstrap
   const runtimeContentCompositionModule = moduleRegistry.runtimeContentComposition
   if (
@@ -8,6 +136,7 @@
   ) {
     // eslint-disable-next-line no-console
     console.error('[CW] missing-content-bootstrap-module')
+    clearStaleInjectedShell('missing-content-bootstrap-module')
     return
   }
 
@@ -18,6 +147,7 @@
     chromeRef: typeof chrome !== 'undefined' ? chrome : undefined,
   })
   if (!bootstrapPrelude || bootstrapPrelude.ok !== true) {
+    clearStaleInjectedShell('bootstrap-prelude-not-ready')
     return
   }
   const {
@@ -33,6 +163,7 @@
     typeof runtimeContentCompositionModule.createContentComposition !== 'function'
   ) {
     setBootstrapIssue('missing-content-composition-module')
+    clearStaleInjectedShell('missing-content-composition-module')
     return
   }
 
@@ -94,6 +225,271 @@
   let processWatchlist = async () => {}
   let runtimeEvent = () => {}
   let pushApiTrace = () => {}
+  let destroyRuntime = () => {}
+  let syncRouteRuntime = () => {}
+  let blankShellRecoveryTimer = null
+  let domRuntimeLockHeartbeatTimer = null
+  let watchlistHealthIssueDetectedAt = 0
+  let watchlistHealthIssueType = ''
+  const blankShellReloadStorageKey = 'cw_blank_watchlist_reload_at_v1'
+  const blankShellReloadCountStorageKey = 'cw_blank_watchlist_reload_count_v1'
+  const blankShellReloadCooldownMs = 60_000
+  const blankShellReloadMaxPerSession = 1
+  const blankShellRecoveryStabilizeMs = 4_000
+  const blankShellCheckIntervalMs = 5_000
+
+  const clearBlankShellRecoveryTimer = () => {
+    if (blankShellRecoveryTimer != null) {
+      clearInterval(blankShellRecoveryTimer)
+      blankShellRecoveryTimer = null
+    }
+  }
+
+  const clearDomRuntimeLockHeartbeatTimer = () => {
+    if (domRuntimeLockHeartbeatTimer != null) {
+      clearInterval(domRuntimeLockHeartbeatTimer)
+      domRuntimeLockHeartbeatTimer = null
+    }
+  }
+
+  const startDomRuntimeLockHeartbeat = () => {
+    clearDomRuntimeLockHeartbeatTimer()
+    domRuntimeLockHeartbeatTimer = window.setInterval(() => {
+      if (!isCurrentRuntimeActive()) {
+        return
+      }
+      const acquired = tryAcquireDomRuntimeLock()
+      if (acquired) {
+        return
+      }
+      runtimeEvent('runtime-lock-lost', {
+        reason: 'dom-runtime-lock-held-by-another-instance',
+      })
+      shutdownRuntime({
+        reason: 'dom-runtime-lock-lost',
+      })
+    }, domRuntimeLockHeartbeatMs)
+  }
+
+  const readLastBlankShellReloadAt = () => {
+    try {
+      const raw = window.sessionStorage.getItem(blankShellReloadStorageKey)
+      const parsed = Number(raw)
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+    } catch {
+      return 0
+    }
+  }
+
+  const writeLastBlankShellReloadAt = (value) => {
+    try {
+      window.sessionStorage.setItem(blankShellReloadStorageKey, String(value))
+    } catch {
+      // no-op
+    }
+  }
+
+  const readBlankShellReloadCount = () => {
+    try {
+      const raw = window.sessionStorage.getItem(blankShellReloadCountStorageKey)
+      const parsed = Number(raw)
+      return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : 0
+    } catch {
+      return 0
+    }
+  }
+
+  const writeBlankShellReloadCount = (value) => {
+    try {
+      window.sessionStorage.setItem(blankShellReloadCountStorageKey, String(Math.max(0, Math.round(value))))
+    } catch {
+      // no-op
+    }
+  }
+
+  const isCuratedHostElement = (value) =>
+    Boolean(value?.classList && typeof value.classList.contains === 'function' && value.classList.contains('cw-host'))
+
+  const isHiddenElement = (value) =>
+    Boolean(
+      value?.style &&
+        typeof value.style === 'object' &&
+        typeof value.style.display === 'string' &&
+        value.style.display === 'none',
+    )
+
+  const isCuratedTabActive = () => {
+    if (!state.settings || typeof state.settings !== 'object') {
+      return false
+    }
+    return state.settings.activeTab === 'curated'
+  }
+
+  const getWatchlistHealthIssue = () => {
+    if (!state.mounted) {
+      return ''
+    }
+    if (!isWatchlistPath(window.location.pathname)) {
+      return ''
+    }
+    if (!isCuratedTabActive()) {
+      return ''
+    }
+
+    const watchlistRoot = runtimeBootstrapGateModule.getWatchlistRoot(window.document)
+    if (!watchlistRoot) {
+      return ''
+    }
+
+    const curatedHosts = Array.from(watchlistRoot.children || []).filter((child) => isCuratedHostElement(child))
+    if (curatedHosts.length > 1) {
+      return 'duplicate-host'
+    }
+    if (isHiddenElement(state.hostEl)) {
+      return 'hidden-host'
+    }
+
+    const rootHasFrame = Boolean(
+      watchlistRoot.classList &&
+        typeof watchlistRoot.classList.contains === 'function' &&
+        watchlistRoot.classList.contains('cw-watchlist-frame'),
+    )
+    const hostConnected =
+      Boolean(state.hostEl?.isConnected && typeof watchlistRoot.contains === 'function') &&
+      watchlistRoot.contains(state.hostEl)
+    const gridConnected = Boolean(state.gridEl?.isConnected && state.hostEl?.contains(state.gridEl))
+
+    if (rootHasFrame && (!hostConnected || !gridConnected)) {
+      return 'missing-shell'
+    }
+
+    if (!hostConnected || !gridConnected) {
+      return ''
+    }
+
+    const hasRenderedGridChildren = state.gridEl.children.length > 0
+    if (hasRenderedGridChildren) {
+      return ''
+    }
+
+    const loadingUi = state.hostEl.querySelector('.cw-empty .cw-loading')
+    if (loadingUi || state.curatedInflight || state.curatedPendingRequests.length > 0) {
+      return ''
+    }
+
+    if (state.curatedError) {
+      return ''
+    }
+
+    const hasCuratedShellScaffold = Boolean(
+      state.hostEl.querySelector('.cw-tabs') && state.hostEl.querySelector('.cw-panel'),
+    )
+    if (!hasCuratedShellScaffold) {
+      return 'missing-shell'
+    }
+
+    return 'blank-shell'
+  }
+
+  const runBlankShellRecoveryCheck = () => {
+    const healthIssue = getWatchlistHealthIssue()
+    if (!healthIssue) {
+      watchlistHealthIssueDetectedAt = 0
+      watchlistHealthIssueType = ''
+      return
+    }
+
+    const now = Date.now()
+    if (!watchlistHealthIssueDetectedAt || watchlistHealthIssueType !== healthIssue) {
+      watchlistHealthIssueDetectedAt = now
+      watchlistHealthIssueType = healthIssue
+      runtimeEvent('watchlist-health-issue-detected', {
+        issue: healthIssue,
+        action: 'soft-recover',
+      })
+    }
+    syncRouteRuntime()
+    processWatchlist().catch(() => {
+      // no-op
+    })
+
+    if (now - watchlistHealthIssueDetectedAt < blankShellRecoveryStabilizeMs) {
+      return
+    }
+
+    if (healthIssue !== 'blank-shell') {
+      return
+    }
+
+    const reloadCount = readBlankShellReloadCount()
+    if (reloadCount >= blankShellReloadMaxPerSession) {
+      runtimeEvent('watchlist-health-reload-suppressed', {
+        issue: healthIssue,
+        reason: 'reload-budget-exhausted',
+        reloadCount,
+      })
+      return
+    }
+
+    const lastReloadAt = readLastBlankShellReloadAt()
+    if (now - lastReloadAt < blankShellReloadCooldownMs) {
+      runtimeEvent('watchlist-health-reload-suppressed', {
+        issue: healthIssue,
+        sinceLastReloadMs: now - lastReloadAt,
+      })
+      return
+    }
+
+    writeLastBlankShellReloadAt(now)
+    writeBlankShellReloadCount(reloadCount + 1)
+    runtimeEvent('watchlist-health-reload', {
+      issue: healthIssue,
+      sinceDetectedMs: now - watchlistHealthIssueDetectedAt,
+      reloadCount: reloadCount + 1,
+    })
+    window.location.reload()
+  }
+
+  const startBlankShellRecoveryWatcher = () => {
+    clearBlankShellRecoveryTimer()
+    blankShellRecoveryTimer = window.setInterval(() => {
+      runBlankShellRecoveryCheck()
+    }, blankShellCheckIntervalMs)
+  }
+
+  const shutdownRuntime = (payload = {}) => {
+    clearBlankShellRecoveryTimer()
+    clearDomRuntimeLockHeartbeatTimer()
+    if (state.processTimer != null) {
+      clearTimeout(state.processTimer)
+      state.processTimer = null
+    }
+    try {
+      destroyRuntime()
+    } catch {
+      // no-op
+    }
+    releaseDomRuntimeLock()
+    if (isCurrentRuntimeOwner()) {
+      setRuntimeControl({
+        active: false,
+        activeInstanceId: null,
+        lastShutdownAt: Date.now(),
+        lastShutdownPayload: payload,
+      })
+    }
+  }
+
+  setRuntimeControl({
+    version: window.__CW_WATCHLIST_CURATOR_LOADED__?.version || '0',
+    active: true,
+    activeInstanceId: runtimeInstanceId,
+    activeInstanceClaimedAt: Date.now(),
+    shutdown: (payload) => {
+      runtimeEvent('shutdown-requested', payload || null)
+      shutdownRuntime(payload || {})
+    },
+  })
 
   function debounceProcess() {
     clearTimeout(state.processTimer)
@@ -526,6 +922,7 @@
     setBootstrapIssue('runtime-module-initialization-failed', {
       message: error?.message || 'unknown',
     })
+    clearStaleInjectedShell('runtime-module-initialization-failed')
     return
   }
   const bootstrapFinalizeRuntime = runtimeBootstrapFinalizeModule.createBootstrapFinalizeRuntime({
@@ -535,6 +932,7 @@
     runtimeLifecycleOptions: {
       state,
       runtimeEvent,
+      isRuntimeActive: () => isCurrentRuntimeActive(),
       isWatchlistPath,
       ensureInterface,
       applyTabUi,
@@ -569,8 +967,15 @@
   if (bootstrapFinalizeRuntime && typeof bootstrapFinalizeRuntime.processWatchlist === 'function') {
     processWatchlist = bootstrapFinalizeRuntime.processWatchlist
   }
+  if (bootstrapFinalizeRuntime && typeof bootstrapFinalizeRuntime.syncRoute === 'function') {
+    syncRouteRuntime = () => bootstrapFinalizeRuntime.syncRoute()
+  }
+  if (bootstrapFinalizeRuntime && typeof bootstrapFinalizeRuntime.destroy === 'function') {
+    destroyRuntime = () => bootstrapFinalizeRuntime.destroy()
+  }
   if (!bootstrapFinalizeRuntime || typeof bootstrapFinalizeRuntime.init !== 'function') {
     setBootstrapIssue('missing-bootstrap-finalize-runtime')
+    clearStaleInjectedShell('missing-bootstrap-finalize-runtime')
     return
   }
 
@@ -586,6 +991,8 @@
         ok: true,
         stage: 'init-complete',
       })
+      startDomRuntimeLockHeartbeat()
+      startBlankShellRecoveryWatcher()
     })
     .catch((error) => {
       runtimeEvent('init-error', {
@@ -594,5 +1001,10 @@
       setBootstrapIssue('init-error', {
         message: error?.message || 'unknown',
       })
+      shutdownRuntime({
+        reason: 'init-error',
+        message: error?.message || 'unknown',
+      })
+      clearStaleInjectedShell('init-error')
     })
 })()

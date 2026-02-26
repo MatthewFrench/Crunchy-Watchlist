@@ -325,6 +325,17 @@
     }
   }
 
+  function hasClassToken(className: unknown, token: string): boolean {
+    return (
+      typeof className === 'string' &&
+      className
+        .split(' ')
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .includes(token)
+    )
+  }
+
   function buildCuratedGridRenderSignature(
     context: CuratedPanelContext,
     visible: Array<Record<string, unknown>>,
@@ -514,8 +525,28 @@
     loading: boolean,
     gridRenderSignature: string,
   ): void {
-    if (!context.state.gridEl || context.state.curatedGridRenderSignature === gridRenderSignature) {
+    if (!context.state.gridEl) {
       return
+    }
+
+    const canSkipBySignature = context.state.curatedGridRenderSignature === gridRenderSignature
+    if (canSkipBySignature) {
+      const children = Array.from(context.state.gridEl.children)
+      if (visible.length > 0) {
+        const hasExpectedCards =
+          children.length === visible.length &&
+          children.every((child) =>
+            hasClassToken((child as Element & { className?: string }).className, 'cw-curated-card'),
+          )
+        if (hasExpectedCards) {
+          return
+        }
+      } else {
+        const firstChild = children[0] as (Element & { className?: string }) | undefined
+        if (children.length === 1 && hasClassToken(firstChild?.className, 'cw-empty')) {
+          return
+        }
+      }
     }
 
     if (!visible.length) {

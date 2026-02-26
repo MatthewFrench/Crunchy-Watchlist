@@ -25,6 +25,11 @@
       __CW_WATCHLIST_CURATOR_MODULES__?: Record<string, unknown>
       __CW_WATCHLIST_CURATOR_LOADED__?: {
         version?: string
+        loadedAt?: number
+      }
+      __CW_WATCHLIST_CURATOR_CONTROL__?: {
+        version?: string
+        shutdown?: (payload?: unknown) => void
       }
     }
 
@@ -71,6 +76,79 @@
     return '0'
   }
 
+  function isWatchlistPathInternal(pathname: unknown): boolean {
+    if (typeof pathname !== 'string') {
+      return false
+    }
+    return pathname.split('/').filter(Boolean).slice(-1)[0] === 'watchlist'
+  }
+
+  function hasClassToken(element: Element | null, className: string): boolean {
+    if (!element || !element.classList || typeof element.classList.contains !== 'function') {
+      return false
+    }
+    return element.classList.contains(className)
+  }
+
+  function containsElement(container: Element | null, candidate: Element | null): boolean {
+    if (!container || !candidate || typeof container.contains !== 'function') {
+      return false
+    }
+    return container.contains(candidate)
+  }
+
+  function hasStaleCuratedShell(windowRef: WindowWithRegistry): boolean {
+    if (!isWatchlistPathInternal(windowRef.location?.pathname)) {
+      return false
+    }
+
+    const documentRef = windowRef.document
+    if (!documentRef || typeof documentRef.querySelector !== 'function') {
+      return false
+    }
+
+    const watchlistRoot = getWatchlistRoot(documentRef)
+    const host = documentRef.querySelector('.cw-host')
+    const framedRootHasWatchlistFrame = hasClassToken(watchlistRoot, 'cw-watchlist-frame')
+    const hasHiddenNativeNodes = Boolean(watchlistRoot?.querySelector('[data-cw-prev-display]'))
+
+    // A stale frame can survive extension reload/reinjection even if host refs are gone.
+    // Treat any framed/hidden-native residue as stale so same-version bootstrap can recover.
+    if (framedRootHasWatchlistFrame || hasHiddenNativeNodes) {
+      if (!host) {
+        return true
+      }
+      if (!containsElement(watchlistRoot, host)) {
+        return true
+      }
+    }
+
+    if (!host) {
+      return false
+    }
+
+    if (watchlistRoot && !containsElement(watchlistRoot, host)) {
+      return true
+    }
+
+    if (!host.querySelector('.cw-tabs') || !host.querySelector('.cw-panel')) {
+      return true
+    }
+
+    const grid = host.querySelector('.cw-curated-grid')
+    if (!grid) {
+      return true
+    }
+
+    if (grid.children.length > 0) {
+      return false
+    }
+
+    // A truly stale shell has no cards and no loading indicator content.
+    const loading = host.querySelector('.cw-empty .cw-loading')
+    return !loading
+  }
+
   function shouldRunInternal(options: BootstrapGateOptions): boolean {
     const windowRef = resolveWindowRef(options.windowRef)
     if (windowRef.top !== windowRef) {
@@ -80,20 +158,33 @@
     const extensionVersion = getExtensionVersion(options)
     const previousLoad = windowRef.__CW_WATCHLIST_CURATOR_LOADED__
     if (previousLoad && typeof previousLoad === 'object' && previousLoad.version === extensionVersion) {
-      return false
+      const control = windowRef.__CW_WATCHLIST_CURATOR_CONTROL__
+      const canShutdownPrevious = Boolean(control && typeof control.shutdown === 'function')
+      const staleShellDetected = hasStaleCuratedShell(windowRef)
+
+      if (!canShutdownPrevious && !staleShellDetected) {
+        return false
+      }
+
+      try {
+        control?.shutdown?.({
+          reason: 'same-version-rebootstrap',
+          staleShellDetected,
+        })
+      } catch {
+        // no-op
+      }
     }
 
     windowRef.__CW_WATCHLIST_CURATOR_LOADED__ = {
       version: extensionVersion,
+      loadedAt: Date.now(),
     }
     return true
   }
 
   function isWatchlistPath(pathname: unknown): boolean {
-    if (typeof pathname !== 'string') {
-      return false
-    }
-    return pathname.split('/').filter(Boolean).slice(-1)[0] === 'watchlist'
+    return isWatchlistPathInternal(pathname)
   }
 
   function queryFirst(selectors: string[], documentRef: Document): Element | null {

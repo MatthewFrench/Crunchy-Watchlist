@@ -167,6 +167,63 @@ test.describe('UI Behavior', () => {
     await expect(page.locator('.cw-loading-indicator')).toBeHidden()
   })
 
+  test('recovers curated cards after host-page DOM churn clears the curated grid', async ({ page }) => {
+    await injectExtension(page)
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+
+    await page.evaluate(() => {
+      const grid = document.querySelector('.cw-curated-grid')
+      if (grid) {
+        grid.textContent = ''
+      }
+    })
+
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+  })
+
+  test('rebootstraps cleanly when same-version runtime is injected again', async ({ page }) => {
+    await injectExtension(page)
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+
+    await loadExtensionAssets(page)
+
+    await expect(page.locator('.cw-host')).toHaveCount(1)
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+  })
+
+  test('recovers when duplicate curated hosts are present and hidden', async ({ page }) => {
+    await injectExtension(page)
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+
+    await page.evaluate(() => {
+      const root = document.querySelector('.erc-watchlist')
+      const activeHost = root?.querySelector('.cw-host')
+      if (!root || !activeHost) {
+        return
+      }
+
+      const duplicateHost = activeHost.cloneNode(true) as HTMLElement
+      duplicateHost.style.display = 'none'
+      duplicateHost.setAttribute('data-cw-prev-display', '')
+      root.appendChild(duplicateHost)
+
+      const activeHostElement = activeHost as HTMLElement
+      activeHostElement.style.display = 'none'
+      activeHostElement.setAttribute('data-cw-prev-display', '')
+
+      const nativeNodes = root.querySelectorAll('.watchlist-header, .watchlist-body')
+      nativeNodes.forEach((node) => {
+        const element = node as HTMLElement
+        element.style.display = 'none'
+        element.setAttribute('data-cw-prev-display', '')
+      })
+    })
+
+    await expect(page.locator('.erc-watchlist > .cw-host')).toHaveCount(1)
+    await expect(page.locator('.erc-watchlist > .cw-host')).toBeVisible()
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+  })
+
   test('preloads curated data while Crunchyroll tab is active', async ({ page }) => {
     await injectExtension(page, { activeTab: 'crunchyroll' }, { waitForLoaded: false, expectCuratedVisible: false })
 

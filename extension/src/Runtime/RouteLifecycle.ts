@@ -25,6 +25,7 @@
   type RouteLifecycleContext = {
     state: RuntimeState
     runtimeEvent: (event: string, data?: unknown) => void
+    isRuntimeActive: () => boolean
     isWatchlistPath: (pathname: string) => boolean
     ensureInterface: () => void
     applyTabUi: () => void
@@ -36,13 +37,19 @@
   }
 
   type RouteWatcherState = {
+    active: boolean
+    historyPatched: boolean
     lastObservedPathname: string
     routeStructureObserver: MutationObserver | null
+    popstateHandler: (() => void) | null
+    hashchangeHandler: (() => void) | null
+    pageshowHandler: (() => void) | null
   }
 
   type RouteLifecycleOptions = {
     state?: unknown
     runtimeEvent?: unknown
+    isRuntimeActive?: unknown
     isWatchlistPath?: unknown
     ensureInterface?: unknown
     applyTabUi?: unknown
@@ -76,6 +83,10 @@
     return {
       state,
       runtimeEvent: requireFunction('runtimeEvent', options.runtimeEvent) as RouteLifecycleContext['runtimeEvent'],
+      isRuntimeActive:
+        typeof options.isRuntimeActive === 'function'
+          ? (options.isRuntimeActive as RouteLifecycleContext['isRuntimeActive'])
+          : () => true,
       isWatchlistPath: requireFunction(
         'isWatchlistPath',
         options.isWatchlistPath,
@@ -113,8 +124,20 @@
     return typeof locationRef?.pathname === 'string' ? locationRef.pathname : ''
   }
 
+  function isRuntimeActiveInternal(context: RouteLifecycleContext): boolean {
+    try {
+      return context.isRuntimeActive() !== false
+    } catch {
+      return false
+    }
+  }
+
   async function processWatchlistInternal(context: RouteLifecycleContext): Promise<void> {
-    if (!context.state.mounted || !context.isWatchlistPath(readCurrentPathname())) {
+    if (
+      !isRuntimeActiveInternal(context) ||
+      !context.state.mounted ||
+      !context.isWatchlistPath(readCurrentPathname())
+    ) {
       return
     }
 
@@ -142,16 +165,8 @@
       return
     }
 
-    const observer = new MutationObserver((records) => {
-      if (context.state.mutationMuted) {
-        return
-      }
-
-      if (
-        context.state.hostEl &&
-        records.length > 0 &&
-        records.every((record) => record.target instanceof Node && context.state.hostEl?.contains(record.target))
-      ) {
+    const observer = new MutationObserver((_records) => {
+      if (!isRuntimeActiveInternal(context) || context.state.mutationMuted) {
         return
       }
 
@@ -204,6 +219,9 @@
   }
 
   function mountInternal(context: RouteLifecycleContext): void {
+    if (!isRuntimeActiveInternal(context)) {
+      return
+    }
     if (context.state.mounted) {
       return
     }
@@ -215,6 +233,9 @@
   }
 
   function syncRouteInternal(context: RouteLifecycleContext): void {
+    if (!isRuntimeActiveInternal(context)) {
+      return
+    }
     if (context.isWatchlistPath(readCurrentPathname())) {
       mountInternal(context)
       context.debounceProcess()
@@ -225,22 +246,34 @@
   }
 
   function scheduleRouteSyncInternal(context: RouteLifecycleContext): void {
+    if (!isRuntimeActiveInternal(context)) {
+      return
+    }
     if (context.state.routeSyncTimer != null) {
       return
     }
 
     context.state.routeSyncTimer = root.setTimeout(() => {
       context.state.routeSyncTimer = null
+      if (!isRuntimeActiveInternal(context)) {
+        return
+      }
       syncRouteInternal(context)
     }, 0)
   }
 
   function notifyPathnameRouteSyncInternal(context: RouteLifecycleContext, routeWatcherState: RouteWatcherState): void {
+    if (!routeWatcherState.active || !isRuntimeActiveInternal(context)) {
+      return
+    }
     routeWatcherState.lastObservedPathname = readCurrentPathname()
     scheduleRouteSyncInternal(context)
   }
 
   function syncWhenPathnameChangesInternal(context: RouteLifecycleContext, routeWatcherState: RouteWatcherState): void {
+    if (!routeWatcherState.active || !isRuntimeActiveInternal(context)) {
+      return
+    }
     const pathname = readCurrentPathname()
     if (pathname === routeWatcherState.lastObservedPathname) {
       return
@@ -254,7 +287,11 @@
     context: RouteLifecycleContext,
     routeWatcherState: RouteWatcherState,
   ): void {
-    if (routeWatcherState.routeStructureObserver || typeof MutationObserver !== 'function') {
+    if (
+      !routeWatcherState.active ||
+      routeWatcherState.routeStructureObserver ||
+      typeof MutationObserver !== 'function'
+    ) {
       return
     }
 
@@ -277,10 +314,20 @@
     context.runtimeEvent('route-structure-observer-started')
   }
 
+  function stopRouteStructureObserverInternal(routeWatcherState: RouteWatcherState): void {
+    if (routeWatcherState.routeStructureObserver) {
+      routeWatcherState.routeStructureObserver.disconnect()
+      routeWatcherState.routeStructureObserver = null
+    }
+  }
+
   function patchHistoryForRouteSyncInternal(
     context: RouteLifecycleContext,
     routeWatcherState: RouteWatcherState,
   ): void {
+    if (routeWatcherState.historyPatched) {
+      return
+    }
     const historyRef = root.history as unknown as Record<string, unknown>
     if (!historyRef) {
       return
@@ -295,6 +342,9 @@
       try {
         historyRef[methodName] = function patchedHistoryState(this: unknown, ...args: unknown[]) {
           const result = (original as (...innerArgs: unknown[]) => unknown).apply(this, args)
+          if (!routeWatcherState.active) {
+            return result
+          }
           notifyPathnameRouteSyncInternal(context, routeWatcherState)
           return result
         }
@@ -302,6 +352,7 @@
         // Some browsers lock history methods. Popstate/hashchange still cover most navigation.
       }
     })
+    routeWatcherState.historyPatched = true
   }
 
   function startRouteWatcherInternal(context: RouteLifecycleContext, routeWatcherState: RouteWatcherState): void {
@@ -310,25 +361,65 @@
     }
 
     context.state.routeWatcherStarted = true
+    routeWatcherState.active = true
     routeWatcherState.lastObservedPathname = readCurrentPathname()
     patchHistoryForRouteSyncInternal(context, routeWatcherState)
     startRouteStructureObserverInternal(context, routeWatcherState)
-    root.addEventListener('popstate', () => {
+    routeWatcherState.popstateHandler = () => {
       notifyPathnameRouteSyncInternal(context, routeWatcherState)
-    })
-    root.addEventListener('hashchange', () => {
+    }
+    routeWatcherState.hashchangeHandler = () => {
       notifyPathnameRouteSyncInternal(context, routeWatcherState)
-    })
-    root.addEventListener('pageshow', () => {
+    }
+    routeWatcherState.pageshowHandler = () => {
       notifyPathnameRouteSyncInternal(context, routeWatcherState)
-    })
+    }
+    root.addEventListener('popstate', routeWatcherState.popstateHandler)
+    root.addEventListener('hashchange', routeWatcherState.hashchangeHandler)
+    root.addEventListener('pageshow', routeWatcherState.pageshowHandler)
+  }
+
+  function stopRouteWatcherInternal(context: RouteLifecycleContext, routeWatcherState: RouteWatcherState): void {
+    if (!context.state.routeWatcherStarted && !routeWatcherState.active) {
+      return
+    }
+
+    routeWatcherState.active = false
+    stopRouteStructureObserverInternal(routeWatcherState)
+
+    if (typeof root.removeEventListener === 'function') {
+      if (routeWatcherState.popstateHandler) {
+        root.removeEventListener('popstate', routeWatcherState.popstateHandler)
+      }
+      if (routeWatcherState.hashchangeHandler) {
+        root.removeEventListener('hashchange', routeWatcherState.hashchangeHandler)
+      }
+      if (routeWatcherState.pageshowHandler) {
+        root.removeEventListener('pageshow', routeWatcherState.pageshowHandler)
+      }
+    }
+    routeWatcherState.popstateHandler = null
+    routeWatcherState.hashchangeHandler = null
+    routeWatcherState.pageshowHandler = null
+
+    context.state.routeWatcherStarted = false
+    if (context.state.routeSyncTimer != null) {
+      root.clearTimeout(context.state.routeSyncTimer)
+      context.state.routeSyncTimer = null
+    }
+    context.runtimeEvent('route-watcher-stopped')
   }
 
   function createRouteLifecycle(options: RouteLifecycleOptions = {}) {
     const context = createRouteLifecycleContext(options)
     const routeWatcherState: RouteWatcherState = {
+      active: false,
+      historyPatched: false,
       lastObservedPathname: readCurrentPathname(),
       routeStructureObserver: null,
+      popstateHandler: null,
+      hashchangeHandler: null,
+      pageshowHandler: null,
     }
 
     return {
@@ -340,6 +431,7 @@
       syncRoute: () => syncRouteInternal(context),
       scheduleRouteSync: () => scheduleRouteSyncInternal(context),
       startRouteWatcher: () => startRouteWatcherInternal(context, routeWatcherState),
+      stopRouteWatcher: () => stopRouteWatcherInternal(context, routeWatcherState),
     }
   }
 

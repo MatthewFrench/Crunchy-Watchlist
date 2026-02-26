@@ -260,6 +260,106 @@
     )
   }
 
+  function isConnectedElement(value: unknown): value is Element {
+    return Boolean(value && typeof value === 'object' && asRecord(value).isConnected === true)
+  }
+
+  function isCuratedHostElement(value: unknown): boolean {
+    if (!value || typeof value !== 'object') {
+      return false
+    }
+    const element = value as Element
+    return Boolean(
+      element.classList && typeof element.classList.contains === 'function' && element.classList.contains('cw-host'),
+    )
+  }
+
+  function clearPreviousDisplayMarker(node: Element): void {
+    if (!isElementWithDisplayState(node)) {
+      return
+    }
+    if (!Object.hasOwn(node.dataset, 'cwPrevDisplay')) {
+      return
+    }
+    node.style.display = node.dataset.cwPrevDisplay != null ? node.dataset.cwPrevDisplay : ''
+    delete node.dataset.cwPrevDisplay
+  }
+
+  function restoreActiveCuratedHostVisibilityInternal(context: InterfaceShellContext): void {
+    const hostElement = context.state.hostEl
+    if (!isElementWithDisplayState(hostElement)) {
+      return
+    }
+
+    clearPreviousDisplayMarker(hostElement)
+    if (hostElement.style.display === 'none') {
+      hostElement.style.display = ''
+    }
+  }
+
+  function removeOrphanCuratedHostsInternal(context: InterfaceShellContext, rootElement: Element): void {
+    const children = Array.from(rootElement.children)
+    children.forEach((child) => {
+      if (!isCuratedHostElement(child)) {
+        return
+      }
+      if (child === context.state.hostEl) {
+        return
+      }
+      child.remove()
+    })
+  }
+
+  function clearInterfaceReferencesInternal(context: InterfaceShellContext): void {
+    context.state.hostEl = null
+    context.state.tabCrunchyrollEl = null
+    context.state.tabCuratedEl = null
+    context.state.curatedPanelEl = null
+    context.state.controlsEl = null
+    context.state.loadingIndicatorEl = null
+    context.state.audioFilterSelectEl = null
+    context.state.genreFilterSelectEl = null
+    context.state.statsEl = null
+    context.state.gridEl = null
+    context.state.curatedGridRenderSignature = ''
+  }
+
+  function resetInterfaceShellInternal(context: InterfaceShellContext, removeHost: boolean): void {
+    if (removeHost && isConnectedElement(context.state.hostEl)) {
+      context.state.hostEl.remove()
+    }
+    clearInterfaceReferencesInternal(context)
+  }
+
+  function isConnectedHostDescendant(host: Element, candidate: unknown): boolean {
+    if (!isConnectedElement(candidate)) {
+      return false
+    }
+    if (typeof host.contains !== 'function') {
+      return true
+    }
+    return host.contains(candidate)
+  }
+
+  function isInterfaceShellIntactInternal(context: InterfaceShellContext): boolean {
+    const hostElement = context.state.hostEl
+    if (!isConnectedElement(hostElement)) {
+      return false
+    }
+
+    return (
+      isConnectedHostDescendant(hostElement, context.state.tabCrunchyrollEl) &&
+      isConnectedHostDescendant(hostElement, context.state.tabCuratedEl) &&
+      isConnectedHostDescendant(hostElement, context.state.curatedPanelEl) &&
+      isConnectedHostDescendant(hostElement, context.state.controlsEl) &&
+      isConnectedHostDescendant(hostElement, context.state.loadingIndicatorEl) &&
+      isConnectedHostDescendant(hostElement, context.state.audioFilterSelectEl) &&
+      isConnectedHostDescendant(hostElement, context.state.genreFilterSelectEl) &&
+      isConnectedHostDescendant(hostElement, context.state.statsEl) &&
+      isConnectedHostDescendant(hostElement, context.state.gridEl)
+    )
+  }
+
   function ensureRootFrameInternal(context: InterfaceShellContext, rootElement: Element | null): void {
     if (!rootElement || !isElementWithDisplayState(rootElement)) {
       return
@@ -318,6 +418,13 @@
     context.state.nativeHiddenNodes = []
 
     children.forEach((node) => {
+      if (isCuratedHostElement(node)) {
+        clearPreviousDisplayMarker(node)
+        if (isElementWithDisplayState(node) && node.style.display === 'none') {
+          node.style.display = ''
+        }
+        return
+      }
       if (!isElementWithDisplayState(node)) {
         return
       }
@@ -353,6 +460,9 @@
     }
 
     const curatedActive = context.state.settings.activeTab === 'curated'
+    if (curatedActive) {
+      restoreActiveCuratedHostVisibilityInternal(context)
+    }
 
     context.withMutedObserver(() => {
       tabCrunchyroll.setAttribute('aria-selected', curatedActive ? 'false' : 'true')
@@ -446,14 +556,31 @@
     const rootElement = context.getWatchlistRoot()
     const headerElement = context.getWatchlistHeader()
     if (!rootElement || !headerElement) {
+      // During SPA churn Crunchyroll can temporarily replace watchlist nodes; fall back to native content
+      // so users do not get stuck in an empty framed shell while structure reattaches.
+      setNativeVisibilityInternal(context, true)
+      clearRootFrameInternal(context)
+      if (!isConnectedElement(context.state.hostEl)) {
+        clearInterfaceReferencesInternal(context)
+      }
       context.runtimeEvent('ui-missing-watchlist-structure')
       return
     }
 
     ensureRootFrameInternal(context, rootElement)
+    removeOrphanCuratedHostsInternal(context, rootElement)
 
-    if (context.state.hostEl && asRecord(context.state.hostEl).isConnected) {
+    if (isInterfaceShellIntactInternal(context)) {
       return
+    }
+
+    if (context.state.hostEl) {
+      context.runtimeEvent('ui-shell-repair', {
+        reason: isConnectedElement(context.state.hostEl) ? 'invalid-structure' : 'disconnected-host',
+      })
+      resetInterfaceShellInternal(context, true)
+    } else {
+      clearInterfaceReferencesInternal(context)
     }
 
     const host = context.documentRef.createElement('section')

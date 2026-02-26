@@ -512,6 +512,76 @@ describe('curated-panel runtime', () => {
     expect(gridEl.children).toEqual([firstRenderCards[2], firstRenderCards[0], firstRenderCards[1]])
   })
 
+  it('re-renders visible cards when external dom churn clears the curated grid', () => {
+    const gridEl = createFakeElement()
+    const statsEl = createFakeElement()
+    const loadingIndicatorEl = createFakeElement()
+    let createdCards = 0
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state: {
+        mounted: true,
+        curatedError: null,
+        curatedEntries: [],
+        curatedInflight: null,
+        curatedPendingRequests: [],
+        curatedPendingRequestStartedCount: 0,
+        curatedPendingRequestCompletedCount: 0,
+        curatedGridRenderSignature: '',
+        gridEl,
+        statsEl,
+        loadingIndicatorEl,
+        audioFilterSelectEl: createFakeSelectElement(),
+        genreFilterSelectEl: createFakeSelectElement(),
+        settings: {
+          cardLayout: 'portrait',
+        },
+      },
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: (entry: Record<string, unknown>) => {
+        createdCards += 1
+        const card = createFakeElement()
+        card.className = 'cw-curated-card'
+        card.dataset.cwSeriesId = String(entry.seriesId || '')
+        return card
+      },
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => ({
+        mode: 'hide',
+        total: 1,
+        visible: [{ seriesId: 'series-1', title: 'Series 1' }],
+        audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+        genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+        selectedAudioFilter: 'any',
+        selectedGenreFilter: 'any',
+      }),
+      withMutedObserver: (work: () => void) => {
+        work()
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    })
+
+    runtime.renderCuratedPanel()
+    expect(gridEl.children).toHaveLength(1)
+    expect(createdCards).toBe(1)
+
+    // Simulate host-page DOM churn wiping extension-rendered children.
+    gridEl.textContent = ''
+    expect(gridEl.children).toHaveLength(0)
+
+    runtime.renderCuratedPanel()
+
+    expect(gridEl.children).toHaveLength(1)
+    expect(createdCards).toBe(2)
+  })
+
   it('patches favorite button state in place without recreating the card', () => {
     const gridEl = createFakeElement()
     const statsEl = createFakeElement()
