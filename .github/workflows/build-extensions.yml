@@ -176,12 +176,43 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
           security default-keychain -d user -s "$KEYCHAIN_PATH"
 
+          SIGNING_IDENTITIES="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true)"
+          echo "$SIGNING_IDENTITIES"
+
+          AUTO_TEAM_IDENTITY="$(
+            printf '%s\n' "$SIGNING_IDENTITIES" \
+              | sed -n "s/.*\"\\(Developer ID Application: .*(${APPLE_TEAM_ID})\\)\".*/\\1/p" \
+              | head -n 1
+          )"
+          AUTO_ANY_IDENTITY="$(
+            printf '%s\n' "$SIGNING_IDENTITIES" \
+              | sed -n 's/.*"\(Developer ID Application: .*\)".*/\1/p' \
+              | head -n 1
+          )"
+
+          SELECTED_IDENTITY="$AUTO_TEAM_IDENTITY"
+          if [[ -z "$SELECTED_IDENTITY" ]]; then
+            SELECTED_IDENTITY="$AUTO_ANY_IDENTITY"
+          fi
+
+          if [[ -n "$APPLE_DEVELOPER_ID_APPLICATION_IDENTITY" ]]; then
+            if printf '%s\n' "$SIGNING_IDENTITIES" | grep -F "\"$APPLE_DEVELOPER_ID_APPLICATION_IDENTITY\"" >/dev/null 2>&1; then
+              SELECTED_IDENTITY="$APPLE_DEVELOPER_ID_APPLICATION_IDENTITY"
+            else
+              echo "::warning::Configured APPLE_DEVELOPER_ID_APPLICATION_IDENTITY was not found in imported keychain; falling back to discovered identity."
+            fi
+          fi
+
+          if [[ -z "$SELECTED_IDENTITY" ]]; then
+            echo "::error::No usable 'Developer ID Application' identity found in imported keychain."
+            echo "::error::Ensure the uploaded P12 contains a Developer ID Application certificate and private key for team $APPLE_TEAM_ID."
+            exit 1
+          fi
+
           echo "SAFARI_SIGNED_BUILD=1" >> "$GITHUB_ENV"
           echo "SAFARI_DEVELOPMENT_TEAM=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
           echo "SAFARI_KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
-          if [[ -n "$APPLE_DEVELOPER_ID_APPLICATION_IDENTITY" ]]; then
-            echo "SAFARI_CODE_SIGN_IDENTITY=$APPLE_DEVELOPER_ID_APPLICATION_IDENTITY" >> "$GITHUB_ENV"
-          fi
+          echo "SAFARI_CODE_SIGN_IDENTITY=$SELECTED_IDENTITY" >> "$GITHUB_ENV"
 
       - name: Configure Apple notarization credentials
         env:

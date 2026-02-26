@@ -34,7 +34,7 @@ Use this checklist for each public release across Chrome, Edge, Firefox, and Saf
   - `APPLE_NOTARY_API_KEY_P8_BASE64`
   - `APPLE_NOTARY_KEY_ID`
   - `APPLE_NOTARY_ISSUER_ID`
-  - optional: `APPLE_DEVELOPER_ID_APPLICATION_IDENTITY` (explicit certificate common name)
+  - optional: `APPLE_DEVELOPER_ID_APPLICATION_IDENTITY` (explicit certificate common name; CI auto-discovers a matching `Developer ID Application` identity when omitted or mismatched)
 - [ ] Verify CI uploaded artifacts: `extension-chrome`, `extension-edge`, `extension-firefox`, `extension-safari`.
 - [ ] Verify CI published a release to GitHub Releases for the `main` commit.
 - [ ] Verify GitHub release naming follows repo convention.
