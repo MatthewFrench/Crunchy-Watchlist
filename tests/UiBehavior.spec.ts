@@ -46,7 +46,53 @@ test.describe('UI Behavior', () => {
     await expect(page.locator('.cw-host')).toHaveAttribute('data-cw-card-layout', 'portrait')
   })
 
-  test('forwards favorite and remove actions to native controls', async ({ page }) => {
+  test('sends favorite and remove actions through watchlist api actions', async ({ page }) => {
+    const actionRequests: Array<{
+      method: string
+      seriesId: string
+      isFavorite?: boolean
+    }> = []
+    await page.route('**/content/v2/**', async (route) => {
+      const request = route.request()
+      const url = new URL(request.url())
+      if (!url.pathname.match(/^\/content\/v2\/[^/]+\/watchlist\/[^/]+$/)) {
+        await route.continue()
+        return
+      }
+
+      const method = request.method().toUpperCase()
+      if (method === 'PATCH') {
+        let isFavorite: boolean | undefined
+        try {
+          const body = request.postDataJSON() as { is_favorite?: unknown }
+          if (typeof body?.is_favorite === 'boolean') {
+            isFavorite = body.is_favorite
+          }
+        } catch {
+          isFavorite = undefined
+        }
+        const patchRequest: {
+          method: string
+          seriesId: string
+          isFavorite?: boolean
+        } = {
+          method,
+          seriesId: decodeURIComponent(url.pathname.split('/').pop() || ''),
+        }
+        if (typeof isFavorite === 'boolean') {
+          patchRequest.isFavorite = isFavorite
+        }
+        actionRequests.push(patchRequest)
+      } else if (method === 'DELETE') {
+        actionRequests.push({
+          method,
+          seriesId: decodeURIComponent(url.pathname.split('/').pop() || ''),
+        })
+      }
+
+      await route.continue()
+    })
+
     await injectExtension(page)
 
     const highRatedCard = page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"]')
@@ -64,9 +110,20 @@ test.describe('UI Behavior', () => {
       .click()
     await expect(page.locator('.cw-curated-card[data-cw-curated-title="Low Rated Show"]')).toHaveCount(0)
 
-    const actionLog = await page.evaluate(() => window.__cwFixtureActionLog || [])
-    expect(actionLog.some((entry) => entry.action === 'favorite' && entry.seriesId === 'GHIGH456')).toBeTruthy()
-    expect(actionLog.some((entry) => entry.action === 'remove' && entry.seriesId === 'GLOW123')).toBeTruthy()
+    await expect.poll(() => actionRequests.length).toBeGreaterThanOrEqual(2)
+    expect(actionRequests).toEqual(
+      expect.arrayContaining([
+        {
+          method: 'PATCH',
+          seriesId: 'GHIGH456',
+          isFavorite: false,
+        },
+        {
+          method: 'DELETE',
+          seriesId: 'GLOW123',
+        },
+      ]),
+    )
   })
 
   test('navigates to series page when clicking non-interactive card body area', async ({ page }) => {

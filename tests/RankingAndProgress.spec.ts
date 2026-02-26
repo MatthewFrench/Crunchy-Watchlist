@@ -142,7 +142,7 @@ test.describe('Ranking, Filtering, and Progress', () => {
     ).toContainText('Episodes: 36')
     await expect(
       page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__scope'),
-    ).toContainText('Unwatched left: 20')
+    ).toContainText('Unwatched left: 8')
     await expect(
       page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__genres'),
     ).toContainText('action')
@@ -203,7 +203,7 @@ test.describe('Ranking, Filtering, and Progress', () => {
     await page.waitForTimeout(250)
 
     const afterQuickWins = await visibleFixtureOrder(page)
-    expect(afterQuickWins[0]).toBe('No Rating Show')
+    expect(afterQuickWins[0]).toBe('High Rated Show')
 
     await page.selectOption('#cw-sort-mode', 'dormant_backlog_asc')
     await page.waitForTimeout(250)

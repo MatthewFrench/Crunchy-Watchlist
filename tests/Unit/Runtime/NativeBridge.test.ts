@@ -75,17 +75,17 @@ function createNativeBridgeRuntime(
   } = {},
 ) {
   const runtimeEvents: RuntimeEventRecord[] = []
-  const getAccessToken = overrides.getAccessToken ?? vi.fn(async () => ({ accountId: 'account-1', accessToken: 'token' }))
-  const fetchWithResilience = (
-    overrides.fetchWithResilience ??
+  const getAccessToken =
+    overrides.getAccessToken ?? vi.fn(async () => ({ accountId: 'account-1', accessToken: 'token' }))
+  const fetchWithResilience = (overrides.fetchWithResilience ??
     vi.fn(async () => {
       return new Response(null, { status: 200 })
-    })
-  ) as ReturnType<typeof vi.fn>
+    })) as ReturnType<typeof vi.fn>
   const createAuthRefreshHandler = (overrides.createAuthRefreshHandler ?? vi.fn(() => 'refresh-handler')) as ReturnType<
     typeof vi.fn
   >
-  const resolveApiHref = overrides.resolveApiHref ?? ((pathWithQuery: string) => `https://api.crunchyroll.test${pathWithQuery}`)
+  const resolveApiHref =
+    overrides.resolveApiHref ?? ((pathWithQuery: string) => `https://api.crunchyroll.test${pathWithQuery}`)
   const runtime = getNativeBridgeModule().createNativeBridgeRuntime({
     documentRef: {
       querySelectorAll: (selector: string) => (selector === '[data-t="watch-list-card"]' ? cards : []),

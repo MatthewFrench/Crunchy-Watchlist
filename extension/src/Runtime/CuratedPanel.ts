@@ -189,10 +189,15 @@
     return String(value).trim()
   }
 
-  function buildCuratedCardContentSignature(entry: Record<string, unknown>): string {
+  function buildCuratedCardContentSignature(entry: Record<string, unknown>, cardLayout: unknown): string {
     const { isFavorite: _ignoredFavorite, ...rest } = entry
     try {
-      return JSON.stringify(rest) || ''
+      return (
+        JSON.stringify({
+          cardLayout: cardLayout === 'landscape' ? 'landscape' : 'portrait',
+          entry: rest,
+        }) || ''
+      )
     } catch {
       return ''
     }
@@ -278,7 +283,7 @@
   ): Element {
     const seriesId = getEntrySeriesId(entry)
     const isFavorite = Boolean(entry.isFavorite)
-    const contentSignature = buildCuratedCardContentSignature(entry)
+    const contentSignature = buildCuratedCardContentSignature(entry, context.state.settings.cardLayout)
     const existingCard = seriesId && !usedSeriesIds.has(seriesId) ? existingCardsBySeriesId.get(seriesId) || null : null
 
     if (seriesId) {

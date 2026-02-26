@@ -20,6 +20,33 @@ function parsePositiveInt(value: string | null, fallback: number): number {
   return Math.max(1, Number.parseInt(String(value || `${fallback}`), 10) || fallback)
 }
 
+async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = []
+  for await (const chunk of req) {
+    if (typeof chunk === 'string') {
+      chunks.push(Buffer.from(chunk))
+      continue
+    }
+    chunks.push(chunk)
+  }
+
+  if (!chunks.length) {
+    return {}
+  }
+
+  const raw = Buffer.concat(chunks).toString('utf8').trim()
+  if (!raw) {
+    return {}
+  }
+
+  const parsed = JSON.parse(raw)
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return {}
+  }
+
+  return parsed as Record<string, unknown>
+}
+
 export async function handleFixtureRequest(
   req: IncomingMessage,
   res: ServerResponse<IncomingMessage>,
@@ -114,6 +141,47 @@ export async function handleFixtureRequest(
       }
 
       text(res, 200, buildSeriesPageHtml(seriesId, rating.average, rating.count), 'text/html; charset=utf-8')
+      return
+    }
+
+    if (url.pathname.match(/^\/content\/v2\/[^/]+\/watchlist\/[^/]+$/)) {
+      const requestedAccount = decodeURIComponent(url.pathname.split('/')[3] || '')
+      const requestedSeriesId = decodeURIComponent(url.pathname.split('/')[5] || '')
+      if (requestedAccount !== ACCOUNT_ID) {
+        json(res, 403, { error: 'invalid_account' })
+        return
+      }
+      if (!requestedSeriesId) {
+        json(res, 400, { error: 'invalid_series' })
+        return
+      }
+
+      if (req.method === 'DELETE') {
+        json(res, 200, {
+          status: 'ok',
+          action: 'remove',
+          seriesId: requestedSeriesId,
+        })
+        return
+      }
+
+      if (req.method === 'PATCH') {
+        const body = await readJsonBody(req)
+        if (typeof body.is_favorite !== 'boolean') {
+          json(res, 400, { error: 'invalid_is_favorite' })
+          return
+        }
+
+        json(res, 200, {
+          status: 'ok',
+          action: 'favorite',
+          seriesId: requestedSeriesId,
+          is_favorite: body.is_favorite,
+        })
+        return
+      }
+
+      json(res, 405, { error: 'method_not_allowed' })
       return
     }
 

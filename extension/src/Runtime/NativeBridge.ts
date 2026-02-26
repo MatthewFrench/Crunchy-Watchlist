@@ -42,11 +42,7 @@
   }
 
   type NativeBridgeRuntime = {
-    triggerNativeCardAction: (
-      seriesId: unknown,
-      actionType: unknown,
-      favoriteValue?: unknown,
-    ) => Promise<boolean>
+    triggerNativeCardAction: (seriesId: unknown, actionType: unknown, favoriteValue?: unknown) => Promise<boolean>
     installCuratedCardPreview: (
       thumbLink: unknown,
       entry: unknown,
@@ -160,7 +156,10 @@
       windowRef: resolveWindowRef(options.windowRef),
       runtimeEvent,
       nativeActionBridgeRuntime: resolveNativeActionBridgeRuntime(documentRef, runtimeEvent),
-      getAccessToken: requireFunction('getAccessToken', options.getAccessToken) as NativeBridgeContext['getAccessToken'],
+      getAccessToken: requireFunction(
+        'getAccessToken',
+        options.getAccessToken,
+      ) as NativeBridgeContext['getAccessToken'],
       fetchWithResilience: requireFunction(
         'fetchWithResilience',
         options.fetchWithResilience,
@@ -169,7 +168,10 @@
         'createAuthRefreshHandler',
         options.createAuthRefreshHandler,
       ) as NativeBridgeContext['createAuthRefreshHandler'],
-      resolveApiHref: requireFunction('resolveApiHref', options.resolveApiHref) as NativeBridgeContext['resolveApiHref'],
+      resolveApiHref: requireFunction(
+        'resolveApiHref',
+        options.resolveApiHref,
+      ) as NativeBridgeContext['resolveApiHref'],
       normalizeImageUrlCandidate: requireFunction(
         'normalizeImageUrlCandidate',
         options.normalizeImageUrlCandidate,
@@ -232,10 +234,7 @@
     return requestOptions
   }
 
-  function createWatchlistActionRequestInit(
-    actionType: NativeActionType,
-    favoriteValue: unknown,
-  ): RequestInit | null {
+  function createWatchlistActionRequestInit(actionType: NativeActionType, favoriteValue: unknown): RequestInit | null {
     if (actionType === 'favorite') {
       if (typeof favoriteValue !== 'boolean') {
         return null
