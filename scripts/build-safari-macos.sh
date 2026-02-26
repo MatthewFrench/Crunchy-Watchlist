@@ -104,15 +104,57 @@ if [[ "$SAFARI_NOTARIZE" == "1" ]]; then
     exit 1
   fi
 
+  app_signature_details="$(codesign -d --verbose=4 "$APP_PATH" 2>&1 || true)"
+  if printf '%s\n' "$app_signature_details" | grep -q "Timestamp=none"; then
+    echo "App signature is missing secure timestamp; re-signing app bundle with timestamp for notarization."
+    resign_args=(
+      --force
+      --sign "$SAFARI_CODE_SIGN_IDENTITY"
+      --timestamp
+      --preserve-metadata=entitlements,requirements,flags,runtime
+    )
+    if [[ -n "$SAFARI_KEYCHAIN_PATH" ]]; then
+      resign_args+=(
+        --keychain "$SAFARI_KEYCHAIN_PATH"
+      )
+    fi
+
+    /usr/bin/codesign "${resign_args[@]}" "$APP_PATH"
+    codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+    app_signature_details="$(codesign -d --verbose=4 "$APP_PATH" 2>&1 || true)"
+    if printf '%s\n' "$app_signature_details" | grep -q "Timestamp=none"; then
+      echo "Failed to apply secure timestamp to app signature."
+      exit 1
+    fi
+  fi
+
   notarize_zip_path="$OUTPUT_DIR/crunchy-watchlist-curator-safari-macos-notary-upload.zip"
   rm -f "$notarize_zip_path"
   /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$notarize_zip_path"
 
-  xcrun notarytool submit "$notarize_zip_path" \
-    --key "$SAFARI_NOTARY_KEY_PATH" \
-    --key-id "$SAFARI_NOTARY_KEY_ID" \
-    --issuer "$SAFARI_NOTARY_ISSUER_ID" \
-    --wait
+  notary_submit_json="$(
+    xcrun notarytool submit "$notarize_zip_path" \
+      --key "$SAFARI_NOTARY_KEY_PATH" \
+      --key-id "$SAFARI_NOTARY_KEY_ID" \
+      --issuer "$SAFARI_NOTARY_ISSUER_ID" \
+      --wait \
+      --output-format json
+  )"
+  printf '%s\n' "$notary_submit_json"
+
+  notary_submission_id="$(printf '%s\n' "$notary_submit_json" | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+  notary_status="$(printf '%s\n' "$notary_submit_json" | sed -n 's/.*"status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+  if [[ "$notary_status" != "Accepted" ]]; then
+    echo "Notary submission status is '$notary_status' (expected 'Accepted')."
+    if [[ -n "$notary_submission_id" ]]; then
+      xcrun notarytool log "$notary_submission_id" \
+        --key "$SAFARI_NOTARY_KEY_PATH" \
+        --key-id "$SAFARI_NOTARY_KEY_ID" \
+        --issuer "$SAFARI_NOTARY_ISSUER_ID" || true
+    fi
+    exit 1
+  fi
 
   xcrun stapler staple "$APP_PATH"
   xcrun stapler validate "$APP_PATH"
