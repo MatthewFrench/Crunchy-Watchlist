@@ -184,11 +184,21 @@ test.describe('UI Behavior', () => {
   test('rebootstraps cleanly when same-version runtime is injected again', async ({ page }) => {
     await injectExtension(page)
     await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+    const previousRuntimeOwner = await page.evaluate(() => {
+      return document.documentElement.getAttribute('data-cw-runtime-owner')
+    })
 
     await loadExtensionAssets(page)
 
     await expect(page.locator('.cw-host')).toHaveCount(1)
     await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+    await expect
+      .poll(async () => {
+        return page.evaluate(() => {
+          return document.documentElement.getAttribute('data-cw-runtime-owner')
+        })
+      })
+      .not.toBe(previousRuntimeOwner)
   })
 
   test('recovers when duplicate curated hosts are present and hidden', async ({ page }) => {
