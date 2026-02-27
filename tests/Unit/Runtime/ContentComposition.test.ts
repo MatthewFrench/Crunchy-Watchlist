@@ -13,6 +13,9 @@ const contentCompositionModuleUrl = pathToFileURL(
 const contentCompositionBindingsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentCompositionBindings.ts'),
 ).href
+const contentCompositionRuntimeBindingsModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentCompositionRuntimeBindings.ts'),
+).href
 
 function getContentCompositionModule(): ContentCompositionModule {
   const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
@@ -70,7 +73,11 @@ function createCorePrimitivesRuntime(): Record<string, unknown> {
 
 describe('content composition runtime module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([contentCompositionBindingsModuleUrl, contentCompositionModuleUrl])
+    await loadRuntimeModules([
+      contentCompositionBindingsModuleUrl,
+      contentCompositionRuntimeBindingsModuleUrl,
+      contentCompositionModuleUrl,
+    ])
   })
 
   afterEach(() => {

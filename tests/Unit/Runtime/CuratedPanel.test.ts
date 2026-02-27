@@ -527,6 +527,69 @@ describe('curated-panel runtime', () => {
     expect(loadingBox.style.display).toBe('none')
   })
 
+  it('keeps the loading box visible for empty-list refreshes after initial load', () => {
+    const gridEl = createFakeElement()
+    const statsEl = createFakeElement()
+    const loadingIndicatorEl = createFakeElement()
+    loadingIndicatorEl.className = 'cw-loading cw-loading-indicator'
+
+    const loadingBox = createFakeElement()
+    loadingBox.className = 'cw-empty cw-loading-box'
+    loadingBox.appendChild(loadingIndicatorEl)
+
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [],
+      curatedInflight: Promise.resolve([]) as Promise<unknown[]> | null,
+      curatedInitialLoadDone: true,
+      curatedPendingRequests: ['Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)'],
+      curatedPendingRequestStartedCount: 1,
+      curatedPendingRequestCompletedCount: 0,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    }
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: () => createFakeElement(),
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => ({
+        mode: 'hide',
+        total: 0,
+        visible: [],
+        audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+        genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+        selectedAudioFilter: 'any',
+        selectedGenreFilter: 'any',
+      }),
+      withMutedObserver: (work: () => void) => {
+        work()
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    })
+
+    runtime.renderCuratedPanel()
+
+    expect(loadingIndicatorEl.style.display).toBe('flex')
+    expect(loadingBox.style.display).toBe('block')
+  })
+
   it('shows filtered-count stats for hide_not_started mode', () => {
     const gridEl = createFakeElement()
     const statsEl = createFakeElement()

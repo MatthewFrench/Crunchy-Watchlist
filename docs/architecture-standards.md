@@ -232,9 +232,9 @@ Current-state findings from this repository:
 1. Structural file-size budgets are currently compliant (latest `npm run arch:metrics`):
    - No warning-level or refactor-level file hotspots are reported.
    - Largest runtime owners are now within strict target compliance (`<= 600`):
-     - `extension/src/Runtime/ContentRuntimeBootstrapSession.ts`: `599` lines.
-     - `extension/src/Runtime/ContentComposition.ts`: `595` lines.
-     - `extension/src/Data/AuthClient.ts`: `587` lines.
+     - `extension/src/Data/HistoryRepositoryCache.ts`: `574` lines.
+     - `extension/src/Runtime/ContentRuntimeSetupDataInitialization.ts`: `550` lines.
+     - `extension/src/Domain/CorePrimitives.ts`: `539` lines.
 2. Function-level warning/refactor hotspots are currently compliant:
    - No runtime function exceeds the warning threshold (`> 70`) in latest `npm run arch:metrics`.
    - Largest runtime functions are within headroom (`<= 68` lines):
@@ -245,6 +245,7 @@ Current-state findings from this repository:
 3. Runtime decomposition landed in this cycle:
    - `extension/src/Runtime/ContentRuntimeBootstrapFinalizeFlow.ts`
    - `extension/src/Runtime/ContentRuntimeBootstrapSessionSupport.ts`
+   - `extension/src/Runtime/ContentRuntimeBootstrapSessionAssembly.ts`
    - `extension/src/Runtime/CuratedRenderableListProcessing.ts`
    - `extension/src/Runtime/CuratedRenderableMergeSupport.ts`
    - `extension/src/Runtime/CuratedPanelGridTransitions.ts`
@@ -252,10 +253,15 @@ Current-state findings from this repository:
    - `extension/src/Runtime/CuratedLoaderPendingRequests.ts`
    - `extension/src/Runtime/CuratedLoaderLoadCycle.ts`
    - `extension/src/Runtime/InterfaceShellHostLifecycle.ts`
+   - `extension/src/Runtime/ContentCompositionRuntimeBindings.ts`
+   - `extension/src/Data/AuthClientFetchResilience.ts`
    - `extension/src/Data/RatingsRepositoryCacheSupport.ts`
    - `extension/src/Runtime/CuratedLoader.ts` now delegates load-cycle and failure ownership to `CuratedLoaderLoadCycle.ts`.
    - `extension/src/Runtime/CuratedPanelGrid.ts` now delegates reorder/transition ownership to `CuratedPanelGridTransitions.ts`.
    - `extension/src/Data/RatingsRepository.ts` now delegates cache normalization/merge ownership to `RatingsRepositoryCacheSupport.ts`.
+   - `extension/src/Runtime/ContentRuntimeBootstrapSession.ts` now delegates session assembly to `ContentRuntimeBootstrapSessionAssembly.ts`.
+   - `extension/src/Runtime/ContentComposition.ts` now delegates curated/interaction/interface runtime binding ownership to `ContentCompositionRuntimeBindings.ts`.
+   - `extension/src/Data/AuthClient.ts` now delegates fetch-retry/auth-refresh ownership to `AuthClientFetchResilience.ts`.
    - `extension/manifest.json` runtime ordering includes all extracted owners before dependent runtime modules.
 4. Final function hotspot decompositions landed in this pass:
    - `extension/src/Runtime/BootstrapFinalize.ts`
@@ -326,9 +332,9 @@ Priority order for the next optimization cycle:
 
 1. Priority 0: execute one full batched release-confidence run (`test:e2e` + signed/notarized Safari build) to close the remaining verification-confidence gap.
 2. Priority 1: continue strict-size optimization for the next large compliant owners:
-   - `extension/src/Runtime/ContentComposition.ts` (`595`)
-   - `extension/src/Data/AuthClient.ts` (`587`)
-   - `extension/src/Runtime/ContentRuntimeBootstrapSession.ts` (`599`)
+   - `extension/src/Data/HistoryRepositoryCache.ts` (`574`)
+   - `extension/src/Runtime/ContentRuntimeSetupDataInitialization.ts` (`550`)
+   - `extension/src/Domain/CorePrimitives.ts` (`539`)
 3. Priority 1: keep adding seam-level unit coverage around newly extracted owners (`CuratedPanelGridTransitions`, `RatingsRepositoryCacheSupport`, `CuratedLoaderLoadCycle`, `CuratedLoaderPendingRequests`, `ContentRuntimeBootstrapFinalizeFlow`).
 4. Priority 2: keep architecture standards/transformation/progress docs synchronized every structural cycle, especially when CI workflow structure changes.
 

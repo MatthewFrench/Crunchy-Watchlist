@@ -174,67 +174,56 @@ Latest `npm run arch:metrics` shows architecture budgets are currently compliant
 
 - Warning/refactor file hotspots: `0`.
 - Function hotspots above warning budget (>70 lines): `0`.
-- Largest runtime functions are now under the former budget edge (`<= 68` lines):
+- Largest runtime functions are under warning thresholds (`<= 68` lines):
   - `runCuratedLoadCycleInternal` (`68`)
   - `ensureInterfaceInternal` (`67`)
   - `resolveContentRuntimeSetupContext` (`63`)
   - `preloadRatingsForEntriesInternal` (`63`)
 - Largest runtime owners are currently:
-  - `extension/src/Runtime/ContentRuntimeBootstrapSession.ts` (`599`)
-  - `extension/src/Runtime/ContentComposition.ts` (`595`)
-  - `extension/src/Data/AuthClient.ts` (`587`)
+  - `extension/src/Data/HistoryRepositoryCache.ts` (`574`)
+  - `extension/src/Runtime/ContentRuntimeSetupDataInitialization.ts` (`550`)
+  - `extension/src/Domain/CorePrimitives.ts` (`539`)
+- Previously largest compliant owners now have substantial headroom after seam extraction:
+  - `extension/src/Runtime/ContentRuntimeBootstrapSession.ts`: `599` -> `322`
+  - `extension/src/Runtime/ContentComposition.ts`: `595` -> `339`
+  - `extension/src/Data/AuthClient.ts`: `587` -> `419`
 
 Implication:
 
-- Transformation goals are now met for the documented budget-compliance scope.
-- Ongoing work is optimization/headroom, not baseline architecture debt remediation.
+- Transformation goals remain complete for documented budget-compliance scope.
+- Ongoing work is strict-size headroom optimization and release-confidence batching discipline.
 
-## 2b) Latest Optimization Pass (2026-02-27)
+## 2b) Latest Strict-Size Pass (2026-02-27)
 
 Implemented and validated in this cycle:
 
-1. Bootstrap/session finalization ownership decomposition completed:
-   - extracted finalize/session-control ownership to `extension/src/Runtime/ContentRuntimeBootstrapFinalizeFlow.ts`.
-   - rewired `ContentRuntimeBootstrapSession.ts` to delegate finalize runtime options, finalize runtime creation, and init-flow binding.
-   - reduced `ContentRuntimeBootstrapSession.ts` from `789` to `599` lines across follow-up extraction passes.
-2. Large runtime owner decomposition continued for prioritized modules:
-   - extracted list processing ownership to `extension/src/Runtime/CuratedRenderableListProcessing.ts`.
-   - extracted merge/filter/watch-progress support ownership to `extension/src/Runtime/CuratedRenderableMergeSupport.ts`.
-   - extracted grid reorder/animation ownership to `extension/src/Runtime/CuratedPanelGridTransitions.ts`.
-   - extracted controls binding ownership to `extension/src/Runtime/CuratedInteractionsControls.ts`.
-   - extracted pending request diagnostics ownership to `extension/src/Runtime/CuratedLoaderPendingRequests.ts`.
-   - extracted curated load-cycle/failure ownership to `extension/src/Runtime/CuratedLoaderLoadCycle.ts`.
-   - extracted ratings cache normalization/merge ownership to `extension/src/Data/RatingsRepositoryCacheSupport.ts`.
-   - extracted host lifecycle ownership to `extension/src/Runtime/InterfaceShellHostLifecycle.ts`.
-   - extracted session bootstrap helpers to `extension/src/Runtime/ContentRuntimeBootstrapSessionSupport.ts`.
-   - reduced `CuratedPanelGrid.ts` from `629` to `399` lines.
-   - reduced `RatingsRepository.ts` from `599` to `492` lines.
-   - reduced `CuratedLoader.ts` from `742` to `484` lines and kept largest loader function within warning budget (`68`).
-3. Manifest/runtime ordering updated for extracted owners:
-   - added `ContentRuntimeBootstrapFinalizeFlow.js`, `ContentRuntimeBootstrapSessionSupport.js`, `CuratedRenderableListProcessing.js`, `CuratedRenderableMergeSupport.js`, `CuratedPanelGridTransitions.js`, `CuratedInteractionsControls.js`, `CuratedLoaderPendingRequests.js`, `CuratedLoaderLoadCycle.js`, `InterfaceShellHostLifecycle.js`, and `RatingsRepositoryCacheSupport.js` before dependent runtime modules in `extension/manifest.json`.
-4. Unit coverage expanded for extracted seams:
-   - `tests/Unit/Runtime/ContentRuntimeSetupDataInitialization.test.ts`
-   - `tests/Unit/Runtime/ContentRuntimeSetup.test.ts`
-   - `tests/Unit/Runtime/ContentRuntimeBootstrapSession.test.ts`
-   - `tests/Unit/Runtime/CuratedLoaderPendingRequests.test.ts`
-   - `tests/Unit/Runtime/CuratedLoaderLoadCycle.test.ts`
-   - `tests/Unit/Runtime/ContentRuntimeBootstrapFinalizeFlow.test.ts`
-   - `tests/Unit/Runtime/CuratedPanelGridTransitions.test.ts`
-   - `tests/Unit/Data/RatingsRepositoryCacheSupport.test.ts`
-   - updated `tests/Unit/Runtime/CuratedLoader.test.ts`, `tests/Unit/Runtime/CuratedRenderable.test.ts`, `tests/Unit/Runtime/CuratedInteractions.test.ts`, `tests/Unit/Runtime/InterfaceShell.test.ts`, `tests/Unit/Runtime/CuratedPanel.test.ts`, and `tests/Unit/Data/RatingsRepository.test.ts` to load extracted runtime owners in manifest-parity order.
-5. Quality gates re-run in this cycle:
+1. Extracted new runtime seams for the highest-maintenance compliant owners:
+   - `extension/src/Runtime/ContentRuntimeBootstrapSessionAssembly.ts`
+   - `extension/src/Runtime/ContentCompositionRuntimeBindings.ts`
+   - `extension/src/Data/AuthClientFetchResilience.ts`
+2. Rewired owning modules to delegate to extracted seams:
+   - `ContentRuntimeBootstrapSession.ts` delegates session assembly/runtime-control wiring.
+   - `ContentComposition.ts` delegates curated/interaction/interface binding ownership.
+   - `AuthClient.ts` delegates fetch retry/auth-refresh transport resilience ownership.
+3. File-size reductions delivered:
+   - `extension/src/Runtime/ContentRuntimeBootstrapSession.ts`: `599` -> `322`
+   - `extension/src/Runtime/ContentComposition.ts`: `595` -> `339`
+   - `extension/src/Data/AuthClient.ts`: `587` -> `419`
+4. Manifest/runtime ordering updated for dependency-parity loading:
+   - added `ContentCompositionRuntimeBindings.js`, `ContentRuntimeBootstrapSessionAssembly.js`, and `AuthClientFetchResilience.js` before dependent runtime modules in `extension/manifest.json`.
+5. Unit coverage expanded/updated for extracted seams:
+   - added `tests/Unit/Data/AuthClientFetchResilience.test.ts`
+   - updated `tests/Unit/Data/AuthClient.test.ts`, `tests/Unit/Runtime/ContentComposition.test.ts`, and `tests/Unit/Runtime/ContentRuntimeBootstrapSession.test.ts` to load new runtime seam modules in manifest-parity order.
+6. Quality gates re-run in this cycle:
    - `npm run format:check`
    - `npm run lint`
    - `npm run typecheck`
-   - `npm run test:unit`
+   - `npm run test:unit` (`224` passed)
    - `npm run lint:firefox`
    - `npm run build:webext`
    - `npm run build:runtime:safari:checked`
    - `npm run arch:metrics`
-6. CI workflow split completed for release confidence:
-   - fast default checks stay in `.github/workflows/build-extensions.yml`.
-   - high-cost release-confidence checks are isolated in `.github/workflows/release-confidence.yml` (`workflow_dispatch` + nightly schedule).
-7. By request, high-cost integration/release gates (`test:e2e`, full signed `build:safari`) remain batched in the release-confidence workflow rather than every push.
+7. By request, high-cost integration/release gates (`test:e2e`, signed/notarized `build:safari`) remain batched in the release-confidence workflow.
 
 ## 3) Target End-State
 
@@ -1729,11 +1718,17 @@ Completed in this pass:
    - `npm run build:webext`
    - `npm run build:runtime:safari:checked`
    - `npm run arch:metrics`
+243. Completed another strict-size optimization slice for the three largest compliant owners from the prior cycle:
+   - added `ContentRuntimeBootstrapSessionAssembly.ts`, `ContentCompositionRuntimeBindings.ts`, and `AuthClientFetchResilience.ts`.
+   - reduced `ContentRuntimeBootstrapSession.ts` from `599` to `322`, `ContentComposition.ts` from `595` to `339`, and `AuthClient.ts` from `587` to `419`.
+   - updated `extension/manifest.json` script ordering and unit runtime loaders for manifest-parity module hydration.
+   - added `tests/Unit/Data/AuthClientFetchResilience.test.ts`; unit baseline is now `224` passing tests.
+   - re-ran `format:check`, `lint`, `typecheck`, `test:unit`, `lint:firefox`, `build:webext`, `build:runtime:safari:checked`, and `arch:metrics` with green results.
 
 Observed new/confirmed opportunities:
 
 1. Remaining structural work is strict-target optimization (`<= 600`), not warning-threshold remediation.
-2. Largest runtime owners to continue trending down are `ContentRuntimeBootstrapSession.ts` (`599`), `ContentComposition.ts` (`595`), and `AuthClient.ts` (`587`).
+2. Largest runtime owners to continue trending down are `HistoryRepositoryCache.ts` (`574`), `ContentRuntimeSetupDataInitialization.ts` (`550`), and `CorePrimitives.ts` (`539`).
 3. Unit baseline is green; keep adding seam-level tests as extraction continues.
 4. Firefox/webext packaging remains deterministic and green in this cycle; keep generated-runtime path discipline strict.
 5. Full gate cadence is robust but costly; keep batching strategy explicit for high-cost validations (`test:e2e`, signed/notarized `build:safari`).
@@ -1769,7 +1764,7 @@ Why this is the better fit for current architecture direction:
 ## 12) Immediate Next Priorities (Post-Completion Optimization Queue)
 
 1. Run one full batched release-confidence lane (`test:e2e` + signed/notarized `build:safari`) and store logs/artifacts for traceability.
-2. Continue strict-size optimization for top compliant owners (`ContentRuntimeBootstrapSession.ts`, `ContentComposition.ts`, `AuthClient.ts`) without changing user-visible behavior.
+2. Continue strict-size optimization for top compliant owners (`HistoryRepositoryCache.ts`, `ContentRuntimeSetupDataInitialization.ts`, `CorePrimitives.ts`) without changing user-visible behavior.
 3. Preserve progressive-loading semantics and startup behavior while optimizing runtime size.
 4. Keep `docs/architecture-standards.md`, `docs/architecture-progress.md`, and this plan in lockstep with each structural cycle.
 
@@ -1778,7 +1773,7 @@ Why this is the better fit for current architecture direction:
 Use this order for the next implementation cycle:
 
 1. Priority 0: execute the batched `release-confidence` workflow and capture resulting artifact/signing evidence.
-2. Priority 1: reduce the largest compliant owners (`ContentRuntimeBootstrapSession.ts`, `ContentComposition.ts`, `AuthClient.ts`) toward lower maintenance headroom.
+2. Priority 1: reduce the largest compliant owners (`HistoryRepositoryCache.ts`, `ContentRuntimeSetupDataInitialization.ts`, `CorePrimitives.ts`) toward lower maintenance headroom.
 3. Priority 1: preserve progressive/stale-while-revalidate UX behavior while reducing size (no regressions).
 4. Priority 1: keep adding focused unit tests around every newly extracted seam before feature additions.
 5. Priority 2: keep metrics/docs synchronized after every structural cycle.

@@ -328,6 +328,13 @@
     pendingRequestsRuntime.syncPendingRequestDiagnostics(context, activeRequests, pendingProgress)
   }
 
+  function shouldMarkCuratedInitialLoadDone(context: CuratedLoaderContext): boolean {
+    const hasCuratedEntries = Array.isArray(context.state.curatedEntries) && context.state.curatedEntries.length > 0
+    const hasApiSource = context.state.curatedSource === 'api'
+    const hasLoadError = Boolean(context.state.curatedError)
+    return hasApiSource || hasCuratedEntries || !hasLoadError
+  }
+
   function finalizeCuratedLoadInflightInternal(
     context: CuratedLoaderContext,
     pendingRequestsRuntime: CuratedLoaderPendingRequestsRuntime,
@@ -336,7 +343,7 @@
   ): void {
     context.state.curatedInflight = null
     clearPendingRequestDiagnosticsInternal(context, pendingRequestsRuntime, activeRequests, pendingProgress)
-    if (context.state.curatedInitialLoadDone !== true) {
+    if (context.state.curatedInitialLoadDone !== true && shouldMarkCuratedInitialLoadDone(context)) {
       context.state.curatedInitialLoadDone = true
     }
   }

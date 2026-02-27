@@ -235,21 +235,22 @@
     return 'blank-shell'
   }
 
-  function readSessionNumber(windowRef: Window, key: string): number {
+  function readSessionNumber(windowRef: Window, key: string): number | null {
     try {
       const raw = windowRef.sessionStorage.getItem(key)
       const parsed = Number(raw)
       return Number.isFinite(parsed) ? parsed : 0
     } catch {
-      return 0
+      return null
     }
   }
 
-  function writeSessionNumber(windowRef: Window, key: string, value: number): void {
+  function writeSessionNumber(windowRef: Window, key: string, value: number): boolean {
     try {
       windowRef.sessionStorage.setItem(key, String(Math.max(0, Math.round(value))))
+      return true
     } catch {
-      // no-op
+      return false
     }
   }
 
@@ -289,6 +290,15 @@
     }
 
     const reloadCount = readSessionNumber(context.windowRef, context.blankShellReloadCountStorageKey)
+    const lastReloadAt = readSessionNumber(context.windowRef, context.blankShellReloadStorageKey)
+    if (reloadCount == null || lastReloadAt == null) {
+      context.runtimeEvent('watchlist-health-reload-suppressed', {
+        issue: healthIssue,
+        reason: 'session-storage-unavailable',
+      })
+      return
+    }
+
     if (reloadCount >= context.blankShellReloadMaxPerSession) {
       context.runtimeEvent('watchlist-health-reload-suppressed', {
         issue: healthIssue,
@@ -298,7 +308,6 @@
       return
     }
 
-    const lastReloadAt = readSessionNumber(context.windowRef, context.blankShellReloadStorageKey)
     if (lastReloadAt > 0 && now - lastReloadAt < context.blankShellReloadCooldownMs) {
       context.runtimeEvent('watchlist-health-reload-suppressed', {
         issue: healthIssue,
@@ -307,8 +316,20 @@
       return
     }
 
-    writeSessionNumber(context.windowRef, context.blankShellReloadStorageKey, now)
-    writeSessionNumber(context.windowRef, context.blankShellReloadCountStorageKey, reloadCount + 1)
+    const didWriteReloadTimestamp = writeSessionNumber(context.windowRef, context.blankShellReloadStorageKey, now)
+    const didWriteReloadCount = writeSessionNumber(
+      context.windowRef,
+      context.blankShellReloadCountStorageKey,
+      reloadCount + 1,
+    )
+    if (!didWriteReloadTimestamp || !didWriteReloadCount) {
+      context.runtimeEvent('watchlist-health-reload-suppressed', {
+        issue: healthIssue,
+        reason: 'session-storage-unavailable',
+      })
+      return
+    }
+
     context.runtimeEvent('watchlist-health-reload', {
       issue: healthIssue,
       sinceDetectedMs: now - context.watchlistHealthIssueDetectedAt,

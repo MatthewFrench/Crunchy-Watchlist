@@ -197,10 +197,21 @@
     const tokenEntry = await context.getAccessToken(true)
     const accountId = getString(tokenEntry?.accountId, '')
     const profileId = getString(tokenEntry?.profileId, '')
-    if (!accountId || !profileId) {
+    if (!accountId) {
       context.runtimeEvent('curated-cache-scope-unavailable', {
         hasAccountId: Boolean(accountId),
         hasProfileId: Boolean(profileId),
+      })
+      return
+    }
+
+    const watchlistCacheRecord = toRecord(context.state.watchlistCache)
+    const cachedProfileId = getString(watchlistCacheRecord.profileId, '')
+    if (!profileId && cachedProfileId) {
+      context.runtimeEvent('curated-cache-scope-unavailable', {
+        hasAccountId: true,
+        hasProfileId: false,
+        requiresProfileScope: true,
       })
       return
     }
@@ -209,7 +220,6 @@
       return
     }
 
-    const watchlistCacheRecord = toRecord(context.state.watchlistCache)
     const rows = Array.isArray(watchlistCacheRecord.rows) ? watchlistCacheRecord.rows : []
     const updatedAt = getNumber(watchlistCacheRecord.updatedAt, 0)
 
@@ -222,7 +232,7 @@
       total: context.state.curatedEntries.length,
       updatedAt,
       accountId,
-      profileId,
+      profileId: profileId || null,
     })
   }
 

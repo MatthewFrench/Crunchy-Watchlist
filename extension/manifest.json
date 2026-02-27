@@ -70,6 +70,7 @@
         "src/Runtime/BootstrapFinalize.js",
         "src/Data/StorageAdapter.js",
         "src/Data/ApiContracts.js",
+        "src/Data/AuthClientFetchResilience.js",
         "src/Data/AuthClient.js",
         "src/Data/WatchlistClient.js",
         "src/Data/WatchlistRepository.js",
@@ -96,6 +97,7 @@
         "src/Runtime/WatchlistHealth.js",
         "src/Runtime/ContentBootstrap.js",
         "src/Runtime/ContentCompositionBindings.js",
+        "src/Runtime/ContentCompositionRuntimeBindings.js",
         "src/Runtime/ContentComposition.js",
         "src/Runtime/ContentRuntimeSetupComposition.js",
         "src/Runtime/ContentRuntimeSetupDataInitialization.js",
@@ -104,6 +106,7 @@
         "src/Runtime/ContentRuntimeBootstrapDomLock.js",
         "src/Runtime/ContentRuntimeBootstrapFinalizeFlow.js",
         "src/Runtime/ContentRuntimeBootstrapSessionSupport.js",
+        "src/Runtime/ContentRuntimeBootstrapSessionAssembly.js",
         "src/Runtime/ContentRuntimeBootstrapSession.js",
         "src/Runtime/ContentRuntimeBootstrapHelpers.js",
         "Content.js"

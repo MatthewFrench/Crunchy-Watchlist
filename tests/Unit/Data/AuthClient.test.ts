@@ -22,6 +22,9 @@ type AuthClientModule = {
 }
 
 const authClientModuleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Data', 'AuthClient.ts')).href
+const authClientFetchResilienceModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Data', 'AuthClientFetchResilience.ts'),
+).href
 
 function getAuthClientModule() {
   const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as AuthClientModule
@@ -77,7 +80,7 @@ function createAuthClient(
 
 describe('auth-client runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([authClientModuleUrl])
+    await loadRuntimeModules([authClientFetchResilienceModuleUrl, authClientModuleUrl])
   })
 
   afterEach(() => {

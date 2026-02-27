@@ -402,7 +402,9 @@
     }
 
     const loading = Boolean(context.state.curatedInflight)
-    const firstLoadInFlight = loading && context.state.curatedInitialLoadDone !== true
+    const hasNoCuratedEntries =
+      !Array.isArray(context.state.curatedEntries) || context.state.curatedEntries.length === 0
+    const firstLoadInFlight = loading && (context.state.curatedInitialLoadDone !== true || hasNoCuratedEntries)
     const pendingRequests = getPendingRequestItems(context.state.curatedPendingRequests)
     const requestProgress = getPendingRequestProgressInternal(context, pendingRequests)
     context.curatedPanelLoadingIndicatorRuntime.syncLoadingIndicator({

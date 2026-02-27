@@ -198,4 +198,43 @@ describe('watchlist-health runtime', () => {
     expect(harness.reloadSpy).toHaveBeenCalledTimes(1)
     expect(harness.runtimeEvents.map((entry) => entry.event)).toContain('watchlist-health-reload-suppressed')
   })
+
+  it('suppresses auto-reload when sessionStorage is unavailable', () => {
+    const nowSpy = vi.spyOn(Date, 'now')
+    nowSpy.mockReturnValueOnce(1_000).mockReturnValueOnce(5_500).mockReturnValue(5_500)
+    const storageDeniedReloadSpy = vi.fn()
+    const storageDeniedWindowRef = {
+      location: {
+        pathname: '/watchlist',
+        reload: storageDeniedReloadSpy,
+      },
+      document: {},
+      sessionStorage: {
+        getItem: () => {
+          throw new Error('storage denied')
+        },
+        setItem: () => {
+          throw new Error('storage denied')
+        },
+      },
+      setInterval: vi.fn(() => 42),
+      clearInterval: vi.fn(),
+    }
+
+    const harness = createWatchlistHealthHarness({
+      windowRef: storageDeniedWindowRef,
+    })
+
+    harness.runtime.runCheck()
+    harness.runtime.runCheck()
+
+    expect(storageDeniedReloadSpy).not.toHaveBeenCalled()
+    expect(harness.runtimeEvents).toContainEqual({
+      event: 'watchlist-health-reload-suppressed',
+      data: {
+        issue: 'blank-shell',
+        reason: 'session-storage-unavailable',
+      },
+    })
+  })
 })

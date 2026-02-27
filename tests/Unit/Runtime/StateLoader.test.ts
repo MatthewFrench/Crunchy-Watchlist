@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
@@ -231,6 +231,70 @@ describe('runtime state-loader', () => {
     })
   })
 
+  it('hydrates account-scoped watchlist cache when token has no profile_id', async () => {
+    const state = createBaseState()
+    const runtimeEvents: Array<{ event: string; data?: unknown }> = []
+    const isWatchlistCacheValid = vi.fn(() => true)
+    const stateLoader = getStateLoaderModule().createStateLoader({
+      state,
+      storageGet: createStorageGet({
+        cw_settings_v1: {},
+        cw_rating_cache_v2: {},
+        cw_watch_history_cache_v1: {},
+        cw_watchlist_cache_v1: {
+          accountId: 'account-1',
+          profileId: '',
+          rows: [{ series_id: 'series-1' }],
+          updatedAt: 12345,
+        },
+      }),
+      getAccessToken: async () => ({
+        accessToken: 'token-1',
+        accountId: 'account-1',
+      }),
+      runtimeEvent: (event: string, data?: unknown) => runtimeEvents.push({ event, data }),
+      normalizeStoredWatchHistoryCache: (raw: unknown) => raw,
+      isWatchHistoryCacheValid: () => true,
+      normalizeStoredWatchlistCache: (raw: unknown) => raw,
+      isWatchlistCacheValid,
+      normalizeEntriesFromApiRows: (rows: unknown[]) => rows,
+      defaultSettings: {
+        activeTab: 'curated',
+        audioLocaleFilter: 'any',
+        genreFilter: 'any',
+        cardLayout: 'portrait',
+        watchReadyFilterMode: 'hide',
+        sortMode: 'none',
+        secondarySortMode: 'none',
+      },
+      validSortModes: new Set(['none']),
+      defaultSortMode: 'none',
+      settingsKey: 'cw_settings_v1',
+      ratingCacheKey: 'cw_rating_cache_v2',
+      watchHistoryCacheKey: 'cw_watch_history_cache_v1',
+      watchlistCacheKey: 'cw_watchlist_cache_v1',
+    })
+
+    await stateLoader.loadInitialState()
+
+    expect(isWatchlistCacheValid).toHaveBeenCalledWith(
+      expect.objectContaining({ accountId: 'account-1', profileId: '' }),
+      'account-1',
+      '',
+    )
+    expect(state.curatedSource).toBe('cache')
+    expect(state.curatedEntries).toEqual([{ series_id: 'series-1' }])
+    expect(runtimeEvents).toContainEqual({
+      event: 'curated-cache-hydrated',
+      data: {
+        total: 1,
+        updatedAt: 12345,
+        accountId: 'account-1',
+        profileId: null,
+      },
+    })
+  })
+
   it('skips cached watchlist hydration when auth scope is unavailable', async () => {
     const state = createBaseState()
     const runtimeEvents: Array<{ event: string; data?: unknown }> = []
@@ -337,6 +401,64 @@ describe('runtime state-loader', () => {
 
     expect(state.curatedEntries).toEqual([])
     expect(state.curatedSource).toBe('none')
+    expect(runtimeEvents.map((entry) => entry.event)).not.toContain('curated-cache-hydrated')
+  })
+
+  it('skips profile-scoped cache hydration when token profile scope is unavailable', async () => {
+    const state = createBaseState()
+    const runtimeEvents: Array<{ event: string; data?: unknown }> = []
+    const stateLoader = getStateLoaderModule().createStateLoader({
+      state,
+      storageGet: createStorageGet({
+        cw_settings_v1: {},
+        cw_rating_cache_v2: {},
+        cw_watch_history_cache_v1: {},
+        cw_watchlist_cache_v1: {
+          accountId: 'account-1',
+          profileId: 'profile-1',
+          rows: [{ series_id: 'series-1' }],
+          updatedAt: 12345,
+        },
+      }),
+      getAccessToken: async () => ({
+        accessToken: 'token-1',
+        accountId: 'account-1',
+      }),
+      runtimeEvent: (event: string, data?: unknown) => runtimeEvents.push({ event, data }),
+      normalizeStoredWatchHistoryCache: (raw: unknown) => raw,
+      isWatchHistoryCacheValid: () => true,
+      normalizeStoredWatchlistCache: (raw: unknown) => raw,
+      isWatchlistCacheValid: () => true,
+      normalizeEntriesFromApiRows: (rows: unknown[]) => rows,
+      defaultSettings: {
+        activeTab: 'curated',
+        audioLocaleFilter: 'any',
+        genreFilter: 'any',
+        cardLayout: 'portrait',
+        watchReadyFilterMode: 'hide',
+        sortMode: 'none',
+        secondarySortMode: 'none',
+      },
+      validSortModes: new Set(['none']),
+      defaultSortMode: 'none',
+      settingsKey: 'cw_settings_v1',
+      ratingCacheKey: 'cw_rating_cache_v2',
+      watchHistoryCacheKey: 'cw_watch_history_cache_v1',
+      watchlistCacheKey: 'cw_watchlist_cache_v1',
+    })
+
+    await stateLoader.loadInitialState()
+
+    expect(state.curatedSource).toBe('none')
+    expect(state.curatedEntries).toEqual([])
+    expect(runtimeEvents).toContainEqual({
+      event: 'curated-cache-scope-unavailable',
+      data: {
+        hasAccountId: true,
+        hasProfileId: false,
+        requiresProfileScope: true,
+      },
+    })
     expect(runtimeEvents.map((entry) => entry.event)).not.toContain('curated-cache-hydrated')
   })
 

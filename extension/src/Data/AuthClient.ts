@@ -20,8 +20,6 @@
     authTokenInflight: Promise<AuthTokenEntry | null> | null
   }
 
-  type RefreshTokenFn = () => Promise<string>
-
   type FetchWithResilienceOptions = {
     label?: unknown
     timeoutMs?: unknown
@@ -71,9 +69,13 @@
     cryptoRef?: unknown
   }
 
-  type FetchAttemptController = {
-    controller: AbortController | null
-    timeoutId: ReturnType<typeof setTimeout> | null
+  type AuthClientFetchResilienceRuntime = {
+    fetchWithResilienceInternal: (
+      context: AuthContext,
+      url: string,
+      init?: RequestInit,
+      options?: FetchWithResilienceOptions,
+    ) => Promise<Response>
   }
 
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
@@ -179,195 +181,12 @@
     }
   }
 
-  function createFetchAttemptController(timeoutMs: number): FetchAttemptController {
-    const controller = typeof root.AbortController === 'function' ? new root.AbortController() : null
-    const timeoutId = controller
-      ? root.setTimeout(() => {
-          try {
-            controller.abort()
-          } catch (_) {
-            // no-op
-          }
-        }, timeoutMs)
-      : null
-
-    return {
-      controller,
-      timeoutId,
+  function createAuthClientFetchResilienceRuntime(): AuthClientFetchResilienceRuntime {
+    const fetchResilienceModule = moduleRegistry.authClientFetchResilience as Record<string, unknown>
+    if (typeof fetchResilienceModule?.createAuthClientFetchResilienceRuntime !== 'function') {
+      throw new Error('[CW] Missing auth dependency: createAuthClientFetchResilienceRuntime')
     }
-  }
-
-  function clearFetchAttemptTimeout(timeoutId: ReturnType<typeof setTimeout> | null): void {
-    if (timeoutId != null) {
-      root.clearTimeout(timeoutId)
-    }
-  }
-
-  function createFetchHeaders(inputHeaders: unknown, bearerToken: string): Headers {
-    const headers = new root.Headers((inputHeaders || {}) as HeadersInit)
-    if (bearerToken) {
-      headers.set('authorization', `Bearer ${bearerToken}`)
-    }
-    return headers
-  }
-
-  function toRefreshTokenFn(value: unknown): RefreshTokenFn | null {
-    return typeof value === 'function' ? (value as RefreshTokenFn) : null
-  }
-
-  async function tryRefreshFetchBearerToken(
-    context: AuthContext,
-    responseStatus: number,
-    hasTriedRefresh: boolean,
-    refreshBearerToken: unknown,
-    label: string,
-    attempt: number,
-  ): Promise<{ hasTriedRefresh: boolean; bearerToken: string }> {
-    const refreshToken = toRefreshTokenFn(refreshBearerToken)
-    if (responseStatus !== 401 || hasTriedRefresh || !refreshToken) {
-      return {
-        hasTriedRefresh,
-        bearerToken: '',
-      }
-    }
-
-    try {
-      const refreshed = await refreshToken()
-      if (typeof refreshed === 'string' && refreshed) {
-        context.runtimeEvent('fetch-auth-refresh', { label, attempt })
-        return {
-          hasTriedRefresh: true,
-          bearerToken: refreshed,
-        }
-      }
-    } catch (_) {
-      // no-op
-    }
-
-    return {
-      hasTriedRefresh: true,
-      bearerToken: '',
-    }
-  }
-
-  async function queueFetchRetry(
-    context: AuthContext,
-    label: string,
-    attempt: number,
-    delayMs: number,
-    extra: Record<string, unknown> = {},
-  ): Promise<void> {
-    context.runtimeEvent('fetch-retry', {
-      label,
-      attempt,
-      delayMs,
-      ...extra,
-    })
-    await context.sleep(delayMs)
-  }
-
-  function shouldRetryFetchNetworkError(message: string): boolean {
-    return !/failed:\s*\d{3}\b/.test(message)
-  }
-
-  function getErrorName(error: unknown): string {
-    if (!error || typeof error !== 'object') {
-      return ''
-    }
-
-    return typeof (error as Record<string, unknown>).name === 'string'
-      ? ((error as Record<string, unknown>).name as string)
-      : ''
-  }
-
-  function getErrorMessage(error: unknown): string {
-    if (!error || typeof error !== 'object') {
-      return 'network failure'
-    }
-
-    const message = (error as Record<string, unknown>).message
-    return typeof message === 'string' && message ? message : 'network failure'
-  }
-
-  async function fetchWithResilienceInternal(
-    context: AuthContext,
-    url: string,
-    init: RequestInit = {},
-    options: FetchWithResilienceOptions = {},
-  ): Promise<Response> {
-    const label = typeof options.label === 'string' && options.label.trim() ? options.label.trim() : 'request'
-    const timeoutMs = context.sanitizePositiveInt(options.timeoutMs) ?? context.fetchTimeoutMs
-    const maxAttempts = Math.max(1, context.sanitizePositiveInt(options.maxAttempts) ?? context.fetchMaxAttempts)
-    const retryNetworkErrors = options.retryNetworkErrors !== false
-
-    let attempt = 0
-    let lastErrorMessage = ''
-    let hasTriedRefresh = false
-    let bearerToken = typeof options.bearerToken === 'string' ? options.bearerToken : ''
-
-    while (attempt < maxAttempts) {
-      attempt += 1
-      const attemptController = createFetchAttemptController(timeoutMs)
-
-      try {
-        const headers = createFetchHeaders(init.headers, bearerToken)
-        const requestInit: RequestInit = {
-          ...init,
-          headers,
-        }
-        if (attemptController.controller) {
-          requestInit.signal = attemptController.controller.signal
-        } else if (init.signal !== undefined) {
-          requestInit.signal = init.signal
-        }
-
-        const response = await context.fetchImpl(url, requestInit)
-
-        clearFetchAttemptTimeout(attemptController.timeoutId)
-
-        const refreshResult = await tryRefreshFetchBearerToken(
-          context,
-          response.status,
-          hasTriedRefresh,
-          options.refreshBearerToken,
-          label,
-          attempt,
-        )
-        hasTriedRefresh = refreshResult.hasTriedRefresh
-        if (refreshResult.bearerToken) {
-          bearerToken = refreshResult.bearerToken
-          continue
-        }
-
-        if (response.ok) {
-          return response
-        }
-
-        if (attempt < maxAttempts && context.shouldRetryStatus(response.status)) {
-          const delayMs = context.computeFetchRetryDelayMs(attempt, response)
-          await queueFetchRetry(context, label, attempt, delayMs, { status: response.status })
-          continue
-        }
-
-        throw new Error(`${label} failed: ${response.status}`)
-      } catch (error) {
-        clearFetchAttemptTimeout(attemptController.timeoutId)
-
-        const aborted = getErrorName(error) === 'AbortError'
-        const message = aborted ? 'timeout' : getErrorMessage(error)
-        lastErrorMessage = message
-
-        if (attempt < maxAttempts && retryNetworkErrors && shouldRetryFetchNetworkError(message)) {
-          const delayMs = context.computeFetchRetryDelayMs(attempt, null)
-          await queueFetchRetry(context, label, attempt, delayMs, { reason: message })
-          continue
-        }
-
-        throw new Error(`${label} failed: ${message}`)
-      }
-    }
-
-    throw new Error(`${label} failed: ${lastErrorMessage || 'exhausted retries'}`)
+    return (fetchResilienceModule.createAuthClientFetchResilienceRuntime as AnyFn)() as AuthClientFetchResilienceRuntime
   }
 
   function generateDeviceId(context: AuthContext): string {
@@ -445,7 +264,10 @@
     return payload as Record<string, unknown>
   }
 
-  async function requestAccessTokenInternal(context: AuthContext): Promise<AuthTokenEntry> {
+  async function requestAccessTokenInternal(
+    context: AuthContext,
+    fetchResilienceRuntime: AuthClientFetchResilienceRuntime,
+  ): Promise<AuthTokenEntry> {
     const body = new root.URLSearchParams({
       device_id: getOrCreateDeviceId(context),
       device_type: getAuthDeviceType(context),
@@ -453,7 +275,7 @@
     })
 
     const tokenUrl = context.resolveApiHref('/auth/v1/token')
-    const response = await fetchWithResilienceInternal(
+    const response = await fetchResilienceRuntime.fetchWithResilienceInternal(
       context,
       tokenUrl,
       {
@@ -512,7 +334,11 @@
     }
   }
 
-  async function getAccessTokenInternal(context: AuthContext, forceRefresh = false): Promise<AuthTokenEntry | null> {
+  async function getAccessTokenInternal(
+    context: AuthContext,
+    fetchResilienceRuntime: AuthClientFetchResilienceRuntime,
+    forceRefresh = false,
+  ): Promise<AuthTokenEntry | null> {
     if (!forceRefresh && isAuthTokenValid(context, context.state.authToken)) {
       return context.state.authToken
     }
@@ -525,7 +351,7 @@
 
     inflight = (async () => {
       try {
-        const tokenEntry = await requestAccessTokenInternal(context)
+        const tokenEntry = await requestAccessTokenInternal(context, fetchResilienceRuntime)
         context.state.authToken = tokenEntry
         context.runtimeEvent('auth-token-ready', {
           hasAccountId: !!tokenEntry.accountId,
@@ -547,9 +373,13 @@
     return inflight
   }
 
-  function createAuthRefreshHandlerInternal(context: AuthContext, tokenEntry: unknown) {
+  function createAuthRefreshHandlerInternal(
+    context: AuthContext,
+    fetchResilienceRuntime: AuthClientFetchResilienceRuntime,
+    tokenEntry: unknown,
+  ) {
     return async () => {
-      const refreshed = await getAccessTokenInternal(context, true)
+      const refreshed = await getAccessTokenInternal(context, fetchResilienceRuntime, true)
       if (!refreshed?.accessToken) {
         return ''
       }
@@ -572,11 +402,13 @@
 
   function createAuthClient(options: AuthOptions = {}) {
     const context = createAuthContext(options)
+    const fetchResilienceRuntime = createAuthClientFetchResilienceRuntime()
     return {
       fetchWithResilience: (url: string, init: RequestInit = {}, requestOptions: FetchWithResilienceOptions = {}) =>
-        fetchWithResilienceInternal(context, url, init, requestOptions),
-      getAccessToken: (forceRefresh = false) => getAccessTokenInternal(context, forceRefresh),
-      createAuthRefreshHandler: (tokenEntry: unknown) => createAuthRefreshHandlerInternal(context, tokenEntry),
+        fetchResilienceRuntime.fetchWithResilienceInternal(context, url, init, requestOptions),
+      getAccessToken: (forceRefresh = false) => getAccessTokenInternal(context, fetchResilienceRuntime, forceRefresh),
+      createAuthRefreshHandler: (tokenEntry: unknown) =>
+        createAuthRefreshHandlerInternal(context, fetchResilienceRuntime, tokenEntry),
     }
   }
 

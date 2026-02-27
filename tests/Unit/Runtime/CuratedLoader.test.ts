@@ -87,6 +87,7 @@ function createCuratedLoaderHarness(overrides: Record<string, unknown> = {}) {
     curatedSource: 'none',
     curatedLastRevalidateAt: 0,
     curatedObservedPromise: null as Promise<unknown[]> | null,
+    curatedInitialLoadDone: false,
     settings: {
       audioLocaleFilter: 'any',
     },
@@ -365,6 +366,7 @@ describe('curated-loader runtime', () => {
     expect(result).toEqual([])
     expect(harness.state.curatedEntries).toEqual([])
     expect(harness.state.curatedSource).toBe('none')
+    expect(harness.state.curatedInitialLoadDone).not.toBe(true)
     expect(String(harness.state.curatedError)).toContain('simulated load failure')
     expect(harness.runtimeEvents.map((entry) => entry.event)).toContain('curated-load-failed')
   })
@@ -389,6 +391,36 @@ describe('curated-loader runtime', () => {
 
     expect(getAccessToken).toHaveBeenNthCalledWith(1, false)
     expect(getAccessToken).toHaveBeenNthCalledWith(2, true)
+  })
+
+  it('loads watchlist data when token refresh still omits profile scope', async () => {
+    const getAccessToken = vi
+      .fn()
+      .mockResolvedValueOnce({
+        accessToken: 'access-token',
+        accountId: 'account-1',
+      })
+      .mockResolvedValueOnce({
+        accessToken: 'access-token-refresh',
+        accountId: 'account-1',
+      })
+    const harness = createCuratedLoaderHarness({
+      getAccessToken,
+    })
+
+    const entries = await harness.runtime.loadCuratedEntries(false)
+
+    expect(entries).toHaveLength(1)
+    expect(harness.state.curatedSource).toBe('api')
+    expect(getAccessToken).toHaveBeenNthCalledWith(1, false)
+    expect(getAccessToken).toHaveBeenNthCalledWith(2, true)
+    expect(harness.dependencies.resetWatchlistCacheOnAccountMismatch).toHaveBeenCalledWith('account-1', '')
+    expect(harness.dependencies.setWatchlistCacheRows).toHaveBeenCalledWith(
+      'account-1',
+      '',
+      [{ id: 'row-1' }],
+      expect.any(Number),
+    )
   })
 
   it('uses forced token refresh immediately when caller requests force reload', async () => {

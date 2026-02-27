@@ -142,7 +142,7 @@
       profileId = getString(tokenEntry?.profileId)
     }
 
-    if (!accessToken || !accountId || !profileId) {
+    if (!accessToken || !accountId) {
       throw new Error('Unable to load curated watchlist: Crunchyroll API auth is unavailable.')
     }
 

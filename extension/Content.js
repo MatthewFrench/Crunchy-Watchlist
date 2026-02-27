@@ -20,9 +20,18 @@
   }
 
   const markRuntimeInactive = (reason, extraPayload = {}) => {
+    const activeOwnerId =
+      window.__CW_WATCHLIST_CURATOR_CONTROL__ &&
+      typeof window.__CW_WATCHLIST_CURATOR_CONTROL__.activeInstanceId === 'string'
+        ? window.__CW_WATCHLIST_CURATOR_CONTROL__.activeInstanceId
+        : null
+    const isOwnedByCurrentRuntime = activeOwnerId === runtimeInstanceId
+    if (!isOwnedByCurrentRuntime && activeOwnerId) {
+      return
+    }
     setRuntimeControl({
       active: false,
-      activeInstanceId: null,
+      activeInstanceId: isOwnedByCurrentRuntime ? null : activeOwnerId,
       lastShutdownAt: Date.now(),
       lastShutdownPayload: {
         reason,
