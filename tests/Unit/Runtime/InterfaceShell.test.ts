@@ -342,10 +342,12 @@ describe('interface-shell runtime', () => {
     expect(runtimeEvents).toEqual(['ui-missing-watchlist-structure'])
   })
 
-  it('resets curated caches and persists rating/watch-history caches', async () => {
+  it('keeps cached curated data during refresh while resetting transient request diagnostics', async () => {
     const state = createBaseState()
     const storageSetCalls: Array<{ key: string; value: unknown }> = []
-    const nextWatchHistoryCache = { version: 3, bySeriesId: {} }
+    const previousRatingCache = state.ratingCache
+    const previousWatchHistoryCache = state.watchHistoryCache
+    const previousCuratedEntries = state.curatedEntries
     const runtime = getInterfaceShellModule().createInterfaceShellRuntime({
       state,
       documentRef: {
@@ -374,7 +376,7 @@ describe('interface-shell runtime', () => {
       ensureCuratedDataLoad: async () => null,
       renderCuratedPanel: () => {},
       debounceProcess: () => {},
-      createEmptyWatchHistoryCache: () => nextWatchHistoryCache,
+      createEmptyWatchHistoryCache: () => ({}),
       storageSet: async (key: string, value: unknown) => {
         storageSetCalls.push({ key, value })
       },
@@ -384,22 +386,14 @@ describe('interface-shell runtime', () => {
 
     await runtime.resetCuratedCachesForRefresh()
 
-    expect(state.ratingCache).toEqual({})
-    expect(state.ratingInflight.size).toBe(0)
-    expect(state.ratingLocalePreloadInflight.size).toBe(0)
-    expect(state.watchHistoryLocalePreloadInflight.size).toBe(0)
-    expect(state.watchHistoryCache).toBe(nextWatchHistoryCache)
-    expect(state.watchHistoryStatus).toBe('idle')
-    expect(state.watchHistoryInflight).toBeNull()
-    expect(state.curatedEntries).toEqual([])
+    expect(state.ratingCache).toBe(previousRatingCache)
+    expect(state.watchHistoryCache).toBe(previousWatchHistoryCache)
+    expect(state.curatedEntries).toBe(previousCuratedEntries)
     expect(state.curatedError).toBeNull()
     expect(state.curatedPendingRequests).toEqual([])
     expect(state.curatedPendingRequestStartedCount).toBe(0)
     expect(state.curatedPendingRequestCompletedCount).toBe(0)
-    expect(storageSetCalls).toEqual([
-      { key: 'cw_rating_cache_v2', value: {} },
-      { key: 'cw_watch_history_cache_v1', value: nextWatchHistoryCache },
-    ])
+    expect(storageSetCalls).toEqual([])
   })
 
   it('mounts the shared loading indicator inside a dedicated loading box above the curated grid', () => {

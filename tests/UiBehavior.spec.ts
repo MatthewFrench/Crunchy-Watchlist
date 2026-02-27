@@ -208,6 +208,48 @@ test.describe('UI Behavior', () => {
     await expect(page.locator('.cw-curated-card[data-cw-loading-details="true"]')).toHaveCount(0)
   })
 
+  test('keeps existing cards visible while manual refresh is in flight', async ({ page }) => {
+    await injectExtension(page)
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+
+    let refreshWatchlistCalls = 0
+    await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
+      refreshWatchlistCalls += 1
+      await page.waitForTimeout(700)
+      await route.continue()
+    })
+
+    await page.getByRole('button', { name: 'Refresh ratings' }).click()
+
+    await expect.poll(() => refreshWatchlistCalls).toBeGreaterThanOrEqual(1)
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+    await expect(page.locator('.cw-curated-grid > .cw-empty')).toHaveCount(0)
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4')
+    await expect(page.locator('.cw-controls__stats')).toContainText('(refreshing...)')
+    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeHidden()
+
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4')
+    await expect(page.locator('.cw-controls__stats')).not.toContainText('(refreshing...)')
+  })
+
+  test('disables refresh button while manual refresh is running', async ({ page }) => {
+    await injectExtension(page)
+
+    await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
+      await page.waitForTimeout(700)
+      await route.continue()
+    })
+
+    const refreshButton = page.getByRole('button', { name: 'Refresh ratings' })
+    await refreshButton.click()
+
+    await expect(refreshButton).toBeDisabled()
+    await expect(refreshButton).toHaveAttribute('aria-busy', 'true')
+
+    await expect(refreshButton).toBeEnabled()
+    await expect(refreshButton).toHaveAttribute('aria-busy', 'false')
+  })
+
   test('recovers curated cards after host-page DOM churn clears the curated grid', async ({ page }) => {
     await injectExtension(page)
     await expect(page.locator('.cw-curated-card')).toHaveCount(3)

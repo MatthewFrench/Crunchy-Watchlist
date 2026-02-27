@@ -15,6 +15,7 @@ type WatchHistoryCache = {
 
 type WatchlistCacheSnapshot = {
   accountId: string
+  profileId: string
   updatedAt: number
   rows: unknown[]
 }
@@ -30,7 +31,12 @@ type ApiTraceBuckets = {
 
 type RuntimeStore = {
   createEmptyWatchHistoryCache: (version: unknown) => WatchHistoryCache
-  createWatchlistCacheSnapshot: (accountId?: unknown, updatedAt?: unknown, rows?: unknown[]) => WatchlistCacheSnapshot
+  createWatchlistCacheSnapshot: (
+    accountId?: unknown,
+    profileIdOrUpdatedAt?: unknown,
+    updatedAtOrRows?: unknown,
+    rowsMaybe?: unknown,
+  ) => WatchlistCacheSnapshot
   createApiTraceBuckets: () => ApiTraceBuckets
   createRuntimeState: (options?: {
     defaultSettings?: Record<string, unknown>
@@ -75,14 +81,21 @@ describe('RuntimeStore', () => {
   it('sanitizes watchlist cache snapshots', () => {
     const runtimeStore = getRuntimeStore()
 
-    const normalized = runtimeStore.createWatchlistCacheSnapshot('acct-1', Date.now(), [{ id: 'row-1' }])
-    const fallback = runtimeStore.createWatchlistCacheSnapshot(1, 'bad', {} as unknown[])
+    const normalized = runtimeStore.createWatchlistCacheSnapshot('acct-1', 'profile-1', Date.now(), [{ id: 'row-1' }])
+    const legacyCallSignature = runtimeStore.createWatchlistCacheSnapshot('acct-1', Date.now(), [{ id: 'row-1' }])
+    const fallback = runtimeStore.createWatchlistCacheSnapshot(1, {} as unknown, {} as unknown[])
 
     expect(normalized.accountId).toBe('acct-1')
+    expect(normalized.profileId).toBe('profile-1')
     expect(Array.isArray(normalized.rows)).toBe(true)
     expect(normalized.rows).toHaveLength(1)
 
+    expect(legacyCallSignature.accountId).toBe('acct-1')
+    expect(legacyCallSignature.profileId).toBe('')
+    expect(legacyCallSignature.rows).toHaveLength(1)
+
     expect(fallback.accountId).toBe('')
+    expect(fallback.profileId).toBe('')
     expect(fallback.updatedAt).toBe(0)
     expect(fallback.rows).toEqual([])
   })

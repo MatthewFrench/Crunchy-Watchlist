@@ -503,16 +503,8 @@
   }
 
   async function resetCuratedCachesForRefreshInternal(context: InterfaceShellContext): Promise<void> {
-    context.state.ratingCache = {}
-    context.state.ratingInflight.clear()
-    context.state.ratingLocalePreloadInflight.clear()
-    context.state.watchHistoryLocalePreloadInflight.clear()
-    context.state.watchHistoryCache = context.createEmptyWatchHistoryCache()
-    context.state.watchHistoryStatus = 'idle'
-    context.state.watchHistoryInflight = null
-    await context.storageSet(context.ratingCacheKey, context.state.ratingCache)
-    await context.storageSet(context.watchHistoryCacheKey, context.state.watchHistoryCache)
-    context.state.curatedEntries = []
+    // Manual refresh uses stale-while-revalidate semantics:
+    // keep cached cards visible and only reset transient request diagnostics.
     context.state.curatedError = null
     context.state.curatedPendingRequests = []
     context.state.curatedPendingRequestStartedCount = 0

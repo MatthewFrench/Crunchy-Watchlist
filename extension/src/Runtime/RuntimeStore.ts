@@ -11,6 +11,7 @@
 
   type WatchlistCacheSnapshot = {
     accountId: string
+    profileId: string
     updatedAt: number
     rows: unknown[]
   }
@@ -98,15 +99,47 @@
     }
   }
 
+  type WatchlistCacheSnapshotArgs = {
+    profileId: string
+    updatedAt: number
+    rows: unknown[]
+  }
+
+  // Keep compatibility with legacy call-sites that still pass:
+  // (accountId, updatedAt, rows). New call-sites pass:
+  // (accountId, profileId, updatedAt, rows).
+  function resolveWatchlistCacheSnapshotArgs(
+    profileIdOrUpdatedAt: unknown,
+    updatedAtOrRows: unknown,
+    rowsMaybe: unknown,
+  ): WatchlistCacheSnapshotArgs {
+    if ((rowsMaybe !== undefined && Array.isArray(rowsMaybe)) || typeof profileIdOrUpdatedAt === 'string') {
+      return {
+        profileId: typeof profileIdOrUpdatedAt === 'string' ? profileIdOrUpdatedAt : '',
+        updatedAt: typeof updatedAtOrRows === 'number' ? updatedAtOrRows : 0,
+        rows: Array.isArray(rowsMaybe) ? rowsMaybe : [],
+      }
+    }
+
+    return {
+      profileId: '',
+      updatedAt: typeof profileIdOrUpdatedAt === 'number' ? profileIdOrUpdatedAt : 0,
+      rows: Array.isArray(updatedAtOrRows) ? updatedAtOrRows : [],
+    }
+  }
+
   function createWatchlistCacheSnapshot(
     accountId: unknown = '',
-    updatedAt: unknown = 0,
-    rows: unknown[] = [],
+    profileIdOrUpdatedAt: unknown = '',
+    updatedAtOrRows: unknown = 0,
+    rowsMaybe?: unknown,
   ): WatchlistCacheSnapshot {
+    const normalizedArgs = resolveWatchlistCacheSnapshotArgs(profileIdOrUpdatedAt, updatedAtOrRows, rowsMaybe)
     return {
       accountId: typeof accountId === 'string' ? accountId : '',
-      updatedAt: typeof updatedAt === 'number' ? updatedAt : 0,
-      rows: Array.isArray(rows) ? rows : [],
+      profileId: normalizedArgs.profileId,
+      updatedAt: normalizedArgs.updatedAt,
+      rows: normalizedArgs.rows,
     }
   }
 

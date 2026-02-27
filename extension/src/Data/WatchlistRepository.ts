@@ -5,6 +5,7 @@
 
   type WatchlistCacheSnapshot = {
     accountId: string
+    profileId: string
     updatedAt: number
     rows: WatchlistRow[]
   }
@@ -15,7 +16,12 @@
 
   type WatchlistRepositoryContext = {
     state: WatchlistRepositoryState
-    createWatchlistCacheSnapshot: (accountId?: unknown, updatedAt?: unknown, rows?: unknown[]) => WatchlistCacheSnapshot
+    createWatchlistCacheSnapshot: (
+      accountId?: unknown,
+      profileIdOrUpdatedAt?: unknown,
+      updatedAtOrRows?: unknown,
+      rowsMaybe?: unknown,
+    ) => WatchlistCacheSnapshot
     scheduleSaveWatchlistCache: () => void
     watchlistCacheTtlMs: number
   }
@@ -75,13 +81,14 @@
       ? source.rows.filter((row): row is WatchlistRow => !!row && typeof row === 'object')
       : []
 
-    return context.createWatchlistCacheSnapshot(source.accountId, source.updatedAt, rows)
+    return context.createWatchlistCacheSnapshot(source.accountId, source.profileId, source.updatedAt, rows)
   }
 
   function isWatchlistCacheValidInternal(
     context: WatchlistRepositoryContext,
     cache: unknown = context.state.watchlistCache,
     accountId?: unknown,
+    profileId?: unknown,
   ): boolean {
     if (!cache || typeof cache !== 'object') {
       return false
@@ -96,14 +103,27 @@
       return false
     }
 
-    if (
-      typeof accountId === 'string' &&
-      accountId &&
-      typeof snapshot.accountId === 'string' &&
-      snapshot.accountId &&
-      snapshot.accountId !== accountId
-    ) {
-      return false
+    const normalizedAccountId = typeof accountId === 'string' ? accountId : ''
+    const snapshotAccountId = typeof snapshot.accountId === 'string' ? snapshot.accountId : ''
+    if (normalizedAccountId) {
+      if (!snapshotAccountId) {
+        return false
+      }
+      if (snapshotAccountId !== normalizedAccountId) {
+        return false
+      }
+    }
+
+    const normalizedProfileId = typeof profileId === 'string' ? profileId : ''
+    const snapshotProfileId = typeof snapshot.profileId === 'string' ? snapshot.profileId : ''
+    if (normalizedProfileId) {
+      // Scope-aware loads must not hydrate legacy cache rows that predate profile scoping.
+      if (!snapshotProfileId) {
+        return false
+      }
+      if (snapshotProfileId !== normalizedProfileId) {
+        return false
+      }
     }
 
     if (!snapshot.rows.length) {
@@ -116,11 +136,20 @@
   function resetWatchlistCacheOnAccountMismatchInternal(
     context: WatchlistRepositoryContext,
     accountId: unknown,
+    profileId?: unknown,
   ): boolean {
     const normalizedAccountId = typeof accountId === 'string' ? accountId : ''
+    const normalizedProfileId = typeof profileId === 'string' ? profileId : ''
     const existingAccountId =
       typeof context.state.watchlistCache?.accountId === 'string' ? context.state.watchlistCache.accountId : ''
-    if (!normalizedAccountId || !existingAccountId || normalizedAccountId === existingAccountId) {
+    const existingProfileId =
+      typeof context.state.watchlistCache?.profileId === 'string' ? context.state.watchlistCache.profileId : ''
+    const existingRows = Array.isArray(context.state.watchlistCache?.rows) ? context.state.watchlistCache.rows : []
+    const accountMismatch = !!normalizedAccountId && !!existingAccountId && normalizedAccountId !== existingAccountId
+    const profileMismatch = !!normalizedProfileId && !!existingProfileId && normalizedProfileId !== existingProfileId
+    const legacyProfileScopeDetected = !!normalizedProfileId && !existingProfileId && existingRows.length > 0
+
+    if (!accountMismatch && !profileMismatch && !legacyProfileScopeDetected) {
       return false
     }
 
@@ -132,10 +161,17 @@
   function setWatchlistCacheRowsInternal(
     context: WatchlistRepositoryContext,
     accountId: unknown = '',
-    rows: unknown[] = [],
-    updatedAt: unknown = Date.now(),
+    profileIdOrRows: unknown = '',
+    updatedAtOrRows: unknown = Date.now(),
+    rowsMaybe?: unknown,
   ): WatchlistCacheSnapshot {
-    context.state.watchlistCache = context.createWatchlistCacheSnapshot(accountId, updatedAt, rows)
+    const hasExplicitProfileId =
+      typeof profileIdOrRows === 'string' || (rowsMaybe !== undefined && Array.isArray(rowsMaybe))
+    const profileId = hasExplicitProfileId && typeof profileIdOrRows === 'string' ? profileIdOrRows : ''
+    const rows = hasExplicitProfileId ? updatedAtOrRows : profileIdOrRows
+    const updatedAt = hasExplicitProfileId ? rowsMaybe : updatedAtOrRows
+
+    context.state.watchlistCache = context.createWatchlistCacheSnapshot(accountId, profileId, updatedAt, rows)
     context.scheduleSaveWatchlistCache()
     return context.state.watchlistCache
   }
@@ -144,12 +180,16 @@
     const context = createWatchlistRepositoryContext(options)
     return {
       normalizeStoredWatchlistCache: (raw: unknown) => normalizeStoredWatchlistCacheInternal(context, raw),
-      isWatchlistCacheValid: (cache: unknown, accountId: unknown) =>
-        isWatchlistCacheValidInternal(context, cache, accountId),
-      resetWatchlistCacheOnAccountMismatch: (accountId: unknown) =>
-        resetWatchlistCacheOnAccountMismatchInternal(context, accountId),
-      setWatchlistCacheRows: (accountId: unknown, rows: unknown[], updatedAt: unknown) =>
-        setWatchlistCacheRowsInternal(context, accountId, rows, updatedAt),
+      isWatchlistCacheValid: (cache: unknown, accountId?: unknown, profileId?: unknown) =>
+        isWatchlistCacheValidInternal(context, cache, accountId, profileId),
+      resetWatchlistCacheOnAccountMismatch: (accountId: unknown, profileId?: unknown) =>
+        resetWatchlistCacheOnAccountMismatchInternal(context, accountId, profileId),
+      setWatchlistCacheRows: (
+        accountId: unknown,
+        profileIdOrRows: unknown,
+        updatedAtOrRows: unknown,
+        rowsMaybe?: unknown,
+      ) => setWatchlistCacheRowsInternal(context, accountId, profileIdOrRows, updatedAtOrRows, rowsMaybe),
     }
   }
 

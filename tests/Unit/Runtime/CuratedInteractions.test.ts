@@ -40,6 +40,12 @@ type CuratedInteractionsModule = {
   }
 }
 
+type Deferred<T> = {
+  promise: Promise<T>
+  resolve: (value: T | PromiseLike<T>) => void
+  reject: (reason?: unknown) => void
+}
+
 const curatedInteractionsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedInteractions.ts'),
 ).href
@@ -78,6 +84,23 @@ function createFakeElement(): FakeElement {
         await listener(event)
       }
     },
+  }
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolveRef: ((value: T | PromiseLike<T>) => void) | null = null
+  let rejectRef: ((reason?: unknown) => void) | null = null
+  const promise = new Promise<T>((resolve, reject) => {
+    resolveRef = resolve
+    rejectRef = reject
+  })
+  if (!resolveRef || !rejectRef) {
+    throw new Error('Failed to initialize deferred promise')
+  }
+  return {
+    promise,
+    resolve: resolveRef,
+    reject: rejectRef,
   }
 }
 
@@ -289,5 +312,68 @@ describe('curated-interactions runtime', () => {
     expect(ensureCuratedDataLoad).toHaveBeenCalledWith(true)
     expect(debounceProcess).toHaveBeenCalledTimes(1)
     expect(renderCuratedPanel).toHaveBeenCalled()
+  })
+
+  it('prevents overlapping manual refresh actions while a refresh is in flight', async () => {
+    const state = {
+      mounted: true,
+      settings: {},
+    }
+
+    const refreshDeferred = createDeferred<unknown>()
+    const resetCuratedCachesForRefresh = vi.fn(async () => null)
+    const ensureCuratedDataLoad = vi.fn(() => refreshDeferred.promise)
+    const renderCuratedPanel = vi.fn()
+    const debounceProcess = vi.fn()
+
+    const runtime = getCuratedInteractionsModule().createCuratedInteractionsRuntime({
+      documentRef: {
+        createElement: () => createFakeElement(),
+      },
+      alertRef: vi.fn(),
+      confirmRef: vi.fn(() => true),
+      triggerNativeCardAction: vi.fn(async () => true),
+      toggleCuratedFavorite: vi.fn(),
+      removeCuratedSeries: vi.fn(),
+      renderCuratedPanel,
+      state,
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      persistSettings: vi.fn(async () => null),
+      normalizeAudioLocale: vi.fn(() => null),
+      preloadRatingsForSelectedAudioLocale: vi.fn(async () => null),
+      preloadWatchHistoryForSelectedAudioLocale: vi.fn(async () => null),
+      isWatchlistPath: vi.fn(() => true),
+      resetCuratedCachesForRefresh,
+      ensureCuratedDataLoad,
+      debounceProcess,
+    })
+
+    const refreshButton = createFakeElement()
+    runtime.bindCuratedInterfaceControls({
+      refreshButton,
+    })
+
+    const firstClickPromise = refreshButton.dispatch('click')
+    await Promise.resolve()
+
+    expect(refreshButton.disabled).toBe(true)
+    expect(refreshButton.getAttribute('aria-busy')).toBe('true')
+
+    const secondClickPromise = refreshButton.dispatch('click')
+    await Promise.resolve()
+
+    expect(resetCuratedCachesForRefresh).toHaveBeenCalledTimes(1)
+    expect(ensureCuratedDataLoad).toHaveBeenCalledTimes(1)
+    expect(renderCuratedPanel).toHaveBeenCalledTimes(1)
+    expect(debounceProcess).toHaveBeenCalledTimes(1)
+
+    refreshDeferred.resolve(null)
+    await firstClickPromise
+    await secondClickPromise
+
+    expect(refreshButton.disabled).toBe(false)
+    expect(refreshButton.getAttribute('aria-busy')).toBe('false')
   })
 })

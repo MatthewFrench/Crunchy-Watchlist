@@ -7,20 +7,27 @@
     watchHistoryCache: unknown
     watchHistoryStatus: string
     watchlistCache: unknown
+    authToken?: unknown
     curatedEntries: unknown[]
     curatedSource: string
     curatedLastRevalidateAt: number
     curatedInitialLoadDone?: boolean
   }
 
+  type TokenEntry = {
+    accountId?: unknown
+    profileId?: unknown
+  }
+
   type StateLoaderContext = {
     state: RuntimeState
     storageGet: (key: string, fallback: unknown) => Promise<unknown>
+    getAccessToken: (forceRefresh?: boolean) => Promise<TokenEntry | null>
     runtimeEvent: (event: string, data?: unknown) => void
     normalizeStoredWatchHistoryCache: (raw: unknown) => unknown
     isWatchHistoryCacheValid: (cache: unknown) => boolean
     normalizeStoredWatchlistCache: (raw: unknown) => unknown
-    isWatchlistCacheValid: (cache: unknown) => boolean
+    isWatchlistCacheValid: (cache: unknown, accountId?: unknown, profileId?: unknown) => boolean
     normalizeEntriesFromApiRows: (rows: unknown[]) => unknown[]
     defaultSettings: Record<string, unknown>
     validSortModes: Set<string>
@@ -34,6 +41,7 @@
   type StateLoaderOptions = {
     state?: unknown
     storageGet?: unknown
+    getAccessToken?: unknown
     runtimeEvent?: unknown
     normalizeStoredWatchHistoryCache?: unknown
     isWatchHistoryCacheValid?: unknown
@@ -186,7 +194,18 @@
       context.state.watchlistCache = context.normalizeStoredWatchlistCache(rawWatchlistCache)
     }
 
-    if (!context.isWatchlistCacheValid(context.state.watchlistCache)) {
+    const tokenEntry = await context.getAccessToken(true)
+    const accountId = getString(tokenEntry?.accountId, '')
+    const profileId = getString(tokenEntry?.profileId, '')
+    if (!accountId || !profileId) {
+      context.runtimeEvent('curated-cache-scope-unavailable', {
+        hasAccountId: Boolean(accountId),
+        hasProfileId: Boolean(profileId),
+      })
+      return
+    }
+
+    if (!context.isWatchlistCacheValid(context.state.watchlistCache, accountId, profileId)) {
       return
     }
 
@@ -202,6 +221,8 @@
     context.runtimeEvent('curated-cache-hydrated', {
       total: context.state.curatedEntries.length,
       updatedAt,
+      accountId,
+      profileId,
     })
   }
 
@@ -221,6 +242,7 @@
     return {
       state,
       storageGet: requireFunction('storageGet', options.storageGet) as StateLoaderContext['storageGet'],
+      getAccessToken: requireFunction('getAccessToken', options.getAccessToken) as StateLoaderContext['getAccessToken'],
       runtimeEvent: requireFunction('runtimeEvent', options.runtimeEvent) as StateLoaderContext['runtimeEvent'],
       normalizeStoredWatchHistoryCache: requireFunction(
         'normalizeStoredWatchHistoryCache',

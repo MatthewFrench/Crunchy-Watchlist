@@ -682,8 +682,8 @@
       applyCardLayoutUi,
       persistSettings,
       printSeriesApiData
-    let setWatchlistCacheRows = (accountId = '', rows = [], updatedAt = Date.now()) => {
-      state.watchlistCache = createWatchlistCacheSnapshot(accountId, updatedAt, rows)
+    let setWatchlistCacheRows = (accountId = '', profileId = '', rows = [], updatedAt = Date.now()) => {
+      state.watchlistCache = createWatchlistCacheSnapshot(accountId, profileId, updatedAt, rows)
       return state.watchlistCache
     }
 
@@ -1068,6 +1068,7 @@
       runtimeStateLoaderOptions: {
         state,
         storageGet,
+        getAccessToken,
         runtimeEvent,
         normalizeStoredWatchHistoryCache,
         isWatchHistoryCacheValid,

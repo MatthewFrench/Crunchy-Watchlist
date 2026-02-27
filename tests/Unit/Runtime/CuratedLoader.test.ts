@@ -84,6 +84,7 @@ function createCuratedLoaderHarness(overrides: Record<string, unknown> = {}) {
     getAccessToken: vi.fn(async () => ({
       accessToken: 'access-token',
       accountId: 'account-1',
+      profileId: 'profile-1',
     })),
     resetWatchlistCacheOnAccountMismatch: vi.fn(),
     fetchAllWatchlistRows: vi.fn(async () => [{ id: 'row-1' }]),
@@ -156,6 +157,14 @@ describe('curated-loader runtime', () => {
     expect(entries).toHaveLength(1)
     expect(harness.state.curatedEntries).toHaveLength(1)
     expect(harness.state.curatedSource).toBe('api')
+    expect(harness.dependencies.getAccessToken).toHaveBeenCalledWith(true)
+    expect(harness.dependencies.resetWatchlistCacheOnAccountMismatch).toHaveBeenCalledWith('account-1', 'profile-1')
+    expect(harness.dependencies.setWatchlistCacheRows).toHaveBeenCalledWith(
+      'account-1',
+      'profile-1',
+      [{ id: 'row-1' }],
+      expect.any(Number),
+    )
     expect(harness.dependencies.setWatchlistCacheRows).toHaveBeenCalledTimes(2)
     expect(harness.dependencies.preloadRatingsForEntries).toHaveBeenCalledTimes(2)
     expect(harness.dependencies.preloadWatchHistoryForEntries).toHaveBeenCalledTimes(2)
@@ -216,6 +225,45 @@ describe('curated-loader runtime', () => {
 
     expect(harness.runtimeEvents.map((entry) => entry.event)).toContain('curated-load-done')
     expect(harness.dependencies.setWatchlistCacheRows).toHaveBeenCalledTimes(2)
+  })
+
+  it('replaces prior curated rows with the latest profile-specific watchlist payload', async () => {
+    const harness = createCuratedLoaderHarness({
+      state: {
+        mounted: true,
+        curatedError: null,
+        curatedEntries: [{ seriesId: 'legacy-series' }],
+        curatedInflight: null,
+        curatedPendingRequests: [],
+        curatedPendingRequestStartedCount: 0,
+        curatedPendingRequestCompletedCount: 0,
+        curatedSource: 'cache',
+        curatedLastRevalidateAt: Date.now() - 60_000,
+        curatedObservedPromise: null,
+        settings: {
+          audioLocaleFilter: 'any',
+        },
+      },
+      fetchAllWatchlistRows: vi.fn(async () => [{ id: 'row-new' }]),
+      normalizeEntriesFromApiRows: vi.fn((rows: unknown[]) =>
+        rows.map((row) => ({
+          ...((row as Record<string, unknown>) || {}),
+          seriesId: 'new-series',
+        })),
+      ),
+    })
+
+    await harness.runtime.loadCuratedEntries(false)
+
+    expect(harness.state.curatedEntries).toEqual([{ id: 'row-new', seriesId: 'new-series' }])
+    expect(harness.state.curatedEntries).not.toContainEqual({ seriesId: 'legacy-series' })
+    expect(harness.dependencies.resetWatchlistCacheOnAccountMismatch).toHaveBeenCalledWith('account-1', 'profile-1')
+    expect(harness.dependencies.setWatchlistCacheRows).toHaveBeenCalledWith(
+      'account-1',
+      'profile-1',
+      [{ id: 'row-new' }],
+      expect.any(Number),
+    )
   })
 
   it('returns existing entries and performs background revalidate when stale', async () => {

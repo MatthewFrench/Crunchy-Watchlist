@@ -24,6 +24,7 @@
   type TokenEntry = {
     accessToken?: unknown
     accountId?: unknown
+    profileId?: unknown
   }
 
   type CuratedLoaderContext = {
@@ -31,7 +32,7 @@
     locationRef: Location
     runtimeEvent: (event: string, data?: unknown) => void
     getAccessToken: (forceRefresh: boolean) => Promise<TokenEntry | null>
-    resetWatchlistCacheOnAccountMismatch: (accountId: string) => unknown
+    resetWatchlistCacheOnAccountMismatch: (accountId: string, profileId: string) => unknown
     fetchAllWatchlistRows: (tokenEntry: TokenEntry) => Promise<unknown[]>
     normalizeEntriesFromApiRows: (rows: unknown[]) => unknown[]
     preloadRatingsForEntries: (
@@ -47,7 +48,7 @@
     ) => Promise<unknown>
     normalizeAudioLocale: (locale: unknown) => string | null
     getPreferredAudioLanguage: () => string
-    setWatchlistCacheRows: (accountId: string, rows: unknown[], updatedAt?: number) => unknown
+    setWatchlistCacheRows: (accountId: string, profileId: string, rows: unknown[], updatedAt?: number) => unknown
     isWatchlistPath: (pathname: string) => boolean
     renderCuratedPanel: () => void
     watchlistRevalidateCooldownMs: number
@@ -259,24 +260,28 @@
     context: CuratedLoaderContext,
     activeRequests: string[],
     progress: PendingRequestProgress,
-  ): Promise<{ tokenEntry: TokenEntry; accountId: string }> {
+  ): Promise<{ tokenEntry: TokenEntry; accountId: string; profileId: string }> {
     const tokenEntry = await withTrackedPendingRequest(
       context,
       activeRequests,
       progress,
       'Authorizing Crunchyroll API token (/auth/v1/token)',
-      () => context.getAccessToken(false),
+      // Force refresh to pick up Crunchyroll profile switches quickly; otherwise a cached token can
+      // continue serving the previous profile watchlist even though the page has switched profiles.
+      () => context.getAccessToken(true),
     )
     const accessToken = getString(tokenEntry?.accessToken)
     const accountId = getString(tokenEntry?.accountId)
+    const profileId = getString(tokenEntry?.profileId)
 
-    if (!accessToken || !accountId) {
+    if (!accessToken || !accountId || !profileId) {
       throw new Error('Unable to load curated watchlist: Crunchyroll API auth is unavailable.')
     }
 
     return {
       tokenEntry: tokenEntry as TokenEntry,
       accountId,
+      profileId,
     }
   }
 
@@ -372,12 +377,13 @@
   function commitCuratedEntriesFromApiInternal(
     context: CuratedLoaderContext,
     accountId: string,
+    profileId: string,
     rows: unknown[],
     entries: unknown[],
     phase: 'partial' | 'final',
   ): unknown[] {
     const committedAt = Date.now()
-    context.setWatchlistCacheRows(accountId, rows, committedAt)
+    context.setWatchlistCacheRows(accountId, profileId, rows, committedAt)
     context.state.curatedEntries = entries
     context.state.curatedSource = 'api'
     context.state.curatedError = null
@@ -426,14 +432,18 @@
       context.state.curatedError = null
       syncPendingRequestDiagnostics(context, activeRequests, pendingProgress)
 
-      const { tokenEntry, accountId } = await loadAuthorizedTokenInternal(context, activeRequests, pendingProgress)
-      context.resetWatchlistCacheOnAccountMismatch(accountId)
+      const { tokenEntry, accountId, profileId } = await loadAuthorizedTokenInternal(
+        context,
+        activeRequests,
+        pendingProgress,
+      )
+      context.resetWatchlistCacheOnAccountMismatch(accountId, profileId)
       const { rows, entries } = await loadRowsAndEntriesInternal(context, activeRequests, pendingProgress, tokenEntry)
-      commitCuratedEntriesFromApiInternal(context, accountId, rows, entries, 'partial')
+      commitCuratedEntriesFromApiInternal(context, accountId, profileId, rows, entries, 'partial')
       await preloadPrimaryLocaleDataInternal(context, activeRequests, pendingProgress, entries, tokenEntry, force)
       await preloadSelectedAudioLocaleDataInternal(context, activeRequests, pendingProgress, entries, tokenEntry)
 
-      return commitCuratedEntriesFromApiInternal(context, accountId, rows, entries, 'final')
+      return commitCuratedEntriesFromApiInternal(context, accountId, profileId, rows, entries, 'final')
     })()
       .catch((error: unknown) => handleCuratedLoadFailureInternal(context, error))
       .finally(() => {

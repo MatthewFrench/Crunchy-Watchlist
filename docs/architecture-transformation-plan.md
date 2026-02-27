@@ -1,6 +1,6 @@
 # Crunchy Watchlist Curator Architecture Transformation Plan
 
-Last updated: 2026-02-25
+Last updated: 2026-02-27
 
 This plan converts the current monolithic extension runtime into a layered, TypeScript-first architecture while preserving behavior and release readiness across Chromium, Firefox, WebKit, and Safari wrapper distribution.
 
@@ -14,7 +14,7 @@ This plan converts the current monolithic extension runtime into a layered, Type
 6. Introduce static typing and type-aware quality gates to reduce regression risk.
 7. Improve developer velocity with deterministic build, lint, and test workflows.
 
-## 2) Current Baseline (Reviewed 2026-02-25)
+## 2) Historical Baseline (Reviewed 2026-02-25)
 
 - `extension/Content.js`: 597 lines (strict target `<= 600` satisfied).
 - `extension/src/Runtime/ContentComposition.ts`: 568 lines (strict target `<= 600` satisfied).
@@ -167,6 +167,28 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - episode metadata/canonical key ownership is now isolated in `extension/src/Domain/EpisodePrimitives.ts` and consumed via `CorePrimitives` composition.
   - curated loading diagnostics now include duplicate-preserving pending-request visibility and explicit completed/in-progress counters in empty-state loading views.
   - favorites filtering (`Genre: Favorites`) and status-line merge semantics (`Up Next: Sx Ey`, `Continue: Sx Ey`) are implemented with unit and Playwright coverage.
+
+## 2a) Current Reality Check (2026-02-27)
+
+Latest `npm run arch:metrics` output re-opened structural work:
+
+- Refactor-level file hotspots:
+  - `extension/Content.js`: `1187` lines
+  - `extension/src/Runtime/NativeBridge.ts`: `702` lines
+- Warning-level file hotspot:
+  - `extension/src/Runtime/CuratedPanel.ts`: `1141` lines (over warning threshold)
+- Refactor-level function hotspot:
+  - `startRuntime` in `extension/Content.js`: `957` lines
+- Warning-level function hotspots:
+  - `createBootstrapFinalizeRuntime` in `extension/src/Runtime/BootstrapFinalize.ts`: `84` lines
+  - `createCuratedCardActionsInternal` in `extension/src/Runtime/CuratedInteractions.ts`: `80` lines
+  - `mergeRenderableEntryInternal` in `extension/src/Runtime/CuratedRenderable.ts`: `75` lines
+  - `createCuratedCardThumbInternal` in `extension/src/Ui/CuratedCardShell.ts`: `74` lines
+  - `getWatchlistHealthIssue` in `extension/Content.js`: `73` lines
+
+Implication:
+
+- Transformation guardrails and toolchain modernization are in place, but decomposition cleanup is not yet complete.
 
 ## 3) Target End-State
 
@@ -514,7 +536,7 @@ Use this section as a live tracker.
 | M4 | Completed | TBD | Domain/UI/runtime owner extraction is in place across `extension/src/**`; composition roots and extracted runtime owners are now reduced to strict-size targets (`Content.js` 597, `ContentComposition.ts` 568). |
 | M5 | Completed | TBD | Incremental `.ts` conversion for extracted owners is complete, including `extension/src/Data/HistoryRepository.ts`. |
 | M6 | Completed | TBD | TS-aware metrics plus CI `typecheck`/lint/formatter/unit/E2E/build gates are active and green. |
-| M7 | Completed | TBD | Cleanup and standards lock are complete for the active v1 transformation scope, including strict-size completion and full gate revalidation. |
+| M7 | Reopened | TBD | Cleanup and standards lock regressed after later feature work; current metrics show refactor-level hotspots in `extension/Content.js` and `extension/src/Runtime/NativeBridge.ts`. |
 
 ## 9) Definition of Done for Transformation
 
@@ -528,7 +550,18 @@ Transformation is complete when all are true:
 6. TypeScript/lint/formatter/unit gates are active and green for migrated code paths.
 7. No warning-level structural hotspots remain in architecture metrics for the current cycle.
 
-## 10) Progress Update (2026-02-24)
+Current status (2026-02-27):
+
+- Not yet complete. Tooling and quality gates are healthy, but decomposition budgets are currently exceeded (see section `2a`).
+
+## 10) Progress Update History
+
+Latest pass additions (2026-02-27):
+
+1. Implemented stale-while-revalidate refresh semantics in the interface shell so manual refresh keeps existing curated entries visible while new data is loading.
+2. Added refresh in-flight locking on the refresh control (`disabled` + `aria-busy`) to prevent overlapping refresh runs.
+3. Added unit and Playwright coverage for in-flight refresh behavior and visible-card retention during refresh.
+4. Re-ran architecture metrics and updated this plan to reflect reopened structural hotspot work.
 
 Completed in this pass:
 

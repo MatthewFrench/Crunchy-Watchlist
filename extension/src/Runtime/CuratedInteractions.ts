@@ -19,6 +19,10 @@
   }
 
   type ButtonLike = EventTargetLike
+  type MutableButtonLike = ButtonLike & {
+    disabled?: boolean
+    setAttribute?: (name: string, value: string) => void
+  }
 
   type RuntimeState = {
     mounted: boolean
@@ -436,16 +440,37 @@
   }
 
   function bindRefreshButtonInternal(context: CuratedInteractionsContext, refreshButton: unknown): void {
-    const button = toButton(refreshButton)
+    const button = toButton(refreshButton) as MutableButtonLike | null
     if (!button) {
       return
     }
 
+    let refreshInFlight: Promise<unknown> | null = null
+
     button.addEventListener('click', async () => {
-      await context.resetCuratedCachesForRefresh()
-      context.ensureCuratedDataLoad(true)
-      context.renderCuratedPanel()
-      context.debounceProcess()
+      if (refreshInFlight) {
+        return
+      }
+
+      const wasDisabled = Boolean(button.disabled)
+      button.disabled = true
+      button.setAttribute?.('aria-busy', 'true')
+
+      refreshInFlight = (async () => {
+        await context.resetCuratedCachesForRefresh()
+        const refreshPromise = context.ensureCuratedDataLoad(true)
+        context.renderCuratedPanel()
+        context.debounceProcess()
+        await refreshPromise
+      })()
+
+      try {
+        await refreshInFlight
+      } finally {
+        refreshInFlight = null
+        button.setAttribute?.('aria-busy', 'false')
+        button.disabled = wasDisabled
+      }
     })
   }
 

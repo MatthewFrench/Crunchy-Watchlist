@@ -4,12 +4,14 @@
   type AuthTokenEntry = {
     accessToken: string
     accountId: string | null
+    profileId: string | null
     expiresAt: number
   }
 
   type MutableAuthTokenEntry = {
     accessToken?: string
     accountId?: string | null
+    profileId?: string | null
     expiresAt?: number
   } & Record<string, unknown>
 
@@ -482,6 +484,7 @@
       },
       response: {
         account_id: typeof payload.account_id === 'string' ? payload.account_id : null,
+        profile_id: typeof payload.profile_id === 'string' ? payload.profile_id : null,
         expires_in: Number(payload.expires_in || 0) || null,
         token_type: typeof payload.token_type === 'string' ? payload.token_type : null,
         country: typeof payload.country === 'string' ? payload.country : null,
@@ -491,6 +494,7 @@
     const accessToken = typeof payload.access_token === 'string' ? payload.access_token : ''
     const expiresInSeconds = Number(payload.expires_in || 0)
     const accountId = typeof payload.account_id === 'string' ? payload.account_id : null
+    const profileId = typeof payload.profile_id === 'string' ? payload.profile_id : null
 
     if (!accessToken) {
       throw new Error('auth token missing access_token')
@@ -503,6 +507,7 @@
     return {
       accessToken,
       accountId,
+      profileId,
       expiresAt,
     }
   }
@@ -524,6 +529,7 @@
         context.state.authToken = tokenEntry
         context.runtimeEvent('auth-token-ready', {
           hasAccountId: !!tokenEntry.accountId,
+          hasProfileId: !!tokenEntry.profileId,
         })
         return tokenEntry
       } catch (_) {
@@ -554,6 +560,9 @@
         mutableTokenEntry.expiresAt = refreshed.expiresAt
         if (typeof refreshed.accountId === 'string' && refreshed.accountId) {
           mutableTokenEntry.accountId = refreshed.accountId
+        }
+        if (typeof refreshed.profileId === 'string' && refreshed.profileId) {
+          mutableTokenEntry.profileId = refreshed.profileId
         }
       }
 

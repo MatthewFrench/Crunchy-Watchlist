@@ -6,6 +6,7 @@ import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/Modu
 type AuthTokenEntry = {
   accessToken: string
   accountId: string | null
+  profileId: string | null
   expiresAt: number
 }
 
@@ -88,6 +89,7 @@ describe('auth-client runtime', () => {
     const cachedToken: AuthTokenEntry = {
       accessToken: 'cached-access-token-12345',
       accountId: 'account-1',
+      profileId: 'profile-1',
       expiresAt: Date.now() + 60_000,
     }
 
@@ -108,6 +110,7 @@ describe('auth-client runtime', () => {
             access_token: 'refreshed-access-token-12345',
             expires_in: 600,
             account_id: 'account-2',
+            profile_id: 'profile-2',
             token_type: 'bearer',
           }),
           {
@@ -123,11 +126,13 @@ describe('auth-client runtime', () => {
     const token = await authClient.getAccessToken(true)
     expect(token?.accessToken).toBe('refreshed-access-token-12345')
     expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(token?.profileId).toBe('profile-2')
 
     const mutableTokenEntry: Record<string, unknown> = {
       accessToken: 'old-token',
       expiresAt: 0,
       accountId: null,
+      profileId: null,
     }
     const refreshHandler = authClient.createAuthRefreshHandler(mutableTokenEntry)
     const refreshedAccessToken = await refreshHandler()
@@ -137,5 +142,6 @@ describe('auth-client runtime', () => {
     expect(mutableTokenEntry.accessToken).toBe('refreshed-access-token-12345')
     expect(typeof mutableTokenEntry.expiresAt).toBe('number')
     expect(mutableTokenEntry.accountId).toBe('account-2')
+    expect(mutableTokenEntry.profileId).toBe('profile-2')
   })
 })
