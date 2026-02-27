@@ -37,6 +37,12 @@ type CuratedRenderableModule = {
 const curatedRenderableModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedRenderable.ts'),
 ).href
+const curatedRenderableListProcessingModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedRenderableListProcessing.ts'),
+).href
+const curatedRenderableMergeSupportModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedRenderableMergeSupport.ts'),
+).href
 
 function getCuratedRenderableModule() {
   const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as CuratedRenderableModule
@@ -178,7 +184,11 @@ function createCuratedRenderableRuntime(
 
 describe('curated-renderable runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([curatedRenderableModuleUrl])
+    await loadRuntimeModules([
+      curatedRenderableListProcessingModuleUrl,
+      curatedRenderableMergeSupportModuleUrl,
+      curatedRenderableModuleUrl,
+    ])
   })
 
   afterEach(() => {

@@ -102,6 +102,18 @@
     'state' | 'documentRef' | 'windowRef' | 'ratingCacheKey' | 'watchHistoryCacheKey'
   >
 
+  type InterfaceShellHostLifecycleRuntime = {
+    isConnectedElement: (value: unknown) => value is Element
+    clearInterfaceReferences: (context: InterfaceShellContext) => void
+    resetInterfaceShell: (context: InterfaceShellContext, removeHost: boolean) => void
+    isInterfaceShellIntact: (context: InterfaceShellContext) => boolean
+    ensureRootFrame: (context: InterfaceShellContext, rootElement: Element | null) => void
+    clearRootFrame: (context: InterfaceShellContext) => void
+    setNativeVisibility: (context: InterfaceShellContext, showNative: boolean) => void
+    restoreActiveCuratedHostVisibility: (context: InterfaceShellContext) => void
+    removeOrphanCuratedHosts: (context: InterfaceShellContext, rootElement: Element) => void
+  }
+
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
     root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
@@ -246,6 +258,14 @@
     }
   }
 
+  function createInterfaceShellHostLifecycleRuntime(): InterfaceShellHostLifecycleRuntime {
+    const hostLifecycleModule = asRecord(moduleRegistry.runtimeInterfaceShellHostLifecycle)
+    return requireFunction<() => InterfaceShellHostLifecycleRuntime>(
+      'createInterfaceShellHostLifecycleRuntime',
+      hostLifecycleModule.createInterfaceShellHostLifecycleRuntime,
+    )()
+  }
+
   function isElementWithDisplayState(value: unknown): value is HTMLElement {
     if (!value || typeof value !== 'object') {
       return false
@@ -260,197 +280,25 @@
     )
   }
 
-  function isConnectedElement(value: unknown): value is Element {
-    return Boolean(value && typeof value === 'object' && asRecord(value).isConnected === true)
+  function setNativeVisibilityInternal(
+    context: InterfaceShellContext,
+    hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
+    showNative: boolean,
+  ): void {
+    hostLifecycleRuntime.setNativeVisibility(context, showNative)
   }
 
-  function isCuratedHostElement(value: unknown): boolean {
-    if (!value || typeof value !== 'object') {
-      return false
-    }
-    const element = value as Element
-    return Boolean(
-      element.classList && typeof element.classList.contains === 'function' && element.classList.contains('cw-host'),
-    )
+  function clearRootFrameInternal(
+    context: InterfaceShellContext,
+    hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
+  ): void {
+    hostLifecycleRuntime.clearRootFrame(context)
   }
 
-  function clearPreviousDisplayMarker(node: Element): void {
-    if (!isElementWithDisplayState(node)) {
-      return
-    }
-    if (!Object.hasOwn(node.dataset, 'cwPrevDisplay')) {
-      return
-    }
-    node.style.display = node.dataset.cwPrevDisplay != null ? node.dataset.cwPrevDisplay : ''
-    delete node.dataset.cwPrevDisplay
-  }
-
-  function restoreActiveCuratedHostVisibilityInternal(context: InterfaceShellContext): void {
-    const hostElement = context.state.hostEl
-    if (!isElementWithDisplayState(hostElement)) {
-      return
-    }
-
-    clearPreviousDisplayMarker(hostElement)
-    if (hostElement.style.display === 'none') {
-      hostElement.style.display = ''
-    }
-  }
-
-  function removeOrphanCuratedHostsInternal(context: InterfaceShellContext, rootElement: Element): void {
-    const children = Array.from(rootElement.children)
-    children.forEach((child) => {
-      if (!isCuratedHostElement(child)) {
-        return
-      }
-      if (child === context.state.hostEl) {
-        return
-      }
-      child.remove()
-    })
-  }
-
-  function clearInterfaceReferencesInternal(context: InterfaceShellContext): void {
-    context.state.hostEl = null
-    context.state.tabCrunchyrollEl = null
-    context.state.tabCuratedEl = null
-    context.state.curatedPanelEl = null
-    context.state.controlsEl = null
-    context.state.loadingIndicatorEl = null
-    context.state.audioFilterSelectEl = null
-    context.state.genreFilterSelectEl = null
-    context.state.statsEl = null
-    context.state.gridEl = null
-    context.state.curatedGridRenderSignature = ''
-  }
-
-  function resetInterfaceShellInternal(context: InterfaceShellContext, removeHost: boolean): void {
-    if (removeHost && isConnectedElement(context.state.hostEl)) {
-      context.state.hostEl.remove()
-    }
-    clearInterfaceReferencesInternal(context)
-  }
-
-  function isConnectedHostDescendant(host: Element, candidate: unknown): boolean {
-    if (!isConnectedElement(candidate)) {
-      return false
-    }
-    if (typeof host.contains !== 'function') {
-      return true
-    }
-    return host.contains(candidate)
-  }
-
-  function isInterfaceShellIntactInternal(context: InterfaceShellContext): boolean {
-    const hostElement = context.state.hostEl
-    if (!isConnectedElement(hostElement)) {
-      return false
-    }
-
-    return (
-      isConnectedHostDescendant(hostElement, context.state.tabCrunchyrollEl) &&
-      isConnectedHostDescendant(hostElement, context.state.tabCuratedEl) &&
-      isConnectedHostDescendant(hostElement, context.state.curatedPanelEl) &&
-      isConnectedHostDescendant(hostElement, context.state.controlsEl) &&
-      isConnectedHostDescendant(hostElement, context.state.loadingIndicatorEl) &&
-      isConnectedHostDescendant(hostElement, context.state.audioFilterSelectEl) &&
-      isConnectedHostDescendant(hostElement, context.state.genreFilterSelectEl) &&
-      isConnectedHostDescendant(hostElement, context.state.statsEl) &&
-      isConnectedHostDescendant(hostElement, context.state.gridEl)
-    )
-  }
-
-  function ensureRootFrameInternal(context: InterfaceShellContext, rootElement: Element | null): void {
-    if (!rootElement || !isElementWithDisplayState(rootElement)) {
-      return
-    }
-
-    if (
-      context.state.framedRootEl &&
-      context.state.framedRootEl !== rootElement &&
-      asRecord(context.state.framedRootEl).isConnected
-    ) {
-      context.state.framedRootEl.classList.remove('cw-watchlist-frame')
-    }
-
-    rootElement.classList.add('cw-watchlist-frame')
-    context.state.framedRootEl = rootElement
-  }
-
-  function clearRootFrameInternal(context: InterfaceShellContext): void {
-    if (context.state.framedRootEl && asRecord(context.state.framedRootEl).isConnected) {
-      context.state.framedRootEl.classList.remove('cw-watchlist-frame')
-    }
-    context.state.framedRootEl = null
-  }
-
-  function restoreNativeVisibilityInternal(context: InterfaceShellContext, rootElement: Element): void {
-    const flaggedNodes = Array.from(rootElement.querySelectorAll('[data-cw-prev-display]'))
-    const restoreCandidates = new Set([...context.state.nativeHiddenNodes, ...flaggedNodes])
-
-    restoreCandidates.forEach((node) => {
-      if (!isElementWithDisplayState(node)) {
-        return
-      }
-      if (asRecord(node).isConnected === false) {
-        return
-      }
-
-      const previousDisplay = node.dataset.cwPrevDisplay
-      node.style.display = previousDisplay != null ? previousDisplay : ''
-      delete node.dataset.cwPrevDisplay
-    })
-
-    context.state.nativeHiddenNodes = []
-
-    context.windowRef.requestAnimationFrame(() => {
-      try {
-        context.windowRef.dispatchEvent(new Event('resize'))
-        context.windowRef.dispatchEvent(new Event('scroll'))
-      } catch (_) {
-        // no-op
-      }
-    })
-  }
-
-  function hideNativeVisibilityInternal(context: InterfaceShellContext, rootElement: Element): void {
-    const children = Array.from(rootElement.children).filter((child) => child !== context.state.hostEl)
-    context.state.nativeHiddenNodes = []
-
-    children.forEach((node) => {
-      if (isCuratedHostElement(node)) {
-        clearPreviousDisplayMarker(node)
-        if (isElementWithDisplayState(node) && node.style.display === 'none') {
-          node.style.display = ''
-        }
-        return
-      }
-      if (!isElementWithDisplayState(node)) {
-        return
-      }
-      if (!Object.hasOwn(node.dataset, 'cwPrevDisplay')) {
-        node.dataset.cwPrevDisplay = node.style.display || ''
-      }
-      node.style.display = 'none'
-      context.state.nativeHiddenNodes.push(node)
-    })
-  }
-
-  function setNativeVisibilityInternal(context: InterfaceShellContext, showNative: boolean): void {
-    const rootElement = context.getWatchlistRoot()
-    if (!rootElement) {
-      return
-    }
-
-    if (showNative) {
-      restoreNativeVisibilityInternal(context, rootElement)
-      return
-    }
-
-    hideNativeVisibilityInternal(context, rootElement)
-  }
-
-  function applyTabUiInternal(context: InterfaceShellContext): void {
+  function applyTabUiInternal(
+    context: InterfaceShellContext,
+    hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
+  ): void {
     const tabCrunchyroll = context.state.tabCrunchyrollEl
     const tabCurated = context.state.tabCuratedEl
     const curatedPanel = context.state.curatedPanelEl
@@ -461,7 +309,7 @@
 
     const curatedActive = context.state.settings.activeTab === 'curated'
     if (curatedActive) {
-      restoreActiveCuratedHostVisibilityInternal(context)
+      hostLifecycleRuntime.restoreActiveCuratedHostVisibility(context)
     }
 
     context.withMutedObserver(() => {
@@ -474,16 +322,20 @@
       }
     })
 
-    setNativeVisibilityInternal(context, !curatedActive)
+    setNativeVisibilityInternal(context, hostLifecycleRuntime, !curatedActive)
   }
 
-  async function setActiveTabInternal(context: InterfaceShellContext, tabValue: string): Promise<void> {
+  async function setActiveTabInternal(
+    context: InterfaceShellContext,
+    hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
+    tabValue: string,
+  ): Promise<void> {
     if (tabValue !== 'crunchyroll' && tabValue !== 'curated') {
       return
     }
 
     if (context.state.settings.activeTab === tabValue) {
-      applyTabUiInternal(context)
+      applyTabUiInternal(context, hostLifecycleRuntime)
       if (tabValue === 'curated') {
         context.renderCuratedPanel()
       }
@@ -492,7 +344,7 @@
 
     context.state.settings.activeTab = tabValue
     await context.persistSettings()
-    applyTabUiInternal(context)
+    applyTabUiInternal(context, hostLifecycleRuntime)
 
     if (tabValue === 'curated') {
       void context.ensureCuratedDataLoad(false)
@@ -520,7 +372,10 @@
     return button
   }
 
-  function createCuratedInterfaceTabsInternal(context: InterfaceShellContext) {
+  function createCuratedInterfaceTabsInternal(
+    context: InterfaceShellContext,
+    hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
+  ) {
     const tabs = context.documentRef.createElement('div')
     tabs.className = 'cw-tabs'
 
@@ -528,10 +383,10 @@
     const tabCurated = createTabButtonInternal(context, 'Curated', 'curated')
 
     tabCrunchyroll.addEventListener('click', () => {
-      void setActiveTabInternal(context, 'crunchyroll')
+      void setActiveTabInternal(context, hostLifecycleRuntime, 'crunchyroll')
     })
     tabCurated.addEventListener('click', () => {
-      void setActiveTabInternal(context, 'curated')
+      void setActiveTabInternal(context, hostLifecycleRuntime, 'curated')
     })
 
     tabs.appendChild(tabCrunchyroll)
@@ -544,41 +399,46 @@
     }
   }
 
-  function ensureInterfaceInternal(context: InterfaceShellContext): void {
+  function ensureInterfaceInternal(
+    context: InterfaceShellContext,
+    hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
+  ): void {
     const rootElement = context.getWatchlistRoot()
     const headerElement = context.getWatchlistHeader()
     if (!rootElement || !headerElement) {
       // During SPA churn Crunchyroll can temporarily replace watchlist nodes; fall back to native content
       // so users do not get stuck in an empty framed shell while structure reattaches.
-      setNativeVisibilityInternal(context, true)
-      clearRootFrameInternal(context)
-      if (!isConnectedElement(context.state.hostEl)) {
-        clearInterfaceReferencesInternal(context)
+      setNativeVisibilityInternal(context, hostLifecycleRuntime, true)
+      clearRootFrameInternal(context, hostLifecycleRuntime)
+      if (!hostLifecycleRuntime.isConnectedElement(context.state.hostEl)) {
+        hostLifecycleRuntime.clearInterfaceReferences(context)
       }
       context.runtimeEvent('ui-missing-watchlist-structure')
       return
     }
 
-    ensureRootFrameInternal(context, rootElement)
-    removeOrphanCuratedHostsInternal(context, rootElement)
+    hostLifecycleRuntime.ensureRootFrame(context, rootElement)
+    hostLifecycleRuntime.removeOrphanCuratedHosts(context, rootElement)
 
-    if (isInterfaceShellIntactInternal(context)) {
+    if (hostLifecycleRuntime.isInterfaceShellIntact(context)) {
       return
     }
 
     if (context.state.hostEl) {
       context.runtimeEvent('ui-shell-repair', {
-        reason: isConnectedElement(context.state.hostEl) ? 'invalid-structure' : 'disconnected-host',
+        reason: hostLifecycleRuntime.isConnectedElement(context.state.hostEl)
+          ? 'invalid-structure'
+          : 'disconnected-host',
       })
-      resetInterfaceShellInternal(context, true)
+      hostLifecycleRuntime.resetInterfaceShell(context, true)
     } else {
-      clearInterfaceReferencesInternal(context)
+      hostLifecycleRuntime.clearInterfaceReferences(context)
     }
 
     const host = context.documentRef.createElement('section')
     host.className = 'cw-host'
 
-    const { tabs, tabCrunchyroll, tabCurated } = createCuratedInterfaceTabsInternal(context)
+    const { tabs, tabCrunchyroll, tabCurated } = createCuratedInterfaceTabsInternal(context, hostLifecycleRuntime)
     const panel = context.documentRef.createElement('div')
     panel.className = 'cw-panel'
     const controlsContext = context.createCuratedInterfaceControls()
@@ -623,17 +483,18 @@
     })
 
     context.applyCardLayoutUi()
-    applyTabUiInternal(context)
+    applyTabUiInternal(context, hostLifecycleRuntime)
   }
 
   function createInterfaceShellRuntime(options: InterfaceShellOptions = {}): InterfaceShellRuntime {
     const context = createInterfaceShellContext(options)
+    const hostLifecycleRuntime = createInterfaceShellHostLifecycleRuntime()
     return {
-      clearRootFrame: () => clearRootFrameInternal(context),
-      setNativeVisibility: (showNative) => setNativeVisibilityInternal(context, showNative),
-      applyTabUi: () => applyTabUiInternal(context),
+      clearRootFrame: () => clearRootFrameInternal(context, hostLifecycleRuntime),
+      setNativeVisibility: (showNative) => setNativeVisibilityInternal(context, hostLifecycleRuntime, showNative),
+      applyTabUi: () => applyTabUiInternal(context, hostLifecycleRuntime),
       resetCuratedCachesForRefresh: () => resetCuratedCachesForRefreshInternal(context),
-      ensureInterface: () => ensureInterfaceInternal(context),
+      ensureInterface: () => ensureInterfaceInternal(context, hostLifecycleRuntime),
     }
   }
 

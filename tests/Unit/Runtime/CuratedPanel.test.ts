@@ -45,6 +45,9 @@ const curatedPanelModuleUrl = pathToFileURL(
 const curatedPanelGridModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGrid.ts'),
 ).href
+const curatedPanelGridTransitionsModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridTransitions.ts'),
+).href
 const curatedPanelLoadingIndicatorModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelLoadingIndicator.ts'),
 ).href
@@ -230,7 +233,12 @@ function findElementByClassName(element: FakeElement, className: string): FakeEl
 
 describe('curated-panel runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([curatedPanelGridModuleUrl, curatedPanelLoadingIndicatorModuleUrl, curatedPanelModuleUrl])
+    await loadRuntimeModules([
+      curatedPanelGridTransitionsModuleUrl,
+      curatedPanelGridModuleUrl,
+      curatedPanelLoadingIndicatorModuleUrl,
+      curatedPanelModuleUrl,
+    ])
   })
 
   afterEach(() => {

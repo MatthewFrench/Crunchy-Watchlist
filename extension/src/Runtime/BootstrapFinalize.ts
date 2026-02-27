@@ -57,6 +57,17 @@
     loadInitialState: () => Promise<void>
   }
 
+  type BootstrapDebugApiDependencies = {
+    listKnownSeries: () => unknown[]
+    dumpSeriesApiData: (query: unknown) => unknown
+    printSeriesApiData: (query: unknown) => unknown
+  }
+
+  type BootstrapFinalizeLifecycleRuntime = Pick<
+    BootstrapFinalizeRuntime,
+    'processWatchlist' | 'startRouteWatcher' | 'syncRoute' | 'destroy'
+  >
+
   const root = (typeof window !== 'undefined' ? window : globalThis) as BootstrapWindow
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
     root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
@@ -152,68 +163,98 @@
     return runtime as StateLoader
   }
 
-  function createBootstrapFinalizeRuntime(options: BootstrapFinalizeOptions = {}): BootstrapFinalizeRuntime {
-    const windowRef = toBootstrapWindow(options.windowRef)
-    const runtimeEvent = toFunction<(event: string, payload?: unknown) => void>(options.runtimeEvent, () => {})
-    const listKnownSeries = toFunction<() => unknown[]>(options.listKnownSeries, () => [])
+  function resolveBootstrapDebugApiDependencies(options: BootstrapFinalizeOptions): BootstrapDebugApiDependencies {
     const dumpSeriesApiData = toFunction<(query: unknown) => unknown>(options.dumpSeriesApiData, (query: unknown) => ({
       query: String(query || ''),
       error: 'Debug API unavailable.',
       availableSeries: [],
     }))
-    const printSeriesApiData = toFunction<(query: unknown) => unknown>(options.printSeriesApiData, (query: unknown) =>
-      dumpSeriesApiData(query),
-    )
 
-    const lifecycleFactory = toRecord(options.runtimeLifecycleModule).createRouteLifecycle
-    const stateLoaderFactory = toRecord(options.runtimeStateLoaderModule).createStateLoader
+    return {
+      listKnownSeries: toFunction<() => unknown[]>(options.listKnownSeries, () => []),
+      dumpSeriesApiData,
+      printSeriesApiData: toFunction<(query: unknown) => unknown>(options.printSeriesApiData, (query: unknown) =>
+        dumpSeriesApiData(query),
+      ),
+    }
+  }
 
+  function createLifecycleDestroyRuntime(lifecycle: RuntimeLifecycle): () => void {
+    return () => {
+      try {
+        lifecycle.stopRouteWatcher?.()
+      } catch {
+        // no-op
+      }
+      try {
+        lifecycle.stopObserver?.()
+      } catch {
+        // no-op
+      }
+      try {
+        lifecycle.unmount?.()
+      } catch {
+        // no-op
+      }
+    }
+  }
+
+  function resolveBootstrapFinalizeLifecycleRuntime(
+    options: BootstrapFinalizeOptions,
+  ): BootstrapFinalizeLifecycleRuntime {
     let processWatchlist: () => Promise<void> = async () => {}
     let startRouteWatcher = () => {}
     let syncRoute = () => {}
-    let loadInitialState: () => Promise<void> = async () => {}
     let destroy = () => {}
+    const lifecycleFactory = toRecord(options.runtimeLifecycleModule).createRouteLifecycle
 
-    if (typeof lifecycleFactory === 'function') {
-      try {
-        const lifecycle = toRuntimeLifecycle(lifecycleFactory(toRecord(options.runtimeLifecycleOptions)))
-        if (lifecycle) {
-          processWatchlist = () => lifecycle.processWatchlist()
-          startRouteWatcher = () => lifecycle.startRouteWatcher()
-          syncRoute = () => lifecycle.syncRoute()
-          destroy = () => {
-            try {
-              lifecycle.stopRouteWatcher?.()
-            } catch {
-              // no-op
-            }
-            try {
-              lifecycle.stopObserver?.()
-            } catch {
-              // no-op
-            }
-            try {
-              lifecycle.unmount?.()
-            } catch {
-              // no-op
-            }
-          }
-        }
-      } catch (_) {
-        // no-op
-      }
+    if (typeof lifecycleFactory !== 'function') {
+      return { processWatchlist, startRouteWatcher, syncRoute, destroy }
     }
 
-    if (typeof stateLoaderFactory === 'function') {
-      try {
-        const stateLoader = toStateLoader(stateLoaderFactory(toRecord(options.runtimeStateLoaderOptions)))
-        if (stateLoader) {
-          loadInitialState = () => stateLoader.loadInitialState()
-        }
-      } catch (_) {
-        // no-op
+    try {
+      const lifecycle = toRuntimeLifecycle(lifecycleFactory(toRecord(options.runtimeLifecycleOptions)))
+      if (!lifecycle) {
+        return { processWatchlist, startRouteWatcher, syncRoute, destroy }
       }
+
+      processWatchlist = () => lifecycle.processWatchlist()
+      startRouteWatcher = () => lifecycle.startRouteWatcher()
+      syncRoute = () => lifecycle.syncRoute()
+      destroy = createLifecycleDestroyRuntime(lifecycle)
+    } catch (_) {
+      // no-op
     }
+
+    return { processWatchlist, startRouteWatcher, syncRoute, destroy }
+  }
+
+  function resolveBootstrapFinalizeStateLoader(options: BootstrapFinalizeOptions): () => Promise<void> {
+    let loadInitialState: () => Promise<void> = async () => {}
+    const stateLoaderFactory = toRecord(options.runtimeStateLoaderModule).createStateLoader
+
+    if (typeof stateLoaderFactory !== 'function') {
+      return loadInitialState
+    }
+
+    try {
+      const stateLoader = toStateLoader(stateLoaderFactory(toRecord(options.runtimeStateLoaderOptions)))
+      if (stateLoader) {
+        loadInitialState = () => stateLoader.loadInitialState()
+      }
+    } catch (_) {
+      // no-op
+    }
+
+    return loadInitialState
+  }
+
+  function createBootstrapFinalizeRuntime(options: BootstrapFinalizeOptions = {}): BootstrapFinalizeRuntime {
+    const windowRef = toBootstrapWindow(options.windowRef)
+    const runtimeEvent = toFunction<(event: string, payload?: unknown) => void>(options.runtimeEvent, () => {})
+    const { listKnownSeries, dumpSeriesApiData, printSeriesApiData } = resolveBootstrapDebugApiDependencies(options)
+    const lifecycleRuntime = resolveBootstrapFinalizeLifecycleRuntime(options)
+    const loadInitialState = resolveBootstrapFinalizeStateLoader(options)
 
     function exposeDebugApi(): void {
       windowRef.__CW_WATCHLIST_CURATOR_DEBUG__ = {
@@ -227,17 +268,17 @@
       runtimeEvent('init-start')
       exposeDebugApi()
       await loadInitialState()
-      startRouteWatcher()
-      syncRoute()
+      lifecycleRuntime.startRouteWatcher()
+      lifecycleRuntime.syncRoute()
       runtimeEvent('init-done')
     }
 
     return {
-      processWatchlist: () => processWatchlist(),
-      startRouteWatcher: () => startRouteWatcher(),
-      syncRoute: () => syncRoute(),
+      processWatchlist: () => lifecycleRuntime.processWatchlist(),
+      startRouteWatcher: () => lifecycleRuntime.startRouteWatcher(),
+      syncRoute: () => lifecycleRuntime.syncRoute(),
       loadInitialState: () => loadInitialState(),
-      destroy: () => destroy(),
+      destroy: () => lifecycleRuntime.destroy(),
       init: () => init(),
     }
   }

@@ -41,6 +41,9 @@ type RatingsRepositoryState = {
 const ratingsRepositoryModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'RatingsRepository.ts'),
 ).href
+const ratingsRepositoryCacheSupportModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Data', 'RatingsRepositoryCacheSupport.ts'),
+).href
 
 function getRatingsRepositoryModule() {
   const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as RatingsRepositoryModule
@@ -167,7 +170,7 @@ async function flushMicrotasks(iterations = 4): Promise<void> {
 
 describe('ratings-repository module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([ratingsRepositoryModuleUrl])
+    await loadRuntimeModules([ratingsRepositoryCacheSupportModuleUrl, ratingsRepositoryModuleUrl])
   })
 
   afterEach(() => {

@@ -49,6 +49,9 @@ type Deferred<T> = {
 const curatedInteractionsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedInteractions.ts'),
 ).href
+const curatedInteractionsControlsModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedInteractionsControls.ts'),
+).href
 
 function createFakeElement(): FakeElement {
   return {
@@ -111,7 +114,7 @@ function getCuratedInteractionsModule() {
 
 describe('curated-interactions runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([curatedInteractionsModuleUrl])
+    await loadRuntimeModules([curatedInteractionsControlsModuleUrl, curatedInteractionsModuleUrl])
   })
 
   afterEach(() => {

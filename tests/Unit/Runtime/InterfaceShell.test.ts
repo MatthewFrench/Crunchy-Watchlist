@@ -19,6 +19,9 @@ type InterfaceShellModule = {
 const interfaceShellModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'InterfaceShell.ts'),
 ).href
+const interfaceShellHostLifecycleModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'InterfaceShellHostLifecycle.ts'),
+).href
 
 type InterfaceShellTestState = {
   framedRootEl: unknown | null
@@ -292,7 +295,7 @@ function createFakeDocumentRef() {
 
 describe('interface-shell runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([interfaceShellModuleUrl])
+    await loadRuntimeModules([interfaceShellHostLifecycleModuleUrl, interfaceShellModuleUrl])
   })
 
   afterEach(() => {

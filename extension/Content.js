@@ -19,6 +19,18 @@
     window.__CW_WATCHLIST_CURATOR_CONTROL__ = runtimeControl
   }
 
+  const markRuntimeInactive = (reason, extraPayload = {}) => {
+    setRuntimeControl({
+      active: false,
+      activeInstanceId: null,
+      lastShutdownAt: Date.now(),
+      lastShutdownPayload: {
+        reason,
+        ...extraPayload,
+      },
+    })
+  }
+
   const isCurrentRuntimeOwner = () =>
     window.__CW_WATCHLIST_CURATOR_CONTROL__ &&
     window.__CW_WATCHLIST_CURATOR_CONTROL__.activeInstanceId === runtimeInstanceId
@@ -36,14 +48,7 @@
   ) {
     // eslint-disable-next-line no-console
     console.error('[CW] missing-content-runtime-bootstrap-helpers-module')
-    setRuntimeControl({
-      active: false,
-      activeInstanceId: null,
-      lastShutdownAt: Date.now(),
-      lastShutdownPayload: {
-        reason: 'missing-content-runtime-bootstrap-helpers-module',
-      },
-    })
+    markRuntimeInactive('missing-content-runtime-bootstrap-helpers-module')
     return
   }
 
@@ -117,32 +122,20 @@
     } = runtimeSetupBindings)
   }
 
-  const startRuntime = () => {
-    if (!runtimeBootstrapHelpersRuntime.tryAcquireDomRuntimeLock()) {
-      setRuntimeControl({
-        active: false,
-        activeInstanceId: null,
-        lastShutdownAt: Date.now(),
-        lastShutdownPayload: {
-          reason: 'dom-runtime-lock-held',
-        },
-      })
-      return
-    }
-
-    const bootstrapContext = runtimeBootstrapHelpersRuntime.resolveValidatedBootstrapContext(moduleRegistry)
-    if (!bootstrapContext) {
-      return
-    }
+  const resolveRuntimeBootstrapSession = (bootstrapContext) => {
     const runtimeBootstrapSession = runtimeBootstrapHelpersRuntime.createRuntimeBootstrapSession({
       bootstrapContext,
     })
-    if (!runtimeBootstrapSession) {
-      bootstrapContext.setBootstrapIssue('runtime-bootstrap-session-not-ready')
-      runtimeBootstrapHelpersRuntime.clearStaleInjectedShell('runtime-bootstrap-session-not-ready')
-      return
+    if (runtimeBootstrapSession) {
+      return runtimeBootstrapSession
     }
 
+    bootstrapContext.setBootstrapIssue('runtime-bootstrap-session-not-ready')
+    runtimeBootstrapHelpersRuntime.clearStaleInjectedShell('runtime-bootstrap-session-not-ready')
+    return null
+  }
+
+  const resolveRuntimeSetupResult = (runtimeBootstrapSession, bootstrapContext) => {
     const runtimeSetupResult = runtimeBootstrapSession.runtimeContentRuntimeSetupModule.createContentRuntimeSetup(
       runtimeBootstrapHelpersRuntime.createRuntimeSetupOptions({
         windowRef: window,
@@ -154,7 +147,7 @@
         message: runtimeSetupResult?.message || 'unknown',
       })
       runtimeBootstrapHelpersRuntime.clearStaleInjectedShell('runtime-module-initialization-failed')
-      return
+      return null
     }
 
     runtimeBootstrapHelpersRuntime.applyRuntimeSetupBindings({
@@ -163,6 +156,10 @@
       setRuntimeSetupBindings,
     })
 
+    return runtimeSetupResult
+  }
+
+  const resolveBootstrapFinalizeRuntime = (runtimeSetupResult, runtimeBootstrapSession, bootstrapContext) => {
     const bootstrapFinalizeRuntime = runtimeBootstrapHelpersRuntime.createBootstrapFinalizeRuntimeFromSetupResult({
       windowRef: window,
       runtimeSetupResult,
@@ -175,7 +172,36 @@
       setDestroyRuntime: runtimeBootstrapSession.setDestroyRuntime,
       setBootstrapIssue: bootstrapContext.setBootstrapIssue,
     })
-    if (!hasValidBootstrapFinalizeRuntime) {
+
+    return hasValidBootstrapFinalizeRuntime ? bootstrapFinalizeRuntime : null
+  }
+
+  const startRuntime = () => {
+    if (!runtimeBootstrapHelpersRuntime.tryAcquireDomRuntimeLock()) {
+      markRuntimeInactive('dom-runtime-lock-held')
+      return
+    }
+
+    const bootstrapContext = runtimeBootstrapHelpersRuntime.resolveValidatedBootstrapContext(moduleRegistry)
+    if (!bootstrapContext) {
+      return
+    }
+    const runtimeBootstrapSession = resolveRuntimeBootstrapSession(bootstrapContext)
+    if (!runtimeBootstrapSession) {
+      return
+    }
+
+    const runtimeSetupResult = resolveRuntimeSetupResult(runtimeBootstrapSession, bootstrapContext)
+    if (!runtimeSetupResult) {
+      return
+    }
+
+    const bootstrapFinalizeRuntime = resolveBootstrapFinalizeRuntime(
+      runtimeSetupResult,
+      runtimeBootstrapSession,
+      bootstrapContext,
+    )
+    if (!bootstrapFinalizeRuntime) {
       return
     }
 
@@ -223,15 +249,7 @@
       }
 
       if (Date.now() >= takeoverDeadlineAt) {
-        setRuntimeControl({
-          active: false,
-          activeInstanceId: null,
-          lastShutdownAt: Date.now(),
-          lastShutdownPayload: {
-            reason: 'dom-runtime-lock-held-timeout',
-            incumbentOwnerId,
-          },
-        })
+        markRuntimeInactive('dom-runtime-lock-held-timeout', { incumbentOwnerId })
         return
       }
 

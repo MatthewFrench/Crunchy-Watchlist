@@ -1,6 +1,4 @@
 ;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
-
   type RatingResult = {
     rating: number | null
     votes: number | null
@@ -61,6 +59,27 @@
     ratingCacheTtlMs: number
   }
 
+  type RatingsRepositoryCacheSupportRuntime = {
+    createEmptyRatingResult: (preferredAudioLocale?: string) => RatingResult
+    toRecord: (value: unknown) => Record<string, unknown>
+    isCacheValid: (context: RatingsRepositoryContext, entry: unknown) => entry is RatingCacheEntry
+    normalizeRatingUpdate: (
+      context: RatingsRepositoryContext,
+      rawValue: unknown,
+      preferredAudioLocale?: unknown,
+    ) => Partial<RatingResult> & Record<string, unknown>
+    mergeCachedSeriesData: (
+      context: RatingsRepositoryContext,
+      seriesId: string,
+      nextData: Partial<RatingResult> & Record<string, unknown>,
+    ) => RatingCacheEntry
+    hasEpisodeCountForAudioLocale: (
+      context: RatingsRepositoryContext,
+      entry: RatingCacheEntry | null,
+      audioLocale: string,
+    ) => boolean
+  }
+
   type RatingsRepositoryOptions = {
     state?: unknown
     normalizeAudioLocale?: unknown
@@ -92,51 +111,63 @@
   }
   const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
 
-  function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
+  function requireFunction<T>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
       throw new Error(`[CW] Missing ratings repository dependency: ${name}`)
     }
     return value as T
   }
 
-  function createEmptyRatingResult(preferredAudioLocale = ''): RatingResult {
-    const result: RatingResult = {
-      rating: null,
-      votes: null,
-      distribution: null,
-      description: '',
-      audioLocales: [],
-      episodeCount: null,
-      seasonCount: null,
-      genreTags: [],
+  function requireRuntimeFactory<T>(moduleName: string, factoryName: string): () => T {
+    const moduleValue = moduleRegistry[moduleName]
+    if (!moduleValue || typeof moduleValue !== 'object') {
+      throw new Error(`[CW] Missing ratings repository dependency: ${moduleName}`)
     }
 
-    if (preferredAudioLocale) {
-      result.preferredAudioLocale = preferredAudioLocale
+    const factory = (moduleValue as Record<string, unknown>)[factoryName]
+    if (typeof factory !== 'function') {
+      throw new Error(`[CW] Missing ratings repository dependency: ${moduleName}.${factoryName}`)
     }
 
-    return result
+    return factory as () => T
   }
 
-  function toRecord(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return {}
+  function resolveRatingsRepositoryCacheSupportRuntime(): RatingsRepositoryCacheSupportRuntime {
+    const createRuntime = requireRuntimeFactory<unknown>(
+      'ratingsRepositoryCacheSupport',
+      'createRatingsRepositoryCacheSupportRuntime',
+    )
+    const runtime = createRuntime()
+    if (!runtime || typeof runtime !== 'object') {
+      throw new Error('[CW] Missing ratings repository dependency: ratingsRepositoryCacheSupport.runtime')
     }
 
-    return value as Record<string, unknown>
-  }
-
-  function toFiniteNumber(value: unknown): number | null {
-    if (typeof value === 'number') {
-      return Number.isFinite(value) ? value : null
+    return {
+      createEmptyRatingResult: requireFunction(
+        'ratingsRepositoryCacheSupport.createEmptyRatingResult',
+        (runtime as Record<string, unknown>).createEmptyRatingResult,
+      ),
+      toRecord: requireFunction(
+        'ratingsRepositoryCacheSupport.toRecord',
+        (runtime as Record<string, unknown>).toRecord,
+      ),
+      isCacheValid: requireFunction(
+        'ratingsRepositoryCacheSupport.isCacheValid',
+        (runtime as Record<string, unknown>).isCacheValid,
+      ),
+      normalizeRatingUpdate: requireFunction(
+        'ratingsRepositoryCacheSupport.normalizeRatingUpdate',
+        (runtime as Record<string, unknown>).normalizeRatingUpdate,
+      ),
+      mergeCachedSeriesData: requireFunction(
+        'ratingsRepositoryCacheSupport.mergeCachedSeriesData',
+        (runtime as Record<string, unknown>).mergeCachedSeriesData,
+      ),
+      hasEpisodeCountForAudioLocale: requireFunction(
+        'ratingsRepositoryCacheSupport.hasEpisodeCountForAudioLocale',
+        (runtime as Record<string, unknown>).hasEpisodeCountForAudioLocale,
+      ),
     }
-
-    if (typeof value === 'string') {
-      const parsed = Number(value)
-      return Number.isFinite(parsed) ? parsed : null
-    }
-
-    return null
   }
 
   function toRatingsRepositoryState(value: unknown): RatingsRepositoryState | null {
@@ -159,14 +190,6 @@
       Number.isFinite(ratingCacheRevision) && ratingCacheRevision >= 0 ? ratingCacheRevision : 0
 
     return state as RatingsRepositoryState
-  }
-
-  function toStringArray(values: unknown): string[] {
-    if (!Array.isArray(values)) {
-      return []
-    }
-
-    return values.filter((value): value is string => typeof value === 'string' && !!value)
   }
 
   function toSeriesEntries(entries: unknown): SeriesEntry[] {
@@ -237,158 +260,14 @@
     }
   }
 
-  function isCacheValidInternal(context: RatingsRepositoryContext, entry: unknown): entry is RatingCacheEntry {
-    if (!entry || typeof entry !== 'object') {
-      return false
-    }
-
-    if (!Object.hasOwn(entry, 'distribution')) {
-      return false
-    }
-
-    if (!Array.isArray((entry as Record<string, unknown>).audioLocales)) {
-      return false
-    }
-
-    if (typeof (entry as Record<string, unknown>).description !== 'string') {
-      return false
-    }
-
-    if (!Object.hasOwn(entry, 'episodeCount')) {
-      return false
-    }
-
-    if (!Object.hasOwn(entry, 'seasonCount')) {
-      return false
-    }
-
-    if (!Array.isArray((entry as Record<string, unknown>).genreTags)) {
-      return false
-    }
-
-    if (!Object.hasOwn(entry, 'portraitImageUrl')) {
-      return false
-    }
-
-    if (!Object.hasOwn(entry, 'landscapeImageUrl')) {
-      return false
-    }
-
-    if (typeof (entry as Record<string, unknown>).updatedAt !== 'number') {
-      return false
-    }
-
-    return Date.now() - ((entry as RatingCacheEntry).updatedAt || 0) < context.ratingCacheTtlMs
-  }
-
-  function toRatingCacheEntry(value: unknown): Partial<RatingCacheEntry> {
-    if (!value || typeof value !== 'object') {
-      return {}
-    }
-
-    return value as Partial<RatingCacheEntry>
-  }
-
-  function mergeCachedSeriesDataInternal(
-    context: RatingsRepositoryContext,
-    seriesId: string,
-    nextData: Partial<RatingResult> & Record<string, unknown>,
-  ): RatingCacheEntry {
-    const previous = toRatingCacheEntry(context.state.ratingCache[seriesId])
-    const preferredAudioLocale = context.normalizeAudioLocale(nextData.preferredAudioLocale)
-    const normalizedEpisodeCount = context.sanitizePositiveInt(nextData.episodeCount)
-    const normalizedSeasonCount = context.sanitizePositiveInt(nextData.seasonCount)
-    const episodeCountByAudioLocale = context.mergeAudioLocaleCountMap(
-      previous.episodeCountByAudioLocale,
-      preferredAudioLocale,
-      normalizedEpisodeCount,
-    )
-    const seasonCountByAudioLocale = context.mergeAudioLocaleCountMap(
-      previous.seasonCountByAudioLocale,
-      preferredAudioLocale,
-      normalizedSeasonCount,
-    )
-
-    const merged: RatingCacheEntry = {
-      rating: nextData.rating ?? previous.rating ?? null,
-      votes: nextData.votes ?? previous.votes ?? null,
-      distribution: nextData.distribution ?? previous.distribution ?? null,
-      audioLocales:
-        Array.isArray(nextData.audioLocales) && nextData.audioLocales.length
-          ? context.normalizeAudioLocales(nextData.audioLocales)
-          : context.normalizeAudioLocales(toStringArray(previous.audioLocales)),
-      description:
-        typeof nextData.description === 'string' && nextData.description.trim()
-          ? nextData.description.trim()
-          : typeof previous.description === 'string'
-            ? previous.description
-            : '',
-      episodeCount: normalizedEpisodeCount ?? context.sanitizePositiveInt(previous.episodeCount),
-      seasonCount: normalizedSeasonCount ?? context.sanitizePositiveInt(previous.seasonCount),
-      episodeCountByAudioLocale,
-      seasonCountByAudioLocale,
-      genreTags:
-        Array.isArray(nextData.genreTags) && nextData.genreTags.length
-          ? context.normalizeTagList(nextData.genreTags)
-          : context.normalizeTagList(toStringArray(previous.genreTags)),
-      portraitImageUrl:
-        context.normalizeImageUrlCandidate(nextData.portraitImageUrl) ||
-        context.normalizeImageUrlCandidate(previous.portraitImageUrl),
-      landscapeImageUrl:
-        context.normalizeImageUrlCandidate(nextData.landscapeImageUrl) ||
-        context.normalizeImageUrlCandidate(previous.landscapeImageUrl),
-      updatedAt: Date.now(),
-    }
-
-    context.state.ratingCache[seriesId] = merged
-    context.state.ratingCacheRevision = (context.state.ratingCacheRevision || 0) + 1
-    return merged
-  }
-
-  function normalizeRatingUpdateInternal(
-    context: RatingsRepositoryContext,
-    rawValue: unknown,
-    preferredAudioLocale: unknown = '',
-  ): Partial<RatingResult> & Record<string, unknown> {
-    const value = toRecord(rawValue)
-    const preferredAudioLanguage = context.normalizeAudioLocale(preferredAudioLocale)
-    const normalizedPreferredAudioLocale =
-      context.normalizeAudioLocale(value.preferredAudioLocale) || preferredAudioLanguage
-
-    return {
-      ...(normalizedPreferredAudioLocale ? { preferredAudioLocale: normalizedPreferredAudioLocale } : {}),
-      rating: toFiniteNumber(value.rating),
-      votes: context.sanitizePositiveInt(value.votes),
-      distribution: value.distribution ?? null,
-      description: typeof value.description === 'string' ? value.description : '',
-      audioLocales: toStringArray(value.audioLocales),
-      episodeCount: context.sanitizePositiveInt(value.episodeCount),
-      seasonCount: context.sanitizePositiveInt(value.seasonCount),
-      genreTags: toStringArray(value.genreTags),
-      portraitImageUrl: context.normalizeImageUrlCandidate(value.portraitImageUrl) || null,
-      landscapeImageUrl: context.normalizeImageUrlCandidate(value.landscapeImageUrl) || null,
-    }
-  }
-
-  function hasEpisodeCountForAudioLocaleInternal(
-    context: RatingsRepositoryContext,
-    entry: RatingCacheEntry | null,
-    audioLocale: string,
-  ): boolean {
-    if (!entry) {
-      return false
-    }
-
-    return context.getAudioLocaleCountFromMap(entry.episodeCountByAudioLocale, audioLocale) != null
-  }
-
   async function getSeriesRatingInternal(
     context: RatingsRepositoryContext,
+    cacheSupportRuntime: RatingsRepositoryCacheSupportRuntime,
     seriesId: string,
     seriesHref: string,
   ): Promise<RatingCacheEntry> {
     const cached = context.state.ratingCache[seriesId]
-    if (isCacheValidInternal(context, cached)) {
+    if (cacheSupportRuntime.isCacheValid(context, cached)) {
       return cached
     }
 
@@ -407,11 +286,17 @@
         })
       }
 
-      const entry = mergeCachedSeriesDataInternal(context, seriesId, normalizeRatingUpdateInternal(context, fetched))
+      const entry = cacheSupportRuntime.mergeCachedSeriesData(
+        context,
+        seriesId,
+        cacheSupportRuntime.normalizeRatingUpdate(context, fetched),
+      )
       context.scheduleSaveRatings()
       return entry
     })()
-      .catch(() => mergeCachedSeriesDataInternal(context, seriesId, createEmptyRatingResult()))
+      .catch(() =>
+        cacheSupportRuntime.mergeCachedSeriesData(context, seriesId, cacheSupportRuntime.createEmptyRatingResult()),
+      )
       .finally(() => {
         context.state.ratingInflight.delete(seriesId)
       })
@@ -462,6 +347,7 @@
 
   async function preloadRatingsForEntriesInternal(
     context: RatingsRepositoryContext,
+    cacheSupportRuntime: RatingsRepositoryCacheSupportRuntime,
     entries: unknown,
     tokenEntry: unknown,
     preferredAudioLanguage: unknown = context.getPreferredAudioLanguage(),
@@ -477,11 +363,11 @@
     )
     const staleSeriesIds = allSeriesIds.filter((seriesId) => {
       const cachedEntry = context.state.ratingCache[seriesId]
-      if (!isCacheValidInternal(context, cachedEntry)) {
+      if (!cacheSupportRuntime.isCacheValid(context, cachedEntry)) {
         return true
       }
 
-      return !hasEpisodeCountForAudioLocaleInternal(context, cachedEntry, effectivePreferredAudioLanguage)
+      return !cacheSupportRuntime.hasEpisodeCountForAudioLocale(context, cachedEntry, effectivePreferredAudioLanguage)
     })
 
     if (!staleSeriesIds.length) {
@@ -491,7 +377,7 @@
     let updated = 0
     let invalidRecords = 0
 
-    const tokenEntryRecord = toRecord(tokenEntry)
+    const tokenEntryRecord = cacheSupportRuntime.toRecord(tokenEntry)
     if (typeof tokenEntryRecord.accessToken === 'string' && tokenEntryRecord.accessToken) {
       const chunks = context.chunkArray(staleSeriesIds, context.ratingBatchSize)
       const chunkResults = await fetchRatingsBatchChunksInternal(
@@ -502,17 +388,17 @@
       )
       chunkResults.forEach((records) => {
         records.forEach((record) => {
-          const recordData = toRecord(record)
+          const recordData = cacheSupportRuntime.toRecord(record)
           const seriesId = typeof recordData.seriesId === 'string' ? recordData.seriesId : ''
           if (!seriesId) {
             invalidRecords += 1
             return
           }
 
-          mergeCachedSeriesDataInternal(
+          cacheSupportRuntime.mergeCachedSeriesData(
             context,
             seriesId,
-            normalizeRatingUpdateInternal(context, recordData, effectivePreferredAudioLanguage),
+            cacheSupportRuntime.normalizeRatingUpdate(context, recordData, effectivePreferredAudioLanguage),
           )
           updated += 1
         })
@@ -540,13 +426,18 @@
     })
   }
 
-  function getCachedRatingInternal(context: RatingsRepositoryContext, seriesId: string): RatingCacheEntry | null {
+  function getCachedRatingInternal(
+    context: RatingsRepositoryContext,
+    cacheSupportRuntime: RatingsRepositoryCacheSupportRuntime,
+    seriesId: string,
+  ): RatingCacheEntry | null {
     const cached = context.state.ratingCache[seriesId]
-    return isCacheValidInternal(context, cached) ? cached : null
+    return cacheSupportRuntime.isCacheValid(context, cached) ? cached : null
   }
 
   function isLocalizedRatingDataMissingForEntriesInternal(
     context: RatingsRepositoryContext,
+    cacheSupportRuntime: RatingsRepositoryCacheSupportRuntime,
     entries: unknown,
     audioLocale: unknown,
   ): boolean {
@@ -567,29 +458,31 @@
       }
 
       const cached = context.state.ratingCache[seriesId]
-      if (!isCacheValidInternal(context, cached)) {
+      if (!cacheSupportRuntime.isCacheValid(context, cached)) {
         return true
       }
 
-      return !hasEpisodeCountForAudioLocaleInternal(context, cached, selectedAudioLocale)
+      return !cacheSupportRuntime.hasEpisodeCountForAudioLocale(context, cached, selectedAudioLocale)
     })
   }
 
   function createRatingsRepository(options: RatingsRepositoryOptions = {}) {
     const context = createRatingsRepositoryContext(options)
+    const cacheSupportRuntime = resolveRatingsRepositoryCacheSupportRuntime()
     return {
       getSeriesRating: (seriesId: unknown, seriesHref: unknown) =>
         getSeriesRatingInternal(
           context,
+          cacheSupportRuntime,
           typeof seriesId === 'string' ? seriesId : '',
           typeof seriesHref === 'string' ? seriesHref : '',
         ),
       preloadRatingsForEntries: (entries: unknown, tokenEntry: unknown, preferredAudioLanguage: unknown) =>
-        preloadRatingsForEntriesInternal(context, entries, tokenEntry, preferredAudioLanguage),
+        preloadRatingsForEntriesInternal(context, cacheSupportRuntime, entries, tokenEntry, preferredAudioLanguage),
       getCachedRating: (seriesId: unknown) =>
-        getCachedRatingInternal(context, typeof seriesId === 'string' ? seriesId : ''),
+        getCachedRatingInternal(context, cacheSupportRuntime, typeof seriesId === 'string' ? seriesId : ''),
       isLocalizedRatingDataMissingForEntries: (entries: unknown, audioLocale: unknown) =>
-        isLocalizedRatingDataMissingForEntriesInternal(context, entries, audioLocale),
+        isLocalizedRatingDataMissingForEntriesInternal(context, cacheSupportRuntime, entries, audioLocale),
     }
   }
 

@@ -82,7 +82,41 @@
     compareRenderableEntries: CompareRenderableEntriesFn
   }
 
-  const VALID_WATCH_READY_FILTER_MODES = new Set(['none', 'dim', 'hide', 'hide_not_started'])
+  type CuratedRenderableListProcessingRuntime = {
+    collectRenderableAttributeValues: (entries: unknown[], key: string) => string[]
+    applyRenderableEntryFilters: (options: {
+      mergedEntries: Record<string, unknown>[]
+      filterContext: FilterContext
+      watchReadyFilterMode: string
+      favoritesGenreFilterValue: string
+    }) => Record<string, unknown>[]
+    sortDecoratedEntries: (options: {
+      decorated: Record<string, unknown>[]
+      settingsRecord: Record<string, unknown>
+      compareRenderableEntries: CompareRenderableEntriesFn
+    }) => void
+  }
+
+  type CuratedRenderableMergeSupportRuntime = {
+    resolveWatchReadyFilterMode: (value: unknown) => 'none' | 'dim' | 'hide' | 'hide_not_started'
+    resolveRenderableFilterContext: (settings: unknown, dependencies: CuratedRenderableDependencies) => FilterContext
+    mergeRenderableEntry: (
+      entry: unknown,
+      filterContext: FilterContext,
+      dependencies: CuratedRenderableDependencies,
+    ) => Record<string, unknown>
+    buildCuratedFilterOptions: (
+      anyTitle: string,
+      selectedFilter: string,
+      values: string[],
+    ) => Array<{ optionValue: string; title: string }>
+    buildGenreFilterOptions: (
+      selectedFilter: string,
+      values: string[],
+      favoritesGenreFilterValue: string,
+    ) => Array<{ optionValue: string; title: string }>
+  }
+
   const FAVORITES_GENRE_FILTER_VALUE = '__favorites__'
 
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
@@ -103,204 +137,6 @@
       return {}
     }
     return value as Record<string, unknown>
-  }
-
-  function asArray(value: unknown): unknown[] {
-    return Array.isArray(value) ? value : []
-  }
-
-  function sanitizePositiveNumber(value: unknown): number | null {
-    const normalized = Number(value)
-    if (!Number.isFinite(normalized) || normalized <= 0) {
-      return null
-    }
-    return normalized
-  }
-
-  function pickFirstPositiveNumber(values: unknown[]): number | null {
-    for (const value of values) {
-      const parsed = sanitizePositiveNumber(value)
-      if (parsed != null) {
-        return parsed
-      }
-    }
-    return null
-  }
-
-  function resolveEpisodeIndexValue(
-    dependencies: CuratedRenderableDependencies,
-    entry: Record<string, unknown>,
-  ): number | null {
-    return (
-      dependencies.sanitizePositiveInt(entry.absoluteEpisodeNumber) ??
-      (dependencies.sanitizePositiveInt(entry.seasonNumber) === 1
-        ? dependencies.sanitizePositiveInt(entry.episodeNumber)
-        : null)
-    )
-  }
-
-  function resolveProgressRatioFromPlayhead(playhead: number | null, durationMs: number | null): number | null {
-    if (playhead == null || durationMs == null || durationMs <= 0) {
-      return null
-    }
-
-    const ratioFromMilliseconds = playhead / durationMs
-    const ratioFromSeconds = (playhead * 1000) / durationMs
-    const boundedCandidates = [ratioFromMilliseconds, ratioFromSeconds].filter(
-      (candidate) => Number.isFinite(candidate) && candidate > 0 && candidate <= 1.05,
-    )
-
-    if (!boundedCandidates.length) {
-      return null
-    }
-
-    return Math.min(1, Math.max(...boundedCandidates))
-  }
-
-  function resolveEpisodeProgressRatio(
-    entryRecord: Record<string, unknown>,
-    progressRecord: Record<string, unknown>,
-  ): number | null {
-    if (Boolean(entryRecord.fullyWatched) || Boolean(progressRecord.fullyWatched)) {
-      return null
-    }
-
-    const playhead = pickFirstPositiveNumber([
-      progressRecord.playhead,
-      progressRecord.playheadMs,
-      progressRecord.progressMs,
-      entryRecord.playheadMs,
-      entryRecord.playhead,
-    ])
-    const durationMs = pickFirstPositiveNumber([
-      progressRecord.episodeDurationMs,
-      progressRecord.durationMs,
-      progressRecord.duration_ms,
-      entryRecord.episodeDurationMs,
-      entryRecord.durationMs,
-      entryRecord.duration_ms,
-    ])
-    const ratio = resolveProgressRatioFromPlayhead(playhead, durationMs)
-
-    if (ratio == null || ratio <= 0 || ratio >= 1) {
-      return null
-    }
-
-    return ratio
-  }
-
-  function estimateWatchedEpisodeCount(
-    totalEpisodes: number | null,
-    episodeIndex: number | null,
-    episodeCompleted: boolean,
-  ): number | null {
-    if (totalEpisodes == null || episodeIndex == null) {
-      return null
-    }
-
-    const watchedEpisodes = episodeCompleted ? episodeIndex : Math.max(0, episodeIndex - 1)
-    return Math.max(0, Math.min(totalEpisodes, watchedEpisodes))
-  }
-
-  function deriveEffectiveCompletionState(
-    dependencies: CuratedRenderableDependencies,
-    entryRecord: Record<string, unknown>,
-    progressRecord: Record<string, unknown>,
-    totalEpisodes: number | null,
-  ): {
-    fullyWatched: boolean
-    neverWatched: boolean
-    watchedRatio: number | null
-  } {
-    const entryEpisodeIndex = resolveEpisodeIndexValue(dependencies, entryRecord)
-    const progressEpisodeIndex = resolveEpisodeIndexValue(dependencies, progressRecord)
-    const resolvedEpisodeIndex = progressEpisodeIndex ?? entryEpisodeIndex
-    const entryCompleted = Boolean(entryRecord.fullyWatched)
-    const progressCompleted = Boolean(progressRecord.fullyWatched)
-    const watchedEpisodeCount = estimateWatchedEpisodeCount(
-      totalEpisodes,
-      resolvedEpisodeIndex,
-      progressCompleted || entryCompleted,
-    )
-    const watchedRatio =
-      watchedEpisodeCount != null && totalEpisodes != null && totalEpisodes > 0
-        ? watchedEpisodeCount / totalEpisodes
-        : null
-    const hasProgressSignal =
-      progressEpisodeIndex != null ||
-      entryEpisodeIndex != null ||
-      sanitizePositiveNumber(progressRecord.playhead) != null ||
-      sanitizePositiveNumber(progressRecord.playheadMs) != null ||
-      sanitizePositiveNumber(progressRecord.progressMs) != null ||
-      sanitizePositiveNumber(entryRecord.playheadMs) != null
-    const reachedSeriesEnd =
-      progressCompleted &&
-      progressEpisodeIndex != null &&
-      totalEpisodes != null &&
-      progressEpisodeIndex >= totalEpisodes
-    const effectivelyComplete = entryCompleted || (reachedSeriesEnd && watchedRatio != null && watchedRatio >= 0.6)
-
-    return {
-      fullyWatched: effectivelyComplete,
-      neverWatched: Boolean(entryRecord.neverWatched) && !hasProgressSignal && !effectivelyComplete,
-      watchedRatio,
-    }
-  }
-
-  function buildCuratedFilterOptions(anyTitle: string, selectedFilter: string, values: string[]) {
-    return [
-      { optionValue: 'any', title: anyTitle },
-      ...(selectedFilter !== 'any' && !values.includes(selectedFilter)
-        ? [{ optionValue: selectedFilter, title: `${selectedFilter} (no matches)` }]
-        : []),
-      ...values.map((value) => ({ optionValue: value, title: value })),
-    ]
-  }
-
-  function buildGenreFilterOptions(selectedFilter: string, values: string[]) {
-    const options = [{ optionValue: 'any', title: 'Any genre' }]
-    if (
-      selectedFilter !== 'any' &&
-      selectedFilter !== FAVORITES_GENRE_FILTER_VALUE &&
-      !values.includes(selectedFilter)
-    ) {
-      options.push({
-        optionValue: selectedFilter,
-        title: `${selectedFilter} (no matches)`,
-      })
-    }
-
-    options.push({
-      optionValue: FAVORITES_GENRE_FILTER_VALUE,
-      title: 'Favorites',
-    })
-
-    values.forEach((value) => {
-      if (value === FAVORITES_GENRE_FILTER_VALUE) {
-        return
-      }
-      options.push({
-        optionValue: value,
-        title: value,
-      })
-    })
-
-    return options
-  }
-
-  function isFavoritesGenreFilter(value: string): boolean {
-    return value.trim().toLowerCase() === FAVORITES_GENRE_FILTER_VALUE
-  }
-
-  function resolveWatchReadyFilterMode(value: unknown): 'none' | 'dim' | 'hide' | 'hide_not_started' {
-    if (typeof value === 'string' && VALID_WATCH_READY_FILTER_MODES.has(value)) {
-      return value as 'none' | 'dim' | 'hide' | 'hide_not_started'
-    }
-    return 'hide'
-  }
-
-  function resolveSortMode(value: unknown): string {
-    return typeof value === 'string' && value.trim() ? value.trim() : 'none'
   }
 
   function resolveCuratedRenderableDependencies(options: CuratedRenderableOptions = {}): CuratedRenderableDependencies {
@@ -351,304 +187,66 @@
     }
   }
 
-  function resolveRenderableFilterContextInternal(
-    settings: unknown,
-    dependencies: CuratedRenderableDependencies,
-  ): FilterContext {
-    const settingsRecord = asRecord(settings)
-    const normalizedAudioFilter = String(settingsRecord.audioLocaleFilter || 'any')
-    const normalizedGenreFilter = String(settingsRecord.genreFilter || 'any')
-    const effectiveAudioFilter = normalizedAudioFilter.trim() || 'any'
-    const effectiveGenreFilter = normalizedGenreFilter.trim() || 'any'
-    const selectedAudioLocale =
-      effectiveAudioFilter !== 'any' ? dependencies.normalizeAudioLocale(effectiveAudioFilter) : null
-    const defaultPreferredAudioLanguage = dependencies.getPreferredAudioLanguage()
-    const selectedAudioIsDefaultPreferred = selectedAudioLocale
-      ? selectedAudioLocale.toLowerCase() === defaultPreferredAudioLanguage.toLowerCase()
-      : false
-
-    return {
-      effectiveAudioFilter,
-      effectiveGenreFilter,
-      selectedAudioLocale,
-      selectedAudioIsDefaultPreferred,
-      localizedAudioForCounts: effectiveAudioFilter !== 'any' ? effectiveAudioFilter : null,
-    }
+  function createCuratedRenderableListProcessingRuntime(): CuratedRenderableListProcessingRuntime {
+    const listProcessingModule = asRecord(moduleRegistry.runtimeCuratedRenderableListProcessing)
+    return requireFunction<() => CuratedRenderableListProcessingRuntime>(
+      'createCuratedRenderableListProcessingRuntime',
+      listProcessingModule.createCuratedRenderableListProcessingRuntime,
+    )()
   }
 
-  function mergeRenderableEntryInternal(
-    entry: unknown,
-    filterContext: FilterContext,
-    dependencies: CuratedRenderableDependencies,
-  ): Record<string, unknown> {
-    const entryRecord = asRecord(entry)
-    const seriesId = entryRecord.seriesId
-    const { selectedAudioLocale, selectedAudioIsDefaultPreferred, localizedAudioForCounts } = filterContext
-    const ratingEntry = asRecord(dependencies.getCachedRating(seriesId))
-    const watchHistoryEntry = dependencies.getCachedWatchHistory(seriesId)
-    const localeWatchHistoryEntry = selectedAudioLocale
-      ? dependencies.getCachedWatchHistory(seriesId, selectedAudioLocale, false)
-      : null
-    const watchHistoryProgressFallback = dependencies.getCachedWatchHistoryProgress(seriesId)
-    const localeWatchHistoryProgressEntry = selectedAudioLocale
-      ? dependencies.getCachedWatchHistoryProgress(seriesId, selectedAudioLocale, false)
-      : null
-    const useSeriesProgressFallback = !selectedAudioLocale || selectedAudioIsDefaultPreferred
-    const useSeriesHistoryFallback = !selectedAudioLocale || selectedAudioIsDefaultPreferred
-    const watchHistoryProgressEntry =
-      localeWatchHistoryProgressEntry ||
-      (useSeriesProgressFallback ? watchHistoryProgressFallback : null) ||
-      localeWatchHistoryEntry ||
-      (useSeriesHistoryFallback ? watchHistoryEntry : null)
-    const rating = ratingEntry.rating ?? null
-    const votes = ratingEntry.votes ?? null
-    const distribution = ratingEntry.distribution ?? null
-    const audioLocales = dependencies.normalizeAudioLocales(
-      (Array.isArray(ratingEntry.audioLocales) && ratingEntry.audioLocales.length
-        ? ratingEntry.audioLocales
-        : asArray(entryRecord.audioLocales)) || [],
-    )
-    const hasEnglishAudio = dependencies.hasEnUsAudio(audioLocales)
-    const description =
-      (typeof ratingEntry.description === 'string' && ratingEntry.description.trim()
-        ? ratingEntry.description.trim()
-        : '') ||
-      entryRecord.description ||
-      ''
-    const knownEpisodeCountForSelectedAudio = localizedAudioForCounts
-      ? dependencies.getAudioLocaleCountFromMap(entryRecord.knownEpisodeMaxByAudioLocale, localizedAudioForCounts)
-      : null
-    const localizedEpisodeCountFromRatings = dependencies.getLocalizedSeriesCount(
-      ratingEntry,
-      localizedAudioForCounts,
-      'episode',
-    )
-    const baseEpisodeCount = dependencies.sanitizePositiveInt(entryRecord.episodeCount)
-    const episodeCount = localizedEpisodeCountFromRatings ?? knownEpisodeCountForSelectedAudio ?? baseEpisodeCount
-    const seasonCount =
-      dependencies.getLocalizedSeriesCount(ratingEntry, localizedAudioForCounts, 'season') ??
-      dependencies.sanitizePositiveInt(entryRecord.seasonCount)
-    const genreTags = dependencies.normalizeTagList(
-      (Array.isArray(ratingEntry.genreTags) && ratingEntry.genreTags.length
-        ? ratingEntry.genreTags
-        : asArray(entryRecord.genreTags)) || [],
-    )
-    const portraitImageUrl =
-      dependencies.normalizeImageUrlCandidate(ratingEntry.portraitImageUrl) ||
-      dependencies.normalizeImageUrlCandidate(entryRecord.portraitImageUrl) ||
-      dependencies.normalizeImageUrlCandidate(entryRecord.imageUrl)
-    const landscapeImageUrl =
-      dependencies.normalizeImageUrlCandidate(ratingEntry.landscapeImageUrl) ||
-      dependencies.normalizeImageUrlCandidate(entryRecord.landscapeImageUrl) ||
-      portraitImageUrl
-    const hoverPreviewImageUrl = dependencies.normalizeImageUrlCandidate(entryRecord.hoverPreviewImageUrl)
-    const lastWatchedMs = dependencies.pickFirstDateMs([
-      asRecord(watchHistoryEntry).datePlayedMs,
-      entryRecord.lastWatchedMs,
-    ])
-    const progressRecord = asRecord(watchHistoryProgressEntry)
-    const completionState = deriveEffectiveCompletionState(dependencies, entryRecord, progressRecord, episodeCount)
-    const episodeWatchProgressRatio = resolveEpisodeProgressRatio(entryRecord, progressRecord)
-    const mergedEntry = {
-      ...entryRecord,
-      description,
-      distribution,
-      audioLocales,
-      hasEnglishAudio,
-      episodeCount,
-      seasonCount,
-      genreTags,
-      portraitImageUrl,
-      landscapeImageUrl,
-      hoverPreviewImageUrl,
-      lastWatchedMs,
-      fullyWatched: completionState.fullyWatched,
-      neverWatched: completionState.neverWatched,
-      watchedRatio: completionState.watchedRatio,
-      episodeWatchProgressRatio,
-      watchHistoryProgressEntry,
-      imageUrl: portraitImageUrl || landscapeImageUrl || dependencies.normalizeImageUrlCandidate(entryRecord.imageUrl),
-      rating,
-      votes,
-    }
-    const statusBase = dependencies.deriveDisplayStatusBase(mergedEntry, localeWatchHistoryEntry || watchHistoryEntry)
-    const mergedEntryWithStatus = {
-      ...mergedEntry,
-      statusBase,
-    }
-    const watchReady = completionState.fullyWatched ? false : dependencies.isEntryWatchReady(mergedEntryWithStatus)
-
-    return {
-      ...mergedEntryWithStatus,
-      watchReady,
-    }
-  }
-
-  function collectRenderableAttributeValues(entries: unknown[], key: string): string[] {
-    return Array.from(
-      new Set(
-        entries
-          .flatMap((entry) => asArray(asRecord(entry)[key]))
-          .map((value) => String(value || '').trim())
-          .filter(Boolean),
-      ),
-    ).sort((left, right) => left.localeCompare(right))
-  }
-
-  function hasPlaybackProgress(value: unknown): boolean {
-    const number = Number(value)
-    return Number.isFinite(number) && number > 0
-  }
-
-  // "Hide not watched / not started" focuses the list on series with activity by removing
-  // items still in a cold-start state (never watched, no playhead, no watch-history progress).
-  function isEntryNotWatchedAndNotStartedInternal(entry: Record<string, unknown>): boolean {
-    const statusBase = String(entry.statusBase || '')
-      .trim()
-      .toLowerCase()
-    if (statusBase === 'start watching') {
-      return true
-    }
-
-    if (!entry.neverWatched) {
-      return false
-    }
-
-    if (hasPlaybackProgress(entry.playheadMs) || hasPlaybackProgress(entry.lastWatchedMs)) {
-      return false
-    }
-
-    const watchHistoryProgressEntry = asRecord(entry.watchHistoryProgressEntry)
-    if (watchHistoryProgressEntry.fullyWatched) {
-      return false
-    }
-
-    return !(
-      hasPlaybackProgress(watchHistoryProgressEntry.playhead) ||
-      hasPlaybackProgress(watchHistoryProgressEntry.playheadMs) ||
-      hasPlaybackProgress(watchHistoryProgressEntry.progressMs)
-    )
-  }
-
-  function applyRenderableEntryFiltersInternal(
-    mergedEntries: Record<string, unknown>[],
-    filterContext: FilterContext,
-    watchReadyFilterMode: string,
-  ): Record<string, unknown>[] {
-    const { effectiveAudioFilter, effectiveGenreFilter } = filterContext
-    let filtered = mergedEntries.slice()
-
-    if (effectiveAudioFilter !== 'any') {
-      filtered = filtered.filter((entry) =>
-        asArray(entry.audioLocales).some(
-          (locale) => String(locale).toLowerCase() === effectiveAudioFilter.toLowerCase(),
-        ),
-      )
-    }
-
-    if (effectiveGenreFilter !== 'any') {
-      if (isFavoritesGenreFilter(effectiveGenreFilter)) {
-        filtered = filtered.filter((entry) => Boolean(entry.isFavorite))
-      } else {
-        filtered = filtered.filter((entry) =>
-          asArray(entry.genreTags).some((tag) => String(tag).toLowerCase() === effectiveGenreFilter.toLowerCase()),
-        )
-      }
-    }
-
-    if (watchReadyFilterMode === 'hide') {
-      filtered = filtered.filter((entry) => Boolean(entry.watchReady))
-    }
-    if (watchReadyFilterMode === 'hide_not_started') {
-      filtered = filtered.filter((entry) => !isEntryNotWatchedAndNotStartedInternal(entry))
-    }
-
-    return filtered
-  }
-
-  function buildRankMap(
-    entries: Record<string, unknown>[],
-    compareEntries: (left: Record<string, unknown>, right: Record<string, unknown>) => number,
-  ): Map<Record<string, unknown>, number> {
-    const sorted = entries.slice().sort((left, right) => compareEntries(left, right))
-    const rankMap = new Map<Record<string, unknown>, number>()
-    sorted.forEach((entry, index) => {
-      rankMap.set(entry, index)
-    })
-    return rankMap
-  }
-
-  function sortDecoratedEntriesInternal(
-    decorated: Record<string, unknown>[],
-    settingsRecord: Record<string, unknown>,
-    dependencies: CuratedRenderableDependencies,
-  ): void {
-    const primarySortMode = resolveSortMode(settingsRecord.sortMode)
-    const requestedSecondarySortMode = resolveSortMode(settingsRecord.secondarySortMode)
-    const secondarySortMode = requestedSecondarySortMode === primarySortMode ? 'none' : requestedSecondarySortMode
-    const comparePrimary = (left: Record<string, unknown>, right: Record<string, unknown>) =>
-      dependencies.compareRenderableEntries(left, right, primarySortMode)
-
-    if (secondarySortMode === 'none') {
-      decorated.sort((left, right) => comparePrimary(left, right))
-      return
-    }
-
-    const compareSecondary = (left: Record<string, unknown>, right: Record<string, unknown>) =>
-      dependencies.compareRenderableEntries(left, right, secondarySortMode)
-    const primaryRanks = buildRankMap(decorated, comparePrimary)
-    const secondaryRanks = buildRankMap(decorated, compareSecondary)
-
-    // Entry-sorting comparators are total-order (original-index tiebreak), so deterministic
-    // rank positions are safe to average for blended ordering.
-    decorated.sort((left, right) => {
-      const leftPrimaryRank = primaryRanks.get(left) ?? Number.POSITIVE_INFINITY
-      const rightPrimaryRank = primaryRanks.get(right) ?? Number.POSITIVE_INFINITY
-      const leftSecondaryRank = secondaryRanks.get(left) ?? Number.POSITIVE_INFINITY
-      const rightSecondaryRank = secondaryRanks.get(right) ?? Number.POSITIVE_INFINITY
-
-      const leftAverageRank = (leftPrimaryRank + leftSecondaryRank) / 2
-      const rightAverageRank = (rightPrimaryRank + rightSecondaryRank) / 2
-      if (leftAverageRank !== rightAverageRank) {
-        return leftAverageRank - rightAverageRank
-      }
-      if (leftPrimaryRank !== rightPrimaryRank) {
-        return leftPrimaryRank - rightPrimaryRank
-      }
-      if (leftSecondaryRank !== rightSecondaryRank) {
-        return leftSecondaryRank - rightSecondaryRank
-      }
-      return comparePrimary(left, right)
-    })
+  function createCuratedRenderableMergeSupportRuntime(): CuratedRenderableMergeSupportRuntime {
+    const mergeSupportModule = asRecord(moduleRegistry.runtimeCuratedRenderableMergeSupport)
+    return requireFunction<() => CuratedRenderableMergeSupportRuntime>(
+      'createCuratedRenderableMergeSupportRuntime',
+      mergeSupportModule.createCuratedRenderableMergeSupportRuntime,
+    )()
   }
 
   function buildRenderableEntriesInternal(
     entries: unknown[],
     settings: unknown,
     dependencies: CuratedRenderableDependencies,
+    listProcessingRuntime: CuratedRenderableListProcessingRuntime,
+    mergeSupportRuntime: CuratedRenderableMergeSupportRuntime,
   ): BuildRenderableEntriesResult {
     const normalizedEntries = Array.isArray(entries) ? entries : []
-    const filterContext = resolveRenderableFilterContextInternal(settings, dependencies)
+    const filterContext = mergeSupportRuntime.resolveRenderableFilterContext(settings, dependencies)
     const { effectiveAudioFilter, effectiveGenreFilter } = filterContext
     const settingsRecord = asRecord(settings)
-    const merged = normalizedEntries.map((entry) => mergeRenderableEntryInternal(entry, filterContext, dependencies))
-    const watchReadyFilterMode = resolveWatchReadyFilterMode(settingsRecord.watchReadyFilterMode)
-    const audioValues = collectRenderableAttributeValues(merged, 'audioLocales')
-    const genreValues = collectRenderableAttributeValues(merged, 'genreTags')
-    const filtered = applyRenderableEntryFiltersInternal(merged, filterContext, watchReadyFilterMode)
+    const merged = normalizedEntries.map((entry) =>
+      mergeSupportRuntime.mergeRenderableEntry(entry, filterContext, dependencies),
+    )
+    const watchReadyFilterMode = mergeSupportRuntime.resolveWatchReadyFilterMode(settingsRecord.watchReadyFilterMode)
+    const audioValues = listProcessingRuntime.collectRenderableAttributeValues(merged, 'audioLocales')
+    const genreValues = listProcessingRuntime.collectRenderableAttributeValues(merged, 'genreTags')
+    const filtered = listProcessingRuntime.applyRenderableEntryFilters({
+      mergedEntries: merged,
+      filterContext,
+      watchReadyFilterMode,
+      favoritesGenreFilterValue: FAVORITES_GENRE_FILTER_VALUE,
+    })
     const decorated = filtered.map((entry) => ({
       ...entry,
       dimNotWatchReady: watchReadyFilterMode === 'dim' && !entry.watchReady,
     }))
 
-    sortDecoratedEntriesInternal(decorated, settingsRecord, dependencies)
+    listProcessingRuntime.sortDecoratedEntries({
+      decorated,
+      settingsRecord,
+      compareRenderableEntries: dependencies.compareRenderableEntries,
+    })
 
     return {
       mode: watchReadyFilterMode,
       total: merged.length,
       visible: decorated,
-      audioOptions: buildCuratedFilterOptions('Any language', effectiveAudioFilter, audioValues),
-      genreOptions: buildGenreFilterOptions(effectiveGenreFilter, genreValues),
+      audioOptions: mergeSupportRuntime.buildCuratedFilterOptions('Any language', effectiveAudioFilter, audioValues),
+      genreOptions: mergeSupportRuntime.buildGenreFilterOptions(
+        effectiveGenreFilter,
+        genreValues,
+        FAVORITES_GENRE_FILTER_VALUE,
+      ),
       selectedAudioFilter: effectiveAudioFilter,
       selectedGenreFilter: effectiveGenreFilter,
     }
@@ -656,13 +254,24 @@
 
   function createCuratedRenderable(options: CuratedRenderableOptions = {}): CuratedRenderableRuntime {
     const dependencies = resolveCuratedRenderableDependencies(options)
+    const listProcessingRuntime = createCuratedRenderableListProcessingRuntime()
+    const mergeSupportRuntime = createCuratedRenderableMergeSupportRuntime()
     return {
-      resolveRenderableFilterContext: (settings) => resolveRenderableFilterContextInternal(settings, dependencies),
-      mergeRenderableEntry: (entry, filterContext) => mergeRenderableEntryInternal(entry, filterContext, dependencies),
-      collectRenderableAttributeValues,
+      resolveRenderableFilterContext: (settings) =>
+        mergeSupportRuntime.resolveRenderableFilterContext(settings, dependencies),
+      mergeRenderableEntry: (entry, filterContext) =>
+        mergeSupportRuntime.mergeRenderableEntry(entry, filterContext, dependencies),
+      collectRenderableAttributeValues: (entries, key) =>
+        listProcessingRuntime.collectRenderableAttributeValues(entries, key),
       applyRenderableEntryFilters: (mergedEntries, filterContext, watchReadyFilterMode) =>
-        applyRenderableEntryFiltersInternal(mergedEntries, filterContext, watchReadyFilterMode),
-      buildRenderableEntries: (entries, settings) => buildRenderableEntriesInternal(entries, settings, dependencies),
+        listProcessingRuntime.applyRenderableEntryFilters({
+          mergedEntries,
+          filterContext,
+          watchReadyFilterMode,
+          favoritesGenreFilterValue: FAVORITES_GENRE_FILTER_VALUE,
+        }),
+      buildRenderableEntries: (entries, settings) =>
+        buildRenderableEntriesInternal(entries, settings, dependencies, listProcessingRuntime, mergeSupportRuntime),
     }
   }
 

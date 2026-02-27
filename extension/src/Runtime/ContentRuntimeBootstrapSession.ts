@@ -39,6 +39,17 @@
     shutdownRuntime: (payload?: LooseRecord) => void
   }
 
+  type BootstrapSessionRuntimeControlDependencies = {
+    sessionDependencies: BootstrapSessionDependencies
+    accessors: RuntimeBootstrapMutableAccessors
+    createRuntimeLockLifecycleControl: (options: RuntimeLockLifecycleOptions) => RuntimeLockLifecycleControl
+  }
+
+  type BootstrapSessionAssembledRuntime = {
+    runtimeLockLifecycleControl: RuntimeLockLifecycleControl
+    isWatchlistPath: (pathname: string) => boolean
+  }
+
   type BootstrapSessionCoreModules = {
     runtimeBootstrapGateModule: LooseRecord
     runtimeBootstrapModulesModule: LooseRecord
@@ -155,6 +166,50 @@
     }) => void
   }
 
+  type RuntimeBootstrapFinalizeFlowRuntime = {
+    createBootstrapFinalizeRuntimeOptions: (
+      context: RuntimeBootstrapHelpersContext,
+      options: LooseRecord,
+    ) => LooseRecord
+    createBootstrapFinalizeRuntimeFromSetupResult: (options: {
+      context: RuntimeBootstrapHelpersContext
+      windowRef: RuntimeWindow
+      runtimeSetupResult: LooseRecord
+      runtimeBootstrapSession: BootstrapRuntimeSession
+    }) => unknown
+    bindBootstrapFinalizeRuntimeMethods: (options: {
+      bootstrapFinalizeRuntime: LooseRecord
+      setProcessWatchlist: (nextProcessWatchlist: AnyFn) => void
+      setSyncRouteRuntime: (nextSyncRouteRuntime: AnyFn) => void
+      setDestroyRuntime: (nextDestroyRuntime: AnyFn) => void
+      setBootstrapIssue: (reason: string, payload?: LooseRecord) => void
+      clearStaleInjectedShell: (reason: string) => void
+    }) => boolean
+    runBootstrapFinalizeInitFlow: (options: {
+      bootstrapFinalizeRuntime: LooseRecord
+      updateDiagnostics: (payload: LooseRecord) => void
+      startDomRuntimeLockHeartbeat: () => void
+      startWatchlistHealthRuntime: () => void
+      runtimeEvent: (event: string, payload?: LooseRecord) => void
+      setBootstrapIssue: (reason: string, payload?: LooseRecord) => void
+      shutdownRuntime: (payload?: LooseRecord) => void
+      clearStaleInjectedShell: (reason: string) => void
+    }) => void
+  }
+
+  type RuntimeBootstrapSessionSupportRuntime = {
+    createRuntimeBootstrapMutableAccessors: () => RuntimeBootstrapMutableAccessors
+    resolveStorageLocalArea: (context: RuntimeBootstrapHelpersContext) => unknown
+    createIsWatchlistPath: (runtimeBootstrapGateModule: LooseRecord) => (pathname: string) => boolean
+    createDebounceProcess: (options: {
+      context: RuntimeBootstrapHelpersContext
+      state: LooseRecord
+      runtimeConstants: LooseRecord
+      getProcessWatchlist: () => AnyFn
+    }) => () => void
+    startWatchlistHealthRuntime: (accessors: RuntimeBootstrapMutableAccessors) => void
+  }
+
   const root = (typeof window !== 'undefined' ? window : globalThis) as RuntimeWindow
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
     root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
@@ -183,6 +238,30 @@
         setRuntimeSetupBindings(toRecord(runtimeSetupResult))
       },
     }
+  }
+
+  function createBootstrapFinalizeFlowRuntime(): RuntimeBootstrapFinalizeFlowRuntime {
+    const bootstrapFinalizeFlowModule = toRecord(moduleRegistry.runtimeContentRuntimeBootstrapFinalizeFlow)
+    if (typeof bootstrapFinalizeFlowModule.createContentRuntimeBootstrapFinalizeFlowRuntime !== 'function') {
+      throw new Error(
+        '[CW] Missing content runtime bootstrap finalize flow runtime dependency: createContentRuntimeBootstrapFinalizeFlowRuntime',
+      )
+    }
+    return (
+      bootstrapFinalizeFlowModule.createContentRuntimeBootstrapFinalizeFlowRuntime as AnyFn
+    )() as RuntimeBootstrapFinalizeFlowRuntime
+  }
+
+  function createBootstrapSessionSupportRuntime(): RuntimeBootstrapSessionSupportRuntime {
+    const bootstrapSessionSupportModule = toRecord(moduleRegistry.runtimeContentRuntimeBootstrapSessionSupport)
+    if (typeof bootstrapSessionSupportModule.createContentRuntimeBootstrapSessionSupportRuntime !== 'function') {
+      throw new Error(
+        '[CW] Missing content runtime bootstrap session support runtime dependency: createContentRuntimeBootstrapSessionSupportRuntime',
+      )
+    }
+    return (
+      bootstrapSessionSupportModule.createContentRuntimeBootstrapSessionSupportRuntime as AnyFn
+    )() as RuntimeBootstrapSessionSupportRuntime
   }
 
   function resolveBootstrapSessionCoreModules(bootstrapContext: LooseRecord): BootstrapSessionCoreModules {
@@ -223,69 +302,6 @@
         (runtimeStoreModule.createEmptyWatchHistoryCache as AnyFn)(runtimeConstants.watchHistoryCacheVersion),
       createWatchlistCacheSnapshot: (...args: unknown[]) =>
         (runtimeStoreModule.createWatchlistCacheSnapshot as AnyFn)(...args),
-    }
-  }
-
-  function createRuntimeBootstrapMutableAccessors(): RuntimeBootstrapMutableAccessors {
-    let processWatchlist: AnyFn = async () => {}
-    let runtimeEvent: AnyFn = () => {}
-    let destroyRuntime: AnyFn = () => {}
-    let syncRouteRuntime: AnyFn = () => {}
-    let watchlistHealthRuntime: LooseRecord = {
-      start: () => {},
-      stop: () => {},
-      runCheck: () => {},
-    }
-
-    return {
-      setRuntimeEvent: (nextRuntimeEvent: AnyFn) => {
-        runtimeEvent = typeof nextRuntimeEvent === 'function' ? nextRuntimeEvent : () => {}
-      },
-      setProcessWatchlist: (nextProcessWatchlist: AnyFn) => {
-        processWatchlist = typeof nextProcessWatchlist === 'function' ? nextProcessWatchlist : async () => {}
-      },
-      setDestroyRuntime: (nextDestroyRuntime: AnyFn) => {
-        destroyRuntime = typeof nextDestroyRuntime === 'function' ? nextDestroyRuntime : () => {}
-      },
-      setSyncRouteRuntime: (nextSyncRouteRuntime: AnyFn) => {
-        syncRouteRuntime = typeof nextSyncRouteRuntime === 'function' ? nextSyncRouteRuntime : () => {}
-      },
-      setWatchlistHealthRuntime: (nextWatchlistHealthRuntime: LooseRecord) => {
-        watchlistHealthRuntime = toRecord(nextWatchlistHealthRuntime)
-      },
-      getRuntimeEvent: () => runtimeEvent,
-      getProcessWatchlist: () => processWatchlist,
-      getDestroyRuntime: () => destroyRuntime,
-      getSyncRouteRuntime: () => syncRouteRuntime,
-      getWatchlistHealthRuntime: () => watchlistHealthRuntime,
-    }
-  }
-
-  function resolveStorageLocalAreaForContext(context: RuntimeBootstrapHelpersContext): unknown {
-    return (
-      toRecord(toRecord(context.browserRef).storage).local ||
-      toRecord(toRecord(context.chromeRef).storage).local ||
-      null
-    )
-  }
-
-  function createIsWatchlistPath(runtimeBootstrapGateModule: LooseRecord): (pathname: string) => boolean {
-    return (pathname: string) => (runtimeBootstrapGateModule.isWatchlistPath as AnyFn)(pathname) as boolean
-  }
-
-  function createDebounceProcess(
-    context: RuntimeBootstrapHelpersContext,
-    state: LooseRecord,
-    runtimeConstants: LooseRecord,
-    getProcessWatchlist: () => AnyFn,
-  ): () => void {
-    return () => {
-      context.windowRef.clearTimeout(state.processTimer as number)
-      state.processTimer = context.windowRef.setTimeout(() => {
-        ;(getProcessWatchlist()() as Promise<unknown>).catch(() => {
-          // no-op
-        })
-      }, runtimeConstants.processDebounceMs as number)
     }
   }
 
@@ -336,38 +352,32 @@
     }) as LooseRecord
   }
 
-  function startWatchlistHealthRuntime(accessors: RuntimeBootstrapMutableAccessors): void {
-    const watchlistHealthRuntime = accessors.getWatchlistHealthRuntime()
-    if (typeof watchlistHealthRuntime.start === 'function') {
-      watchlistHealthRuntime.start()
-    }
-  }
-
-  function createRuntimeBootstrapSessionForContext(
-    context: RuntimeBootstrapHelpersContext,
-    {
-      bootstrapContext,
-      createRuntimeLockLifecycleControl,
-    }: {
-      bootstrapContext: LooseRecord
-      createRuntimeLockLifecycleControl: (options: RuntimeLockLifecycleOptions) => RuntimeLockLifecycleControl
-    },
-  ): BootstrapRuntimeSession | null {
-    const coreModules = resolveBootstrapSessionCoreModules(bootstrapContext)
-    const sessionDependencies = resolveBootstrapSessionDependencies(coreModules)
-    const accessors = createRuntimeBootstrapMutableAccessors()
-
-    const runtimeLockLifecycleControl = createRuntimeLockLifecycleControl({
+  function createRuntimeLockLifecycleControlForSession({
+    sessionDependencies,
+    accessors,
+    createRuntimeLockLifecycleControl,
+  }: BootstrapSessionRuntimeControlDependencies): RuntimeLockLifecycleControl {
+    return createRuntimeLockLifecycleControl({
       state: sessionDependencies.state,
       getRuntimeEvent: accessors.getRuntimeEvent,
       getDestroyRuntime: accessors.getDestroyRuntime,
       getWatchlistHealthRuntime: accessors.getWatchlistHealthRuntime,
     })
+  }
 
-    const isWatchlistPath = createIsWatchlistPath(coreModules.runtimeBootstrapGateModule)
-    activateRuntimeControlForSession(context, accessors.getRuntimeEvent, runtimeLockLifecycleControl.shutdownRuntime)
-    runtimeLockLifecycleControl.startRuntimeTakeoverRequestListener()
-
+  function attachWatchlistHealthRuntimeForSession({
+    context,
+    coreModules,
+    sessionDependencies,
+    accessors,
+    isWatchlistPath,
+  }: {
+    context: RuntimeBootstrapHelpersContext
+    coreModules: BootstrapSessionCoreModules
+    sessionDependencies: BootstrapSessionDependencies
+    accessors: RuntimeBootstrapMutableAccessors
+    isWatchlistPath: (pathname: string) => boolean
+  }): void {
     const watchlistHealthRuntime = createWatchlistHealthRuntimeForSession({
       context,
       coreModules,
@@ -383,7 +393,61 @@
       'stop',
     ])
     accessors.setWatchlistHealthRuntime(watchlistHealthRuntime)
+  }
 
+  function assembleBootstrapSessionRuntimeForContext({
+    context,
+    coreModules,
+    sessionDependencies,
+    accessors,
+    supportRuntime,
+    createRuntimeLockLifecycleControl,
+  }: {
+    context: RuntimeBootstrapHelpersContext
+    coreModules: BootstrapSessionCoreModules
+    sessionDependencies: BootstrapSessionDependencies
+    accessors: RuntimeBootstrapMutableAccessors
+    supportRuntime: RuntimeBootstrapSessionSupportRuntime
+    createRuntimeLockLifecycleControl: (options: RuntimeLockLifecycleOptions) => RuntimeLockLifecycleControl
+  }): BootstrapSessionAssembledRuntime {
+    const runtimeLockLifecycleControl = createRuntimeLockLifecycleControlForSession({
+      sessionDependencies,
+      accessors,
+      createRuntimeLockLifecycleControl,
+    })
+    const isWatchlistPath = supportRuntime.createIsWatchlistPath(coreModules.runtimeBootstrapGateModule)
+    activateRuntimeControlForSession(context, accessors.getRuntimeEvent, runtimeLockLifecycleControl.shutdownRuntime)
+    runtimeLockLifecycleControl.startRuntimeTakeoverRequestListener()
+    attachWatchlistHealthRuntimeForSession({
+      context,
+      coreModules,
+      sessionDependencies,
+      accessors,
+      isWatchlistPath,
+    })
+    return {
+      runtimeLockLifecycleControl,
+      isWatchlistPath,
+    }
+  }
+
+  function createBootstrapRuntimeSessionForContext({
+    context,
+    coreModules,
+    sessionDependencies,
+    accessors,
+    supportRuntime,
+    runtimeLockLifecycleControl,
+    isWatchlistPath,
+  }: {
+    context: RuntimeBootstrapHelpersContext
+    coreModules: BootstrapSessionCoreModules
+    sessionDependencies: BootstrapSessionDependencies
+    accessors: RuntimeBootstrapMutableAccessors
+    supportRuntime: RuntimeBootstrapSessionSupportRuntime
+    runtimeLockLifecycleControl: RuntimeLockLifecycleControl
+    isWatchlistPath: (pathname: string) => boolean
+  }): BootstrapRuntimeSession {
     return {
       runtimeBootstrapGateModule: coreModules.runtimeBootstrapGateModule,
       runtimeBootstrapFinalizeModule: coreModules.runtimeBootstrapFinalizeModule,
@@ -400,14 +464,14 @@
       defaultSettings: sessionDependencies.defaultSettings,
       runtimeConstants: sessionDependencies.runtimeConstants,
       state: sessionDependencies.state,
-      storageLocalArea: resolveStorageLocalAreaForContext(context),
+      storageLocalArea: supportRuntime.resolveStorageLocalArea(context),
       isWatchlistPath,
-      debounceProcess: createDebounceProcess(
+      debounceProcess: supportRuntime.createDebounceProcess({
         context,
-        sessionDependencies.state,
-        sessionDependencies.runtimeConstants,
-        accessors.getProcessWatchlist,
-      ),
+        state: sessionDependencies.state,
+        runtimeConstants: sessionDependencies.runtimeConstants,
+        getProcessWatchlist: accessors.getProcessWatchlist,
+      }),
       createEmptyWatchHistoryCache: sessionDependencies.createEmptyWatchHistoryCache,
       createWatchlistCacheSnapshot: sessionDependencies.createWatchlistCacheSnapshot,
       bootstrapModulesRuntime: coreModules.bootstrapModulesRuntime,
@@ -419,222 +483,43 @@
       startDomRuntimeLockHeartbeat: runtimeLockLifecycleControl.startDomRuntimeLockHeartbeat,
       shutdownRuntime: runtimeLockLifecycleControl.shutdownRuntime,
       startWatchlistHealthRuntime: () => {
-        startWatchlistHealthRuntime(accessors)
+        supportRuntime.startWatchlistHealthRuntime(accessors)
       },
     }
   }
 
-  function createBootstrapFinalizeRuntimeOptionsForContext(
+  function createRuntimeBootstrapSessionForContext(
     context: RuntimeBootstrapHelpersContext,
+    supportRuntime: RuntimeBootstrapSessionSupportRuntime,
     {
-      windowRef,
-      runtimeEvent,
-      runtimeLifecycleModule,
-      runtimeStateLoaderModule,
-      state,
-      isWatchlistPath,
-      ensureInterface,
-      applyTabUi,
-      ensureCuratedDataLoad,
-      renderCuratedPanel,
-      setNativeVisibility,
-      clearRootFrame,
-      debounceProcess,
-      storageGet,
-      getAccessToken,
-      normalizeStoredWatchHistoryCache,
-      isWatchHistoryCacheValid,
-      normalizeStoredWatchlistCache,
-      isWatchlistCacheValid,
-      normalizeEntriesFromApiRows,
-      defaultSettings,
-      validSortModes,
-      defaultSortMode,
-      runtimeConstants,
-      listKnownSeries,
-      dumpSeriesApiData,
-      printSeriesApiData,
-    }: LooseRecord,
-  ): LooseRecord {
-    return {
-      windowRef,
-      runtimeEvent,
-      runtimeLifecycleModule,
-      runtimeLifecycleOptions: {
-        state,
-        runtimeEvent,
-        isRuntimeActive: () => context.isCurrentRuntimeActive(),
-        isWatchlistPath,
-        ensureInterface,
-        applyTabUi,
-        ensureCuratedDataLoad,
-        renderCuratedPanel,
-        setNativeVisibility,
-        clearRootFrame,
-        debounceProcess,
-      },
-      runtimeStateLoaderModule,
-      runtimeStateLoaderOptions: {
-        state,
-        storageGet,
-        getAccessToken,
-        runtimeEvent,
-        normalizeStoredWatchHistoryCache,
-        isWatchHistoryCacheValid,
-        normalizeStoredWatchlistCache,
-        isWatchlistCacheValid,
-        normalizeEntriesFromApiRows,
-        defaultSettings,
-        validSortModes,
-        defaultSortMode,
-        settingsKey: toRecord(runtimeConstants).settingsKey,
-        ratingCacheKey: toRecord(runtimeConstants).ratingCacheKey,
-        watchHistoryCacheKey: toRecord(runtimeConstants).watchHistoryCacheKey,
-        watchlistCacheKey: toRecord(runtimeConstants).watchlistCacheKey,
-      },
-      listKnownSeries,
-      dumpSeriesApiData,
-      printSeriesApiData,
-    }
-  }
-
-  function createBootstrapFinalizeRuntimeFromSetupResultForContext({
-    context,
-    windowRef,
-    runtimeSetupResult,
-    runtimeBootstrapSession,
-  }: {
-    context: RuntimeBootstrapHelpersContext
-    windowRef: RuntimeWindow
-    runtimeSetupResult: LooseRecord
-    runtimeBootstrapSession: BootstrapRuntimeSession
-  }): unknown {
-    const runtimeBootstrapFinalizeModule = runtimeBootstrapSession.runtimeBootstrapFinalizeModule
-    const storageModule = runtimeBootstrapSession.storageModule
-    const safeJsonParse = (value: unknown, fallback: unknown) =>
-      (runtimeBootstrapFinalizeModule.safeJsonParse as AnyFn)(value, fallback)
-    const storageAdapter = (storageModule.createStorageAdapter as AnyFn)({
-      storageArea: runtimeBootstrapSession.storageLocalArea,
-      parseJson: safeJsonParse,
-      localStorageRef: windowRef.localStorage,
-      timeoutMs: 1500,
-    })
-    const storageAccessors = (runtimeBootstrapFinalizeModule.createStorageAccessors as AnyFn)({
-      storageAdapter,
-    }) as LooseRecord
-    const storageGet = (key: string, fallback: unknown) => (storageAccessors.storageGet as AnyFn)(key, fallback)
-
-    return (runtimeBootstrapFinalizeModule.createBootstrapFinalizeRuntime as AnyFn)(
-      createBootstrapFinalizeRuntimeOptionsForContext(context, {
-        windowRef,
-        runtimeEvent: runtimeSetupResult.runtimeEvent,
-        runtimeLifecycleModule: runtimeBootstrapSession.runtimeLifecycleModule,
-        runtimeStateLoaderModule: runtimeBootstrapSession.runtimeStateLoaderModule,
-        state: runtimeBootstrapSession.state,
-        isWatchlistPath: runtimeBootstrapSession.isWatchlistPath,
-        ensureInterface: runtimeSetupResult.ensureInterface,
-        applyTabUi: runtimeSetupResult.applyTabUi,
-        ensureCuratedDataLoad: runtimeSetupResult.ensureCuratedDataLoad,
-        renderCuratedPanel: runtimeSetupResult.renderCuratedPanel,
-        setNativeVisibility: runtimeSetupResult.setNativeVisibility,
-        clearRootFrame: runtimeSetupResult.clearRootFrame,
-        debounceProcess: runtimeBootstrapSession.debounceProcess,
-        storageGet,
-        getAccessToken: runtimeSetupResult.getAccessToken,
-        normalizeStoredWatchHistoryCache: runtimeSetupResult.normalizeStoredWatchHistoryCache,
-        isWatchHistoryCacheValid: runtimeSetupResult.isWatchHistoryCacheValid,
-        normalizeStoredWatchlistCache: runtimeSetupResult.normalizeStoredWatchlistCache,
-        isWatchlistCacheValid: runtimeSetupResult.isWatchlistCacheValid,
-        normalizeEntriesFromApiRows: runtimeSetupResult.normalizeEntriesFromApiRows,
-        defaultSettings: runtimeBootstrapSession.defaultSettings,
-        validSortModes: runtimeBootstrapSession.validSortModes,
-        defaultSortMode: runtimeBootstrapSession.defaultSortMode,
-        runtimeConstants: runtimeBootstrapSession.runtimeConstants,
-        listKnownSeries: runtimeSetupResult.listKnownSeries,
-        dumpSeriesApiData: runtimeSetupResult.dumpSeriesApiData,
-        printSeriesApiData: runtimeSetupResult.printSeriesApiData,
-      }),
-    )
-  }
-
-  function bindBootstrapFinalizeRuntimeMethodsForContext({
-    bootstrapFinalizeRuntime,
-    setProcessWatchlist,
-    setSyncRouteRuntime,
-    setDestroyRuntime,
-    setBootstrapIssue,
-    clearStaleInjectedShell,
-  }: {
-    bootstrapFinalizeRuntime: LooseRecord
-    setProcessWatchlist: (nextProcessWatchlist: AnyFn) => void
-    setSyncRouteRuntime: (nextSyncRouteRuntime: AnyFn) => void
-    setDestroyRuntime: (nextDestroyRuntime: AnyFn) => void
-    setBootstrapIssue: (reason: string, payload?: LooseRecord) => void
-    clearStaleInjectedShell: (reason: string) => void
-  }): boolean {
-    if (bootstrapFinalizeRuntime && typeof bootstrapFinalizeRuntime.processWatchlist === 'function') {
-      setProcessWatchlist(bootstrapFinalizeRuntime.processWatchlist as AnyFn)
-    }
-    if (bootstrapFinalizeRuntime && typeof bootstrapFinalizeRuntime.syncRoute === 'function') {
-      setSyncRouteRuntime(() => (bootstrapFinalizeRuntime.syncRoute as AnyFn)())
-    }
-    if (bootstrapFinalizeRuntime && typeof bootstrapFinalizeRuntime.destroy === 'function') {
-      setDestroyRuntime(() => (bootstrapFinalizeRuntime.destroy as AnyFn)())
-    }
-    if (!bootstrapFinalizeRuntime || typeof bootstrapFinalizeRuntime.init !== 'function') {
-      setBootstrapIssue('missing-bootstrap-finalize-runtime')
-      clearStaleInjectedShell('missing-bootstrap-finalize-runtime')
-      return false
-    }
-    return true
-  }
-
-  function runBootstrapFinalizeInitFlowForContext({
-    bootstrapFinalizeRuntime,
-    updateDiagnostics,
-    startDomRuntimeLockHeartbeat,
-    startWatchlistHealthRuntime,
-    runtimeEvent,
-    setBootstrapIssue,
-    shutdownRuntime,
-    clearStaleInjectedShell,
-  }: {
-    bootstrapFinalizeRuntime: LooseRecord
-    updateDiagnostics: (payload: LooseRecord) => void
-    startDomRuntimeLockHeartbeat: () => void
-    startWatchlistHealthRuntime: () => void
-    runtimeEvent: (event: string, payload?: LooseRecord) => void
-    setBootstrapIssue: (reason: string, payload?: LooseRecord) => void
-    shutdownRuntime: (payload?: LooseRecord) => void
-    clearStaleInjectedShell: (reason: string) => void
-  }): void {
-    updateDiagnostics({
-      ok: false,
-      stage: 'init-started',
+      bootstrapContext,
+      createRuntimeLockLifecycleControl,
+    }: {
+      bootstrapContext: LooseRecord
+      createRuntimeLockLifecycleControl: (options: RuntimeLockLifecycleOptions) => RuntimeLockLifecycleControl
+    },
+  ): BootstrapRuntimeSession | null {
+    const coreModules = resolveBootstrapSessionCoreModules(bootstrapContext)
+    const sessionDependencies = resolveBootstrapSessionDependencies(coreModules)
+    const accessors = supportRuntime.createRuntimeBootstrapMutableAccessors()
+    const assembledRuntime = assembleBootstrapSessionRuntimeForContext({
+      context,
+      coreModules,
+      sessionDependencies,
+      accessors,
+      supportRuntime,
+      createRuntimeLockLifecycleControl,
     })
 
-    ;((bootstrapFinalizeRuntime.init as AnyFn)() as Promise<unknown>)
-      .then(() => {
-        updateDiagnostics({
-          ok: true,
-          stage: 'init-complete',
-        })
-        startDomRuntimeLockHeartbeat()
-        startWatchlistHealthRuntime()
-      })
-      .catch((error: { message?: string }) => {
-        runtimeEvent('init-error', {
-          message: error?.message || 'unknown',
-        })
-        setBootstrapIssue('init-error', {
-          message: error?.message || 'unknown',
-        })
-        shutdownRuntime({
-          reason: 'init-error',
-          message: error?.message || 'unknown',
-        })
-        clearStaleInjectedShell('init-error')
-      })
+    return createBootstrapRuntimeSessionForContext({
+      context,
+      coreModules,
+      sessionDependencies,
+      accessors,
+      supportRuntime,
+      runtimeLockLifecycleControl: assembledRuntime.runtimeLockLifecycleControl,
+      isWatchlistPath: assembledRuntime.isWatchlistPath,
+    })
   }
 
   function createContentRuntimeBootstrapSessionRuntime({
@@ -647,17 +532,19 @@
     createRuntimeLockLifecycleControl: (options: RuntimeLockLifecycleOptions) => RuntimeLockLifecycleControl
   }): RuntimeBootstrapSessionRuntime {
     const runtimeSetupBindingsRuntime = createRuntimeSetupBindingsRuntime()
+    const bootstrapFinalizeFlowRuntime = createBootstrapFinalizeFlowRuntime()
+    const supportRuntime = createBootstrapSessionSupportRuntime()
 
     return {
       createRuntimeSetupOptions: runtimeSetupBindingsRuntime.createRuntimeSetupOptions,
       applyRuntimeSetupBindings: runtimeSetupBindingsRuntime.applyRuntimeSetupBindings,
       createRuntimeBootstrapSession: ({ bootstrapContext }: { bootstrapContext: LooseRecord }) =>
-        createRuntimeBootstrapSessionForContext(context, {
+        createRuntimeBootstrapSessionForContext(context, supportRuntime, {
           bootstrapContext,
           createRuntimeLockLifecycleControl,
         }),
       createBootstrapFinalizeRuntimeOptions: (options: LooseRecord) =>
-        createBootstrapFinalizeRuntimeOptionsForContext(context, options),
+        bootstrapFinalizeFlowRuntime.createBootstrapFinalizeRuntimeOptions(context, options),
       createBootstrapFinalizeRuntimeFromSetupResult: ({
         windowRef,
         runtimeSetupResult,
@@ -667,7 +554,7 @@
         runtimeSetupResult: LooseRecord
         runtimeBootstrapSession: BootstrapRuntimeSession
       }) =>
-        createBootstrapFinalizeRuntimeFromSetupResultForContext({
+        bootstrapFinalizeFlowRuntime.createBootstrapFinalizeRuntimeFromSetupResult({
           context,
           windowRef,
           runtimeSetupResult,
@@ -680,7 +567,7 @@
         setDestroyRuntime: (nextDestroyRuntime: AnyFn) => void
         setBootstrapIssue: (reason: string, payload?: LooseRecord) => void
       }) =>
-        bindBootstrapFinalizeRuntimeMethodsForContext({
+        bootstrapFinalizeFlowRuntime.bindBootstrapFinalizeRuntimeMethods({
           ...options,
           clearStaleInjectedShell,
         }),
@@ -693,7 +580,7 @@
         setBootstrapIssue: (reason: string, payload?: LooseRecord) => void
         shutdownRuntime: (payload?: LooseRecord) => void
       }) =>
-        runBootstrapFinalizeInitFlowForContext({
+        bootstrapFinalizeFlowRuntime.runBootstrapFinalizeInitFlow({
           ...options,
           clearStaleInjectedShell,
         }),

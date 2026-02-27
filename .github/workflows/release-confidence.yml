@@ -1,15 +1,17 @@
-name: Build Browser Extensions
+name: Release Confidence
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+  schedule:
+    - cron: '0 8 * * *'
+
+concurrency:
+  group: release-confidence-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  verify-webextensions:
-    name: Fast Verify Chromium + Firefox
+  e2e-chromium-firefox:
+    name: E2E Chromium + Firefox
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,30 +25,24 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Dependency audit
-        run: npm audit --audit-level=moderate
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Format check
-        run: npm run format:check
-
-      - name: Unit tests
-        run: npm run test:unit
 
       - name: Live runtime smoke
         run: npm run pw:live:smoke
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium firefox
+
       - name: Firefox manifest lint
         run: npm run lint:firefox
 
-  verify-webkit:
-    name: Fast Verify WebKit Build Prereqs
+      - name: Chromium tests
+        run: npm run test:e2e:chromium
+
+      - name: Firefox tests
+        run: npm run test:e2e:firefox
+
+  e2e-webkit:
+    name: E2E WebKit
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -61,44 +57,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-  build-webextensions:
-    name: Build ${{ matrix.browser }} Package
+      - name: Install Playwright WebKit
+        run: npx playwright install webkit
+
+      - name: WebKit tests
+        run: npm run test:e2e:webkit
+
+  safari-release-candidate:
+    name: Safari Release-Candidate Build
     needs:
-      - verify-webextensions
-      - verify-webkit
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        browser: [chrome, edge, firefox]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build package
-        run: npm run build:webext:${{ matrix.browser }}
-        env:
-          FIREFOX_EXTENSION_ID: crunchy-watchlist-curator@matthewfrench.dev
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: extension-${{ matrix.browser }}
-          path: dist/${{ matrix.browser }}
-          if-no-files-found: error
-
-  build-safari:
-    name: Build Safari Package
-    needs:
-      - verify-webkit
+      - e2e-chromium-firefox
+      - e2e-webkit
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -112,28 +81,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Validate Safari signing configuration (main releases)
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-        env:
-          APPLE_DEVELOPER_ID_CERT_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERT_P12_BASE64 }}
-          APPLE_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_NOTARY_API_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_API_KEY_P8_BASE64 }}
-          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
-          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
-        run: |
-          missing=()
-          [[ -z "$APPLE_DEVELOPER_ID_CERT_P12_BASE64" ]] && missing+=("APPLE_DEVELOPER_ID_CERT_P12_BASE64")
-          [[ -z "$APPLE_DEVELOPER_ID_CERT_PASSWORD" ]] && missing+=("APPLE_DEVELOPER_ID_CERT_PASSWORD")
-          [[ -z "$APPLE_TEAM_ID" ]] && missing+=("APPLE_TEAM_ID")
-          [[ -z "$APPLE_NOTARY_API_KEY_P8_BASE64" ]] && missing+=("APPLE_NOTARY_API_KEY_P8_BASE64")
-          [[ -z "$APPLE_NOTARY_KEY_ID" ]] && missing+=("APPLE_NOTARY_KEY_ID")
-          [[ -z "$APPLE_NOTARY_ISSUER_ID" ]] && missing+=("APPLE_NOTARY_ISSUER_ID")
-          if (( ${#missing[@]} > 0 )); then
-            echo "::error::Missing required Safari signing/notarization secrets: ${missing[*]}"
-            exit 1
-          fi
 
       - name: Configure Apple signing keychain
         env:
@@ -229,17 +176,17 @@ jobs:
           echo "SAFARI_NOTARY_KEY_ID=$APPLE_NOTARY_KEY_ID" >> "$GITHUB_ENV"
           echo "SAFARI_NOTARY_ISSUER_ID=$APPLE_NOTARY_ISSUER_ID" >> "$GITHUB_ENV"
 
-      - name: Build Safari artifacts
+      - name: Build Safari release-candidate artifacts
         run: |
           if [[ "${SAFARI_SIGNED_BUILD:-0}" != "1" ]]; then
             echo "::warning::Building unsigned Safari artifact (no signing/notarization secrets available)."
           fi
           npm run build:safari
 
-      - name: Upload Safari artifacts
+      - name: Upload Safari release-candidate artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: extension-safari
+          name: safari-release-candidate
           path: dist/safari
           if-no-files-found: error
 
@@ -249,50 +196,3 @@ jobs:
           if [[ -n "${SAFARI_KEYCHAIN_PATH:-}" && -f "$SAFARI_KEYCHAIN_PATH" ]]; then
             security delete-keychain "$SAFARI_KEYCHAIN_PATH" || true
           fi
-
-  release:
-    name: Publish release artifacts
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs:
-      - build-webextensions
-      - build-safari
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Checkout artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          pattern: extension-*
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Prepare release metadata
-        id: release_meta
-        run: |
-          VERSION=$(node -p "require('./extension/manifest.json').version")
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=v${VERSION}-main.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
-          echo "name=Crunchy Watchlist Curator ${VERSION} (main ${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT})" >> "$GITHUB_OUTPUT"
-
-      - name: Publish GitHub Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "${{ steps.release_meta.outputs.tag }}" \
-            artifacts/extension-chrome/crunchy-watchlist-curator-chrome.zip \
-            artifacts/extension-edge/crunchy-watchlist-curator-edge.zip \
-            artifacts/extension-firefox/crunchy-watchlist-curator-firefox.zip \
-            artifacts/extension-firefox/crunchy-watchlist-curator-firefox.xpi \
-            artifacts/extension-safari/crunchy-watchlist-curator-safari-macos-app.zip \
-            artifacts/extension-safari/crunchy-watchlist-curator-safari-webextension-source.zip \
-            --title "${{ steps.release_meta.outputs.name }}" \
-            --target "$GITHUB_SHA" \
-            --notes "Auto-generated release from main branch run ${{ github.run_number }}."

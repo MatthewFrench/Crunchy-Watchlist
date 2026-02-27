@@ -26,6 +26,12 @@ const curatedLoaderModuleUrl = pathToFileURL(
 const curatedLoaderDeferredMetadataModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedLoaderDeferredMetadata.ts'),
 ).href
+const curatedLoaderPendingRequestsModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedLoaderPendingRequests.ts'),
+).href
+const curatedLoaderLoadCycleModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedLoaderLoadCycle.ts'),
+).href
 
 function createDeferred<T>(): Deferred<T> {
   let resolveRef: ((value: T | PromiseLike<T>) => void) | null = null
@@ -161,7 +167,12 @@ function createCuratedLoaderHarness(overrides: Record<string, unknown> = {}) {
 
 describe('curated-loader runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([curatedLoaderDeferredMetadataModuleUrl, curatedLoaderModuleUrl])
+    await loadRuntimeModules([
+      curatedLoaderDeferredMetadataModuleUrl,
+      curatedLoaderPendingRequestsModuleUrl,
+      curatedLoaderLoadCycleModuleUrl,
+      curatedLoaderModuleUrl,
+    ])
   })
 
   afterEach(() => {

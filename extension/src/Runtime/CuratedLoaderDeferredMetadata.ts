@@ -36,6 +36,12 @@
     queueDeferredMetadataPreload: (options: QueueDeferredMetadataPreloadOptions) => void
   }
 
+  type DeferredMetadataProgressRenderer = (force?: boolean) => void
+
+  type DeferredMetadataChunkProgress = {
+    completedChunks: number
+  }
+
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
     typeof globalThis & {
       __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord
@@ -213,6 +219,152 @@
     context.windowRef.setTimeout(runStep, 0)
   }
 
+  function createDeferredMetadataProgressRendererInternal(
+    context: CuratedLoaderDeferredMetadataContext,
+  ): DeferredMetadataProgressRenderer {
+    let lastProgressRenderAt = 0
+    return (force = false) => {
+      if (!context.state.mounted || !context.isWatchlistPath(context.locationRef.pathname)) {
+        return
+      }
+
+      const now = Date.now()
+      if (!force && now - lastProgressRenderAt < 180) {
+        return
+      }
+      lastProgressRenderAt = now
+      context.renderCuratedPanel()
+    }
+  }
+
+  function shouldSkipDeferredMetadataChunkInternal(
+    context: CuratedLoaderDeferredMetadataContext,
+    runId: number,
+    chunk: unknown[] | undefined,
+  ): boolean {
+    if (runId !== context.deferredMetadataRunId) {
+      return true
+    }
+    if (!chunk || !chunk.length) {
+      return true
+    }
+    return !context.state.mounted || !context.isWatchlistPath(context.locationRef.pathname)
+  }
+
+  function emitDeferredMetadataFailureEventInternal(
+    context: CuratedLoaderDeferredMetadataContext,
+    error: unknown,
+    deferredEntryCount: number,
+    chunkIndex: number,
+    chunkCount: number,
+    startedAt: number,
+  ): void {
+    context.runtimeEvent('curated-load-background-metadata-failed', {
+      deferredEntryCount,
+      chunkIndex: chunkIndex + 1,
+      chunkCount,
+      durationMs: Date.now() - startedAt,
+      message: (error as { message?: unknown })?.message || 'unknown',
+    })
+  }
+
+  function emitDeferredMetadataDoneEventInternal(
+    context: CuratedLoaderDeferredMetadataContext,
+    deferredEntryCount: number,
+    chunkCount: number,
+    completedChunks: number,
+    startedAt: number,
+  ): void {
+    context.runtimeEvent('curated-load-background-metadata-done', {
+      deferredEntryCount,
+      chunkCount,
+      completedChunks,
+      durationMs: Date.now() - startedAt,
+    })
+  }
+
+  function runDeferredMetadataChunkInternal({
+    context,
+    runId,
+    chunks,
+    chunkIndex,
+    tokenEntry,
+    preloadMetadataForEntries,
+    deferredEntryCount,
+    startedAt,
+    progress,
+    renderProgress,
+  }: {
+    context: CuratedLoaderDeferredMetadataContext
+    runId: number
+    chunks: unknown[][]
+    chunkIndex: number
+    tokenEntry: unknown
+    preloadMetadataForEntries: (entries: unknown[], tokenEntry: unknown) => Promise<void>
+    deferredEntryCount: number
+    startedAt: number
+    progress: DeferredMetadataChunkProgress
+    renderProgress: DeferredMetadataProgressRenderer
+  }): void {
+    const chunk = chunks[chunkIndex]
+    if (shouldSkipDeferredMetadataChunkInternal(context, runId, chunk)) {
+      return
+    }
+    if (!chunk || !chunk.length) {
+      return
+    }
+
+    void preloadMetadataForEntries(chunk, tokenEntry)
+      .then(() => {
+        renderProgress(chunkIndex + 1 >= chunks.length)
+      })
+      .catch((error: unknown) => {
+        emitDeferredMetadataFailureEventInternal(
+          context,
+          error,
+          deferredEntryCount,
+          chunkIndex,
+          chunks.length,
+          startedAt,
+        )
+      })
+      .finally(() => {
+        if (runId !== context.deferredMetadataRunId) {
+          return
+        }
+
+        progress.completedChunks += 1
+        if (chunkIndex + 1 < chunks.length) {
+          scheduleDeferredMetadataStepInternal(
+            context,
+            () =>
+              runDeferredMetadataChunkInternal({
+                context,
+                runId,
+                chunks,
+                chunkIndex: chunkIndex + 1,
+                tokenEntry,
+                preloadMetadataForEntries,
+                deferredEntryCount,
+                startedAt,
+                progress,
+                renderProgress,
+              }),
+            false,
+          )
+          return
+        }
+
+        emitDeferredMetadataDoneEventInternal(
+          context,
+          deferredEntryCount,
+          chunks.length,
+          progress.completedChunks,
+          startedAt,
+        )
+      })
+  }
+
   function queueDeferredMetadataPreloadInternal({
     context,
     deferredEntries,
@@ -227,69 +379,32 @@
     const startedAt = Date.now()
     const orderedEntries = reorderDeferredEntriesByViewportInternal(context, deferredEntries)
     const chunks = splitDeferredMetadataChunksInternal(context, orderedEntries)
-    let completedChunks = 0
-    let lastProgressRenderAt = 0
+    const progress: DeferredMetadataChunkProgress = {
+      completedChunks: 0,
+    }
+    const renderProgress = createDeferredMetadataProgressRendererInternal(context)
     context.runtimeEvent('curated-load-background-metadata-start', {
       deferredEntryCount: deferredEntries.length,
       chunkCount: chunks.length,
     })
 
-    const maybeRenderProgress = (force = false): void => {
-      if (!context.state.mounted || !context.isWatchlistPath(context.locationRef.pathname)) {
-        return
-      }
-      const now = Date.now()
-      if (!force && now - lastProgressRenderAt < 180) {
-        return
-      }
-      lastProgressRenderAt = now
-      context.renderCuratedPanel()
-    }
-
-    const runChunk = (chunkIndex: number): void => {
-      if (runId !== context.deferredMetadataRunId) {
-        return
-      }
-      const chunk = chunks[chunkIndex]
-      if (!chunk || !chunk.length) {
-        return
-      }
-      if (!context.state.mounted || !context.isWatchlistPath(context.locationRef.pathname)) {
-        return
-      }
-
-      void preloadMetadataForEntries(chunk, tokenEntry)
-        .then(() => {
-          maybeRenderProgress(chunkIndex + 1 >= chunks.length)
-        })
-        .catch((error: unknown) => {
-          context.runtimeEvent('curated-load-background-metadata-failed', {
-            deferredEntryCount: deferredEntries.length,
-            chunkIndex: chunkIndex + 1,
-            chunkCount: chunks.length,
-            durationMs: Date.now() - startedAt,
-            message: (error as { message?: unknown })?.message || 'unknown',
-          })
-        })
-        .finally(() => {
-          if (runId !== context.deferredMetadataRunId) {
-            return
-          }
-          completedChunks += 1
-          if (chunkIndex + 1 < chunks.length) {
-            scheduleDeferredMetadataStepInternal(context, () => runChunk(chunkIndex + 1), false)
-            return
-          }
-          context.runtimeEvent('curated-load-background-metadata-done', {
-            deferredEntryCount: deferredEntries.length,
-            chunkCount: chunks.length,
-            completedChunks,
-            durationMs: Date.now() - startedAt,
-          })
-        })
-    }
-
-    scheduleDeferredMetadataStepInternal(context, () => runChunk(0), true)
+    scheduleDeferredMetadataStepInternal(
+      context,
+      () =>
+        runDeferredMetadataChunkInternal({
+          context,
+          runId,
+          chunks,
+          chunkIndex: 0,
+          tokenEntry,
+          preloadMetadataForEntries,
+          deferredEntryCount: deferredEntries.length,
+          startedAt,
+          progress,
+          renderProgress,
+        }),
+      true,
+    )
   }
 
   function createCuratedLoaderDeferredMetadataRuntime(): CuratedLoaderDeferredMetadataRuntime {

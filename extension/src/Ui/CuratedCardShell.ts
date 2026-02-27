@@ -247,6 +247,75 @@
     return header
   }
 
+  function createCuratedCardThumbImageInternal(
+    context: CardShellContext,
+    thumbLink: HTMLAnchorElement,
+    coverImageUrl: string,
+  ): HTMLImageElement {
+    const loadingIndicator = context.documentRef.createElement('span')
+    loadingIndicator.className = 'cw-curated-card__thumb-loading'
+    thumbLink.appendChild(loadingIndicator)
+
+    const image = context.documentRef.createElement('img')
+    image.loading = 'lazy'
+    image.decoding = 'async'
+    image.src = coverImageUrl
+    image.alt = ''
+
+    // Keep thumbnail dimensions stable and show a spinner until decoding finishes.
+    setClassToken(thumbLink, 'cw-curated-card__thumb--loading', true)
+    const markThumbImageReady = () => {
+      setClassToken(thumbLink, 'cw-curated-card__thumb--loading', false)
+      setClassToken(thumbLink, 'cw-curated-card__thumb--failed', false)
+      setClassToken(thumbLink, 'cw-curated-card__thumb--loaded', true)
+    }
+    const markThumbImageFailed = () => {
+      setClassToken(thumbLink, 'cw-curated-card__thumb--loading', false)
+      setClassToken(thumbLink, 'cw-curated-card__thumb--loaded', false)
+      setClassToken(thumbLink, 'cw-curated-card__thumb--failed', true)
+    }
+
+    image.addEventListener('load', markThumbImageReady)
+    image.addEventListener('error', markThumbImageFailed)
+    thumbLink.appendChild(image)
+
+    if (image.complete) {
+      if (image.naturalWidth > 0 || image.naturalHeight > 0) {
+        markThumbImageReady()
+      } else {
+        markThumbImageFailed()
+      }
+    }
+
+    return image
+  }
+
+  function createCuratedCardThumbProgressBarInternal(
+    context: CardShellContext,
+    episodeWatchProgressRatio: number | null,
+  ): HTMLElement | null {
+    if (episodeWatchProgressRatio == null) {
+      return null
+    }
+
+    const progressTrack = context.documentRef.createElement('div')
+    progressTrack.className = 'cw-curated-card__thumb-progress'
+    progressTrack.setAttribute('role', 'progressbar')
+    progressTrack.setAttribute('aria-valuemin', '0')
+    progressTrack.setAttribute('aria-valuemax', '100')
+    progressTrack.setAttribute('aria-valuenow', String(Math.round(episodeWatchProgressRatio * 100)))
+    progressTrack.setAttribute(
+      'aria-label',
+      `${Math.round(episodeWatchProgressRatio * 100)}% of current episode watched`,
+    )
+
+    const progressFill = context.documentRef.createElement('span')
+    progressFill.className = 'cw-curated-card__thumb-progress-fill'
+    progressFill.style.width = `${Math.max(1, Math.round(episodeWatchProgressRatio * 1000) / 10)}%`
+    progressTrack.appendChild(progressFill)
+    return progressTrack
+  }
+
   function createCuratedCardThumbInternal(context: CardShellContext, entry: CuratedEntry): CuratedCardThumb {
     const title = getEntryString(entry, 'title')
     const thumbLink = context.documentRef.createElement('a')
@@ -260,40 +329,7 @@
 
     let thumbImage: HTMLImageElement | null = null
     if (coverImageUrl) {
-      const loadingIndicator = context.documentRef.createElement('span')
-      loadingIndicator.className = 'cw-curated-card__thumb-loading'
-      thumbLink.appendChild(loadingIndicator)
-
-      const image = context.documentRef.createElement('img')
-      image.loading = 'lazy'
-      image.decoding = 'async'
-      image.src = coverImageUrl
-      image.alt = ''
-
-      // Keep thumbnail dimensions stable and show a spinner until decoding finishes.
-      setClassToken(thumbLink, 'cw-curated-card__thumb--loading', true)
-      const markThumbImageReady = () => {
-        setClassToken(thumbLink, 'cw-curated-card__thumb--loading', false)
-        setClassToken(thumbLink, 'cw-curated-card__thumb--failed', false)
-        setClassToken(thumbLink, 'cw-curated-card__thumb--loaded', true)
-      }
-      const markThumbImageFailed = () => {
-        setClassToken(thumbLink, 'cw-curated-card__thumb--loading', false)
-        setClassToken(thumbLink, 'cw-curated-card__thumb--loaded', false)
-        setClassToken(thumbLink, 'cw-curated-card__thumb--failed', true)
-      }
-      image.addEventListener('load', markThumbImageReady)
-      image.addEventListener('error', markThumbImageFailed)
-
-      thumbLink.appendChild(image)
-      if (image.complete) {
-        if (image.naturalWidth > 0 || image.naturalHeight > 0) {
-          markThumbImageReady()
-        } else {
-          markThumbImageFailed()
-        }
-      }
-      thumbImage = image
+      thumbImage = createCuratedCardThumbImageInternal(context, thumbLink, coverImageUrl)
     } else {
       const placeholder = context.documentRef.createElement('span')
       placeholder.className = 'cw-curated-card__placeholder'
@@ -302,25 +338,7 @@
     }
 
     const episodeWatchProgressRatio = sanitizeEpisodeProgressRatio(entry.episodeWatchProgressRatio)
-    let progressBar: HTMLElement | null = null
-    if (episodeWatchProgressRatio != null) {
-      const progressTrack = context.documentRef.createElement('div')
-      progressTrack.className = 'cw-curated-card__thumb-progress'
-      progressTrack.setAttribute('role', 'progressbar')
-      progressTrack.setAttribute('aria-valuemin', '0')
-      progressTrack.setAttribute('aria-valuemax', '100')
-      progressTrack.setAttribute('aria-valuenow', String(Math.round(episodeWatchProgressRatio * 100)))
-      progressTrack.setAttribute(
-        'aria-label',
-        `${Math.round(episodeWatchProgressRatio * 100)}% of current episode watched`,
-      )
-
-      const progressFill = context.documentRef.createElement('span')
-      progressFill.className = 'cw-curated-card__thumb-progress-fill'
-      progressFill.style.width = `${Math.max(1, Math.round(episodeWatchProgressRatio * 1000) / 10)}%`
-      progressTrack.appendChild(progressFill)
-      progressBar = progressTrack
-    }
+    const progressBar = createCuratedCardThumbProgressBarInternal(context, episodeWatchProgressRatio)
 
     return {
       thumbLink,

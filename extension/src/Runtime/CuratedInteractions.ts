@@ -6,24 +6,6 @@
     stopPropagation?: AnyFn
   }
 
-  type EventTargetLike = {
-    addEventListener: (eventName: string, listener: (event?: EventLike) => void | Promise<void>) => void
-  }
-
-  type SelectLike = EventTargetLike & {
-    value: string
-  }
-
-  type CheckboxLike = EventTargetLike & {
-    checked: boolean
-  }
-
-  type ButtonLike = EventTargetLike
-  type MutableButtonLike = ButtonLike & {
-    disabled?: boolean
-    setAttribute?: (name: string, value: string) => void
-  }
-
   type RuntimeState = {
     mounted: boolean
     settings: Record<string, unknown>
@@ -74,6 +56,10 @@
     bindCuratedInterfaceControls: (controlsContext: unknown) => void
   }
 
+  type CuratedInteractionsControlsRuntime = {
+    bindCuratedInterfaceControls: (context: CuratedInteractionsContext, controlsContext: unknown) => void
+  }
+
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
     root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
@@ -98,45 +84,6 @@
 
   function getString(value: unknown): string {
     return typeof value === 'string' ? value.trim() : ''
-  }
-
-  function toSelect(value: unknown): SelectLike | null {
-    if (!value || typeof value !== 'object') {
-      return null
-    }
-
-    const candidate = value as Partial<SelectLike>
-    if (typeof candidate.addEventListener !== 'function') {
-      return null
-    }
-
-    return candidate as SelectLike
-  }
-
-  function toCheckbox(value: unknown): CheckboxLike | null {
-    if (!value || typeof value !== 'object') {
-      return null
-    }
-
-    const candidate = value as Partial<CheckboxLike>
-    if (typeof candidate.addEventListener !== 'function') {
-      return null
-    }
-
-    return candidate as CheckboxLike
-  }
-
-  function toButton(value: unknown): ButtonLike | null {
-    if (!value || typeof value !== 'object') {
-      return null
-    }
-
-    const candidate = value as Partial<ButtonLike>
-    if (typeof candidate.addEventListener !== 'function') {
-      return null
-    }
-
-    return candidate as ButtonLike
   }
 
   function resolveState(value: unknown): RuntimeState {
@@ -226,6 +173,14 @@
     }
   }
 
+  function createCuratedInteractionsControlsRuntime(): CuratedInteractionsControlsRuntime {
+    const controlsModule = toRecord(moduleRegistry.runtimeCuratedInteractionsControls)
+    return requireFunction<() => CuratedInteractionsControlsRuntime>(
+      'createCuratedInteractionsControlsRuntime',
+      controlsModule.createCuratedInteractionsControlsRuntime,
+    )()
+  }
+
   function stopCardActionEvent(event: EventLike | undefined): void {
     if (typeof event?.preventDefault === 'function') {
       event.preventDefault()
@@ -235,15 +190,10 @@
     }
   }
 
-  function createCuratedCardActionsInternal(context: CuratedInteractionsContext, entry: unknown): HTMLElement {
-    const entryRecord = toRecord(entry)
-    const seriesId = getString(entryRecord.seriesId)
-    const initialFavorite = Boolean(entryRecord.isFavorite)
-    const title = getString(entryRecord.title)
-
-    const actions = context.documentRef.createElement('div')
-    actions.className = 'cw-curated-card__actions'
-
+  function createFavoriteCardActionButton(
+    context: CuratedInteractionsContext,
+    initialFavorite: boolean,
+  ): HTMLButtonElement {
     const favoriteButton = context.documentRef.createElement('button')
     favoriteButton.type = 'button'
     favoriteButton.className = `cw-card-action cw-card-action--favorite${initialFavorite ? ' is-active' : ''}`
@@ -252,7 +202,10 @@
     favoriteButton.setAttribute('aria-pressed', initialFavorite ? 'true' : 'false')
     favoriteButton.title = initialFavorite ? 'Unfavorite' : 'Favorite'
     favoriteButton.textContent = initialFavorite ? '♥' : '♡'
+    return favoriteButton
+  }
 
+  function createRemoveCardActionButton(context: CuratedInteractionsContext): HTMLButtonElement {
     const removeButton = context.documentRef.createElement('button')
     removeButton.type = 'button'
     removeButton.className = 'cw-card-action cw-card-action--remove'
@@ -260,26 +213,41 @@
     removeButton.setAttribute('aria-label', 'Remove from watchlist')
     removeButton.title = 'Remove from watchlist'
     removeButton.textContent = '🗑'
+    return removeButton
+  }
 
-    if (!seriesId) {
-      favoriteButton.disabled = true
-      removeButton.disabled = true
+  async function withActionButtonsDisabled(
+    favoriteButton: HTMLButtonElement,
+    removeButton: HTMLButtonElement,
+    run: () => Promise<void>,
+  ): Promise<void> {
+    const wasFavoriteButtonDisabled = favoriteButton.disabled
+    const wasRemoveButtonDisabled = removeButton.disabled
+    favoriteButton.disabled = true
+    removeButton.disabled = true
+
+    try {
+      await run()
+    } finally {
+      favoriteButton.disabled = wasFavoriteButtonDisabled
+      removeButton.disabled = wasRemoveButtonDisabled
     }
+  }
 
-    const failedActionMessage = 'Crunchyroll watchlist update failed. Please refresh and try again.'
-
+  function bindFavoriteCardAction(
+    context: CuratedInteractionsContext,
+    favoriteButton: HTMLButtonElement,
+    removeButton: HTMLButtonElement,
+    seriesId: string,
+    failedActionMessage: string,
+  ): void {
     favoriteButton.addEventListener('click', async (event) => {
       stopCardActionEvent(event)
       if (!seriesId) {
         return
       }
 
-      const wasFavoriteButtonDisabled = favoriteButton.disabled
-      const wasRemoveButtonDisabled = removeButton.disabled
-      favoriteButton.disabled = true
-      removeButton.disabled = true
-
-      try {
+      await withActionButtonsDisabled(favoriteButton, removeButton, async () => {
         const nextFavorite = favoriteButton.getAttribute('aria-pressed') !== 'true'
         const applied = await context.triggerNativeCardAction(seriesId, 'favorite', nextFavorite)
         if (!applied) {
@@ -289,12 +257,18 @@
 
         context.toggleCuratedFavorite(seriesId)
         context.renderCuratedPanel()
-      } finally {
-        favoriteButton.disabled = wasFavoriteButtonDisabled
-        removeButton.disabled = wasRemoveButtonDisabled
-      }
+      })
     })
+  }
 
+  function bindRemoveCardAction(
+    context: CuratedInteractionsContext,
+    favoriteButton: HTMLButtonElement,
+    removeButton: HTMLButtonElement,
+    seriesId: string,
+    title: string,
+    failedActionMessage: string,
+  ): void {
     removeButton.addEventListener('click', async (event) => {
       stopCardActionEvent(event)
       if (!seriesId) {
@@ -306,12 +280,7 @@
         return
       }
 
-      const wasFavoriteButtonDisabled = favoriteButton.disabled
-      const wasRemoveButtonDisabled = removeButton.disabled
-      favoriteButton.disabled = true
-      removeButton.disabled = true
-
-      try {
+      await withActionButtonsDisabled(favoriteButton, removeButton, async () => {
         const applied = await context.triggerNativeCardAction(seriesId, 'remove')
         if (!applied) {
           context.alertRef(failedActionMessage)
@@ -320,177 +289,43 @@
 
         context.removeCuratedSeries(seriesId)
         context.renderCuratedPanel()
-      } finally {
-        favoriteButton.disabled = wasFavoriteButtonDisabled
-        removeButton.disabled = wasRemoveButtonDisabled
-      }
+      })
     })
+  }
+
+  function createCuratedCardActionsInternal(context: CuratedInteractionsContext, entry: unknown): HTMLElement {
+    const entryRecord = toRecord(entry)
+    const seriesId = getString(entryRecord.seriesId)
+    const initialFavorite = Boolean(entryRecord.isFavorite)
+    const title = getString(entryRecord.title)
+
+    const actions = context.documentRef.createElement('div')
+    actions.className = 'cw-curated-card__actions'
+
+    const favoriteButton = createFavoriteCardActionButton(context, initialFavorite)
+    const removeButton = createRemoveCardActionButton(context)
+
+    if (!seriesId) {
+      favoriteButton.disabled = true
+      removeButton.disabled = true
+    }
+
+    const failedActionMessage = 'Crunchyroll watchlist update failed. Please refresh and try again.'
+    bindFavoriteCardAction(context, favoriteButton, removeButton, seriesId, failedActionMessage)
+    bindRemoveCardAction(context, favoriteButton, removeButton, seriesId, title, failedActionMessage)
 
     actions.appendChild(favoriteButton)
     actions.appendChild(removeButton)
     return actions
   }
 
-  function bindWatchReadyFilterInternal(
-    context: CuratedInteractionsContext,
-    watchReadyFilterControl: Record<string, unknown>,
-  ): void {
-    const select = toSelect(watchReadyFilterControl.select)
-    if (!select) {
-      return
-    }
-
-    select.addEventListener('change', async () => {
-      context.state.settings.watchReadyFilterMode = select.value
-      await context.persistSettings()
-      context.renderCuratedPanel()
-    })
-  }
-
-  function bindCardLayoutFilterInternal(
-    context: CuratedInteractionsContext,
-    cardLayoutControl: Record<string, unknown>,
-  ): void {
-    const input = toCheckbox(cardLayoutControl.input)
-    if (!input) {
-      return
-    }
-
-    input.addEventListener('change', async () => {
-      context.state.settings.cardLayout = input.checked ? 'landscape' : 'portrait'
-      await context.persistSettings()
-      context.renderCuratedPanel()
-    })
-  }
-
-  function bindAudioFilterInternal(
-    context: CuratedInteractionsContext,
-    audioFilterControl: Record<string, unknown>,
-  ): void {
-    const select = toSelect(audioFilterControl.select)
-    if (!select) {
-      return
-    }
-
-    select.addEventListener('change', async () => {
-      context.state.settings.audioLocaleFilter = select.value || 'any'
-      await context.persistSettings()
-      context.renderCuratedPanel()
-
-      const selectedAudioLocale = context.normalizeAudioLocale(context.state.settings.audioLocaleFilter)
-      if (!selectedAudioLocale) {
-        return
-      }
-
-      Promise.allSettled([
-        context.preloadRatingsForSelectedAudioLocale(selectedAudioLocale),
-        context.preloadWatchHistoryForSelectedAudioLocale(selectedAudioLocale),
-      ]).then(() => {
-        if (!context.state.mounted || !context.isWatchlistPath(context.locationRef.pathname)) {
-          return
-        }
-        context.renderCuratedPanel()
-      })
-    })
-  }
-
-  function bindGenreFilterInternal(
-    context: CuratedInteractionsContext,
-    genreFilterControl: Record<string, unknown>,
-  ): void {
-    const select = toSelect(genreFilterControl.select)
-    if (!select) {
-      return
-    }
-
-    select.addEventListener('change', async () => {
-      context.state.settings.genreFilter = select.value || 'any'
-      await context.persistSettings()
-      context.renderCuratedPanel()
-    })
-  }
-
-  function bindSortFilterInternal(context: CuratedInteractionsContext, sortControl: Record<string, unknown>): void {
-    const select = toSelect(sortControl.select)
-    if (!select) {
-      return
-    }
-
-    select.addEventListener('change', async () => {
-      context.state.settings.sortMode = select.value
-      await context.persistSettings()
-      context.renderCuratedPanel()
-    })
-  }
-
-  function bindSecondarySortFilterInternal(
-    context: CuratedInteractionsContext,
-    secondarySortControl: Record<string, unknown>,
-  ): void {
-    const select = toSelect(secondarySortControl.select)
-    if (!select) {
-      return
-    }
-
-    select.addEventListener('change', async () => {
-      context.state.settings.secondarySortMode = select.value || 'none'
-      await context.persistSettings()
-      context.renderCuratedPanel()
-    })
-  }
-
-  function bindRefreshButtonInternal(context: CuratedInteractionsContext, refreshButton: unknown): void {
-    const button = toButton(refreshButton) as MutableButtonLike | null
-    if (!button) {
-      return
-    }
-
-    let refreshInFlight: Promise<unknown> | null = null
-
-    button.addEventListener('click', async () => {
-      if (refreshInFlight) {
-        return
-      }
-
-      const wasDisabled = Boolean(button.disabled)
-      button.disabled = true
-      button.setAttribute?.('aria-busy', 'true')
-
-      refreshInFlight = (async () => {
-        await context.resetCuratedCachesForRefresh()
-        const refreshPromise = context.ensureCuratedDataLoad(true)
-        context.renderCuratedPanel()
-        context.debounceProcess()
-        await refreshPromise
-      })()
-
-      try {
-        await refreshInFlight
-      } finally {
-        refreshInFlight = null
-        button.setAttribute?.('aria-busy', 'false')
-        button.disabled = wasDisabled
-      }
-    })
-  }
-
-  function bindCuratedInterfaceControlsInternal(context: CuratedInteractionsContext, controlsContext: unknown): void {
-    const controls = toRecord(controlsContext)
-    bindWatchReadyFilterInternal(context, toRecord(controls.watchReadyFilterControl))
-    bindCardLayoutFilterInternal(context, toRecord(controls.cardLayoutControl))
-    bindAudioFilterInternal(context, toRecord(controls.audioFilterControl))
-    bindGenreFilterInternal(context, toRecord(controls.genreFilterControl))
-    bindSortFilterInternal(context, toRecord(controls.sortControl))
-    bindSecondarySortFilterInternal(context, toRecord(controls.secondarySortControl))
-    bindRefreshButtonInternal(context, controls.refreshButton)
-  }
-
   function createCuratedInteractionsRuntime(options: CuratedInteractionsOptions = {}): CuratedInteractionsRuntime {
     const context = createCuratedInteractionsContext(options)
+    const controlsRuntime = createCuratedInteractionsControlsRuntime()
     return {
       createCuratedCardActions: (entry: unknown) => createCuratedCardActionsInternal(context, entry),
       bindCuratedInterfaceControls: (controlsContext: unknown) =>
-        bindCuratedInterfaceControlsInternal(context, controlsContext),
+        controlsRuntime.bindCuratedInterfaceControls(context, controlsContext),
     }
   }
 
