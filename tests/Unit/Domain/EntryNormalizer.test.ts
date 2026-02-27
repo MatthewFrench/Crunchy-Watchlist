@@ -7,6 +7,7 @@ type UnknownRecord = Record<string, unknown>
 
 type NormalizedEntry = {
   seriesId: string
+  episodeHref: string
   knownEpisodeMaxByAudioLocale: Record<string, number>
   episodeDurationMs: number | null
   hasEnglishAudio: boolean
@@ -172,6 +173,7 @@ describe('EntryNormalizer', () => {
     expect(normalized[0]?.knownEpisodeMaxByAudioLocale['ja-jp']).toBe(2)
     expect(normalized[0]?.episodeDurationMs).toBe(1420000)
     expect(normalized[0]?.hasEnglishAudio).toBe(true)
+    expect(normalized[0]?.episodeHref).toBe('/watch/panel-series-a-1')
   })
 
   it('applies explicit watch-ready flags from API rows', () => {

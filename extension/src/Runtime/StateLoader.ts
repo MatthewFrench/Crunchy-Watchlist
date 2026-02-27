@@ -10,6 +10,7 @@
     curatedEntries: unknown[]
     curatedSource: string
     curatedLastRevalidateAt: number
+    curatedInitialLoadDone?: boolean
   }
 
   type StateLoaderContext = {
@@ -196,6 +197,7 @@
     context.state.curatedEntries = context.normalizeEntriesFromApiRows(rows)
     context.state.curatedSource = 'cache'
     context.state.curatedLastRevalidateAt = updatedAt
+    context.state.curatedInitialLoadDone = true
 
     context.runtimeEvent('curated-cache-hydrated', {
       total: context.state.curatedEntries.length,

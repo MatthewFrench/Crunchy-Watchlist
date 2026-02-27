@@ -12,6 +12,7 @@
     curatedSource: string
     curatedLastRevalidateAt: number
     curatedObservedPromise: Promise<unknown[]> | null
+    curatedInitialLoadDone?: boolean
     settings: Record<string, unknown>
   }
 
@@ -373,17 +374,22 @@
     accountId: string,
     rows: unknown[],
     entries: unknown[],
+    phase: 'partial' | 'final',
   ): unknown[] {
-    context.setWatchlistCacheRows(accountId, rows, Date.now())
+    const committedAt = Date.now()
+    context.setWatchlistCacheRows(accountId, rows, committedAt)
     context.state.curatedEntries = entries
     context.state.curatedSource = 'api'
     context.state.curatedError = null
-    context.state.curatedLastRevalidateAt = Date.now()
+    context.state.curatedLastRevalidateAt = committedAt
 
-    context.runtimeEvent('curated-load-done', {
+    context.runtimeEvent(phase === 'partial' ? 'curated-load-partial' : 'curated-load-done', {
       source: 'api',
       total: entries.length,
     })
+    if (context.state.mounted && context.isWatchlistPath(context.locationRef.pathname)) {
+      context.renderCuratedPanel()
+    }
 
     return entries
   }
@@ -423,16 +429,20 @@
       const { tokenEntry, accountId } = await loadAuthorizedTokenInternal(context, activeRequests, pendingProgress)
       context.resetWatchlistCacheOnAccountMismatch(accountId)
       const { rows, entries } = await loadRowsAndEntriesInternal(context, activeRequests, pendingProgress, tokenEntry)
+      commitCuratedEntriesFromApiInternal(context, accountId, rows, entries, 'partial')
       await preloadPrimaryLocaleDataInternal(context, activeRequests, pendingProgress, entries, tokenEntry, force)
       await preloadSelectedAudioLocaleDataInternal(context, activeRequests, pendingProgress, entries, tokenEntry)
 
-      return commitCuratedEntriesFromApiInternal(context, accountId, rows, entries)
+      return commitCuratedEntriesFromApiInternal(context, accountId, rows, entries, 'final')
     })()
       .catch((error: unknown) => handleCuratedLoadFailureInternal(context, error))
       .finally(() => {
         context.state.curatedInflight = null
         activeRequests.length = 0
         syncPendingRequestDiagnostics(context, activeRequests, pendingProgress)
+        if (context.state.curatedInitialLoadDone !== true) {
+          context.state.curatedInitialLoadDone = true
+        }
       })
 
     context.state.curatedInflight = inflight

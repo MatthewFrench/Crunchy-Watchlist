@@ -94,6 +94,9 @@
     const loading = document.createElement('span')
     loading.className = 'cw-loading'
 
+    const heading = document.createElement('span')
+    heading.className = 'cw-loading__heading'
+
     const spinner = document.createElement('span')
     spinner.className = 'cw-spinner'
     spinner.setAttribute('aria-hidden', 'true')
@@ -102,8 +105,9 @@
     label.className = 'cw-loading__label'
     label.textContent = text
 
-    loading.appendChild(spinner)
-    loading.appendChild(label)
+    heading.appendChild(spinner)
+    heading.appendChild(label)
+    loading.appendChild(heading)
     return loading
   }
 
@@ -168,7 +172,6 @@
     row.appendChild(parts.sortControl.field)
     row.appendChild(parts.secondarySortControl.field)
     row.appendChild(parts.refreshButton)
-    row.appendChild(parts.loadingIndicator)
     row.appendChild(parts.stats)
   }
 

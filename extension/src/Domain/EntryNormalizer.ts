@@ -16,6 +16,7 @@
     canonicalEpisodeKey: string
     title: string
     href: string
+    episodeHref: string
     imageUrl: string
     portraitImageUrl: string
     landscapeImageUrl: string
@@ -303,6 +304,35 @@
     return slug ? `/series/${seriesId}/${slug}` : `/series/${seriesId}`
   }
 
+  function buildEpisodeHrefFromPanel(panel: UnknownRecord, meta: UnknownRecord): string {
+    const directHrefCandidates = [
+      panel.href,
+      panel.link,
+      panel.url,
+      panel.watch_href,
+      panel.watchHref,
+      meta.href,
+      meta.link,
+      meta.url,
+      meta.watch_href,
+      meta.watchHref,
+    ]
+      .map((value) => getTrimmedString(value))
+      .filter(Boolean)
+
+    if (directHrefCandidates.length > 0) {
+      return directHrefCandidates[0] || ''
+    }
+
+    const panelId = getTrimmedString(panel.id)
+    if (!panelId) {
+      return ''
+    }
+
+    const episodeSlug = getTrimmedString(panel.slug_title)
+    return episodeSlug ? `/watch/${panelId}/${episodeSlug}` : `/watch/${panelId}`
+  }
+
   function buildImageFields(context: EntryNormalizerContext, row: UnknownRecord) {
     const panel = getPanel(row)
     const coverImages = context.extractCoverImagesFromApiImages(panel.images)
@@ -411,6 +441,7 @@
       canonicalEpisodeKey,
       title,
       href: buildWatchlistHref(meta, seriesId),
+      episodeHref: buildEpisodeHrefFromPanel(panel, meta),
       imageUrl: imageFields.imageUrl,
       portraitImageUrl: imageFields.portraitImageUrl,
       landscapeImageUrl: imageFields.landscapeImageUrl,

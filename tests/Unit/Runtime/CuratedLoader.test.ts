@@ -156,14 +156,14 @@ describe('curated-loader runtime', () => {
     expect(entries).toHaveLength(1)
     expect(harness.state.curatedEntries).toHaveLength(1)
     expect(harness.state.curatedSource).toBe('api')
-    expect(harness.dependencies.setWatchlistCacheRows).toHaveBeenCalledTimes(1)
+    expect(harness.dependencies.setWatchlistCacheRows).toHaveBeenCalledTimes(2)
     expect(harness.dependencies.preloadRatingsForEntries).toHaveBeenCalledTimes(2)
     expect(harness.dependencies.preloadWatchHistoryForEntries).toHaveBeenCalledTimes(2)
     expect(harness.state.curatedPendingRequests).toEqual([])
     expect(harness.state.curatedPendingRequestStartedCount).toBe(6)
     expect(harness.state.curatedPendingRequestCompletedCount).toBe(6)
     expect(harness.runtimeEvents.map((entry) => entry.event)).toEqual(
-      expect.arrayContaining(['curated-load-start', 'curated-load-done']),
+      expect.arrayContaining(['curated-load-start', 'curated-load-partial', 'curated-load-done']),
     )
   })
 
@@ -189,6 +189,33 @@ describe('curated-loader runtime', () => {
     expect(harness.state.curatedPendingRequests).toEqual([])
     expect(harness.state.curatedPendingRequestStartedCount).toBe(4)
     expect(harness.state.curatedPendingRequestCompletedCount).toBe(4)
+  })
+
+  it('commits watchlist rows before metadata preload requests complete', async () => {
+    const preloadRatingsDeferred = createDeferred<unknown>()
+    const preloadWatchHistoryDeferred = createDeferred<unknown>()
+    const harness = createCuratedLoaderHarness({
+      preloadRatingsForEntries: vi.fn(() => preloadRatingsDeferred.promise),
+      preloadWatchHistoryForEntries: vi.fn(() => preloadWatchHistoryDeferred.promise),
+    })
+
+    const loadPromise = harness.runtime.loadCuratedEntries(false)
+    await flushMicrotasks()
+
+    expect(harness.state.curatedEntries).toHaveLength(1)
+    expect(harness.state.curatedSource).toBe('api')
+    expect(harness.state.curatedInflight).not.toBeNull()
+    expect(harness.dependencies.setWatchlistCacheRows).toHaveBeenCalledTimes(1)
+    expect(harness.dependencies.renderCuratedPanel).toHaveBeenCalled()
+    expect(harness.runtimeEvents.map((entry) => entry.event)).toContain('curated-load-partial')
+    expect(harness.runtimeEvents.map((entry) => entry.event)).not.toContain('curated-load-done')
+
+    preloadRatingsDeferred.resolve(null)
+    preloadWatchHistoryDeferred.resolve(null)
+    await loadPromise
+
+    expect(harness.runtimeEvents.map((entry) => entry.event)).toContain('curated-load-done')
+    expect(harness.dependencies.setWatchlistCacheRows).toHaveBeenCalledTimes(2)
   })
 
   it('returns existing entries and performs background revalidate when stale', async () => {

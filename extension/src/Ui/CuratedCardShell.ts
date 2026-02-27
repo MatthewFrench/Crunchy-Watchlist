@@ -6,6 +6,7 @@
     fixtureTitle?: unknown
     title?: unknown
     href?: unknown
+    episodeHref?: unknown
     rating?: unknown
     votes?: unknown
     dimNotWatchReady?: unknown
@@ -122,6 +123,35 @@
     return normalized
   }
 
+  function toggleClassToken(className: string, token: string, enabled: boolean): string {
+    const tokens = className
+      .split(' ')
+      .map((item) => item.trim())
+      .filter(Boolean)
+    const hasToken = tokens.includes(token)
+    if (enabled && !hasToken) {
+      tokens.push(token)
+    }
+    if (!enabled && hasToken) {
+      return tokens.filter((item) => item !== token).join(' ')
+    }
+    return tokens.join(' ')
+  }
+
+  function setClassToken(element: { className?: string }, token: string, enabled: boolean): void {
+    element.className = toggleClassToken(element.className || '', token, enabled)
+  }
+
+  function resolveCardThumbHref(context: CardShellContext, entry: CuratedEntry): string {
+    const directEpisodeHref = context.resolveApiHref(getEntryString(entry, 'episodeHref') || '')
+    if (directEpisodeHref) {
+      return directEpisodeHref
+    }
+
+    const cardHref = context.resolveApiHref(getEntryString(entry, 'href') || '')
+    return cardHref || '#'
+  }
+
   function createCardShellContext(deps: CardShellDeps = {}): CardShellContext {
     return {
       documentRef: requireDocumentRef(deps.documentRef),
@@ -221,7 +251,7 @@
     const title = getEntryString(entry, 'title')
     const thumbLink = context.documentRef.createElement('a')
     thumbLink.className = 'cw-curated-card__thumb'
-    thumbLink.href = getEntryString(entry, 'href') || '#'
+    thumbLink.href = resolveCardThumbHref(context, entry)
     thumbLink.setAttribute('aria-label', title)
     thumbLink.dataset.cwSeriesId = getEntryString(entry, 'seriesId')
 
@@ -230,11 +260,39 @@
 
     let thumbImage: HTMLImageElement | null = null
     if (coverImageUrl) {
+      const loadingIndicator = context.documentRef.createElement('span')
+      loadingIndicator.className = 'cw-curated-card__thumb-loading'
+      thumbLink.appendChild(loadingIndicator)
+
       const image = context.documentRef.createElement('img')
       image.loading = 'lazy'
+      image.decoding = 'async'
       image.src = coverImageUrl
       image.alt = ''
+
+      // Keep thumbnail dimensions stable and show a spinner until decoding finishes.
+      setClassToken(thumbLink, 'cw-curated-card__thumb--loading', true)
+      const markThumbImageReady = () => {
+        setClassToken(thumbLink, 'cw-curated-card__thumb--loading', false)
+        setClassToken(thumbLink, 'cw-curated-card__thumb--failed', false)
+        setClassToken(thumbLink, 'cw-curated-card__thumb--loaded', true)
+      }
+      const markThumbImageFailed = () => {
+        setClassToken(thumbLink, 'cw-curated-card__thumb--loading', false)
+        setClassToken(thumbLink, 'cw-curated-card__thumb--loaded', false)
+        setClassToken(thumbLink, 'cw-curated-card__thumb--failed', true)
+      }
+      image.addEventListener('load', markThumbImageReady)
+      image.addEventListener('error', markThumbImageFailed)
+
       thumbLink.appendChild(image)
+      if (image.complete) {
+        if (image.naturalWidth > 0 || image.naturalHeight > 0) {
+          markThumbImageReady()
+        } else {
+          markThumbImageFailed()
+        }
+      }
       thumbImage = image
     } else {
       const placeholder = context.documentRef.createElement('span')

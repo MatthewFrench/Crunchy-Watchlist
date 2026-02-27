@@ -136,6 +136,14 @@ test.describe('UI Behavior', () => {
     await expect(page).toHaveURL(/\/series\/GHIGH456\/high-rated-show$/)
   })
 
+  test('navigates to episode page when clicking card thumbnail image link', async ({ page }) => {
+    await injectExtension(page)
+
+    await page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__thumb').click()
+
+    await expect(page).toHaveURL(/\/watch\/GHIGH456-episode-5\/high-rated-show-e5$/)
+  })
+
   test('restores native watchlist visibility when switching back to Crunchyroll tab', async ({ page }) => {
     await injectExtension(page)
     await expect(page.locator('.cw-curated-grid')).toBeVisible()
@@ -152,19 +160,52 @@ test.describe('UI Behavior', () => {
     })
 
     await injectExtension(page, { activeTab: 'curated' }, { waitForLoaded: false })
-    await expect(page.locator('.cw-loading-indicator')).toBeVisible()
-    await expect(page.locator('.cw-loading-indicator .cw-loading__label')).toHaveText('Loading')
+    await expect(page.locator('.cw-controls .cw-loading-indicator')).toHaveCount(0)
+    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeVisible()
+    await expect(page.locator('.cw-panel > .cw-loading-box .cw-loading-box__title')).toHaveText(
+      'Loading watchlist results...',
+    )
+    await expect(page.locator('.cw-panel > .cw-loading-box .cw-loading-indicator .cw-loading__label')).toHaveText(
+      'Loading',
+    )
     await expect(page.locator('.cw-controls__stats')).toHaveText('')
     await expect(page.locator('.cw-controls__stats')).not.toContainText('Loading...')
-    await expect(page.locator('.cw-empty .cw-spinner')).toBeVisible()
-    await expect(page.locator('.cw-empty .cw-loading__request')).toHaveText(
+    await expect(page.locator('.cw-panel > .cw-loading-box .cw-loading')).toHaveCount(1)
+    await expect(page.locator('.cw-panel > .cw-loading-box .cw-loading-indicator .cw-loading__request')).toHaveText(
       'Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)',
     )
-    await expect(page.locator('.cw-empty .cw-loading__details-title')).toHaveText('Request progress')
-    await expect(page.locator('.cw-empty .cw-loading__progress')).toHaveText('Completed 1 of 2 • In progress 1')
+    await expect(
+      page.locator('.cw-panel > .cw-loading-box .cw-loading-indicator .cw-loading__details-title'),
+    ).toHaveText('Request progress')
+    await expect(page.locator('.cw-panel > .cw-loading-box .cw-loading-indicator .cw-loading__progress')).toHaveText(
+      'Completed 1 of 2 • In progress 1',
+    )
 
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4')
-    await expect(page.locator('.cw-loading-indicator')).toBeHidden()
+    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeHidden()
+  })
+
+  test('renders watchlist cards before metadata requests finish and updates details in place', async ({ page }) => {
+    await page.route('**/content-reviews/v3/rating/series/**', async (route) => {
+      await page.waitForTimeout(650)
+      await route.continue()
+    })
+    await page.route('**/content/v2/**/watch-history*', async (route) => {
+      await page.waitForTimeout(650)
+      await route.continue()
+    })
+
+    await injectExtension(page, { activeTab: 'curated' }, { waitForLoaded: false })
+
+    await expect(page.locator('.cw-curated-card').first()).toBeVisible()
+    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeVisible()
+    await expect(page.locator('.cw-curated-grid > .cw-empty')).toHaveCount(0)
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4')
+    await expect(page.locator('.cw-controls__stats')).toContainText('(refreshing...)')
+    await expect(page.locator('.cw-curated-card[data-cw-loading-details="true"]')).toHaveCount(3)
+
+    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeHidden()
+    await expect(page.locator('.cw-curated-card[data-cw-loading-details="true"]')).toHaveCount(0)
   })
 
   test('recovers curated cards after host-page DOM churn clears the curated grid', async ({ page }) => {

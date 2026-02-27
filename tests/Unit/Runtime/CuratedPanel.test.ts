@@ -307,7 +307,7 @@ describe('curated-panel runtime', () => {
     expect(gridEl.children).toHaveLength(1)
   })
 
-  it('shows in-flight request labels in empty-state loading indicator', () => {
+  it('shows in-flight request labels in the shared panel loading indicator during empty first-load state', () => {
     const gridEl = createFakeElement()
     const statsEl = createFakeElement()
     const loadingIndicatorEl = createFakeElement()
@@ -316,7 +316,7 @@ describe('curated-panel runtime', () => {
       mounted: true,
       curatedError: null,
       curatedEntries: [],
-      curatedInflight: Promise.resolve([]),
+      curatedInflight: Promise.resolve([]) as Promise<unknown[]> | null,
       curatedPendingRequests: [
         'Authorizing Crunchyroll API token (/auth/v1/token)',
         'Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)',
@@ -364,13 +364,153 @@ describe('curated-panel runtime', () => {
 
     runtime.renderCuratedPanel()
 
-    const requestsList = findElementByClassName(gridEl, 'cw-loading__requests')
-    const progressLine = findElementByClassName(gridEl, 'cw-loading__progress')
+    const requestsList = findElementByClassName(loadingIndicatorEl, 'cw-loading__requests')
+    const progressLine = findElementByClassName(loadingIndicatorEl, 'cw-loading__progress')
+    const nestedGridLoading = findElementByClassName(gridEl, 'cw-loading')
     expect(requestsList).not.toBeNull()
     expect(requestsList?.children.map((child) => child.textContent)).toEqual(state.curatedPendingRequests)
     expect(progressLine?.textContent).toBe('Completed 1 of 4 • In progress 3')
-    expect(loadingIndicatorEl.style.display).toBe('inline-flex')
+    expect(nestedGridLoading).toBeNull()
+    expect(loadingIndicatorEl.style.display).toBe('flex')
     expect(statsEl.textContent).toBe('')
+  })
+
+  it('updates the existing shared loading indicator in place without nesting another loading widget', () => {
+    const gridEl = createFakeElement()
+    const statsEl = createFakeElement()
+    const loadingIndicatorEl = createFakeElement()
+    loadingIndicatorEl.className = 'cw-loading cw-loading-indicator'
+    const heading = createFakeElement()
+    heading.className = 'cw-loading__heading'
+    const spinner = createFakeElement()
+    spinner.className = 'cw-spinner'
+    const label = createFakeElement()
+    label.className = 'cw-loading__label'
+    label.textContent = 'Loading'
+    heading.appendChild(spinner)
+    heading.appendChild(label)
+    loadingIndicatorEl.appendChild(heading)
+
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [],
+      curatedInflight: Promise.resolve([]) as Promise<unknown[]> | null,
+      curatedPendingRequests: [
+        'Authorizing Crunchyroll API token (/auth/v1/token)',
+        'Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)',
+      ],
+      curatedPendingRequestStartedCount: 4,
+      curatedPendingRequestCompletedCount: 1,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    }
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: () => createFakeElement(),
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => ({
+        mode: 'hide',
+        total: 1,
+        visible: [{ seriesId: 'series-1', title: 'Series 1' }],
+        audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+        genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+        selectedAudioFilter: 'any',
+        selectedGenreFilter: 'any',
+      }),
+      withMutedObserver: (work: () => void) => {
+        work()
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    })
+
+    runtime.renderCuratedPanel()
+
+    const nestedLoadingChild = loadingIndicatorEl.children.find((child) => child.className === 'cw-loading')
+    const progressLine = findElementByClassName(loadingIndicatorEl, 'cw-loading__progress')
+    const requestsList = findElementByClassName(loadingIndicatorEl, 'cw-loading__requests')
+    expect(nestedLoadingChild).toBeUndefined()
+    expect(progressLine?.textContent).toBe('Completed 1 of 4 • In progress 2')
+    expect(requestsList?.children.map((child) => child.textContent)).toEqual(state.curatedPendingRequests)
+  })
+
+  it('hides the first-load loading box after initial load has completed even if a refresh is inflight', () => {
+    const gridEl = createFakeElement()
+    const statsEl = createFakeElement()
+    const loadingIndicatorEl = createFakeElement()
+    loadingIndicatorEl.className = 'cw-loading cw-loading-indicator'
+
+    const loadingBox = createFakeElement()
+    loadingBox.className = 'cw-empty cw-loading-box'
+    loadingBox.appendChild(loadingIndicatorEl)
+
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [{ seriesId: 'series-1', title: 'Series 1' }],
+      curatedInflight: Promise.resolve([]) as Promise<unknown[]> | null,
+      curatedInitialLoadDone: true,
+      curatedPendingRequests: ['Fetching ratings (/content-reviews/v3/rating/series/{series_id})'],
+      curatedPendingRequestStartedCount: 2,
+      curatedPendingRequestCompletedCount: 1,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    }
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: () => createFakeElement(),
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => ({
+        mode: 'hide',
+        total: 1,
+        visible: [{ seriesId: 'series-1', title: 'Series 1' }],
+        audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+        genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+        selectedAudioFilter: 'any',
+        selectedGenreFilter: 'any',
+      }),
+      withMutedObserver: (work: () => void) => {
+        work()
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    })
+
+    runtime.renderCuratedPanel()
+
+    expect(loadingIndicatorEl.style.display).toBe('none')
+    expect(loadingBox.style.display).toBe('none')
   })
 
   it('shows filtered-count stats for hide_not_started mode', () => {
@@ -668,5 +808,249 @@ describe('curated-panel runtime', () => {
     expect(favoriteButton?.className.includes('is-active')).toBe(true)
     expect(favoriteButton?.getAttribute('aria-pressed')).toBe('true')
     expect(favoriteButton?.getAttribute('aria-label')).toBe('Unfavorite')
+  })
+
+  it('marks cards with metadata-loading state while enrichment requests are inflight', () => {
+    const gridEl = createFakeElement()
+    const statsEl = createFakeElement()
+    const loadingIndicatorEl = createFakeElement()
+    const visible = [{ seriesId: 'series-1', title: 'Series 1', rating: null, watchHistoryProgressEntry: null }]
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [],
+      curatedInflight: Promise.resolve([]) as Promise<unknown[]> | null,
+      curatedPendingRequests: ['Fetching ratings (/content-reviews/v3/rating/series/{series_id})'],
+      curatedPendingRequestStartedCount: 3,
+      curatedPendingRequestCompletedCount: 1,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    }
+    let createdCards = 0
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: (entry: Record<string, unknown>) => {
+        createdCards += 1
+        const card = createFakeElement()
+        card.className = 'cw-curated-card'
+        card.dataset.cwSeriesId = String(entry.seriesId || '')
+        return card
+      },
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => ({
+        mode: 'hide',
+        total: visible.length,
+        visible,
+        audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+        genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+        selectedAudioFilter: 'any',
+        selectedGenreFilter: 'any',
+      }),
+      withMutedObserver: (work: () => void) => {
+        work()
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    })
+
+    runtime.renderCuratedPanel()
+    expect(gridEl.children[0]?.dataset.cwLoadingDetails).toBe('true')
+
+    state.curatedInflight = null
+    state.curatedPendingRequests = []
+    state.curatedPendingRequestStartedCount = 3
+    state.curatedPendingRequestCompletedCount = 3
+
+    runtime.renderCuratedPanel()
+    expect(createdCards).toBe(1)
+    expect(gridEl.children[0]?.dataset.cwLoadingDetails).toBe('false')
+  })
+
+  it('keeps metadata loading enabled while curated inflight is active even if pending labels are briefly empty', () => {
+    const gridEl = createFakeElement()
+    const statsEl = createFakeElement()
+    const loadingIndicatorEl = createFakeElement()
+    const visible = [{ seriesId: 'series-1', title: 'Series 1', rating: null, watchHistoryProgressEntry: null }]
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [],
+      curatedInflight: Promise.resolve([]) as Promise<unknown[]> | null,
+      curatedPendingRequests: [],
+      curatedPendingRequestStartedCount: 4,
+      curatedPendingRequestCompletedCount: 4,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    }
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: (entry: Record<string, unknown>) => {
+        const card = createFakeElement()
+        card.className = 'cw-curated-card'
+        card.dataset.cwSeriesId = String(entry.seriesId || '')
+        return card
+      },
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => ({
+        mode: 'hide',
+        total: visible.length,
+        visible,
+        audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+        genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+        selectedAudioFilter: 'any',
+        selectedGenreFilter: 'any',
+      }),
+      withMutedObserver: (work: () => void) => {
+        work()
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    })
+
+    runtime.renderCuratedPanel()
+    expect(gridEl.children[0]?.dataset.cwLoadingDetails).toBe('true')
+  })
+
+  it('defers card re-creation while metadata is still pending, then refreshes once loading completes', () => {
+    const gridEl = createFakeElement()
+    const statsEl = createFakeElement()
+    const loadingIndicatorEl = createFakeElement()
+    const renderables = [
+      [
+        {
+          seriesId: 'series-1',
+          title: 'Series 1',
+          description: 'Initial description',
+          rating: 4.2,
+          votes: 120,
+          distribution: { 5: 60 },
+          neverWatched: false,
+          lastWatchedMs: null,
+          watchHistoryProgressEntry: null,
+        },
+      ],
+      [
+        {
+          seriesId: 'series-1',
+          title: 'Series 1',
+          description: 'Updated description',
+          rating: 4.6,
+          votes: 380,
+          distribution: { 5: 78 },
+          neverWatched: false,
+          lastWatchedMs: null,
+          watchHistoryProgressEntry: null,
+        },
+      ],
+    ]
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [],
+      curatedInflight: Promise.resolve([]) as Promise<unknown[]> | null,
+      curatedPendingRequests: ['Fetching watch history (/watch-history/v2/{account_id}/watchlist)'],
+      curatedPendingRequestStartedCount: 2,
+      curatedPendingRequestCompletedCount: 1,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    }
+    let renderIndex = 0
+    let createdCards = 0
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: (entry: Record<string, unknown>) => {
+        createdCards += 1
+        const card = createFakeElement()
+        card.className = 'cw-curated-card'
+        card.dataset.cwSeriesId = String(entry.seriesId || '')
+        return card
+      },
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => {
+        const visible = renderables[renderIndex] || []
+        return {
+          mode: 'hide',
+          total: visible.length,
+          visible,
+          audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+          genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+          selectedAudioFilter: 'any',
+          selectedGenreFilter: 'any',
+        }
+      },
+      withMutedObserver: (work: () => void) => {
+        work()
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    })
+
+    runtime.renderCuratedPanel()
+    const firstCard = gridEl.children[0]
+    expect(createdCards).toBe(1)
+    expect(firstCard?.dataset.cwLoadingDetails).toBe('true')
+
+    renderIndex = 1
+    runtime.renderCuratedPanel()
+
+    expect(createdCards).toBe(1)
+    expect(gridEl.children[0]).toBe(firstCard)
+    expect(gridEl.children[0]?.dataset.cwLoadingDetails).toBe('true')
+
+    state.curatedInflight = null
+    state.curatedPendingRequests = []
+    state.curatedPendingRequestStartedCount = 2
+    state.curatedPendingRequestCompletedCount = 2
+
+    runtime.renderCuratedPanel()
+
+    expect(createdCards).toBe(2)
+    expect(gridEl.children[0]).not.toBe(firstCard)
+    expect(gridEl.children[0]?.dataset.cwLoadingDetails).toBe('false')
   })
 })

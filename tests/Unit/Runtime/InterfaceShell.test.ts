@@ -402,6 +402,60 @@ describe('interface-shell runtime', () => {
     ])
   })
 
+  it('mounts the shared loading indicator inside a dedicated loading box above the curated grid', () => {
+    const state = createBaseState()
+    const rootElement = new FakeElement('section')
+    rootElement.setConnected(true)
+    const headerElement = new FakeElement('header')
+    rootElement.appendChild(headerElement)
+
+    const controls = new FakeElement('div')
+    const loadingIndicator = new FakeElement('span')
+    loadingIndicator.classList.add('cw-loading', 'cw-loading-indicator')
+
+    const runtime = getInterfaceShellModule().createInterfaceShellRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      windowRef: {
+        requestAnimationFrame: () => 0,
+        dispatchEvent: () => true,
+      },
+      getWatchlistRoot: () => rootElement,
+      getWatchlistHeader: () => headerElement,
+      runtimeEvent: () => {},
+      withMutedObserver: (work: () => void) => {
+        work()
+      },
+      persistSettings: async () => null,
+      applyCardLayoutUi: () => {},
+      createCuratedInterfaceControls: () => ({
+        controls,
+        loadingIndicator,
+        audioFilterControl: { select: new FakeElement('select') },
+        genreFilterControl: { select: new FakeElement('select') },
+        stats: new FakeElement('span'),
+      }),
+      bindCuratedInterfaceControls: () => {},
+      ensureCuratedDataLoad: async () => null,
+      renderCuratedPanel: () => {},
+      debounceProcess: () => {},
+      createEmptyWatchHistoryCache: () => ({}),
+      storageSet: async () => null,
+      ratingCacheKey: 'cw_rating_cache_v2',
+      watchHistoryCacheKey: 'cw_watch_history_cache_v1',
+    })
+
+    runtime.ensureInterface()
+
+    const panel = state.curatedPanelEl as FakeElement
+    const loadingBox = panel.children[1] as FakeElement
+    expect(panel.children[0]).toBe(controls)
+    expect(loadingBox.className).toContain('cw-loading-box')
+    expect(loadingBox.children[1]).toBe(loadingIndicator)
+    expect(panel.children[2]).toBe(state.gridEl)
+    expect(controls.contains(loadingIndicator)).toBe(false)
+  })
+
   it('repairs stale connected shell nodes and recreates a valid curated host', () => {
     const state = createBaseState()
     const runtimeEvents: string[] = []

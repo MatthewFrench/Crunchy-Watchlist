@@ -141,14 +141,16 @@
   function createGenresElementInternal(
     context: CardViewContext,
     entry: CuratedEntry,
-  ): { genreValue: string; genres: HTMLElement | null } {
+  ): { genreValue: string; genres: HTMLElement } {
     const genreValue = context.getGenreValue(entry)
-    if (!genreValue) {
-      return { genreValue: '', genres: null }
-    }
-
     const genres = document.createElement('div')
     genres.className = 'cw-curated-card__genres'
+
+    if (!genreValue) {
+      genres.dataset.cwEmpty = 'true'
+      return { genreValue: '', genres }
+    }
+
     context.setLabeledValue(genres, 'Genres', genreValue)
 
     return { genreValue, genres }
@@ -167,6 +169,33 @@
     actionsRow.appendChild(ratingMeta)
     actionsRow.appendChild(actions)
     return actionsRow
+  }
+
+  function createDetailsSkeletonInternal(): HTMLElement {
+    const skeleton = document.createElement('div')
+    skeleton.className = 'cw-curated-card__details-skeleton'
+    skeleton.setAttribute('aria-hidden', 'true')
+
+    const lineClassNames = [
+      'cw-curated-card__details-skeleton-line cw-curated-card__details-skeleton-line--status',
+      'cw-curated-card__details-skeleton-line cw-curated-card__details-skeleton-line--last-watched',
+      'cw-curated-card__details-skeleton-line cw-curated-card__details-skeleton-line--scope',
+      'cw-curated-card__details-skeleton-line cw-curated-card__details-skeleton-line--genres',
+      'cw-curated-card__details-skeleton-line cw-curated-card__details-skeleton-line--star-row cw-curated-card__details-skeleton-line--star-row-5',
+      'cw-curated-card__details-skeleton-line cw-curated-card__details-skeleton-line--star-row cw-curated-card__details-skeleton-line--star-row-4',
+      'cw-curated-card__details-skeleton-line cw-curated-card__details-skeleton-line--star-row cw-curated-card__details-skeleton-line--star-row-3',
+      'cw-curated-card__details-skeleton-line cw-curated-card__details-skeleton-line--star-row cw-curated-card__details-skeleton-line--star-row-2',
+      'cw-curated-card__details-skeleton-line cw-curated-card__details-skeleton-line--star-row cw-curated-card__details-skeleton-line--star-row-1',
+      'cw-curated-card__details-skeleton-line cw-curated-card__details-skeleton-line--rating-meta',
+    ]
+
+    lineClassNames.forEach((className) => {
+      const line = document.createElement('span')
+      line.className = className
+      skeleton.appendChild(line)
+    })
+
+    return skeleton
   }
 
   function createCuratedCardBodyInternal(
@@ -195,19 +224,19 @@
     context.setLabeledValue(lastWatched, 'Last watched', lastWatchedPresentation.text)
 
     const scope = createScopeElementInternal(context, entry)
-    const { genreValue, genres } = createGenresElementInternal(context, entry)
+    const { genres } = createGenresElementInternal(context, entry)
     const histogram = context.makeRatingHistogram(entry.distribution, entry.votes)
     const actionsRow = createActionsRowInternal(context, entry, actions)
+    const detailsSkeleton = createDetailsSkeletonInternal()
 
     body.appendChild(description)
     body.appendChild(status)
     body.appendChild(lastWatched)
     body.appendChild(scope)
-    if (genreValue && genres) {
-      body.appendChild(genres)
-    }
+    body.appendChild(genres)
     body.appendChild(histogram)
     body.appendChild(actionsRow)
+    body.appendChild(detailsSkeleton)
 
     return body
   }

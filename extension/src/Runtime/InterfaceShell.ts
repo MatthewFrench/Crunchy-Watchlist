@@ -591,10 +591,24 @@
     panel.className = 'cw-panel'
     const controlsContext = context.createCuratedInterfaceControls()
     context.bindCuratedInterfaceControls(controlsContext)
+    const loadingBox = context.documentRef.createElement('div')
+    loadingBox.className = 'cw-empty cw-loading-box'
+    if (loadingBox.style) {
+      loadingBox.style.display = 'none'
+    }
+
+    const loadingBoxTitle = context.documentRef.createElement('div')
+    loadingBoxTitle.className = 'cw-loading-box__title'
+    loadingBoxTitle.textContent = 'Loading watchlist results...'
+
+    loadingBox.appendChild(loadingBoxTitle)
+    loadingBox.appendChild(controlsContext.loadingIndicator)
+
     const grid = context.documentRef.createElement('div')
     grid.className = 'cw-curated-grid'
 
     panel.appendChild(controlsContext.controls)
+    panel.appendChild(loadingBox)
     panel.appendChild(grid)
     host.appendChild(tabs)
     host.appendChild(panel)

@@ -9,11 +9,13 @@ type FakeElement = {
   textContent: string
   children: FakeElement[]
   dataset: Record<string, string>
+  attributes: Record<string, string>
   ownerDocument: {
     createElement: (tagName: string) => FakeElement
     createTextNode: (text: string) => { textContent: string }
   }
   appendChild: (child: FakeElement | { textContent: string }) => FakeElement | { textContent: string }
+  setAttribute: (name: string, value: string) => void
 }
 
 type CardViewRuntime = {
@@ -34,6 +36,7 @@ function createFakeDocument() {
       textContent: '',
       children: [],
       dataset: {},
+      attributes: {},
       ownerDocument: {
         createElement,
         createTextNode: (text: string) => ({ textContent: text }),
@@ -45,6 +48,9 @@ function createFakeDocument() {
           this.textContent += child.textContent
         }
         return child
+      },
+      setAttribute(name: string, value: string) {
+        this.attributes[name] = value
       },
     }
     return element
@@ -174,5 +180,37 @@ describe('curated-card-view ui module', () => {
     const status = findByClassName(body, 'cw-curated-card__status')
     expect(status?.textContent).toBe('Continue: S1 E4')
     expect(findByClassName(body, 'cw-curated-card__next')).toBeNull()
+  })
+
+  it('renders a hidden empty-genre row and a dedicated details skeleton container', () => {
+    const runtime = getCardViewModule().createCardView({
+      getLastWatchedPresentation: () => ({ state: 'unknown', text: 'unknown' }),
+      setLabeledValue: (element: FakeElement, label: string, value: string) => {
+        element.textContent = `${label}: ${value}`
+      },
+      getSeriesScopePairs: () => [],
+      setLabeledValuePairs: vi.fn(),
+      appendLabeledValue: vi.fn(),
+      getGenreValue: () => '',
+      makeRatingHistogram: () => (globalThis.document as ReturnType<typeof createFakeDocument>).createElement('div'),
+      formatVotes: () => '0',
+    })
+
+    const body = runtime.createCuratedCardBody(
+      {
+        statusBase: 'Continue',
+        nextEpisodeLabel: '',
+      },
+      (globalThis.document as ReturnType<typeof createFakeDocument>).createElement('div'),
+    )
+
+    const genres = findByClassName(body, 'cw-curated-card__genres')
+    expect(genres?.dataset.cwEmpty).toBe('true')
+    const detailsSkeleton = findByClassName(body, 'cw-curated-card__details-skeleton')
+    expect(detailsSkeleton).not.toBeNull()
+    const starSkeletonRows = detailsSkeleton?.children.filter((child) =>
+      child.className.includes('cw-curated-card__details-skeleton-line--star-row'),
+    )
+    expect(starSkeletonRows).toHaveLength(5)
   })
 })

@@ -26,6 +26,9 @@ type FakeElement = {
   loading: string
   src: string
   alt: string
+  complete?: boolean
+  naturalWidth?: number
+  naturalHeight?: number
   dataset: Record<string, string>
   attributes: Record<string, string>
   style: Record<string, string>
@@ -76,6 +79,9 @@ function createFakeDocument(): FakeDocument {
       loading: '',
       src: '',
       alt: '',
+      complete: false,
+      naturalWidth: 0,
+      naturalHeight: 0,
       dataset: {},
       attributes: {},
       style: {},
@@ -234,6 +240,22 @@ describe('curated-card-shell ui module', () => {
     expect(installCuratedCardPreview.mock.calls[0]?.[3]).toBe('hover.jpg')
   })
 
+  it('routes thumbnail links to direct episode hrefs while preserving series-level card navigation', () => {
+    const { runtime } = createCardShellRuntime()
+
+    const card = runtime.createCuratedCard({
+      seriesId: 'series-1',
+      title: 'Series title',
+      href: '/series/series-1',
+      episodeHref: '/watch/series-1-episode-3',
+      portraitImageUrl: 'portrait.jpg',
+    })
+
+    const media = card.children[1]
+    const thumbLink = media?.children[0]
+    expect(thumbLink?.href).toBe('/watch/series-1-episode-3')
+  })
+
   it('moves description under the card thumbnail when available', () => {
     const { runtime, documentRef } = createCardShellRuntime({
       createCuratedCardBody: () => {
@@ -255,7 +277,7 @@ describe('curated-card-shell ui module', () => {
 
     const media = card.children[1]
     expect(media?.className).toBe('cw-curated-card__media')
-    expect(media?.children[0]?.className).toBe('cw-curated-card__thumb')
+    expect(media?.children[0]?.className).toContain('cw-curated-card__thumb')
     expect(media?.children[1]?.className).toBe('cw-curated-card__description')
   })
 
@@ -272,10 +294,30 @@ describe('curated-card-shell ui module', () => {
 
     const media = card.children[1]
     expect(media?.className).toBe('cw-curated-card__media')
-    expect(media?.children[0]?.className).toBe('cw-curated-card__thumb')
+    expect(media?.children[0]?.className).toContain('cw-curated-card__thumb')
     expect(media?.children[1]?.className).toBe('cw-curated-card__thumb-progress')
     expect(media?.children[1]?.children[0]?.className).toBe('cw-curated-card__thumb-progress-fill')
     expect(media?.children[1]?.children[0]?.style.width).toBe('42%')
+  })
+
+  it('removes thumbnail loading state once the image reports load completion', () => {
+    const { runtime } = createCardShellRuntime()
+
+    const card = runtime.createCuratedCard({
+      seriesId: 'series-loading',
+      title: 'Series with loading thumb',
+      href: '/series/series-loading',
+      portraitImageUrl: 'portrait.jpg',
+    })
+
+    const media = card.children[1]
+    const thumbLink = media?.children[0]
+    const image = thumbLink?.children[1]
+
+    expect(thumbLink?.className).toContain('cw-curated-card__thumb--loading')
+    image?.dispatch('load')
+    expect(thumbLink?.className).toContain('cw-curated-card__thumb--loaded')
+    expect(thumbLink?.className).not.toContain('cw-curated-card__thumb--loading')
   })
 
   it('navigates only for safe card click events', () => {

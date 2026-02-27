@@ -144,9 +144,11 @@
       return false
     }
 
-    // A truly stale shell has no cards and no loading indicator content.
-    const loading = host.querySelector('.cw-empty .cw-loading')
-    return !loading
+    // A truly stale shell has no cards and no visible loading indicator.
+    const loading = host.querySelector('.cw-loading-indicator')
+    const loadingStyle = (loading as (Element & { style?: { display?: string } }) | null)?.style
+    const loadingVisible = Boolean(loading && (!loadingStyle || loadingStyle.display !== 'none'))
+    return !loadingVisible
   }
 
   function shouldRunInternal(options: BootstrapGateOptions): boolean {

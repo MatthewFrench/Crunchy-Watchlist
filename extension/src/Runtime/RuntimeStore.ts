@@ -58,6 +58,7 @@
     curatedError: unknown
     curatedSource: string
     curatedInflight: Promise<unknown> | null
+    curatedInitialLoadDone: boolean
     curatedPendingRequests: string[]
     curatedPendingRequestStartedCount: number
     curatedPendingRequestCompletedCount: number
@@ -154,6 +155,7 @@
       curatedError: null,
       curatedSource: 'none',
       curatedInflight: null,
+      curatedInitialLoadDone: false,
       curatedPendingRequests: [],
       curatedPendingRequestStartedCount: 0,
       curatedPendingRequestCompletedCount: 0,

@@ -484,8 +484,16 @@
         return ''
       }
 
-      const loadingUi = state.hostEl.querySelector('.cw-empty .cw-loading')
-      if (loadingUi || state.curatedInflight || state.curatedPendingRequests.length > 0) {
+      const loadingUi = state.hostEl.querySelector('.cw-loading-indicator')
+      const loadingUiVisible =
+        Boolean(loadingUi) &&
+        !(
+          loadingUi.style &&
+          typeof loadingUi.style === 'object' &&
+          typeof loadingUi.style.display === 'string' &&
+          loadingUi.style.display === 'none'
+        )
+      if (loadingUiVisible || state.curatedInflight || state.curatedPendingRequests.length > 0) {
         return ''
       }
 
