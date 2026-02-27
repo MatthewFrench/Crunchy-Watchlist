@@ -90,6 +90,7 @@ type CardRuntime = {
 type CuratedRuntime = {
   buildRenderableEntries: () => unknown
   renderCuratedPanel: () => unknown
+  refreshCuratedLoadingIndicator: () => unknown
   ensureCuratedDataLoad: (force?: unknown) => Promise<unknown>
   triggerNativeCardAction: (seriesId: unknown, actionType: unknown, favoriteValue?: unknown) => Promise<boolean>
   installCuratedCardPreview: DeferredCompositionCallbacks['installCuratedCardPreview']

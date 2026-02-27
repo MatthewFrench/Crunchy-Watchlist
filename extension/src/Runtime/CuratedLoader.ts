@@ -29,6 +29,8 @@
 
   type CuratedLoaderContext = {
     state: RuntimeState
+    windowRef: Window
+    documentRef: Document | null
     locationRef: Location
     runtimeEvent: (event: string, data?: unknown) => void
     getAccessToken: (forceRefresh: boolean) => Promise<TokenEntry | null>
@@ -51,11 +53,21 @@
     setWatchlistCacheRows: (accountId: string, profileId: string, rows: unknown[], updatedAt?: number) => unknown
     isWatchlistPath: (pathname: string) => boolean
     renderCuratedPanel: () => void
+    refreshCuratedLoadingIndicator: () => void
     watchlistRevalidateCooldownMs: number
+    watchlistCacheSourceRevalidateCooldownMs: number
+    metadataPriorityEntryCount: number
+    metadataDeferredChunkSize: number
+    metadataDeferredIdleTimeoutMs: number
+    metadataDeferredHiddenDelayMs: number
+    metadataViewportPriorityCount: number
+    deferredMetadataRunId: number
   }
 
   type CuratedLoaderOptions = {
     state?: unknown
+    windowRef?: unknown
+    documentRef?: unknown
     locationRef?: unknown
     runtimeEvent?: unknown
     getAccessToken?: unknown
@@ -69,12 +81,32 @@
     setWatchlistCacheRows?: unknown
     isWatchlistPath?: unknown
     renderCuratedPanel?: unknown
+    refreshCuratedLoadingIndicator?: unknown
     watchlistRevalidateCooldownMs?: unknown
+    watchlistCacheSourceRevalidateCooldownMs?: unknown
+    metadataPriorityEntryCount?: unknown
+    metadataDeferredChunkSize?: unknown
+    metadataDeferredIdleTimeoutMs?: unknown
+    metadataDeferredHiddenDelayMs?: unknown
+    metadataViewportPriorityCount?: unknown
   }
 
   type CuratedLoaderRuntime = {
     loadCuratedEntries: (force?: boolean) => Promise<unknown[]>
     ensureCuratedDataLoad: (force?: boolean) => Promise<unknown[]>
+  }
+
+  type CuratedLoaderDeferredMetadataRuntime = {
+    splitMetadataPreloadEntries: (
+      context: CuratedLoaderContext,
+      entries: unknown[],
+    ) => { priorityEntries: unknown[]; deferredEntries: unknown[] }
+    queueDeferredMetadataPreload: (options: {
+      context: CuratedLoaderContext
+      deferredEntries: unknown[]
+      tokenEntry: TokenEntry
+      preloadMetadataForEntries: (entries: unknown[], tokenEntry: TokenEntry) => Promise<void>
+    }) => void
   }
 
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
@@ -157,7 +189,7 @@
       return
     }
 
-    context.renderCuratedPanel()
+    context.refreshCuratedLoadingIndicator()
   }
 
   function removePendingRequestLabel(activeRequests: string[], label: string): void {
@@ -200,8 +232,24 @@
       throw new Error('[CW] Missing curated loader locationRef')
     }
 
+    const windowRef =
+      options.windowRef && typeof options.windowRef === 'object' ? (options.windowRef as Window) : (root as Window)
+    const documentRef =
+      options.documentRef && typeof options.documentRef === 'object' ? (options.documentRef as Document) : null
+
+    const renderCuratedPanel = requireFunction(
+      'renderCuratedPanel',
+      options.renderCuratedPanel,
+    ) as CuratedLoaderContext['renderCuratedPanel']
+    const refreshCuratedLoadingIndicator =
+      typeof options.refreshCuratedLoadingIndicator === 'function'
+        ? (options.refreshCuratedLoadingIndicator as CuratedLoaderContext['refreshCuratedLoadingIndicator'])
+        : () => renderCuratedPanel()
+
     return {
       state,
+      windowRef,
+      documentRef,
       locationRef,
       runtimeEvent: requireFunction('runtimeEvent', options.runtimeEvent) as CuratedLoaderContext['runtimeEvent'],
       getAccessToken: requireFunction(
@@ -244,12 +292,31 @@
         'isWatchlistPath',
         options.isWatchlistPath,
       ) as CuratedLoaderContext['isWatchlistPath'],
-      renderCuratedPanel: requireFunction(
-        'renderCuratedPanel',
-        options.renderCuratedPanel,
-      ) as CuratedLoaderContext['renderCuratedPanel'],
+      renderCuratedPanel,
+      refreshCuratedLoadingIndicator,
       watchlistRevalidateCooldownMs: normalizePositiveNumber(options.watchlistRevalidateCooldownMs, 600_000),
+      watchlistCacheSourceRevalidateCooldownMs: normalizePositiveNumber(
+        options.watchlistCacheSourceRevalidateCooldownMs,
+        45_000,
+      ),
+      metadataPriorityEntryCount: Math.max(1, normalizePositiveNumber(options.metadataPriorityEntryCount, 36)),
+      metadataDeferredChunkSize: Math.max(1, normalizePositiveNumber(options.metadataDeferredChunkSize, 24)),
+      metadataDeferredIdleTimeoutMs: Math.max(1, normalizePositiveNumber(options.metadataDeferredIdleTimeoutMs, 180)),
+      metadataDeferredHiddenDelayMs: Math.max(1, normalizePositiveNumber(options.metadataDeferredHiddenDelayMs, 900)),
+      metadataViewportPriorityCount: Math.max(1, normalizePositiveNumber(options.metadataViewportPriorityCount, 24)),
+      deferredMetadataRunId: 0,
     }
+  }
+
+  function createCuratedLoaderDeferredMetadataRuntime(): CuratedLoaderDeferredMetadataRuntime {
+    const deferredMetadataModule = (moduleRegistry.runtimeCuratedLoaderDeferredMetadata || {}) as Record<
+      string,
+      unknown
+    >
+    return requireFunction<AnyFn>(
+      'createCuratedLoaderDeferredMetadataRuntime',
+      deferredMetadataModule.createCuratedLoaderDeferredMetadataRuntime,
+    )() as CuratedLoaderDeferredMetadataRuntime
   }
 
   function hasPromiseFinally(value: unknown): value is Promise<unknown> {
@@ -260,19 +327,33 @@
     context: CuratedLoaderContext,
     activeRequests: string[],
     progress: PendingRequestProgress,
+    forceRefresh: boolean,
   ): Promise<{ tokenEntry: TokenEntry; accountId: string; profileId: string }> {
-    const tokenEntry = await withTrackedPendingRequest(
+    const shouldForceRefresh = forceRefresh || context.state.curatedSource === 'cache'
+    let tokenEntry = await withTrackedPendingRequest(
       context,
       activeRequests,
       progress,
       'Authorizing Crunchyroll API token (/auth/v1/token)',
-      // Force refresh to pick up Crunchyroll profile switches quickly; otherwise a cached token can
-      // continue serving the previous profile watchlist even though the page has switched profiles.
-      () => context.getAccessToken(true),
+      () => context.getAccessToken(shouldForceRefresh),
     )
-    const accessToken = getString(tokenEntry?.accessToken)
-    const accountId = getString(tokenEntry?.accountId)
-    const profileId = getString(tokenEntry?.profileId)
+
+    let accessToken = getString(tokenEntry?.accessToken)
+    let accountId = getString(tokenEntry?.accountId)
+    let profileId = getString(tokenEntry?.profileId)
+
+    if (!shouldForceRefresh && (!accessToken || !accountId || !profileId)) {
+      tokenEntry = await withTrackedPendingRequest(
+        context,
+        activeRequests,
+        progress,
+        'Refreshing Crunchyroll API token (/auth/v1/token)',
+        () => context.getAccessToken(true),
+      )
+      accessToken = getString(tokenEntry?.accessToken)
+      accountId = getString(tokenEntry?.accountId)
+      profileId = getString(tokenEntry?.profileId)
+    }
 
     if (!accessToken || !accountId || !profileId) {
       throw new Error('Unable to load curated watchlist: Crunchyroll API auth is unavailable.')
@@ -374,6 +455,32 @@
     ])
   }
 
+  async function preloadMetadataForEntriesInternal(
+    context: CuratedLoaderContext,
+    entries: unknown[],
+    tokenEntry: TokenEntry,
+    force: boolean,
+  ): Promise<void> {
+    if (!entries.length) {
+      return
+    }
+
+    await Promise.all([
+      context.preloadRatingsForEntries(entries, tokenEntry),
+      context.preloadWatchHistoryForEntries(entries, tokenEntry, force),
+    ])
+
+    const selectedAudioLocale = resolveSelectedAudioLocaleForPreloadInternal(context)
+    if (!selectedAudioLocale) {
+      return
+    }
+
+    await Promise.all([
+      context.preloadRatingsForEntries(entries, tokenEntry, selectedAudioLocale),
+      context.preloadWatchHistoryForEntries(entries, tokenEntry, true, selectedAudioLocale),
+    ])
+  }
+
   function commitCuratedEntriesFromApiInternal(
     context: CuratedLoaderContext,
     accountId: string,
@@ -417,7 +524,98 @@
     return context.state.curatedEntries
   }
 
-  async function loadCuratedEntriesInternal(context: CuratedLoaderContext, force = false): Promise<unknown[]> {
+  async function runCuratedLoadCycleInternal(
+    context: CuratedLoaderContext,
+    deferredMetadataRuntime: CuratedLoaderDeferredMetadataRuntime,
+    activeRequests: string[],
+    pendingProgress: PendingRequestProgress,
+    force: boolean,
+  ): Promise<unknown[]> {
+    const startedAt = Date.now()
+    context.deferredMetadataRunId += 1
+    context.runtimeEvent('curated-load-start')
+    context.state.curatedError = null
+    syncPendingRequestDiagnostics(context, activeRequests, pendingProgress)
+
+    const tokenStartedAt = Date.now()
+    const { tokenEntry, accountId, profileId } = await loadAuthorizedTokenInternal(
+      context,
+      activeRequests,
+      pendingProgress,
+      force,
+    )
+    const tokenDurationMs = Date.now() - tokenStartedAt
+    context.resetWatchlistCacheOnAccountMismatch(accountId, profileId)
+    const rowsStartedAt = Date.now()
+    const { rows, entries } = await loadRowsAndEntriesInternal(context, activeRequests, pendingProgress, tokenEntry)
+    const rowsDurationMs = Date.now() - rowsStartedAt
+    commitCuratedEntriesFromApiInternal(context, accountId, profileId, rows, entries, 'partial')
+
+    const { priorityEntries, deferredEntries } = deferredMetadataRuntime.splitMetadataPreloadEntries(context, entries)
+    const priorityMetadataStartedAt = Date.now()
+    await preloadPrimaryLocaleDataInternal(context, activeRequests, pendingProgress, priorityEntries, tokenEntry, force)
+    await preloadSelectedAudioLocaleDataInternal(context, activeRequests, pendingProgress, priorityEntries, tokenEntry)
+    const priorityMetadataDurationMs = Date.now() - priorityMetadataStartedAt
+    const committedEntries = commitCuratedEntriesFromApiInternal(context, accountId, profileId, rows, entries, 'final')
+
+    context.runtimeEvent('curated-load-timing', {
+      force,
+      totalEntries: entries.length,
+      priorityEntryCount: priorityEntries.length,
+      deferredEntryCount: deferredEntries.length,
+      tokenDurationMs,
+      rowsDurationMs,
+      priorityMetadataDurationMs,
+      totalDurationMs: Date.now() - startedAt,
+    })
+
+    deferredMetadataRuntime.queueDeferredMetadataPreload({
+      context,
+      deferredEntries,
+      tokenEntry,
+      preloadMetadataForEntries: (metadataEntries, metadataTokenEntry) =>
+        preloadMetadataForEntriesInternal(context, metadataEntries, metadataTokenEntry, false),
+    })
+    return committedEntries
+  }
+
+  function clearPendingRequestDiagnosticsInternal(
+    context: CuratedLoaderContext,
+    activeRequests: string[],
+    pendingProgress: PendingRequestProgress,
+  ): void {
+    activeRequests.length = 0
+    syncPendingRequestDiagnostics(context, activeRequests, pendingProgress)
+  }
+
+  function finalizeCuratedLoadInflightInternal(
+    context: CuratedLoaderContext,
+    activeRequests: string[],
+    pendingProgress: PendingRequestProgress,
+  ): void {
+    context.state.curatedInflight = null
+    clearPendingRequestDiagnosticsInternal(context, activeRequests, pendingProgress)
+    if (context.state.curatedInitialLoadDone !== true) {
+      context.state.curatedInitialLoadDone = true
+    }
+  }
+
+  function ensureCuratedPromiseLoadedStateInternal(
+    context: CuratedLoaderContext,
+    inflight: Promise<unknown[]>,
+    activeRequests: string[],
+    pendingProgress: PendingRequestProgress,
+  ): Promise<unknown[]> {
+    return inflight.finally(() => {
+      finalizeCuratedLoadInflightInternal(context, activeRequests, pendingProgress)
+    })
+  }
+
+  function loadCuratedEntriesInternal(
+    context: CuratedLoaderContext,
+    deferredMetadataRuntime: CuratedLoaderDeferredMetadataRuntime,
+    force = false,
+  ): Promise<unknown[]> {
     if (context.state.curatedInflight) {
       return context.state.curatedInflight
     }
@@ -427,36 +625,17 @@
       started: 0,
       completed: 0,
     }
-    const inflight = (async () => {
-      context.runtimeEvent('curated-load-start')
-      context.state.curatedError = null
-      syncPendingRequestDiagnostics(context, activeRequests, pendingProgress)
+    const inflight = runCuratedLoadCycleInternal(
+      context,
+      deferredMetadataRuntime,
+      activeRequests,
+      pendingProgress,
+      force,
+    ).catch((error: unknown) => handleCuratedLoadFailureInternal(context, error))
+    const trackedInflight = ensureCuratedPromiseLoadedStateInternal(context, inflight, activeRequests, pendingProgress)
 
-      const { tokenEntry, accountId, profileId } = await loadAuthorizedTokenInternal(
-        context,
-        activeRequests,
-        pendingProgress,
-      )
-      context.resetWatchlistCacheOnAccountMismatch(accountId, profileId)
-      const { rows, entries } = await loadRowsAndEntriesInternal(context, activeRequests, pendingProgress, tokenEntry)
-      commitCuratedEntriesFromApiInternal(context, accountId, profileId, rows, entries, 'partial')
-      await preloadPrimaryLocaleDataInternal(context, activeRequests, pendingProgress, entries, tokenEntry, force)
-      await preloadSelectedAudioLocaleDataInternal(context, activeRequests, pendingProgress, entries, tokenEntry)
-
-      return commitCuratedEntriesFromApiInternal(context, accountId, profileId, rows, entries, 'final')
-    })()
-      .catch((error: unknown) => handleCuratedLoadFailureInternal(context, error))
-      .finally(() => {
-        context.state.curatedInflight = null
-        activeRequests.length = 0
-        syncPendingRequestDiagnostics(context, activeRequests, pendingProgress)
-        if (context.state.curatedInitialLoadDone !== true) {
-          context.state.curatedInitialLoadDone = true
-        }
-      })
-
-    context.state.curatedInflight = inflight
-    return inflight
+    context.state.curatedInflight = trackedInflight
+    return trackedInflight
   }
 
   function shouldBackgroundRevalidateCuratedInternal(context: CuratedLoaderContext): boolean {
@@ -466,7 +645,7 @@
 
     const now = Date.now()
     if (context.state.curatedSource === 'cache') {
-      return now - context.state.curatedLastRevalidateAt > 1000
+      return now - context.state.curatedLastRevalidateAt > context.watchlistCacheSourceRevalidateCooldownMs
     }
 
     return now - context.state.curatedLastRevalidateAt > context.watchlistRevalidateCooldownMs
@@ -490,30 +669,34 @@
       if (!context.state.mounted || !context.isWatchlistPath(context.locationRef.pathname)) {
         return
       }
-
       context.renderCuratedPanel()
     })
   }
 
-  function ensureCuratedDataLoadInternal(context: CuratedLoaderContext, force = false): Promise<unknown[]> {
+  function ensureCuratedDataLoadInternal(
+    context: CuratedLoaderContext,
+    deferredMetadataRuntime: CuratedLoaderDeferredMetadataRuntime,
+    force = false,
+  ): Promise<unknown[]> {
     if (!force && context.state.curatedEntries.length) {
       if (shouldBackgroundRevalidateCuratedInternal(context)) {
-        const backgroundPromise = loadCuratedEntriesInternal(context, false)
+        const backgroundPromise = loadCuratedEntriesInternal(context, deferredMetadataRuntime, false)
         observeCuratedLoadPromiseInternal(context, backgroundPromise)
       }
       return Promise.resolve(context.state.curatedEntries)
     }
 
-    const promise = loadCuratedEntriesInternal(context, force)
+    const promise = loadCuratedEntriesInternal(context, deferredMetadataRuntime, force)
     observeCuratedLoadPromiseInternal(context, promise)
     return promise
   }
 
   function createCuratedLoaderRuntime(options: CuratedLoaderOptions = {}): CuratedLoaderRuntime {
     const context = createCuratedLoaderContext(options)
+    const deferredMetadataRuntime = createCuratedLoaderDeferredMetadataRuntime()
     return {
-      loadCuratedEntries: (force = false) => loadCuratedEntriesInternal(context, force),
-      ensureCuratedDataLoad: (force = false) => ensureCuratedDataLoadInternal(context, force),
+      loadCuratedEntries: (force = false) => loadCuratedEntriesInternal(context, deferredMetadataRuntime, force),
+      ensureCuratedDataLoad: (force = false) => ensureCuratedDataLoadInternal(context, deferredMetadataRuntime, force),
     }
   }
 

@@ -16,11 +16,19 @@
     processDebounceMs: number
     watchlistPageSize: number
     watchlistMaxPages: number
+    watchlistParallelRequests: number
     watchlistRevalidateCooldownMs: number
+    watchlistCacheSourceRevalidateCooldownMs: number
+    metadataPriorityEntryCount: number
+    metadataDeferredChunkSize: number
+    metadataDeferredIdleTimeoutMs: number
+    metadataDeferredHiddenDelayMs: number
+    metadataViewportPriorityCount: number
     watchHistoryPageSize: number
     watchHistoryMaxPages: number
     watchHistoryNoMatchPageLimit: number
     ratingBatchSize: number
+    ratingBatchParallelChunks: number
     fetchTimeoutMs: number
     fetchMaxAttempts: number
     fetchBackoffBaseMs: number
@@ -139,11 +147,19 @@
     processDebounceMs: 180,
     watchlistPageSize: 100,
     watchlistMaxPages: 30,
+    watchlistParallelRequests: 4,
     watchlistRevalidateCooldownMs: 10 * 60 * 1000,
+    watchlistCacheSourceRevalidateCooldownMs: 45 * 1000,
+    metadataPriorityEntryCount: 36,
+    metadataDeferredChunkSize: 24,
+    metadataDeferredIdleTimeoutMs: 180,
+    metadataDeferredHiddenDelayMs: 900,
+    metadataViewportPriorityCount: 24,
     watchHistoryPageSize: 100,
     watchHistoryMaxPages: 40,
     watchHistoryNoMatchPageLimit: 5,
     ratingBatchSize: 50,
+    ratingBatchParallelChunks: 2,
     fetchTimeoutMs: 12000,
     fetchMaxAttempts: 3,
     fetchBackoffBaseMs: 400,

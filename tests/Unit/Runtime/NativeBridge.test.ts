@@ -5,6 +5,13 @@ import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/Modu
 
 type NativeBridgeRuntime = {
   triggerNativeCardAction: (seriesId: unknown, actionType: unknown, favoriteValue?: unknown) => Promise<boolean>
+  installCuratedCardPreview: (
+    thumbLink: unknown,
+    entry: unknown,
+    coverImageUrl: unknown,
+    hoverPreviewImageUrl: unknown,
+    thumbImage: unknown,
+  ) => void
 }
 
 type NativeBridgeModule = {
@@ -23,6 +30,9 @@ const nativeBridgeModuleUrl = pathToFileURL(
 ).href
 const nativeActionBridgeModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeActionBridge.ts'),
+).href
+const nativeBridgePreviewModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeBridgePreview.ts'),
 ).href
 
 class FakeElement {
@@ -72,6 +82,7 @@ function createNativeBridgeRuntime(
     fetchWithResilience?: ReturnType<typeof vi.fn>
     createAuthRefreshHandler?: ReturnType<typeof vi.fn>
     resolveApiHref?: (pathWithQuery: string) => string
+    installCuratedCardPreview?: ReturnType<typeof vi.fn>
   } = {},
 ) {
   const runtimeEvents: RuntimeEventRecord[] = []
@@ -86,6 +97,19 @@ function createNativeBridgeRuntime(
   >
   const resolveApiHref =
     overrides.resolveApiHref ?? ((pathWithQuery: string) => `https://api.crunchyroll.test${pathWithQuery}`)
+
+  if (overrides.installCuratedCardPreview) {
+    const moduleRegistry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<
+      string,
+      unknown
+    >
+    moduleRegistry.runtimeNativeBridgePreview = {
+      createNativeBridgePreviewRuntime: () => ({
+        installCuratedCardPreview: overrides.installCuratedCardPreview,
+      }),
+    }
+  }
+
   const runtime = getNativeBridgeModule().createNativeBridgeRuntime({
     documentRef: {
       querySelectorAll: (selector: string) => (selector === '[data-t="watch-list-card"]' ? cards : []),
@@ -121,7 +145,7 @@ describe('native-bridge runtime', () => {
   let originalHTMLElement: unknown
 
   beforeEach(async () => {
-    await loadRuntimeModules([nativeActionBridgeModuleUrl, nativeBridgeModuleUrl])
+    await loadRuntimeModules([nativeActionBridgeModuleUrl, nativeBridgePreviewModuleUrl, nativeBridgeModuleUrl])
     originalHTMLElement = runtimeGlobal.HTMLElement
     runtimeGlobal.HTMLElement = FakeElement
   })
@@ -244,5 +268,23 @@ describe('native-bridge runtime', () => {
         },
       },
     ])
+  })
+
+  it('delegates curated preview installs to the preview runtime module', () => {
+    const installCuratedCardPreview = vi.fn()
+    const { runtime } = createNativeBridgeRuntime([], {
+      installCuratedCardPreview,
+    })
+
+    runtime.installCuratedCardPreview('thumb-link', { seriesId: 'series-1' }, 'cover.jpg', 'hover.jpg', 'thumb-image')
+
+    expect(installCuratedCardPreview).toHaveBeenCalledTimes(1)
+    expect(installCuratedCardPreview).toHaveBeenCalledWith(
+      'thumb-link',
+      { seriesId: 'series-1' },
+      'cover.jpg',
+      'hover.jpg',
+      'thumb-image',
+    )
   })
 })

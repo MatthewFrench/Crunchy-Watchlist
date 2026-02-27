@@ -74,6 +74,7 @@ function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
     runtimeEvent,
     watchlistPageSize: 100,
     watchlistMaxPages: 30,
+    watchlistParallelRequests: 4,
     ...overrides,
   })
 
@@ -163,5 +164,42 @@ describe('watchlist-client module', () => {
         reason: 'invalid-json-payload',
       }),
     )
+  })
+
+  it('fetches remaining pages in bounded parallel batches after first page', async () => {
+    const { runtime, fetchWithResilience } = createRuntime({
+      watchlistPageSize: 2,
+      watchlistMaxPages: 10,
+      watchlistParallelRequests: 2,
+    })
+
+    const payloadByStart = new Map<number, { total: number; data: Record<string, unknown>[] }>([
+      [0, { total: 6, data: [createWatchlistRow('SERIES_A'), createWatchlistRow('SERIES_B')] }],
+      [2, { total: 6, data: [createWatchlistRow('SERIES_C'), createWatchlistRow('SERIES_D')] }],
+      [4, { total: 6, data: [createWatchlistRow('SERIES_E'), createWatchlistRow('SERIES_F')] }],
+    ])
+
+    fetchWithResilience.mockImplementation(async (url) => {
+      const parsed = new URL(url)
+      const start = Number(parsed.searchParams.get('start') || '0')
+      const payload = payloadByStart.get(start)
+      if (!payload) {
+        return new Response(JSON.stringify({ total: 0, data: [] }), { status: 200 })
+      }
+      return new Response(JSON.stringify(payload), { status: 200 })
+    })
+
+    const rows = await runtime.fetchAllWatchlistRows({
+      accountId: 'fixture-account',
+      accessToken: 'fixture-token',
+    })
+
+    expect(rows).toHaveLength(6)
+    expect(fetchWithResilience).toHaveBeenCalledTimes(3)
+    const requestUrls = fetchWithResilience.mock.calls.map((call) => String(call[0]))
+    expect(requestUrls[0]).toContain('/watchlist?')
+    expect(requestUrls[0]).not.toContain('start=')
+    expect(requestUrls.some((url) => url.includes('start=2'))).toBe(true)
+    expect(requestUrls.some((url) => url.includes('start=4'))).toBe(true)
   })
 })

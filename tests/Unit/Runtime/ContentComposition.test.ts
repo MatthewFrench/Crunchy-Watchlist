@@ -10,6 +10,9 @@ type ContentCompositionModule = {
 const contentCompositionModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentComposition.ts'),
 ).href
+const contentCompositionBindingsModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentCompositionBindings.ts'),
+).href
 
 function getContentCompositionModule(): ContentCompositionModule {
   const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
@@ -67,7 +70,7 @@ function createCorePrimitivesRuntime(): Record<string, unknown> {
 
 describe('content composition runtime module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([contentCompositionModuleUrl])
+    await loadRuntimeModules([contentCompositionBindingsModuleUrl, contentCompositionModuleUrl])
   })
 
   afterEach(() => {
@@ -162,6 +165,7 @@ describe('content composition runtime module', () => {
         runtimeCuratedPanelModule: {
           createCuratedPanelRuntime: () => ({
             renderCuratedPanel: () => undefined,
+            refreshCuratedLoadingIndicator: () => undefined,
           }),
         },
         runtimeCuratedLoaderModule: {

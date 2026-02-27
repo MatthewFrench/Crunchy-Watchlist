@@ -41,6 +41,7 @@
     saveWatchlistCacheTimer: number | null
     settings: Record<string, unknown>
     ratingCache: Record<string, unknown>
+    ratingCacheRevision: number
     ratingInflight: Map<string, Promise<unknown>>
     ratingLocalePreloadInflight: Map<string, Promise<unknown>>
     watchHistoryLocalePreloadInflight: Map<string, Promise<unknown>>
@@ -170,6 +171,7 @@
       saveWatchlistCacheTimer: null,
       settings: { ...defaultSettings },
       ratingCache: {},
+      ratingCacheRevision: 0,
       ratingInflight: new Map(),
       ratingLocalePreloadInflight: new Map(),
       watchHistoryLocalePreloadInflight: new Map(),

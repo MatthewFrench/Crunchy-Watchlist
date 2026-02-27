@@ -114,6 +114,7 @@ describe('RuntimeStore', () => {
     expect(typedState.settings).toEqual(defaultSettings)
     expect(typedState.settings).not.toBe(defaultSettings)
     expect((typedState.watchHistoryCache as WatchHistoryCache).version).toBe(2)
+    expect(typedState.ratingCacheRevision).toBe(0)
     expect((typedState.ratingInflight as unknown) instanceof Map).toBe(true)
     expect((typedState.previewInflight as unknown) instanceof Map).toBe(true)
     expect(typedState.watchHistoryStatus).toBe('idle')

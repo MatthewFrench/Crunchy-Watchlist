@@ -34,6 +34,7 @@ type RatingsRepositoryModule = {
 
 type RatingsRepositoryState = {
   ratingCache: Record<string, RatingCacheEntry>
+  ratingCacheRevision?: number
   ratingInflight: Map<string, Promise<RatingCacheEntry>>
 }
 
@@ -80,6 +81,7 @@ function normalizeImageUrlCandidate(value: unknown): string {
 function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
   const state: RatingsRepositoryState = {
     ratingCache: {},
+    ratingCacheRevision: 0,
     ratingInflight: new Map(),
   }
   const fetchRatingsBatch = vi.fn<
@@ -142,6 +144,7 @@ function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
     scheduleSaveRatings,
     runtimeEvent,
     ratingBatchSize: 50,
+    ratingBatchParallelChunks: 2,
     ratingCacheTtlMs: 60_000,
     ...overrides,
   })
@@ -153,6 +156,12 @@ function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
     fetchRating,
     scheduleSaveRatings,
     runtimeEvent,
+  }
+}
+
+async function flushMicrotasks(iterations = 4): Promise<void> {
+  for (let index = 0; index < iterations; index += 1) {
+    await Promise.resolve()
   }
 }
 
@@ -261,5 +270,54 @@ describe('ratings-repository module', () => {
     expect(state.ratingCache.SERIES_TYPED?.episodeCount).toBe(10)
     expect(state.ratingCache.SERIES_TYPED?.seasonCount).toBe(1)
     expect(state.ratingCache.SERIES_TYPED?.audioLocales).toEqual(['en-us'])
+  })
+
+  it('fetches stale rating batches with bounded parallel chunk concurrency', async () => {
+    const { runtime, fetchRatingsBatch } = createRuntime({
+      ratingBatchSize: 1,
+      ratingBatchParallelChunks: 2,
+    })
+
+    let activeRequests = 0
+    let maxActiveRequests = 0
+    const unblockQueue: Array<() => void> = []
+
+    fetchRatingsBatch.mockImplementation(async (_tokenEntry, seriesIds: string[]) => {
+      activeRequests += 1
+      maxActiveRequests = Math.max(maxActiveRequests, activeRequests)
+      await new Promise<void>((resolve) => {
+        unblockQueue.push(resolve)
+      })
+      activeRequests -= 1
+      return seriesIds.map((seriesId) => ({
+        seriesId,
+        rating: 4.0,
+        votes: 100,
+        distribution: null,
+        description: '',
+        audioLocales: ['en-US'],
+        episodeCount: 10,
+        seasonCount: 1,
+        genreTags: [],
+      }))
+    })
+
+    const preloadPromise = runtime.preloadRatingsForEntries(
+      [{ seriesId: 'SERIES_A' }, { seriesId: 'SERIES_B' }, { seriesId: 'SERIES_C' }],
+      { accessToken: 'token-123' },
+      'en-US',
+    )
+
+    await flushMicrotasks()
+    expect(maxActiveRequests).toBe(2)
+
+    while (unblockQueue.length) {
+      const unblock = unblockQueue.shift()
+      unblock?.()
+      await flushMicrotasks(1)
+    }
+
+    await preloadPromise
+    expect(fetchRatingsBatch).toHaveBeenCalledTimes(3)
   })
 })

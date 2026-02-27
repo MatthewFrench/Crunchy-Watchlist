@@ -67,7 +67,7 @@ test.describe('Resilience and API Contract Handling', () => {
 
     await injectExtension(page, { activeTab: 'curated' }, { waitForLoaded: false })
     await expect(page.locator('.cw-controls__stats')).toContainText('API load failed')
-    await expect(page.locator('.cw-empty')).toContainText('contract changed for watchlist')
+    await expect(page.locator('.cw-curated-grid > .cw-empty')).toContainText('contract changed for watchlist')
 
     const runtime = await page.evaluate(() => window.__CW_WATCHLIST_CURATOR_RUNTIME__ || null)
     const hasContractError = Boolean(

@@ -23,6 +23,9 @@ type Deferred<T> = {
 const curatedLoaderModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedLoader.ts'),
 ).href
+const curatedLoaderDeferredMetadataModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedLoaderDeferredMetadata.ts'),
+).href
 
 function createDeferred<T>(): Deferred<T> {
   let resolveRef: ((value: T | PromiseLike<T>) => void) | null = null
@@ -47,6 +50,16 @@ async function flushMicrotasks(iterations = 5): Promise<void> {
   for (let index = 0; index < iterations; index += 1) {
     await Promise.resolve()
   }
+}
+
+async function waitForCondition(condition: () => boolean, iterations = 24): Promise<boolean> {
+  for (let index = 0; index < iterations; index += 1) {
+    if (condition()) {
+      return true
+    }
+    await flushMicrotasks()
+  }
+  return false
 }
 
 function getCuratedLoaderModule() {
@@ -75,6 +88,21 @@ function createCuratedLoaderHarness(overrides: Record<string, unknown> = {}) {
 
   const dependencies = {
     state,
+    windowRef: {
+      innerHeight: 900,
+      setTimeout: (callback: () => void) => {
+        callback()
+        return 1
+      },
+      requestIdleCallback: (callback: () => void) => {
+        callback()
+        return 1
+      },
+    },
+    documentRef: {
+      visibilityState: 'visible',
+      querySelectorAll: () => [] as unknown as NodeListOf<Element>,
+    },
     locationRef: {
       pathname: '/watchlist',
     },
@@ -110,7 +138,14 @@ function createCuratedLoaderHarness(overrides: Record<string, unknown> = {}) {
     setWatchlistCacheRows: vi.fn(),
     isWatchlistPath: vi.fn((pathname: string) => pathname.endsWith('/watchlist')),
     renderCuratedPanel: vi.fn(),
+    refreshCuratedLoadingIndicator: vi.fn(),
     watchlistRevalidateCooldownMs: 90_000,
+    watchlistCacheSourceRevalidateCooldownMs: 45_000,
+    metadataPriorityEntryCount: 36,
+    metadataDeferredChunkSize: 24,
+    metadataDeferredIdleTimeoutMs: 180,
+    metadataDeferredHiddenDelayMs: 900,
+    metadataViewportPriorityCount: 24,
     ...overrides,
   }
 
@@ -126,7 +161,7 @@ function createCuratedLoaderHarness(overrides: Record<string, unknown> = {}) {
 
 describe('curated-loader runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([curatedLoaderModuleUrl])
+    await loadRuntimeModules([curatedLoaderDeferredMetadataModuleUrl, curatedLoaderModuleUrl])
   })
 
   afterEach(() => {
@@ -157,7 +192,7 @@ describe('curated-loader runtime', () => {
     expect(entries).toHaveLength(1)
     expect(harness.state.curatedEntries).toHaveLength(1)
     expect(harness.state.curatedSource).toBe('api')
-    expect(harness.dependencies.getAccessToken).toHaveBeenCalledWith(true)
+    expect(harness.dependencies.getAccessToken).toHaveBeenCalledWith(false)
     expect(harness.dependencies.resetWatchlistCacheOnAccountMismatch).toHaveBeenCalledWith('account-1', 'profile-1')
     expect(harness.dependencies.setWatchlistCacheRows).toHaveBeenCalledWith(
       'account-1',
@@ -190,7 +225,8 @@ describe('curated-loader runtime', () => {
     )
     expect(harness.state.curatedPendingRequestStartedCount).toBe(2)
     expect(harness.state.curatedPendingRequestCompletedCount).toBe(1)
-    expect(harness.dependencies.renderCuratedPanel).toHaveBeenCalled()
+    expect(harness.dependencies.refreshCuratedLoadingIndicator).toHaveBeenCalled()
+    expect(harness.dependencies.renderCuratedPanel).not.toHaveBeenCalled()
 
     fetchRowsDeferred.resolve([{ id: 'row-1' }])
     await loadPromise
@@ -320,5 +356,170 @@ describe('curated-loader runtime', () => {
     expect(harness.state.curatedSource).toBe('none')
     expect(String(harness.state.curatedError)).toContain('simulated load failure')
     expect(harness.runtimeEvents.map((entry) => entry.event)).toContain('curated-load-failed')
+  })
+
+  it('falls back to forced token refresh when fast-path token is missing profile scope', async () => {
+    const getAccessToken = vi
+      .fn()
+      .mockResolvedValueOnce({
+        accessToken: 'access-token',
+        accountId: 'account-1',
+      })
+      .mockResolvedValueOnce({
+        accessToken: 'access-token-refresh',
+        accountId: 'account-1',
+        profileId: 'profile-1',
+      })
+    const harness = createCuratedLoaderHarness({
+      getAccessToken,
+    })
+
+    await harness.runtime.loadCuratedEntries(false)
+
+    expect(getAccessToken).toHaveBeenNthCalledWith(1, false)
+    expect(getAccessToken).toHaveBeenNthCalledWith(2, true)
+  })
+
+  it('uses forced token refresh immediately when caller requests force reload', async () => {
+    const getAccessToken = vi.fn(async () => ({
+      accessToken: 'access-token',
+      accountId: 'account-1',
+      profileId: 'profile-1',
+    }))
+    const harness = createCuratedLoaderHarness({
+      getAccessToken,
+    })
+
+    await harness.runtime.loadCuratedEntries(true)
+
+    expect(getAccessToken).toHaveBeenCalledTimes(1)
+    expect(getAccessToken).toHaveBeenCalledWith(true)
+  })
+
+  it('resolves first load after priority metadata and continues deferred metadata in background', async () => {
+    const deferredRatings = createDeferred<unknown>()
+    const deferredHistory = createDeferred<unknown>()
+    const preloadRatingsForEntries = vi.fn(async (entries: unknown[]) => {
+      if ((Array.isArray(entries) ? entries.length : 0) > 1) {
+        return deferredRatings.promise
+      }
+      return null
+    })
+    const preloadWatchHistoryForEntries = vi.fn(async (entries: unknown[]) => {
+      if ((Array.isArray(entries) ? entries.length : 0) > 1) {
+        return deferredHistory.promise
+      }
+      return null
+    })
+    const harness = createCuratedLoaderHarness({
+      metadataPriorityEntryCount: 1,
+      fetchAllWatchlistRows: vi.fn(async () => [{ id: 'row-1' }, { id: 'row-2' }, { id: 'row-3' }]),
+      normalizeEntriesFromApiRows: vi.fn((rows: unknown[]) =>
+        rows.map((row, index) => ({
+          ...((row as Record<string, unknown>) || {}),
+          seriesId: `series-${index + 1}`,
+        })),
+      ),
+      preloadRatingsForEntries,
+      preloadWatchHistoryForEntries,
+    })
+
+    const loaded = await harness.runtime.loadCuratedEntries(false)
+
+    expect(loaded).toHaveLength(3)
+    expect(harness.state.curatedInflight).toBeNull()
+    expect(harness.runtimeEvents.map((entry) => entry.event)).toContain('curated-load-background-metadata-start')
+    expect(harness.runtimeEvents.map((entry) => entry.event)).not.toContain('curated-load-background-metadata-done')
+
+    deferredRatings.resolve(null)
+    deferredHistory.resolve(null)
+    await flushMicrotasks()
+
+    expect(harness.runtimeEvents.map((entry) => entry.event)).toContain('curated-load-background-metadata-done')
+  })
+
+  it('prioritizes deferred metadata chunks for cards currently visible in the viewport', async () => {
+    const preloadRatingsForEntries = vi.fn(async () => null)
+    const preloadWatchHistoryForEntries = vi.fn(async () => null)
+    const harness = createCuratedLoaderHarness({
+      metadataPriorityEntryCount: 1,
+      metadataDeferredChunkSize: 1,
+      fetchAllWatchlistRows: vi.fn(async () => [{ id: 'row-1' }, { id: 'row-2' }, { id: 'row-3' }, { id: 'row-4' }]),
+      normalizeEntriesFromApiRows: vi.fn((rows: unknown[]) =>
+        rows.map((row, index) => ({
+          ...((row as Record<string, unknown>) || {}),
+          seriesId: `series-${index + 1}`,
+        })),
+      ),
+      documentRef: {
+        visibilityState: 'visible',
+        querySelectorAll: () =>
+          [
+            {
+              dataset: { cwSeriesId: 'series-4' },
+              getBoundingClientRect: () => ({ top: 80, bottom: 340 }),
+            },
+            {
+              dataset: { cwSeriesId: 'series-3' },
+              getBoundingClientRect: () => ({ top: 360, bottom: 620 }),
+            },
+          ] as unknown as NodeListOf<Element>,
+      },
+      preloadRatingsForEntries,
+      preloadWatchHistoryForEntries,
+    })
+
+    await harness.runtime.loadCuratedEntries(false)
+    await flushMicrotasks()
+
+    const ratingsSeriesBatches = (preloadRatingsForEntries.mock.calls as unknown[][])
+      .map((call) => (Array.isArray(call[0]) ? call[0] : []))
+      .map((entries) => entries.map((entry) => (entry as Record<string, unknown>).seriesId))
+    expect(ratingsSeriesBatches[0]).toEqual(['series-1'])
+    expect(ratingsSeriesBatches[1]).toEqual(['series-4'])
+  })
+
+  it('continues deferred metadata chunks after a chunk failure', async () => {
+    const preloadRatingsForEntries = vi.fn(async (entries: unknown[]) => {
+      const firstSeriesId = Array.isArray(entries)
+        ? String((entries[0] as Record<string, unknown> | undefined)?.seriesId ?? '')
+        : ''
+      if (firstSeriesId === 'series-2') {
+        throw new Error('simulated deferred chunk failure')
+      }
+      return null
+    })
+    const preloadWatchHistoryForEntries = vi.fn(async () => null)
+    const harness = createCuratedLoaderHarness({
+      metadataPriorityEntryCount: 1,
+      metadataDeferredChunkSize: 1,
+      fetchAllWatchlistRows: vi.fn(async () => [{ id: 'row-1' }, { id: 'row-2' }, { id: 'row-3' }, { id: 'row-4' }]),
+      normalizeEntriesFromApiRows: vi.fn((rows: unknown[]) =>
+        rows.map((row, index) => ({
+          ...((row as Record<string, unknown>) || {}),
+          seriesId: `series-${index + 1}`,
+        })),
+      ),
+      preloadRatingsForEntries,
+      preloadWatchHistoryForEntries,
+    })
+
+    await harness.runtime.loadCuratedEntries(false)
+    const didFinishDeferredChunks = await waitForCondition(() =>
+      harness.runtimeEvents.some((entry) => entry.event === 'curated-load-background-metadata-done'),
+    )
+
+    const ratingsSeriesBatches = (preloadRatingsForEntries.mock.calls as unknown[][])
+      .map((call) => (Array.isArray(call[0]) ? call[0] : []))
+      .map((entries) => entries.map((entry) => String((entry as Record<string, unknown>).seriesId ?? '')))
+    expect(ratingsSeriesBatches).toEqual(expect.arrayContaining([['series-2'], ['series-3'], ['series-4']]))
+    expect(didFinishDeferredChunks).toBe(true)
+    expect(harness.runtimeEvents.map((entry) => entry.event)).toContain('curated-load-background-metadata-failed')
+    const doneEvent = harness.runtimeEvents.find((entry) => entry.event === 'curated-load-background-metadata-done')
+    expect(doneEvent?.data).toEqual(
+      expect.objectContaining({
+        completedChunks: 3,
+      }),
+    )
   })
 })

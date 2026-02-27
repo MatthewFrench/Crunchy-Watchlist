@@ -1,6 +1,6 @@
 # Crunchy Watchlist Curator Architecture Standards
 
-Last updated: 2026-02-25
+Last updated: 2026-02-27
 
 This document is the architecture contract for this repository. It defines required boundaries, ownership, and quality gates for extension runtime code, build/distribution tooling, and automated tests.
 
@@ -225,57 +225,46 @@ These budgets are enforcement triggers.
 - Max parameters per exported function: `<= 6` (otherwise use typed object argument).
 - Cyclomatic hotspots should be decomposed into named helpers before adding new branches.
 
-## 16) Conformance Review Snapshot (2026-02-25)
+## 16) Conformance Review Snapshot (2026-02-27)
 
 Current-state findings from this repository:
 
-1. Structural budgets are healthy on enforced thresholds (latest `npm run arch:metrics`):
-   - `extension/Content.js`: `597` lines (strict target `<= 600` satisfied).
-   - `extension/src/Runtime/ContentComposition.ts`: `568` lines (strict target `<= 600` satisfied).
-   - `extension/src/Data/HistoryRepositoryPreload.ts`: `514` lines (strict target `<= 600` satisfied).
-   - `extension/Content.css`: `576` lines and `extension/ContentResponsive.css`: `52` lines (split to keep style surfaces bounded).
-   - Warning/refactor-level hotspots: `0` (files and functions).
-2. Bootstrap prelude ownership was extracted from `Content.js` to:
-   - `extension/src/Runtime/ContentBootstrap.ts`
-   - `tests/Unit/Runtime/ContentBootstrap.test.ts`
-   - `extension/manifest.json` updated to load `src/Runtime/ContentBootstrap.js` before `Content.js`.
-3. Native action forwarding ownership was extracted from `extension/src/Runtime/NativeBridge.ts` to:
-   - `extension/src/Runtime/NativeActionBridge.ts`
-   - `tests/Unit/Runtime/NativeActionBridge.test.ts`
-   - `extension/manifest.json` updated to load `src/Runtime/NativeActionBridge.js` before `src/Runtime/NativeBridge.js`.
-   - `NativeBridge.ts` reduced from `599` to `536` lines.
-4. Composition and data preload type-surface noise was removed from large runtime owners by extracting ambient contracts to:
-   - `extension/Types/CommonRuntimeTypes.d.ts`
-   - `extension/Types/ContentCompositionTypes.d.ts`
-   - `extension/Types/HistoryRepositoryPreloadTypes.d.ts`
-5. Runtime boundaries remain cleanly owned by typed modules:
+1. Structural file-size budgets are currently compliant (latest `npm run arch:metrics`):
+   - No warning-level or refactor-level file hotspots are reported.
+   - Former warning-level files reduced this cycle:
+     - `extension/src/Runtime/ContentRuntimeBootstrapSession.ts`: `832` -> `712`
+     - `extension/src/Runtime/CuratedLoader.ts`: `902` -> `707`
+     - `extension/src/Runtime/ContentComposition.ts`: `624` -> `595`
+2. Remaining structural debt is function-level (warning threshold >70 lines):
+   - `createBootstrapFinalizeRuntime` in `extension/src/Runtime/BootstrapFinalize.ts`: `84`
+   - `createCuratedCardActionsInternal` in `extension/src/Runtime/CuratedInteractions.ts`: `80`
+   - `createCuratedLoaderContext` in `extension/src/Runtime/CuratedLoader.ts`: `77`
+   - `mergeRenderableEntryInternal` in `extension/src/Runtime/CuratedRenderable.ts`: `75`
+   - `createCuratedCardThumbInternal` in `extension/src/Ui/CuratedCardShell.ts`: `74`
+   - `startRuntime` in `extension/Content.js`: `72`
+3. Runtime decomposition landed in this cycle:
+   - `extension/src/Runtime/ContentRuntimeBootstrapSetupBindings.ts`
+   - `extension/src/Runtime/CuratedLoaderDeferredMetadata.ts`
+   - `extension/src/Runtime/ContentCompositionBindings.ts`
+   - `extension/src/Runtime/ContentRuntimeSetupComposition.ts`
+   - manifest ordering and unit coverage updated for each extracted owner.
+4. Runtime boundaries remain cleanly owned by typed modules:
    - Runtime orchestration: `extension/src/Runtime/**`
    - Data/access boundaries: `extension/src/Data/**`
    - Domain/pure logic: `extension/src/Domain/**`
    - UI rendering/composition: `extension/src/Ui/**`
-6. User-facing behavior coverage remains aligned with recent feature work:
-   - merged status-line labels (`Up Next`/`Continue`) without separate “Next unwatched” row,
-   - favorites genre mode (`__favorites__`),
-   - watch-ready hide-not-started mode,
-   - loading diagnostics that preserve duplicate in-flight requests and show `Completed X of Y • In progress Z`.
-7. Verified full architecture gates in this cycle:
-   - `npm ci`
-   - `npm audit --json` (`0` vulnerabilities)
-   - `npm run typecheck`
-   - `npm run lint`
+5. Verified architecture gates in this cycle:
    - `npm run format:check`
-   - `npm run test:unit` (`149` passed)
-   - `npm run pw:live:smoke`
+   - `npm run lint`
+   - `npm run typecheck`
+   - `npm run test:unit` (`204` passed)
    - `npm run lint:firefox`
-   - `npm run test:e2e` (`81` passed)
    - `npm run build:webext`
-   - `npm run build:safari` (Xcode build succeeded)
    - `npm run arch:metrics`
-8. Remaining friction to track:
-   - No hard blockers are currently open.
-   - Full cross-browser + Safari gate runs are still high-cost; keep release-affecting validation cadence explicit.
-   - Xcode still emits a non-blocking AppIntents metadata notice in this toolchain (`Metadata extraction skipped. No AppIntents.framework dependency found.`).
-   - Signed/notarized Safari release packaging now depends on configured Apple CI secrets; `main` release builds fail fast when those secrets are missing (intentional safety gate).
+6. Remaining friction to track:
+   - Function-level hotspot decomposition is the primary remaining architecture debt.
+   - `test:e2e` aggregate and `build:safari` were not re-run in this specific pass; keep full release gate cadence explicit for publish candidates.
+   - Full cross-browser + Safari gate runs are still high-cost; keep batching discipline explicit.
 
 ## 17) Transitional Exceptions (Tracked)
 
@@ -314,24 +303,23 @@ For each architecture PR:
 - Do not introduce new JavaScript-only modules in `extension/src/**` once TypeScript migration starts for that layer.
 - Do not bypass schema validation at API boundaries by casting unknown payloads directly to typed shapes.
 
-## 20) Prioritized Next Items (Post-Completion Optimization Queue, Reviewed 2026-02-25)
+## 20) Prioritized Next Items (Post-Completion Optimization Queue, Reviewed 2026-02-27)
 
 Priority order for the next optimization cycle:
 
-1. Priority 0: preserve dependency hygiene and lockfile parity (`npm ci` + `npm audit` remain clean) during upgrade windows, with full gate verification and CI `npm audit --audit-level=moderate` enforcement.
-2. Priority 1: prevent regrowth in top runtime owners (`Content.js`, `AuthClient.ts`, `ContentComposition.ts`, `HistoryRepositoryCache.ts`) under tightened warning/refactor budgets.
-3. Priority 1: preserve schema-first contract hardening as API surfaces evolve (watchlist/history/ratings/preview), including explicit contract-drift telemetry and focused unit coverage.
-4. Priority 1: keep Safari release-signing configuration stable (Developer ID cert import, notarization API key, and fail-fast secret validation in CI) so downloaded app artifacts remain Gatekeeper-valid.
-5. Priority 1: keep composition-root boundaries thin (`Content.js`, `ContentBootstrap.ts`, `ContentComposition.ts`) and avoid ownership regression into bootstrap.
-6. Priority 2: continue CI/runtime throughput improvements without reducing cross-browser + Safari confidence.
-7. Priority 2: keep architecture baseline/status documentation synchronized with every structural change cycle.
+1. Priority 0: split `createContentRuntimeSetup` in `extension/src/Runtime/ContentRuntimeSetup.ts` into smaller runtime owner setup modules to clear refactor-level function debt.
+2. Priority 0: continue decomposing `startRuntime` in `extension/Content.js` so `Content.js` returns to strict file budget (`<= 600`) and keeps only orchestration responsibilities.
+3. Priority 1: split `extension/src/Runtime/CuratedLoader.ts` into loader orchestration, pending-request diagnostics, and deferred-metadata scheduler owners so it returns under warning budget (`<= 800`).
+4. Priority 1: reduce warning-level functions (`createBootstrapFinalizeRuntime`, `createCuratedCardActionsInternal`, `createCuratedLoaderContext`, `mergeRenderableEntryInternal`, `createCuratedCardThumbInternal`) under the 70-line warning budget.
+5. Priority 1: add focused unit coverage around new composition seams (`ContentRuntimeSetup`, loader deferred scheduling/takeover behavior, watchlist health recovery).
+6. Priority 2: keep release-confidence gate cadence stable (`typecheck`, `lint`, `format:check`, `test:unit`, `lint:firefox`, `test:e2e`, `build:webext`, `build:safari`, `arch:metrics`).
+7. Priority 2: keep architecture standards/transformation/progress docs synchronized every structural cycle.
 
 Definition of successful next cycle:
 
-- No runtime/data module regresses above strict targets (`<= 600`) or warning thresholds while adding features.
-- Safari build remains clean of script-phase output warnings after incremental Xcode updates.
+- `extension/Content.js` moves below strict warning budget (`<= 600`) with no functional regressions.
+- `createContentRuntimeSetup` and `startRuntime` move below refactor thresholds.
+- warning-level hotspot functions move below warning thresholds.
 - TypeScript migration coverage remains complete for extracted owners under `extension/src/**` with no regression to new JS modules.
-- Typecheck/lint/format/unit/metrics gates stay green for each architecture slice.
-- Release-confidence gates (`lint:firefox`, `test:e2e`, `build:webext`, `build:safari`) remain green for release-affecting slices.
-- Dependency updates preserve `npm ci`/`npm audit` parity and do not regress Playwright/Xcode build stability.
-- No warning-level structural hotspots are introduced.
+- Typecheck/lint/format/unit/E2E/build/metrics gates stay green for each architecture slice.
+- Dependency updates preserve `npm ci` parity and do not regress Playwright/Xcode build stability.

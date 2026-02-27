@@ -26,30 +26,24 @@
     return state.settings as LooseRecord
   }
 
-  function createEntryNormalizerBinding(options: ContentCompositionOptions): (rows: unknown[]) => unknown[] {
-    const corePrimitives = options.corePrimitives
-    const entryNormalizer = requireFunction<AnyFn>(
-      'createEntryNormalizer',
-      options.modules.entryNormalizerModule.createEntryNormalizer,
-    )({
-      sanitizePositiveInt: corePrimitives.sanitizePositiveInt,
-      getAbsoluteEpisodeNumberFromEpisodeMetadata: corePrimitives.getAbsoluteEpisodeNumberFromEpisodeMetadata,
-      deriveCanonicalEpisodeKeyFromEpisodeMetadata: corePrimitives.deriveCanonicalEpisodeKeyFromEpisodeMetadata,
-      formatEpisodeIdentifier: corePrimitives.formatEpisodeIdentifier,
-      hasEnUsAudio: corePrimitives.hasEnUsAudio,
-      extractCoverImagesFromApiImages: options.dependencies.extractCoverImagesFromApiImages,
-      extractThumbnailImageFromApiImages: options.dependencies.extractThumbnailImageFromApiImages,
-      pickFirstDateMs: corePrimitives.pickFirstDateMs,
-      getWatchlistSeriesId: corePrimitives.getWatchlistSeriesId,
-      getEpisodeAvailabilityByAudioLocale: corePrimitives.getEpisodeAvailabilityByAudioLocale,
-      mergeEpisodeAvailabilityByAudioLocale: corePrimitives.mergeEpisodeAvailabilityByAudioLocale,
-      normalizeAudioLocales: corePrimitives.normalizeAudioLocales,
-    }) as AnyFunctionRecord
-    return (rows) =>
-      requireFunction<AnyFn>(
-        'normalizeEntriesFromApiRows',
-        entryNormalizer.normalizeEntriesFromApiRows,
-      )(rows) as unknown[]
+  type ContentCompositionBindingsRuntime = {
+    createEntryNormalizerBinding: (options: ContentCompositionOptions) => (rows: unknown[]) => unknown[]
+    createDebugRuntime: (options: {
+      state: LooseRecord
+      corePrimitives: AnyFunctionRecord
+      modules: LooseRecord
+      assertRuntimeMethods: (owner: string, runtime: AnyFunctionRecord, methods: string[]) => void
+      consoleRef: Console
+    }) => DebugRuntime
+  }
+
+  function createContentCompositionBindingsRuntime(): ContentCompositionBindingsRuntime {
+    const bindingsModule = toFunctionRecord(moduleRegistry.runtimeContentCompositionBindings)
+    const createRuntime = requireFunction<AnyFn>(
+      'createContentCompositionBindingsRuntime',
+      bindingsModule.createContentCompositionBindingsRuntime,
+    )
+    return createRuntime() as ContentCompositionBindingsRuntime
   }
 
   function createSortRuntime(options: ContentCompositionOptions): SortRuntime {
@@ -255,18 +249,51 @@
         sortRuntime.compareRenderableEntries(left, right, sortMode),
     }) as AnyFunctionRecord
     options.assertRuntimeMethods('curated renderable', curatedRenderable, ['buildRenderableEntries'])
-    return () =>
-      requireFunction<AnyFn>('buildRenderableEntries', curatedRenderable.buildRenderableEntries)(
-        options.state.curatedEntries,
-        getSettingsRecord(options.state),
-      )
+    const buildRenderableEntries = requireFunction<AnyFn>(
+      'buildRenderableEntries',
+      curatedRenderable.buildRenderableEntries,
+    )
+    let memoizedEntriesRef: unknown[] | null = null
+    let memoizedSignature = ''
+    let memoizedResult: unknown = null
+
+    return () => {
+      const entries = Array.isArray(options.state.curatedEntries) ? options.state.curatedEntries : []
+      const settings = getSettingsRecord(options.state)
+      const watchHistoryCacheUpdatedAt =
+        options.state.watchHistoryCache &&
+        typeof options.state.watchHistoryCache === 'object' &&
+        Number.isFinite(Number((options.state.watchHistoryCache as LooseRecord).updatedAt))
+          ? Math.max(0, Number((options.state.watchHistoryCache as LooseRecord).updatedAt))
+          : 0
+      const settingsSignature = JSON.stringify({
+        audioLocaleFilter: settings.audioLocaleFilter ?? 'any',
+        genreFilter: settings.genreFilter ?? 'any',
+        watchReadyFilterMode: settings.watchReadyFilterMode ?? 'hide',
+        sortMode: settings.sortMode ?? options.runtimeConstants.defaultSortMode ?? 'none',
+        secondarySortMode: settings.secondarySortMode ?? 'none',
+        preferredAudioLanguage: options.state.preferredAudioLanguage ?? '',
+        ratingCacheRevision: Number(options.state.ratingCacheRevision) || 0,
+        watchHistoryCacheUpdatedAt,
+      })
+
+      if (memoizedEntriesRef === entries && memoizedSignature === settingsSignature && memoizedResult != null) {
+        return memoizedResult
+      }
+
+      const computed = buildRenderableEntries(entries, settings)
+      memoizedEntriesRef = entries
+      memoizedSignature = settingsSignature
+      memoizedResult = computed
+      return computed
+    }
   }
 
   function createCuratedPanelBinding(
     options: ContentCompositionOptions,
     cardRuntime: CardRuntime,
     buildRenderableEntries: CuratedRuntime['buildRenderableEntries'],
-  ): CuratedRuntime['renderCuratedPanel'] {
+  ): Pick<CuratedRuntime, 'renderCuratedPanel' | 'refreshCuratedLoadingIndicator'> {
     const dependencies = options.dependencies
     const curatedPanelRuntime = requireFunction<AnyFn>(
       'createCuratedPanelRuntime',
@@ -285,17 +312,26 @@
       preloadWatchHistoryForSelectedAudioLocale: dependencies.preloadWatchHistoryForSelectedAudioLocale,
       isWatchlistPath: dependencies.isWatchlistPath,
     }) as AnyFunctionRecord
-    options.assertRuntimeMethods('curated panel runtime', curatedPanelRuntime, ['renderCuratedPanel'])
-    return requireFunction<AnyFn>(
+    options.assertRuntimeMethods('curated panel runtime', curatedPanelRuntime, [
       'renderCuratedPanel',
-      curatedPanelRuntime.renderCuratedPanel,
-    ) as CuratedRuntime['renderCuratedPanel']
+      'refreshCuratedLoadingIndicator',
+    ])
+    return {
+      renderCuratedPanel: requireFunction<AnyFn>(
+        'renderCuratedPanel',
+        curatedPanelRuntime.renderCuratedPanel,
+      ) as CuratedRuntime['renderCuratedPanel'],
+      refreshCuratedLoadingIndicator: requireFunction<AnyFn>(
+        'refreshCuratedLoadingIndicator',
+        curatedPanelRuntime.refreshCuratedLoadingIndicator,
+      ) as CuratedRuntime['refreshCuratedLoadingIndicator'],
+    }
   }
 
   function createCuratedLoaderBinding(
     options: ContentCompositionOptions,
     normalizeEntriesFromApiRows: (rows: unknown[]) => unknown[],
-    renderCuratedPanel: CuratedRuntime['renderCuratedPanel'],
+    curatedPanelRuntime: Pick<CuratedRuntime, 'renderCuratedPanel' | 'refreshCuratedLoadingIndicator'>,
   ): CuratedRuntime['ensureCuratedDataLoad'] {
     const corePrimitives = options.corePrimitives
     const dependencies = options.dependencies
@@ -316,8 +352,17 @@
       getPreferredAudioLanguage: dependencies.getPreferredAudioLanguage,
       setWatchlistCacheRows: dependencies.setWatchlistCacheRows,
       isWatchlistPath: dependencies.isWatchlistPath,
-      renderCuratedPanel,
+      renderCuratedPanel: curatedPanelRuntime.renderCuratedPanel,
+      refreshCuratedLoadingIndicator: curatedPanelRuntime.refreshCuratedLoadingIndicator,
       watchlistRevalidateCooldownMs: options.runtimeConstants.watchlistRevalidateCooldownMs,
+      watchlistCacheSourceRevalidateCooldownMs: options.runtimeConstants.watchlistCacheSourceRevalidateCooldownMs,
+      metadataPriorityEntryCount: options.runtimeConstants.metadataPriorityEntryCount,
+      metadataDeferredChunkSize: options.runtimeConstants.metadataDeferredChunkSize,
+      metadataDeferredIdleTimeoutMs: options.runtimeConstants.metadataDeferredIdleTimeoutMs,
+      metadataDeferredHiddenDelayMs: options.runtimeConstants.metadataDeferredHiddenDelayMs,
+      metadataViewportPriorityCount: options.runtimeConstants.metadataViewportPriorityCount,
+      windowRef: options.windowRef,
+      documentRef: options.windowRef.document,
     }) as AnyFunctionRecord
     options.assertRuntimeMethods('curated loader runtime', curatedLoaderRuntime, [
       'loadCuratedEntries',
@@ -372,12 +417,13 @@
     normalizeEntriesFromApiRows: (rows: unknown[]) => unknown[],
   ): CuratedRuntime {
     const buildRenderableEntries = createCuratedRenderableBinding(options, sortRuntime)
-    const renderCuratedPanel = createCuratedPanelBinding(options, cardRuntime, buildRenderableEntries)
-    const ensureCuratedDataLoad = createCuratedLoaderBinding(options, normalizeEntriesFromApiRows, renderCuratedPanel)
+    const curatedPanelRuntime = createCuratedPanelBinding(options, cardRuntime, buildRenderableEntries)
+    const ensureCuratedDataLoad = createCuratedLoaderBinding(options, normalizeEntriesFromApiRows, curatedPanelRuntime)
     const nativeBridge = createNativeBridgeBinding(options)
     return {
       buildRenderableEntries,
-      renderCuratedPanel,
+      renderCuratedPanel: curatedPanelRuntime.renderCuratedPanel,
+      refreshCuratedLoadingIndicator: curatedPanelRuntime.refreshCuratedLoadingIndicator,
       ensureCuratedDataLoad,
       triggerNativeCardAction: nativeBridge.triggerNativeCardAction,
       installCuratedCardPreview: nativeBridge.installCuratedCardPreview,
@@ -474,36 +520,6 @@
     }
   }
 
-  function createDebugRuntime(options: ContentCompositionOptions): DebugRuntime {
-    const runtime = requireFunction<AnyFn>(
-      'createDebugApiRuntime',
-      options.modules.runtimeDebugModule.createDebugApiRuntime,
-    )({
-      state: options.state,
-      getWatchlistSeriesId: options.corePrimitives.getWatchlistSeriesId,
-      getWatchHistorySeriesId: options.corePrimitives.getWatchHistorySeriesId,
-      getWatchlistSeriesTitle: options.corePrimitives.getWatchlistSeriesTitle,
-      getWatchHistorySeriesTitle: options.corePrimitives.getWatchHistorySeriesTitle,
-      logRef: (message: unknown) => {
-        // eslint-disable-next-line no-console
-        console.log(message)
-      },
-    }) as AnyFunctionRecord
-    options.assertRuntimeMethods('debug runtime', runtime, ['listSeries', 'dumpSeriesApiData', 'printSeriesApiData'])
-
-    return {
-      listKnownSeries: requireFunction<AnyFn>('listKnownSeries', runtime.listSeries) as DebugRuntime['listKnownSeries'],
-      dumpSeriesApiData: requireFunction<AnyFn>(
-        'dumpSeriesApiData',
-        runtime.dumpSeriesApiData,
-      ) as DebugRuntime['dumpSeriesApiData'],
-      printSeriesApiData: requireFunction<AnyFn>(
-        'printSeriesApiData',
-        runtime.printSeriesApiData,
-      ) as DebugRuntime['printSeriesApiData'],
-    }
-  }
-
   function createContentComposition(input: ContentCompositionOptions): ContentCompositionRuntime {
     const options: ContentCompositionOptions = {
       ...input,
@@ -514,6 +530,7 @@
     requireFunction('extractThumbnailImageFromApiImages', options.dependencies.extractThumbnailImageFromApiImages)
     requireFunction('getWatchlistRoot', options.dependencies.getWatchlistRoot)
     requireFunction('getWatchlistHeader', options.dependencies.getWatchlistHeader)
+    const compositionBindingsRuntime = createContentCompositionBindingsRuntime()
 
     const deferredCallbacks: DeferredCompositionCallbacks = {
       createCuratedCardActions: () => [],
@@ -521,7 +538,7 @@
       resetCuratedCachesForRefresh: () => undefined,
     }
 
-    const normalizeEntriesFromApiRows = createEntryNormalizerBinding(options)
+    const normalizeEntriesFromApiRows = compositionBindingsRuntime.createEntryNormalizerBinding(options)
 
     const sortRuntime = createSortRuntime(options)
     const cardRuntime = createCardRuntime(options, sortRuntime, deferredCallbacks)
@@ -535,7 +552,13 @@
     const interfaceRuntime = createInterfaceRuntime(options, cardRuntime, curatedRuntime, interactionsRuntime)
     deferredCallbacks.resetCuratedCachesForRefresh = interfaceRuntime.resetCuratedCachesForRefresh
 
-    const debugRuntime = createDebugRuntime(options)
+    const debugRuntime = compositionBindingsRuntime.createDebugRuntime({
+      state: options.state,
+      corePrimitives: options.corePrimitives,
+      modules: options.modules,
+      assertRuntimeMethods: options.assertRuntimeMethods,
+      consoleRef: console,
+    })
 
     return {
       normalizeEntriesFromApiRows,

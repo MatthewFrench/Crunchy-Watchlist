@@ -31,6 +31,7 @@
     runtimeEvent: (event: string, payload?: unknown) => void
     watchlistPageSize: number
     watchlistMaxPages: number
+    watchlistParallelRequests: number
   }
 
   type WatchlistClientOptions = {
@@ -46,6 +47,7 @@
     runtimeEvent?: unknown
     watchlistPageSize?: unknown
     watchlistMaxPages?: unknown
+    watchlistParallelRequests?: unknown
   }
 
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
@@ -103,6 +105,7 @@
           : () => {},
       watchlistPageSize: Math.max(1, Number(options.watchlistPageSize) || 1),
       watchlistMaxPages: Math.max(1, Number(options.watchlistMaxPages) || 1),
+      watchlistParallelRequests: Math.max(1, Math.round(Number(options.watchlistParallelRequests) || 1)),
     }
   }
 
@@ -258,20 +261,16 @@
     context: WatchlistContext,
     tokenEntry: TokenEntry | undefined,
   ): Promise<WatchlistRow[]> {
+    const firstPage = await fetchWatchlistPageInternal(context, tokenEntry, 0)
+    const pageStarts = createRemainingWatchlistPageStartsInternal(context, firstPage)
+    const remainingPages =
+      pageStarts.length > 0 ? await fetchWatchlistPagesByStartInternal(context, tokenEntry, pageStarts) : []
+
+    const orderedPages = [firstPage, ...remainingPages]
     const allRows: WatchlistRow[] = []
     const seenRowKeys = new Set<string>()
-    let start = 0
-    let total: number | null = null
-    let pages = 0
 
-    while (pages < context.watchlistMaxPages) {
-      pages += 1
-      const page = await fetchWatchlistPageInternal(context, tokenEntry, start)
-
-      if (total == null) {
-        total = page.total
-      }
-
+    orderedPages.forEach((page) => {
       page.rows.forEach((row) => {
         const seriesId = context.getWatchlistSeriesId(row) || ''
         const panelId = getPanelId(row)
@@ -284,17 +283,69 @@
         }
         allRows.push(row)
       })
-      start += context.watchlistPageSize
-
-      if (page.rows.length < context.watchlistPageSize) {
-        break
-      }
-      if (total != null && start >= total) {
-        break
-      }
-    }
+    })
 
     return allRows
+  }
+
+  /**
+   * We always fetch page 1 first so we can trust server-reported totals before fanning out.
+   * This keeps request count bounded and avoids issuing speculative deep-page calls.
+   */
+  function createRemainingWatchlistPageStartsInternal(
+    context: WatchlistContext,
+    firstPage: { rows: WatchlistRow[]; total: number },
+  ): number[] {
+    if (firstPage.rows.length < context.watchlistPageSize) {
+      return []
+    }
+
+    const knownTotal = Number.isFinite(firstPage.total) ? Math.max(0, Math.round(firstPage.total)) : 0
+    if (knownTotal <= firstPage.rows.length) {
+      return []
+    }
+
+    const starts: number[] = []
+    let nextStart = context.watchlistPageSize
+    while (starts.length + 1 < context.watchlistMaxPages && nextStart < knownTotal) {
+      starts.push(nextStart)
+      nextStart += context.watchlistPageSize
+    }
+    return starts
+  }
+
+  async function fetchWatchlistPagesByStartInternal(
+    context: WatchlistContext,
+    tokenEntry: TokenEntry | undefined,
+    starts: number[],
+  ): Promise<Array<{ rows: WatchlistRow[]; total: number }>> {
+    if (!starts.length) {
+      return []
+    }
+
+    const pagesByStart = new Map<number, { rows: WatchlistRow[]; total: number }>()
+    let index = 0
+    while (index < starts.length) {
+      const batchStarts = starts.slice(index, index + context.watchlistParallelRequests)
+      const batchResults = await Promise.all(
+        batchStarts.map(async (start) => {
+          const page = await fetchWatchlistPageInternal(context, tokenEntry, start)
+          return { start, page }
+        }),
+      )
+      batchResults.forEach(({ start, page }) => {
+        pagesByStart.set(start, page)
+      })
+      index += batchStarts.length
+    }
+
+    return starts.map((start) => {
+      const page = pagesByStart.get(start)
+      if (!page) {
+        throw new Error(`watchlist page request missing result for start=${start}`)
+      }
+      return page
+    })
   }
 
   function createWatchlistClient(options: WatchlistClientOptions = {}) {

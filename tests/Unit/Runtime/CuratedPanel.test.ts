@@ -42,6 +42,12 @@ type CuratedPanelModule = {
 const curatedPanelModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanel.ts'),
 ).href
+const curatedPanelGridModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGrid.ts'),
+).href
+const curatedPanelLoadingIndicatorModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelLoadingIndicator.ts'),
+).href
 
 function createFakeElement(): FakeElement {
   const toDatasetKey = (attributeName: string): string =>
@@ -224,7 +230,7 @@ function findElementByClassName(element: FakeElement, className: string): FakeEl
 
 describe('curated-panel runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([curatedPanelModuleUrl])
+    await loadRuntimeModules([curatedPanelGridModuleUrl, curatedPanelLoadingIndicatorModuleUrl, curatedPanelModuleUrl])
   })
 
   afterEach(() => {

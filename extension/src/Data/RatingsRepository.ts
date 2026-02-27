@@ -33,6 +33,7 @@
 
   type RatingsRepositoryState = {
     ratingCache: Record<string, RatingCacheEntry | Record<string, unknown>>
+    ratingCacheRevision?: number
     ratingInflight: Map<string, Promise<RatingCacheEntry>>
   }
 
@@ -56,6 +57,7 @@
     scheduleSaveRatings: () => void
     runtimeEvent: (event: string, payload?: unknown) => void
     ratingBatchSize: number
+    ratingBatchParallelChunks: number
     ratingCacheTtlMs: number
   }
 
@@ -75,6 +77,7 @@
     scheduleSaveRatings?: unknown
     runtimeEvent?: unknown
     ratingBatchSize?: unknown
+    ratingBatchParallelChunks?: unknown
     ratingCacheTtlMs?: unknown
   }
 
@@ -151,6 +154,10 @@
       state.ratingInflight = new Map<string, Promise<RatingCacheEntry>>()
     }
 
+    const ratingCacheRevision = Number(state.ratingCacheRevision)
+    state.ratingCacheRevision =
+      Number.isFinite(ratingCacheRevision) && ratingCacheRevision >= 0 ? ratingCacheRevision : 0
+
     return state as RatingsRepositoryState
   }
 
@@ -225,6 +232,7 @@
           ? (options.runtimeEvent as RatingsRepositoryContext['runtimeEvent'])
           : () => {},
       ratingBatchSize: Math.max(1, Number(options.ratingBatchSize) || 1),
+      ratingBatchParallelChunks: Math.max(1, Number(options.ratingBatchParallelChunks) || 1),
       ratingCacheTtlMs: Math.max(1, Number(options.ratingCacheTtlMs) || 1),
     }
   }
@@ -333,6 +341,7 @@
     }
 
     context.state.ratingCache[seriesId] = merged
+    context.state.ratingCacheRevision = (context.state.ratingCacheRevision || 0) + 1
     return merged
   }
 
@@ -411,6 +420,46 @@
     return inflight
   }
 
+  async function fetchRatingsBatchChunksInternal(
+    context: RatingsRepositoryContext,
+    tokenEntry: unknown,
+    chunks: string[][],
+    preferredAudioLanguage: string,
+  ): Promise<Array<Array<Record<string, unknown>>>> {
+    const chunkResults: Array<Array<Record<string, unknown>>> = chunks.map(() => [])
+    let nextChunkIndex = 0
+
+    const workerCount = Math.min(chunks.length, context.ratingBatchParallelChunks)
+    if (workerCount <= 0) {
+      return chunkResults
+    }
+
+    const workers = Array.from({ length: workerCount }, () =>
+      (async () => {
+        while (nextChunkIndex < chunks.length) {
+          const currentChunkIndex = nextChunkIndex
+          nextChunkIndex += 1
+          const chunk = chunks[currentChunkIndex]
+          if (!chunk || !chunk.length) {
+            continue
+          }
+
+          try {
+            const records = await context.fetchRatingsBatch(tokenEntry, chunk, preferredAudioLanguage)
+            chunkResults[currentChunkIndex] = Array.isArray(records)
+              ? records.filter((record): record is Record<string, unknown> => !!record && typeof record === 'object')
+              : []
+          } catch {
+            chunkResults[currentChunkIndex] = []
+          }
+        }
+      })(),
+    )
+
+    await Promise.all(workers)
+    return chunkResults
+  }
+
   async function preloadRatingsForEntriesInternal(
     context: RatingsRepositoryContext,
     entries: unknown,
@@ -445,28 +494,29 @@
     const tokenEntryRecord = toRecord(tokenEntry)
     if (typeof tokenEntryRecord.accessToken === 'string' && tokenEntryRecord.accessToken) {
       const chunks = context.chunkArray(staleSeriesIds, context.ratingBatchSize)
-      for (const chunk of chunks) {
-        try {
-          const records = await context.fetchRatingsBatch(tokenEntry, chunk, effectivePreferredAudioLanguage)
-          records.forEach((record) => {
-            const recordData = toRecord(record)
-            const seriesId = typeof recordData.seriesId === 'string' ? recordData.seriesId : ''
-            if (!seriesId) {
-              invalidRecords += 1
-              return
-            }
+      const chunkResults = await fetchRatingsBatchChunksInternal(
+        context,
+        tokenEntry,
+        chunks,
+        effectivePreferredAudioLanguage,
+      )
+      chunkResults.forEach((records) => {
+        records.forEach((record) => {
+          const recordData = toRecord(record)
+          const seriesId = typeof recordData.seriesId === 'string' ? recordData.seriesId : ''
+          if (!seriesId) {
+            invalidRecords += 1
+            return
+          }
 
-            mergeCachedSeriesDataInternal(
-              context,
-              seriesId,
-              normalizeRatingUpdateInternal(context, recordData, effectivePreferredAudioLanguage),
-            )
-            updated += 1
-          })
-        } catch (_) {
-          // no-op
-        }
-      }
+          mergeCachedSeriesDataInternal(
+            context,
+            seriesId,
+            normalizeRatingUpdateInternal(context, recordData, effectivePreferredAudioLanguage),
+          )
+          updated += 1
+        })
+      })
     }
 
     if (updated > 0) {
