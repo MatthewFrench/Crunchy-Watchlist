@@ -1,3 +1,5 @@
+import { createInterfaceShellHostLifecycleRuntime } from './InterfaceShellHostLifecycle.js';
+
 (() => {
   type AnyFn = (...args: unknown[]) => unknown;
 
@@ -146,13 +148,6 @@
     return value as T;
   }
 
-  function asRecord(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== 'object') {
-      return {};
-    }
-    return value as Record<string, unknown>;
-  }
-
   function asRuntimeState(value: unknown): RuntimeState | null {
     if (!value || typeof value !== 'object') {
       return null;
@@ -275,14 +270,6 @@
       ...resolveInterfaceShellCoreDependencies(options),
       ...resolveInterfaceShellFunctionDependencies(options),
     };
-  }
-
-  function createInterfaceShellHostLifecycleRuntime(): InterfaceShellHostLifecycleRuntime {
-    const hostLifecycleModule = asRecord(moduleRegistry.runtimeInterfaceShellHostLifecycle);
-    return requireFunction<() => InterfaceShellHostLifecycleRuntime>(
-      'createInterfaceShellHostLifecycleRuntime',
-      hostLifecycleModule.createInterfaceShellHostLifecycleRuntime,
-    )();
   }
 
   function isElementWithDisplayState(value: unknown): value is HTMLElement {

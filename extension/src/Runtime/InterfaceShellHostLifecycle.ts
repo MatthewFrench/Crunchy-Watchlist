@@ -1,122 +1,102 @@
-(() => {
-  type LooseRecord = Record<string, unknown>;
+type LooseRecord = Record<string, unknown>;
 
-  type RuntimeStateLike = {
-    framedRootEl: Element | null;
-    nativeHiddenNodes: Element[];
-    hostEl: Element | null;
-    tabCrunchyrollEl: Element | null;
-    tabCuratedEl: Element | null;
-    curatedPanelEl: Element | null;
-    controlsEl: Element | null;
-    loadingBoxEl: Element | null;
-    loadingIndicatorEl: Element | null;
-    audioFilterSelectEl: Element | null;
-    genreFilterSelectEl: Element | null;
-    statsEl: Element | null;
-    gridEl: Element | null;
-    curatedGridRenderSignature: string;
-  };
+type RuntimeStateLike = {
+  framedRootEl: Element | null;
+  nativeHiddenNodes: Element[];
+  hostEl: Element | null;
+  tabCrunchyrollEl: Element | null;
+  tabCuratedEl: Element | null;
+  curatedPanelEl: Element | null;
+  controlsEl: Element | null;
+  loadingBoxEl: Element | null;
+  loadingIndicatorEl: Element | null;
+  audioFilterSelectEl: Element | null;
+  genreFilterSelectEl: Element | null;
+  statsEl: Element | null;
+  gridEl: Element | null;
+  curatedGridRenderSignature: string;
+};
 
-  type InterfaceShellHostLifecycleContextLike = {
-    state: RuntimeStateLike;
-    windowRef: Window;
-    getWatchlistRoot: () => Element | null;
-  };
+type InterfaceShellHostLifecycleContextLike = {
+  state: RuntimeStateLike;
+  windowRef: Window;
+  getWatchlistRoot: () => Element | null;
+};
 
-  type InterfaceShellHostLifecycleRuntime = {
-    isConnectedElement: (value: unknown) => value is Element;
-    clearInterfaceReferences: (context: InterfaceShellHostLifecycleContextLike) => void;
-    resetInterfaceShell: (context: InterfaceShellHostLifecycleContextLike, removeHost: boolean) => void;
-    isInterfaceShellIntact: (context: InterfaceShellHostLifecycleContextLike) => boolean;
-    ensureRootFrame: (context: InterfaceShellHostLifecycleContextLike, rootElement: Element | null) => void;
-    clearRootFrame: (context: InterfaceShellHostLifecycleContextLike) => void;
-    setNativeVisibility: (context: InterfaceShellHostLifecycleContextLike, showNative: boolean) => void;
-    restoreActiveCuratedHostVisibility: (context: InterfaceShellHostLifecycleContextLike) => void;
-    removeOrphanCuratedHosts: (context: InterfaceShellHostLifecycleContextLike, rootElement: Element) => void;
-  };
+export type InterfaceShellHostLifecycleRuntime = {
+  isConnectedElement: (value: unknown) => value is Element;
+  clearInterfaceReferences: (context: InterfaceShellHostLifecycleContextLike) => void;
+  resetInterfaceShell: (context: InterfaceShellHostLifecycleContextLike, removeHost: boolean) => void;
+  isInterfaceShellIntact: (context: InterfaceShellHostLifecycleContextLike) => boolean;
+  ensureRootFrame: (context: InterfaceShellHostLifecycleContextLike, rootElement: Element | null) => void;
+  clearRootFrame: (context: InterfaceShellHostLifecycleContextLike) => void;
+  setNativeVisibility: (context: InterfaceShellHostLifecycleContextLike, showNative: boolean) => void;
+  restoreActiveCuratedHostVisibility: (context: InterfaceShellHostLifecycleContextLike) => void;
+  removeOrphanCuratedHosts: (context: InterfaceShellHostLifecycleContextLike, rootElement: Element) => void;
+};
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
-    typeof globalThis & {
-      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
-    };
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
+function asRecord(value: unknown): LooseRecord {
+  if (!value || typeof value !== 'object') {
+    return {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
+  return value as LooseRecord;
+}
 
-  function asRecord(value: unknown): LooseRecord {
-    if (!value || typeof value !== 'object') {
-      return {};
-    }
-    return value as LooseRecord;
+function isElementWithDisplayState(value: unknown): value is HTMLElement {
+  if (!value || typeof value !== 'object') {
+    return false;
   }
+  const record = value as LooseRecord;
+  return (
+    typeof record.style === 'object' &&
+    record.style != null &&
+    typeof record.dataset === 'object' &&
+    record.dataset != null &&
+    typeof record.classList === 'object'
+  );
+}
 
-  function isElementWithDisplayState(value: unknown): value is HTMLElement {
-    if (!value || typeof value !== 'object') {
-      return false;
-    }
-    const record = value as LooseRecord;
-    return (
-      typeof record.style === 'object' &&
-      record.style != null &&
-      typeof record.dataset === 'object' &&
-      record.dataset != null &&
-      typeof record.classList === 'object'
-    );
+function isCuratedHostElement(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
   }
+  const element = value as Element;
+  return Boolean(
+    element.classList && typeof element.classList.contains === 'function' && element.classList.contains('cw-host'),
+  );
+}
 
-  function isConnectedElement(value: unknown): value is Element {
+function clearPreviousDisplayMarker(node: Element): void {
+  if (!isElementWithDisplayState(node)) {
+    return;
+  }
+  if (!Object.hasOwn(node.dataset, 'cwPrevDisplay')) {
+    return;
+  }
+  node.style.display = node.dataset.cwPrevDisplay != null ? node.dataset.cwPrevDisplay : '';
+  delete node.dataset.cwPrevDisplay;
+}
+
+function isConnectedHostDescendant(
+  host: Element,
+  candidate: unknown,
+  isConnectedElement: (value: unknown) => value is Element,
+): boolean {
+  if (!isConnectedElement(candidate)) {
+    return false;
+  }
+  if (typeof host.contains !== 'function') {
+    return true;
+  }
+  return host.contains(candidate);
+}
+
+class InterfaceShellHostLifecycleController implements InterfaceShellHostLifecycleRuntime {
+  isConnectedElement(value: unknown): value is Element {
     return Boolean(value && typeof value === 'object' && asRecord(value).isConnected === true);
   }
 
-  function isCuratedHostElement(value: unknown): boolean {
-    if (!value || typeof value !== 'object') {
-      return false;
-    }
-    const element = value as Element;
-    return Boolean(
-      element.classList && typeof element.classList.contains === 'function' && element.classList.contains('cw-host'),
-    );
-  }
-
-  function clearPreviousDisplayMarker(node: Element): void {
-    if (!isElementWithDisplayState(node)) {
-      return;
-    }
-    if (!Object.hasOwn(node.dataset, 'cwPrevDisplay')) {
-      return;
-    }
-    node.style.display = node.dataset.cwPrevDisplay != null ? node.dataset.cwPrevDisplay : '';
-    delete node.dataset.cwPrevDisplay;
-  }
-
-  function restoreActiveCuratedHostVisibility(context: InterfaceShellHostLifecycleContextLike): void {
-    const hostElement = context.state.hostEl;
-    if (!isElementWithDisplayState(hostElement)) {
-      return;
-    }
-
-    clearPreviousDisplayMarker(hostElement);
-    if (hostElement.style.display === 'none') {
-      hostElement.style.display = '';
-    }
-  }
-
-  function removeOrphanCuratedHosts(context: InterfaceShellHostLifecycleContextLike, rootElement: Element): void {
-    const children = Array.from(rootElement.children);
-    children.forEach((child) => {
-      if (!isCuratedHostElement(child)) {
-        return;
-      }
-      if (child === context.state.hostEl) {
-        return;
-      }
-      child.remove();
-    });
-  }
-
-  function clearInterfaceReferences(context: InterfaceShellHostLifecycleContextLike): void {
+  clearInterfaceReferences(context: InterfaceShellHostLifecycleContextLike): void {
     context.state.hostEl = null;
     context.state.tabCrunchyrollEl = null;
     context.state.tabCuratedEl = null;
@@ -131,44 +111,34 @@
     context.state.curatedGridRenderSignature = '';
   }
 
-  function resetInterfaceShell(context: InterfaceShellHostLifecycleContextLike, removeHost: boolean): void {
-    if (removeHost && isConnectedElement(context.state.hostEl)) {
+  resetInterfaceShell(context: InterfaceShellHostLifecycleContextLike, removeHost: boolean): void {
+    if (removeHost && this.isConnectedElement(context.state.hostEl)) {
       context.state.hostEl.remove();
     }
-    clearInterfaceReferences(context);
+    this.clearInterfaceReferences(context);
   }
 
-  function isConnectedHostDescendant(host: Element, candidate: unknown): boolean {
-    if (!isConnectedElement(candidate)) {
-      return false;
-    }
-    if (typeof host.contains !== 'function') {
-      return true;
-    }
-    return host.contains(candidate);
-  }
-
-  function isInterfaceShellIntact(context: InterfaceShellHostLifecycleContextLike): boolean {
+  isInterfaceShellIntact(context: InterfaceShellHostLifecycleContextLike): boolean {
     const hostElement = context.state.hostEl;
-    if (!isConnectedElement(hostElement)) {
+    if (!this.isConnectedElement(hostElement)) {
       return false;
     }
 
     return (
-      isConnectedHostDescendant(hostElement, context.state.tabCrunchyrollEl) &&
-      isConnectedHostDescendant(hostElement, context.state.tabCuratedEl) &&
-      isConnectedHostDescendant(hostElement, context.state.curatedPanelEl) &&
-      isConnectedHostDescendant(hostElement, context.state.controlsEl) &&
-      isConnectedHostDescendant(hostElement, context.state.loadingBoxEl) &&
-      isConnectedHostDescendant(hostElement, context.state.loadingIndicatorEl) &&
-      isConnectedHostDescendant(hostElement, context.state.audioFilterSelectEl) &&
-      isConnectedHostDescendant(hostElement, context.state.genreFilterSelectEl) &&
-      isConnectedHostDescendant(hostElement, context.state.statsEl) &&
-      isConnectedHostDescendant(hostElement, context.state.gridEl)
+      isConnectedHostDescendant(hostElement, context.state.tabCrunchyrollEl, this.isConnectedElement) &&
+      isConnectedHostDescendant(hostElement, context.state.tabCuratedEl, this.isConnectedElement) &&
+      isConnectedHostDescendant(hostElement, context.state.curatedPanelEl, this.isConnectedElement) &&
+      isConnectedHostDescendant(hostElement, context.state.controlsEl, this.isConnectedElement) &&
+      isConnectedHostDescendant(hostElement, context.state.loadingBoxEl, this.isConnectedElement) &&
+      isConnectedHostDescendant(hostElement, context.state.loadingIndicatorEl, this.isConnectedElement) &&
+      isConnectedHostDescendant(hostElement, context.state.audioFilterSelectEl, this.isConnectedElement) &&
+      isConnectedHostDescendant(hostElement, context.state.genreFilterSelectEl, this.isConnectedElement) &&
+      isConnectedHostDescendant(hostElement, context.state.statsEl, this.isConnectedElement) &&
+      isConnectedHostDescendant(hostElement, context.state.gridEl, this.isConnectedElement)
     );
   }
 
-  function ensureRootFrame(context: InterfaceShellHostLifecycleContextLike, rootElement: Element | null): void {
+  ensureRootFrame(context: InterfaceShellHostLifecycleContextLike, rootElement: Element | null): void {
     if (!rootElement || !isElementWithDisplayState(rootElement)) {
       return;
     }
@@ -185,14 +155,53 @@
     context.state.framedRootEl = rootElement;
   }
 
-  function clearRootFrame(context: InterfaceShellHostLifecycleContextLike): void {
+  clearRootFrame(context: InterfaceShellHostLifecycleContextLike): void {
     if (context.state.framedRootEl && asRecord(context.state.framedRootEl).isConnected) {
       context.state.framedRootEl.classList.remove('cw-watchlist-frame');
     }
     context.state.framedRootEl = null;
   }
 
-  function restoreNativeVisibility(context: InterfaceShellHostLifecycleContextLike, rootElement: Element): void {
+  restoreActiveCuratedHostVisibility(context: InterfaceShellHostLifecycleContextLike): void {
+    const hostElement = context.state.hostEl;
+    if (!isElementWithDisplayState(hostElement)) {
+      return;
+    }
+
+    clearPreviousDisplayMarker(hostElement);
+    if (hostElement.style.display === 'none') {
+      hostElement.style.display = '';
+    }
+  }
+
+  removeOrphanCuratedHosts(context: InterfaceShellHostLifecycleContextLike, rootElement: Element): void {
+    const children = Array.from(rootElement.children);
+    children.forEach((child) => {
+      if (!isCuratedHostElement(child)) {
+        return;
+      }
+      if (child === context.state.hostEl) {
+        return;
+      }
+      child.remove();
+    });
+  }
+
+  setNativeVisibility(context: InterfaceShellHostLifecycleContextLike, showNative: boolean): void {
+    const rootElement = context.getWatchlistRoot();
+    if (!rootElement) {
+      return;
+    }
+
+    if (showNative) {
+      this.restoreNativeVisibility(context, rootElement);
+      return;
+    }
+
+    this.hideNativeVisibility(context, rootElement);
+  }
+
+  private restoreNativeVisibility(context: InterfaceShellHostLifecycleContextLike, rootElement: Element): void {
     const flaggedNodes = Array.from(rootElement.querySelectorAll('[data-cw-prev-display]'));
     const restoreCandidates = new Set([...context.state.nativeHiddenNodes, ...flaggedNodes]);
 
@@ -215,13 +224,13 @@
       try {
         context.windowRef.dispatchEvent(new Event('resize'));
         context.windowRef.dispatchEvent(new Event('scroll'));
-      } catch (_) {
+      } catch {
         // no-op
       }
     });
   }
 
-  function hideNativeVisibility(context: InterfaceShellHostLifecycleContextLike, rootElement: Element): void {
+  private hideNativeVisibility(context: InterfaceShellHostLifecycleContextLike, rootElement: Element): void {
     const children = Array.from(rootElement.children).filter((child) => child !== context.state.hostEl);
     context.state.nativeHiddenNodes = [];
 
@@ -243,36 +252,24 @@
       context.state.nativeHiddenNodes.push(node);
     });
   }
+}
 
-  function setNativeVisibility(context: InterfaceShellHostLifecycleContextLike, showNative: boolean): void {
-    const rootElement = context.getWatchlistRoot();
-    if (!rootElement) {
-      return;
-    }
+export function createInterfaceShellHostLifecycleRuntime(): InterfaceShellHostLifecycleRuntime {
+  return new InterfaceShellHostLifecycleController();
+}
 
-    if (showNative) {
-      restoreNativeVisibility(context, rootElement);
-      return;
-    }
-
-    hideNativeVisibility(context, rootElement);
-  }
-
-  function createInterfaceShellHostLifecycleRuntime(): InterfaceShellHostLifecycleRuntime {
-    return {
-      isConnectedElement: (value) => isConnectedElement(value),
-      clearInterfaceReferences: (context) => clearInterfaceReferences(context),
-      resetInterfaceShell: (context, removeHost) => resetInterfaceShell(context, removeHost),
-      isInterfaceShellIntact: (context) => isInterfaceShellIntact(context),
-      ensureRootFrame: (context, rootElement) => ensureRootFrame(context, rootElement),
-      clearRootFrame: (context) => clearRootFrame(context),
-      setNativeVisibility: (context, showNative) => setNativeVisibility(context, showNative),
-      restoreActiveCuratedHostVisibility: (context) => restoreActiveCuratedHostVisibility(context),
-      removeOrphanCuratedHosts: (context, rootElement) => removeOrphanCuratedHosts(context, rootElement),
+function registerInterfaceShellHostLifecycleRuntime(): void {
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
+    typeof globalThis & {
+      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
     };
+  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
 
-  moduleRegistry.runtimeInterfaceShellHostLifecycle = {
+  root.__CW_WATCHLIST_CURATOR_MODULES__.runtimeInterfaceShellHostLifecycle = {
     createInterfaceShellHostLifecycleRuntime,
   };
-})();
+}
+
+registerInterfaceShellHostLifecycleRuntime();

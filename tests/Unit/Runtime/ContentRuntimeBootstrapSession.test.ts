@@ -27,15 +27,6 @@ type RuntimeBootstrapSessionModule = {
 const contentRuntimeBootstrapSessionModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentRuntimeBootstrapSession.ts'),
 ).href;
-const contentRuntimeBootstrapFinalizeFlowModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentRuntimeBootstrapFinalizeFlow.ts'),
-).href;
-const contentRuntimeBootstrapSessionSupportModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentRuntimeBootstrapSessionSupport.ts'),
-).href;
-const contentRuntimeBootstrapSessionAssemblyModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentRuntimeBootstrapSessionAssembly.ts'),
-).href;
 
 function getBootstrapSessionModule() {
   const registry = (globalThis as Record<string, unknown>)
@@ -45,12 +36,7 @@ function getBootstrapSessionModule() {
 
 describe('content-runtime-bootstrap-session runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([
-      contentRuntimeBootstrapFinalizeFlowModuleUrl,
-      contentRuntimeBootstrapSessionSupportModuleUrl,
-      contentRuntimeBootstrapSessionAssemblyModuleUrl,
-      contentRuntimeBootstrapSessionModuleUrl,
-    ]);
+    await loadRuntimeModules([contentRuntimeBootstrapSessionModuleUrl]);
   });
 
   afterEach(() => {
