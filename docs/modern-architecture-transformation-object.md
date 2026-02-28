@@ -238,6 +238,17 @@ Progress notes:
 - 2026-02-28: Simplified bootstrap validation API after registry-decoupling:
   - `resolveValidatedBootstrapContext(...)` no longer accepts/passes a module-registry argument (`ContentRuntimeBootstrapDomLock`, `ContentRuntimeBootstrapHelpers`, `Content.js`).
   - Bootstrap context validation now depends only on `createContentBootstrapPrelude(...)` output for runtime module wiring.
+- 2026-02-28: Converted `ContentBootstrap` bootstrap-owner dependencies to direct import wiring with explicit override hooks:
+  - `ContentBootstrap` now resolves diagnostics/gate/modules/finalize runtimes from direct imports (`BootstrapDiagnostics`, `BootstrapGate`, `BootstrapModules`, `BootstrapFinalize`) instead of `moduleRegistry.runtimeBootstrap*` lookups.
+  - `createContentBootstrapPrelude` now accepts explicit optional override modules (`runtimeBootstrapDiagnosticsModule`, `runtimeBootstrapGateModule`, `runtimeBootstrapModulesModule`, `runtimeBootstrapFinalizeModule`) for deterministic test seams.
+  - `BootstrapDiagnostics`, `BootstrapGate`, `BootstrapModules`, and `BootstrapFinalize` now export direct factory/runtime accessors while preserving existing module-registry registration compatibility.
+- 2026-02-28: Reduced finalize-flow coupling to session-carried module objects:
+  - `ContentRuntimeBootstrapFinalizeFlow` now binds `safeJsonParse` / `createStorageAccessors` / `createBootstrapFinalizeRuntime` via direct import wiring (`createBootstrapFinalizeRuntimeModule`) instead of reading `runtimeBootstrapSession.runtimeBootstrapFinalizeModule`.
+  - Added explicit dependency checks in finalize-flow runtime assembly to fail fast on missing finalize/storage methods.
+- 2026-02-28: Removed `runtimeBootstrapModulesModule` object plumbing from bootstrap context/session handoff:
+  - `ContentBootstrap` now returns `assertRuntimeMethods` directly in the bootstrap prelude instead of forwarding the full `runtimeBootstrapModulesModule`.
+  - `ContentRuntimeBootstrapDomLock` validates `assertRuntimeMethods` and forwards it as a function contract.
+  - `ContentRuntimeBootstrapSessionAssembly` now consumes `bootstrapContext.assertRuntimeMethods` directly when wiring session dependencies.
 
 ## WS2: Boundary-Type Discipline Cleanup
 

@@ -1,4 +1,9 @@
-type AnyFn = (...args: unknown[]) => unknown;
+import { createBootstrapDiagnosticsRuntime } from './BootstrapDiagnostics.js';
+import { createBootstrapFinalizeRuntimeModule } from './BootstrapFinalize.js';
+import { createBootstrapGateRuntime } from './BootstrapGate.js';
+import { createBootstrapModulesRuntime } from './BootstrapModules.js';
+
+type RuntimeFn = (...args: unknown[]) => unknown;
 type LooseRecord = Record<string, unknown>;
 
 type DiagnosticsRuntime = {
@@ -11,7 +16,7 @@ type ContentBootstrapPrelude = {
   updateDiagnostics?: DiagnosticsRuntime['updateDiagnostics'];
   setBootstrapIssue?: DiagnosticsRuntime['setBootstrapIssue'];
   runtimeBootstrapGateModule?: LooseRecord;
-  runtimeBootstrapModulesModule?: LooseRecord;
+  assertRuntimeMethods?: RuntimeFn;
   runtimeBootstrapFinalizeModule?: LooseRecord;
   bootstrapModulesRuntime?: LooseRecord;
 };
@@ -21,10 +26,14 @@ type ContentBootstrapOptions = {
   consoleRef?: Console;
   browserRef?: unknown;
   chromeRef?: unknown;
+  runtimeBootstrapDiagnosticsModule?: object;
+  runtimeBootstrapGateModule?: object;
+  runtimeBootstrapModulesModule?: object;
+  runtimeBootstrapFinalizeModule?: object;
 };
 
 type BootstrapRuntimeModules = {
-  runtimeBootstrapModulesModule: LooseRecord;
+  assertRuntimeMethods: RuntimeFn;
   runtimeBootstrapFinalizeModule: LooseRecord;
   bootstrapModulesRuntime: LooseRecord;
 };
@@ -56,10 +65,18 @@ function toDiagnosticsRuntime(value: unknown): DiagnosticsRuntime | null {
 }
 
 function resolveDiagnosticsRuntime(
+  options: ContentBootstrapOptions,
   windowRef: Window & typeof globalThis,
   consoleRef: Console,
 ): DiagnosticsRuntime | null {
-  const runtimeBootstrapDiagnosticsModule = toRecord(moduleRegistry.runtimeBootstrapDiagnostics);
+  let runtimeBootstrapDiagnosticsModule = toRecord(options.runtimeBootstrapDiagnosticsModule);
+  if (!hasMethods(runtimeBootstrapDiagnosticsModule, ['createBootstrapDiagnostics'])) {
+    try {
+      runtimeBootstrapDiagnosticsModule = toRecord(createBootstrapDiagnosticsRuntime());
+    } catch {
+      runtimeBootstrapDiagnosticsModule = {};
+    }
+  }
   if (!hasMethods(runtimeBootstrapDiagnosticsModule, ['createBootstrapDiagnostics'])) {
     // eslint-disable-next-line no-console
     consoleRef.error('[CW] missing-bootstrap-diagnostics-module');
@@ -67,7 +84,7 @@ function resolveDiagnosticsRuntime(
   }
 
   const diagnosticsRuntime = toDiagnosticsRuntime(
-    (runtimeBootstrapDiagnosticsModule.createBootstrapDiagnostics as AnyFn)({
+    (runtimeBootstrapDiagnosticsModule.createBootstrapDiagnostics as RuntimeFn)({
       windowRef,
       consoleRef,
     }),
@@ -85,7 +102,16 @@ function resolveGateModule(
   diagnosticsRuntime: DiagnosticsRuntime,
   windowRef: Window & typeof globalThis,
 ): LooseRecord | null {
-  const runtimeBootstrapGateModule = toRecord(moduleRegistry.runtimeBootstrapGate);
+  let runtimeBootstrapGateModule = toRecord(options.runtimeBootstrapGateModule);
+  if (
+    !hasMethods(runtimeBootstrapGateModule, ['shouldRun', 'isWatchlistPath', 'getWatchlistRoot', 'getWatchlistHeader'])
+  ) {
+    try {
+      runtimeBootstrapGateModule = toRecord(createBootstrapGateRuntime());
+    } catch {
+      runtimeBootstrapGateModule = {};
+    }
+  }
   if (
     !hasMethods(runtimeBootstrapGateModule, ['shouldRun', 'isWatchlistPath', 'getWatchlistRoot', 'getWatchlistHeader'])
   ) {
@@ -93,7 +119,7 @@ function resolveGateModule(
     return null;
   }
 
-  const shouldRun = (runtimeBootstrapGateModule.shouldRun as AnyFn)({
+  const shouldRun = (runtimeBootstrapGateModule.shouldRun as RuntimeFn)({
     windowRef,
     browserRef: options.browserRef,
     chromeRef: options.chromeRef,
@@ -112,16 +138,37 @@ function resolveGateModule(
 }
 
 function resolveBootstrapRuntimeModules(
+  options: ContentBootstrapOptions,
   windowRef: Window & typeof globalThis,
   setBootstrapIssue: DiagnosticsRuntime['setBootstrapIssue'],
 ): BootstrapRuntimeModules | null {
-  const runtimeBootstrapModulesModule = toRecord(moduleRegistry.runtimeBootstrapModules);
+  let runtimeBootstrapModulesModule = toRecord(options.runtimeBootstrapModulesModule);
+  if (!hasMethods(runtimeBootstrapModulesModule, ['createBootstrapModules', 'assertRuntimeMethods'])) {
+    try {
+      runtimeBootstrapModulesModule = toRecord(createBootstrapModulesRuntime());
+    } catch {
+      runtimeBootstrapModulesModule = {};
+    }
+  }
   if (!hasMethods(runtimeBootstrapModulesModule, ['createBootstrapModules', 'assertRuntimeMethods'])) {
     setBootstrapIssue('missing-bootstrap-modules-module');
     return null;
   }
 
-  const runtimeBootstrapFinalizeModule = toRecord(moduleRegistry.runtimeBootstrapFinalize);
+  let runtimeBootstrapFinalizeModule = toRecord(options.runtimeBootstrapFinalizeModule);
+  if (
+    !hasMethods(runtimeBootstrapFinalizeModule, [
+      'createBootstrapFinalizeRuntime',
+      'createStorageAccessors',
+      'safeJsonParse',
+    ])
+  ) {
+    try {
+      runtimeBootstrapFinalizeModule = toRecord(createBootstrapFinalizeRuntimeModule());
+    } catch {
+      runtimeBootstrapFinalizeModule = {};
+    }
+  }
   if (
     !hasMethods(runtimeBootstrapFinalizeModule, [
       'createBootstrapFinalizeRuntime',
@@ -134,7 +181,7 @@ function resolveBootstrapRuntimeModules(
   }
 
   const bootstrapModulesRuntime = toRecord(
-    (runtimeBootstrapModulesModule.createBootstrapModules as AnyFn)({
+    (runtimeBootstrapModulesModule.createBootstrapModules as RuntimeFn)({
       windowRef,
     }),
   );
@@ -144,7 +191,7 @@ function resolveBootstrapRuntimeModules(
   }
 
   return {
-    runtimeBootstrapModulesModule,
+    assertRuntimeMethods: runtimeBootstrapModulesModule.assertRuntimeMethods as RuntimeFn,
     runtimeBootstrapFinalizeModule,
     bootstrapModulesRuntime,
   };
@@ -153,7 +200,7 @@ function resolveBootstrapRuntimeModules(
 export function createContentBootstrapPrelude(options: ContentBootstrapOptions = {}): ContentBootstrapPrelude {
   const windowRef = options.windowRef || root;
   const consoleRef = options.consoleRef || console;
-  const diagnosticsRuntime = resolveDiagnosticsRuntime(windowRef, consoleRef);
+  const diagnosticsRuntime = resolveDiagnosticsRuntime(options, windowRef, consoleRef);
   if (!diagnosticsRuntime) {
     return { ok: false };
   }
@@ -169,7 +216,7 @@ export function createContentBootstrapPrelude(options: ContentBootstrapOptions =
   }
   diagnosticsRuntime.updateDiagnostics({ ok: false, stage: 'bootstrap-started' });
 
-  const runtimeModules = resolveBootstrapRuntimeModules(windowRef, diagnosticsRuntime.setBootstrapIssue);
+  const runtimeModules = resolveBootstrapRuntimeModules(options, windowRef, diagnosticsRuntime.setBootstrapIssue);
   if (!runtimeModules) {
     return { ok: false };
   }
@@ -179,7 +226,7 @@ export function createContentBootstrapPrelude(options: ContentBootstrapOptions =
     updateDiagnostics: diagnosticsRuntime.updateDiagnostics,
     setBootstrapIssue: diagnosticsRuntime.setBootstrapIssue,
     runtimeBootstrapGateModule,
-    runtimeBootstrapModulesModule: runtimeModules.runtimeBootstrapModulesModule,
+    assertRuntimeMethods: runtimeModules.assertRuntimeMethods,
     runtimeBootstrapFinalizeModule: runtimeModules.runtimeBootstrapFinalizeModule,
     bootstrapModulesRuntime: runtimeModules.bootstrapModulesRuntime,
   };

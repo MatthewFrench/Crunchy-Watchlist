@@ -1,3 +1,5 @@
+let createBootstrapDiagnosticsFactory: ((options?: object) => object) | null = null;
+
 (() => {
   type BootstrapDiagnosticsOptions = {
     windowRef?: unknown;
@@ -79,7 +81,16 @@
     };
   }
 
+  createBootstrapDiagnosticsFactory = createBootstrapDiagnostics as (options?: object) => object;
+
   moduleRegistry.runtimeBootstrapDiagnostics = {
     createBootstrapDiagnostics,
   };
 })();
+
+export function createBootstrapDiagnosticsRuntime(options: object = {}): object {
+  if (typeof createBootstrapDiagnosticsFactory !== 'function') {
+    throw new Error('[CW] Bootstrap diagnostics factory was not initialized.');
+  }
+  return createBootstrapDiagnosticsFactory(options);
+}

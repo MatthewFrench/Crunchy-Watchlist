@@ -257,12 +257,17 @@ function resolveValidatedBootstrapContextForContext(context: RuntimeBootstrapHel
   }
 
   const setBootstrapIssue = bootstrapPrelude.setBootstrapIssue as AnyFn;
+  if (typeof bootstrapPrelude.assertRuntimeMethods !== 'function') {
+    setBootstrapIssue('missing-bootstrap-assert-runtime-methods');
+    clearStaleInjectedShellForContext(context, 'missing-bootstrap-assert-runtime-methods');
+    return null;
+  }
 
   return {
     updateDiagnostics: bootstrapPrelude.updateDiagnostics as AnyFn,
     setBootstrapIssue,
     runtimeBootstrapGateModule: toRecord(bootstrapPrelude.runtimeBootstrapGateModule),
-    runtimeBootstrapModulesModule: toRecord(bootstrapPrelude.runtimeBootstrapModulesModule),
+    assertRuntimeMethods: bootstrapPrelude.assertRuntimeMethods as AnyFn,
     runtimeBootstrapFinalizeModule: toRecord(bootstrapPrelude.runtimeBootstrapFinalizeModule),
     bootstrapModulesRuntime: toRecord(bootstrapPrelude.bootstrapModulesRuntime),
   };

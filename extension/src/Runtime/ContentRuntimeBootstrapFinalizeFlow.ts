@@ -1,3 +1,5 @@
+import { createBootstrapFinalizeRuntimeModule } from './BootstrapFinalize.js';
+
 type AnyFn = (...args: unknown[]) => unknown;
 type LooseRecord = Record<string, unknown>;
 
@@ -8,7 +10,6 @@ type RuntimeBootstrapHelpersContextLike = {
 };
 
 type RuntimeBootstrapSessionLike = {
-  runtimeBootstrapFinalizeModule: LooseRecord;
   storageModule: LooseRecord;
   storageLocalArea: unknown;
   runtimeLifecycleModule: LooseRecord;
@@ -76,6 +77,13 @@ function toRecord(value: unknown): LooseRecord {
   return value as LooseRecord;
 }
 
+function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
+  if (typeof value !== 'function') {
+    throw new Error(`[CW] Missing bootstrap finalize flow dependency: ${name}`);
+  }
+  return value as T;
+}
+
 function createBootstrapFinalizeRuntimeLifecycleOptionsInternal(
   context: RuntimeBootstrapHelpersContextLike,
   options: LooseRecord,
@@ -141,22 +149,31 @@ function createBootstrapFinalizeRuntimeFromSetupResultInternal({
   runtimeSetupResult,
   runtimeBootstrapSession,
 }: CreateBootstrapFinalizeRuntimeFromSetupResultOptions): unknown {
-  const runtimeBootstrapFinalizeModule = runtimeBootstrapSession.runtimeBootstrapFinalizeModule;
+  const runtimeBootstrapFinalizeModule = toRecord(createBootstrapFinalizeRuntimeModule());
   const storageModule = runtimeBootstrapSession.storageModule;
-  const safeJsonParse = (value: unknown, fallback: unknown) =>
-    (runtimeBootstrapFinalizeModule.safeJsonParse as AnyFn)(value, fallback);
-  const storageAdapter = (storageModule.createStorageAdapter as AnyFn)({
+  const safeJsonParseFn = requireFunction<AnyFn>('safeJsonParse', runtimeBootstrapFinalizeModule.safeJsonParse);
+  const createStorageAccessors = requireFunction<AnyFn>(
+    'createStorageAccessors',
+    runtimeBootstrapFinalizeModule.createStorageAccessors,
+  );
+  const createBootstrapFinalizeRuntime = requireFunction<AnyFn>(
+    'createBootstrapFinalizeRuntime',
+    runtimeBootstrapFinalizeModule.createBootstrapFinalizeRuntime,
+  );
+  const createStorageAdapter = requireFunction<AnyFn>('createStorageAdapter', storageModule.createStorageAdapter);
+  const safeJsonParse = (value: unknown, fallback: unknown) => safeJsonParseFn(value, fallback);
+  const storageAdapter = createStorageAdapter({
     storageArea: runtimeBootstrapSession.storageLocalArea,
     parseJson: safeJsonParse,
     localStorageRef: windowRef.localStorage,
     timeoutMs: 1500,
   });
-  const storageAccessors = (runtimeBootstrapFinalizeModule.createStorageAccessors as AnyFn)({
+  const storageAccessors = createStorageAccessors({
     storageAdapter,
   }) as LooseRecord;
   const storageGet = (key: string, fallback: unknown) => (storageAccessors.storageGet as AnyFn)(key, fallback);
 
-  return (runtimeBootstrapFinalizeModule.createBootstrapFinalizeRuntime as AnyFn)(
+  return createBootstrapFinalizeRuntime(
     createBootstrapFinalizeRuntimeOptionsInternal(context, {
       windowRef,
       runtimeEvent: runtimeSetupResult.runtimeEvent,

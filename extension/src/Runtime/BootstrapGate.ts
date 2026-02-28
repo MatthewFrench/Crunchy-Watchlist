@@ -1,3 +1,5 @@
+let createBootstrapGateRuntimeFactory: (() => object) | null = null;
+
 (() => {
   type BrowserRuntimeSource = {
     runtime?: {
@@ -304,5 +306,14 @@
     getWatchlistHeader: (documentRef: unknown) => getWatchlistHeader(documentRef),
   };
 
+  createBootstrapGateRuntimeFactory = () => runtime;
+
   moduleRegistry.runtimeBootstrapGate = runtime;
 })();
+
+export function createBootstrapGateRuntime(): object {
+  if (typeof createBootstrapGateRuntimeFactory !== 'function') {
+    throw new Error('[CW] Bootstrap gate runtime factory was not initialized.');
+  }
+  return createBootstrapGateRuntimeFactory();
+}

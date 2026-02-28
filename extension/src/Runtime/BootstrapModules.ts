@@ -1,3 +1,5 @@
+let createBootstrapModulesRuntimeFactory: (() => object) | null = null;
+
 (() => {
   type BootstrapConfig = {
     defaultSortMode: string;
@@ -244,8 +246,17 @@
     };
   }
 
-  moduleRegistry.runtimeBootstrapModules = {
+  const runtimeBootstrapModules = {
     createBootstrapModules,
     assertRuntimeMethods,
   };
+  createBootstrapModulesRuntimeFactory = () => runtimeBootstrapModules;
+  moduleRegistry.runtimeBootstrapModules = runtimeBootstrapModules;
 })();
+
+export function createBootstrapModulesRuntime(): object {
+  if (typeof createBootstrapModulesRuntimeFactory !== 'function') {
+    throw new Error('[CW] Bootstrap modules runtime factory was not initialized.');
+  }
+  return createBootstrapModulesRuntimeFactory();
+}

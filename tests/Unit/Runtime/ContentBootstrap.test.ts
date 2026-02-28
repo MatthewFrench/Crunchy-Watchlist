@@ -6,7 +6,7 @@ import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/Modu
 type ContentBootstrapPrelude = {
   ok: boolean;
   runtimeBootstrapGateModule?: Record<string, unknown>;
-  runtimeBootstrapModulesModule?: Record<string, unknown>;
+  assertRuntimeMethods?: (...args: unknown[]) => unknown;
   runtimeBootstrapFinalizeModule?: Record<string, unknown>;
   bootstrapModulesRuntime?: Record<string, unknown>;
 };
@@ -17,6 +17,10 @@ type ContentBootstrapModule = {
     consoleRef: Console;
     browserRef?: unknown;
     chromeRef?: unknown;
+    runtimeBootstrapDiagnosticsModule?: unknown;
+    runtimeBootstrapGateModule?: unknown;
+    runtimeBootstrapModulesModule?: unknown;
+    runtimeBootstrapFinalizeModule?: unknown;
   }) => ContentBootstrapPrelude;
 };
 
@@ -49,30 +53,25 @@ describe('content-bootstrap runtime module', () => {
   });
 
   it('returns not-ok when route gate denies execution and emits gated diagnostics', () => {
-    const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<
-      string,
-      unknown
-    >;
     const updateDiagnostics = vi.fn();
     const setBootstrapIssue = vi.fn();
-
-    registry.runtimeBootstrapDiagnostics = {
+    const runtimeBootstrapDiagnosticsModule = {
       createBootstrapDiagnostics: () => ({
         updateDiagnostics,
         setBootstrapIssue,
       }),
     };
-    registry.runtimeBootstrapGate = {
+    const runtimeBootstrapGateModule = {
       shouldRun: () => false,
       isWatchlistPath: () => true,
       getWatchlistRoot: () => null,
       getWatchlistHeader: () => null,
     };
-    registry.runtimeBootstrapModules = {
+    const runtimeBootstrapModulesModule = {
       createBootstrapModules: () => ({}),
       assertRuntimeMethods: () => {},
     };
-    registry.runtimeBootstrapFinalize = {
+    const runtimeBootstrapFinalizeModule = {
       createBootstrapFinalizeRuntime: () => ({}),
       createStorageAccessors: () => ({}),
       safeJsonParse: () => ({}),
@@ -81,6 +80,10 @@ describe('content-bootstrap runtime module', () => {
     const prelude = getContentBootstrapModule().createContentBootstrapPrelude({
       windowRef: createWindowRef('/browse'),
       consoleRef: console,
+      runtimeBootstrapDiagnosticsModule,
+      runtimeBootstrapGateModule,
+      runtimeBootstrapModulesModule,
+      runtimeBootstrapFinalizeModule,
     });
 
     expect(prelude.ok).toBe(false);
@@ -94,10 +97,6 @@ describe('content-bootstrap runtime module', () => {
   });
 
   it('returns runtime modules when all required owners are available and route is eligible', () => {
-    const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<
-      string,
-      unknown
-    >;
     const updateDiagnostics = vi.fn();
     const setBootstrapIssue = vi.fn();
     const gateModule = {
@@ -115,25 +114,25 @@ describe('content-bootstrap runtime module', () => {
       createStorageAccessors: () => ({}),
       safeJsonParse: () => ({}),
     };
-
-    registry.runtimeBootstrapDiagnostics = {
+    const diagnosticsModule = {
       createBootstrapDiagnostics: () => ({
         updateDiagnostics,
         setBootstrapIssue,
       }),
     };
-    registry.runtimeBootstrapGate = gateModule;
-    registry.runtimeBootstrapModules = modulesModule;
-    registry.runtimeBootstrapFinalize = finalizeModule;
 
     const prelude = getContentBootstrapModule().createContentBootstrapPrelude({
       windowRef: createWindowRef('/watchlist'),
       consoleRef: console,
+      runtimeBootstrapDiagnosticsModule: diagnosticsModule,
+      runtimeBootstrapGateModule: gateModule,
+      runtimeBootstrapModulesModule: modulesModule,
+      runtimeBootstrapFinalizeModule: finalizeModule,
     });
 
     expect(prelude.ok).toBe(true);
     expect(prelude.runtimeBootstrapGateModule).toBe(gateModule);
-    expect(prelude.runtimeBootstrapModulesModule).toBe(modulesModule);
+    expect(prelude.assertRuntimeMethods).toBe(modulesModule.assertRuntimeMethods);
     expect(prelude.runtimeBootstrapFinalizeModule).toBe(finalizeModule);
     expect(prelude.bootstrapModulesRuntime).toEqual({ runtimeStoreModule: {} });
     expect(setBootstrapIssue).not.toHaveBeenCalled();

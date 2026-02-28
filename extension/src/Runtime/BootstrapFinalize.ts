@@ -1,3 +1,5 @@
+let createBootstrapFinalizeRuntimeFactory: (() => object) | null = null;
+
 (() => {
   type BootstrapWindow = Window &
     typeof globalThis & {
@@ -300,9 +302,18 @@
     };
   }
 
-  moduleRegistry.runtimeBootstrapFinalize = {
+  const runtimeBootstrapFinalize = {
     safeJsonParse,
     createStorageAccessors,
     createBootstrapFinalizeRuntime,
   };
+  createBootstrapFinalizeRuntimeFactory = () => runtimeBootstrapFinalize;
+  moduleRegistry.runtimeBootstrapFinalize = runtimeBootstrapFinalize;
 })();
+
+export function createBootstrapFinalizeRuntimeModule(): object {
+  if (typeof createBootstrapFinalizeRuntimeFactory !== 'function') {
+    throw new Error('[CW] Bootstrap finalize runtime factory was not initialized.');
+  }
+  return createBootstrapFinalizeRuntimeFactory();
+}

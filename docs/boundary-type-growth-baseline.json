@@ -20,7 +20,6 @@
     "extension/src/Domain/RatingPrimitives.ts",
     "extension/src/Domain/SortMetrics.ts",
     "extension/src/Runtime/BootstrapHelpers.ts",
-    "extension/src/Runtime/ContentBootstrap.ts",
     "extension/src/Runtime/ContentComposition.ts",
     "extension/src/Runtime/ContentCompositionBindings.ts",
     "extension/src/Runtime/ContentRuntimeBootstrapDomLock.ts",

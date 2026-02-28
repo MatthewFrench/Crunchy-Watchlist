@@ -53,7 +53,7 @@ type BootstrapSessionAssembledRuntime = {
 
 type BootstrapSessionCoreModules = {
   runtimeBootstrapGateModule: LooseRecord;
-  runtimeBootstrapModulesModule: LooseRecord;
+  assertRuntimeMethods: AnyFn;
   runtimeBootstrapFinalizeModule: LooseRecord;
   bootstrapModulesRuntime: LooseRecord;
 };
@@ -157,7 +157,7 @@ function toRecord(value: unknown): LooseRecord {
 function resolveBootstrapSessionCoreModules(bootstrapContext: LooseRecord): BootstrapSessionCoreModules {
   return {
     runtimeBootstrapGateModule: toRecord(bootstrapContext.runtimeBootstrapGateModule),
-    runtimeBootstrapModulesModule: toRecord(bootstrapContext.runtimeBootstrapModulesModule),
+    assertRuntimeMethods: bootstrapContext.assertRuntimeMethods as AnyFn,
     runtimeBootstrapFinalizeModule: toRecord(bootstrapContext.runtimeBootstrapFinalizeModule),
     bootstrapModulesRuntime: toRecord(bootstrapContext.bootstrapModulesRuntime),
   };
@@ -173,7 +173,7 @@ function resolveBootstrapSessionDependencies(coreModules: BootstrapSessionCoreMo
     runtimeLifecycleModule: toRecord(coreModules.bootstrapModulesRuntime.runtimeLifecycleModule),
     runtimeBootstrapHelpersModule: toRecord(coreModules.bootstrapModulesRuntime.runtimeBootstrapHelpersModule),
     storageModule: toRecord(coreModules.bootstrapModulesRuntime.storageModule),
-    assertRuntimeMethods: coreModules.runtimeBootstrapModulesModule.assertRuntimeMethods as AnyFn,
+    assertRuntimeMethods: coreModules.assertRuntimeMethods,
     defaultSortMode: coreModules.bootstrapModulesRuntime.defaultSortMode,
     validSortModes: coreModules.bootstrapModulesRuntime.validSortModes,
     sortModeControlOptions: Array.isArray(coreModules.bootstrapModulesRuntime.sortModeControlOptions)
