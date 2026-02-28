@@ -216,6 +216,7 @@ Progress notes:
 - 2026-02-27: Hardened bundling with fail-fast source-script existence checks and `treeShaking: false`; updated `scripts/run-playwright-suite.mts`, `scripts/live-runtime-smoke.mts`, and `scripts/live-webkit-watchlist.mts` so bundled mode is the default verification path (with explicit opt-out via `CW_BUNDLE_CONTENT_SCRIPTS=0`).
 - 2026-02-28: Added hard CI policy enforcement so unbundled runtime mode is rejected in CI paths (`build-extension-runtime`, `run-playwright-suite`, `live-runtime-smoke`, and `live-webkit-watchlist`).
 - 2026-02-28: Added `guard-module-registry-growth` baseline gate to block growth and new-file spread of `__CW_WATCHLIST_CURATOR_MODULES__` usage during migration.
+- 2026-02-28: Reduced registry coupling in bootstrap flow by switching helper/session wiring to static module imports for owned dependencies (`ContentRuntimeBootstrapHelpers`, `ContentRuntimeBootstrapSession`, and `ContentRuntimeBootstrapDomLock`), while retaining registry registration compatibility at module boundaries.
 
 ## WS2: Boundary-Type Discipline Cleanup
 
@@ -240,6 +241,7 @@ Done when:
 Progress notes:
 - 2026-02-28: reduced boundary-noise concentration by extracting typed normalization/runtime-factory seams from `HistoryRepositoryCache`, `ContentRuntimeSetupDataInitialization`, and `CorePrimitives` while preserving existing public registry APIs.
 - 2026-02-28: hardened runtime wiring seams with deferred checked binding adapters in `ContentRuntimeSetupDataInitializationPhases.ts` (preserving intentional late-bound callbacks) and extracted composition/render-phase helpers to keep warning hotspots at zero.
+- 2026-02-28: added `guard-boundary-type-growth` baseline gate (`docs/boundary-type-growth-baseline.json`) and wired it into lint/check pipelines to block `AnyFn`/`unknown` backslide while WS2 reduces internal rewidening.
 
 ## WS3: Class-Based UI Owner/Controller Standardization
 
@@ -264,6 +266,7 @@ Done when:
 
 Progress notes:
 - 2026-02-28: Migrated `CuratedPanelLoadingIndicator` to a class-based controller with explicit owned state (`WeakMap` refs) and a single `sync(...)` patch surface.
+- 2026-02-28: Migrated `InterfaceShellHostLifecycle` to a class-based owner/controller and updated `InterfaceShell` to consume it via direct module import instead of runtime registry lookup.
 
 ## WS4: Native Interop Adapter Isolation and Cleanup
 
@@ -320,6 +323,7 @@ Required gates:
 - `npm run guard:dom-lookups`
 - `npm run guard:async-event-listeners`
 - `npm run guard:module-registry-growth`
+- `npm run guard:boundary-type-growth`
 - `npm run guard:ui-document-ref`
 - `npm run lint`
 - `npm run format:check`
