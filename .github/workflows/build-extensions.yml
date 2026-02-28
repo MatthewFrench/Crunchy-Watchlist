@@ -33,6 +33,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Architecture growth guard
+        run: npm run guard:arch-growth
+
       - name: Owned DOM Lookup Guard
         run: npm run guard:dom-lookups
 

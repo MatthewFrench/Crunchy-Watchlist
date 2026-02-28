@@ -1,0 +1,17 @@
+{
+  "allowedWarningFiles": [],
+  "allowedWarningFunctions": [
+    {
+      "name": "renderCuratedGridIfNeeded",
+      "path": "extension/src/Runtime/CuratedPanelGrid.ts"
+    },
+    {
+      "name": "runDeferredMetadataChunkInternal",
+      "path": "extension/src/Runtime/CuratedLoaderDeferredMetadata.ts"
+    },
+    {
+      "name": "createContentComposition",
+      "path": "extension/src/Runtime/ContentComposition.ts"
+    }
+  ]
+}

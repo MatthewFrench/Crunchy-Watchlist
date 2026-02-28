@@ -3,7 +3,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { transform } from 'esbuild';
+import { build, transform } from 'esbuild';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +14,7 @@ const defaultOutputDir = path.join(repoRoot, '.tmp', 'extension-runtime-dev');
 interface CliOptions {
   sourceDir: string;
   outputDir: string;
+  bundleContentScripts: boolean;
 }
 
 interface ExtensionManifest {
@@ -36,6 +37,7 @@ interface ExtensionManifest {
 function parseCliOptions(argv: string[]): CliOptions {
   let sourceDir = defaultSourceDir;
   let outputDir = defaultOutputDir;
+  let bundleContentScripts = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
@@ -57,12 +59,23 @@ function parseCliOptions(argv: string[]): CliOptions {
       }
       outputDir = path.resolve(repoRoot, next);
       index += 1;
+      continue;
+    }
+
+    if (value === '--bundle-content-scripts') {
+      bundleContentScripts = true;
+      continue;
+    }
+
+    if (value === '--no-bundle-content-scripts') {
+      bundleContentScripts = false;
     }
   }
 
   return {
     sourceDir,
     outputDir,
+    bundleContentScripts,
   };
 }
 
@@ -178,6 +191,74 @@ async function rewriteManifestForGeneratedRuntime(outputDir: string): Promise<Ex
   return manifest;
 }
 
+function normalizeImportSpecifier(scriptPath: string): string {
+  const normalized = scriptPath.replace(/\\/g, '/');
+  if (normalized.startsWith('./') || normalized.startsWith('../')) {
+    return normalized;
+  }
+  return `./${normalized}`;
+}
+
+async function assertContentScriptPathsExist(
+  outputDir: string,
+  contentScriptIndex: number,
+  scriptPaths: string[],
+): Promise<void> {
+  for (const scriptPath of scriptPaths) {
+    const fullPath = path.join(outputDir, scriptPath);
+    if (!(await pathExists(fullPath))) {
+      throw new Error(
+        `Cannot bundle content_scripts[${contentScriptIndex}] because source script is missing: ${scriptPath}`,
+      );
+    }
+  }
+}
+
+async function bundleManifestContentScripts(
+  outputDir: string,
+  manifest: ExtensionManifest,
+): Promise<ExtensionManifest> {
+  if (!Array.isArray(manifest.content_scripts)) {
+    return manifest;
+  }
+
+  for (const [index, contentScriptEntry] of manifest.content_scripts.entries()) {
+    const scriptPaths = Array.isArray(contentScriptEntry.js) ? contentScriptEntry.js : [];
+    if (scriptPaths.length === 0) {
+      continue;
+    }
+    await assertContentScriptPathsExist(outputDir, index, scriptPaths);
+
+    const tempEntryFileName = `.cw-content-script-${index}.entry.js`;
+    const tempEntryPath = path.join(outputDir, tempEntryFileName);
+    const bundledFileName = `ContentScript.${index}.bundle.js`;
+    const bundledFilePath = path.join(outputDir, bundledFileName);
+    const entryContents = scriptPaths
+      .map((scriptPath) => `import "${normalizeImportSpecifier(scriptPath)}";`)
+      .join('\n');
+    await fs.writeFile(tempEntryPath, `${entryContents}\n`, 'utf8');
+
+    try {
+      await build({
+        entryPoints: [tempEntryPath],
+        outfile: bundledFilePath,
+        bundle: true,
+        format: 'iife',
+        target: 'es2022',
+        treeShaking: false,
+        logLevel: 'silent',
+      });
+    } finally {
+      await fs.rm(tempEntryPath, { force: true });
+    }
+
+    contentScriptEntry.js = [bundledFileName];
+  }
+
+  await fs.writeFile(path.join(outputDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  return manifest;
+}
+
 async function validateManifestContentScripts(outputDir: string, manifest: ExtensionManifest): Promise<void> {
   const contentScripts = Array.isArray(manifest.content_scripts) ? manifest.content_scripts : [];
 
@@ -212,10 +293,14 @@ async function buildExtensionRuntime(options: CliOptions): Promise<void> {
   }
 
   const manifest = await rewriteManifestForGeneratedRuntime(options.outputDir);
-  await validateManifestContentScripts(options.outputDir, manifest);
+  const finalizedManifest = options.bundleContentScripts
+    ? await bundleManifestContentScripts(options.outputDir, manifest)
+    : manifest;
+  await validateManifestContentScripts(options.outputDir, finalizedManifest);
 
   process.stdout.write(`Prepared extension runtime: ${options.outputDir}\n`);
   process.stdout.write(`TypeScript source files transpiled: ${typeScriptFiles.length}\n`);
+  process.stdout.write(`Content scripts bundled: ${options.bundleContentScripts ? 'yes' : 'no'}\n`);
 }
 
 async function main(): Promise<void> {

@@ -8,6 +8,7 @@ This file is the default operating guidance for AI/code agents working in this r
 2. Prefer explicit module boundaries over convenience coupling.
 3. Keep changes verifiable with deterministic checks.
 4. Bias toward small, reviewable increments that leave the repo better than it was.
+5. Escalate architectural smells early: if a pattern seems wrong, pause and discuss before adding more debt.
 
 ## Repository Structure and Ownership
 
@@ -83,6 +84,20 @@ When modifying an existing production function (or adding a new one), follow the
    - After implementing user-visible runtime/UI behavior, run a focused manual verification using Playwright-capable tooling.
    - Keep this verification safe and read-only against production-like pages (no destructive account mutations or bulk data actions).
    - Prioritize the exact interaction paths that changed (for example: toggle actions, sorting/filtering, or route transitions).
+
+## Architecture Smell Escalation (Required)
+
+1. **Stop-and-discuss trigger**:
+   - If code or runtime constraints seem structurally wrong, stop and raise it explicitly with concrete file references and impact.
+   - Do not normalize workaround-heavy patterns as "just how this repo works."
+
+2. **Bundler/composition-root smell must be called out**:
+   - If missing/insufficient bundling forces global registry hydration, loose `unknown` plumbing, or cross-script wiring hacks, treat that as an architectural issue to discuss immediately.
+   - Example: content-runtime modules depending on global module registration instead of static imports is debt to reduce, not a target pattern.
+
+3. **Decision clarity**:
+   - When escalating, provide: current behavior, root cause, options, recommendation, and migration risk.
+   - If uncertain, ask before implementing broad refactors.
 
 ## DOM Rendering Policy (Non-Negotiable)
 
@@ -210,6 +225,14 @@ function createCuratedCardMediaComponent(documentRef: Document): CuratedCardMedi
    - Inside owned runtime/UI modules, convert boundary inputs once and continue with explicit typed contracts.
    - Avoid widening to `AnyFn` in non-boundary logic; prefer typed interfaces/factory contracts.
 
+12. **Class-based UI owners/controllers are mandatory for new or refactored UI code**:
+   - Do not introduce new optional/factory-sprawl patterns for UI ownership logic.
+   - Use classes with explicit constructor dependencies, `patch(...)`/update methods, and deterministic `dispose()` cleanup.
+
+13. **Deterministic ownership hierarchy is required**:
+   - Parent owners/controllers may operate on their own root plus direct child-owner contracts only.
+   - Each child owner/controller is responsible for its subtree refs/patching; do not bypass ownership with deep utility lookups.
+
 ## Formatting And Linting Discipline
 
 1. **Biome is the single source of truth for style**:
@@ -245,6 +268,7 @@ Before concluding substantial refactors, keep these green:
 - `npm run test:e2e`
 - `npm run build:webext`
 - `npm run build:safari`
+- `npm run guard:arch-growth`
 - `npm run arch:metrics`
 
 ## Architecture Direction
@@ -252,3 +276,5 @@ Before concluding substantial refactors, keep these green:
 1. Continue reducing transitional bootstrap concentration in `extension/Content.js`.
 2. Keep extracted owner modules TypeScript-first and strictly bounded by layer responsibilities.
 3. Expand unit coverage around high-risk runtime/data paths before expanding behavior.
+4. Move toward a proper bundled static module graph per runtime entrypoint; reduce global module-registration/hydration surfaces.
+5. Keep one explicit composition root per runtime entry and treat registry-based cross-script wiring as transitional debt only.

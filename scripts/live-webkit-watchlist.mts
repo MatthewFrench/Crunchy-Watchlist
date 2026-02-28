@@ -51,6 +51,7 @@ const sourceExtensionDir = path.join(repoRoot, 'extension');
 const runtimeOutputRelativeDir = String(process.env.EXTENSION_RUNTIME_DIR || '.tmp/extension-runtime-dev').trim();
 const runtimeOutputDir = path.resolve(repoRoot, runtimeOutputRelativeDir);
 const manifestPath = path.join(runtimeOutputDir, 'manifest.json');
+const bundleContentScripts = !/^(0|false|no)$/i.test(String(process.env.CW_BUNDLE_CONTENT_SCRIPTS ?? '1').trim());
 const hotReloadEnabled = !/^(0|false|no)$/i.test(String(process.env.CW_PW_HOT_RELOAD ?? '1'));
 const execFileAsync = promisify(execFile);
 
@@ -72,8 +73,9 @@ function getErrorMessage(error: unknown): string {
 
 async function buildGeneratedRuntime(): Promise<void> {
   const buildScriptPath = path.join(repoRoot, 'scripts', 'build-extension-runtime.mts');
+  const bundleFlag = bundleContentScripts ? '--bundle-content-scripts' : '--no-bundle-content-scripts';
   try {
-    await execFileAsync('tsx', [buildScriptPath, '--out', runtimeOutputDir], {
+    await execFileAsync('tsx', [buildScriptPath, bundleFlag, '--out', runtimeOutputDir], {
       cwd: repoRoot,
       env: process.env,
       maxBuffer: 16 * 1024 * 1024,

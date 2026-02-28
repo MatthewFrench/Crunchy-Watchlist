@@ -12,6 +12,7 @@ const repoRoot = path.resolve(__dirname, '..');
 const buildScriptPath = path.join(repoRoot, 'scripts', 'build-extension-runtime.mts');
 const playwrightCliPath = path.join(repoRoot, 'node_modules', '@playwright', 'test', 'cli.js');
 const keepRuntimeOutput = /^(1|true|yes)$/i.test(String(process.env.CW_KEEP_E2E_RUNTIME || '').trim());
+const bundleContentScripts = !/^(0|false|no)$/i.test(String(process.env.CW_BUNDLE_CONTENT_SCRIPTS ?? '1').trim());
 
 type CommandResult = {
   code: number;
@@ -98,9 +99,11 @@ async function main(): Promise<void> {
   const commandEnv = createPlaywrightEnv(runtimeDir, fixtureServerPort);
 
   try {
+    const bundleFlag = bundleContentScripts ? '--bundle-content-scripts' : '--no-bundle-content-scripts';
+    process.stdout.write(`[e2e-runtime] Content script mode: ${bundleContentScripts ? 'bundled' : 'unbundled'}\n`);
     process.stdout.write(`[e2e-runtime] Building generated runtime at ${runtimeDir}\n`);
     process.stdout.write(`[e2e-runtime] Reserved fixture server port ${fixtureServerPort}\n`);
-    const buildResult = await runCommand('tsx', [buildScriptPath, '--out', runtimeDir], commandEnv);
+    const buildResult = await runCommand('tsx', [buildScriptPath, bundleFlag, '--out', runtimeDir], commandEnv);
     if (buildResult.code !== 0) {
       process.exitCode = buildResult.code;
       return;
