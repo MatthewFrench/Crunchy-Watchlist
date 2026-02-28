@@ -112,6 +112,10 @@ class FakeElement {
     }
     return true;
   }
+
+  getListenerCount(eventType: string): number {
+    return (this.listeners.get(eventType) ?? []).length;
+  }
 }
 
 class FakeAnchor extends FakeElement {}
@@ -325,6 +329,54 @@ describe('native-bridge-preview runtime', () => {
     const previewImage = thumbLink.children[0] as FakeImage;
     expect(previewImage.src).toBe('hover-new.jpg');
     expect(fetchPreviewUrlForEntry).not.toHaveBeenCalled();
+  });
+
+  it('keeps listener and timer ownership stable across repeated preview install/hover cycles', async () => {
+    const { runtime, windowRef } = createNativeBridgePreviewRuntime();
+    const ownerDocument = new FakeDocument();
+    const thumbLink = new FakeAnchor(ownerDocument);
+    const thumbImage = new FakeImage(ownerDocument);
+
+    runtime.installCuratedCardPreview(
+      thumbLink,
+      { seriesId: 'series-1', streamsLink: '' },
+      'cover-a.jpg',
+      'hover-a.jpg',
+      thumbImage,
+    );
+    runtime.installCuratedCardPreview(
+      thumbLink,
+      { seriesId: 'series-1', streamsLink: '' },
+      'cover-b.jpg',
+      'hover-b.jpg',
+      thumbImage,
+    );
+
+    expect(thumbLink.getListenerCount('mouseenter')).toBe(1);
+    expect(thumbLink.getListenerCount('mouseleave')).toBe(1);
+    expect(thumbLink.getListenerCount('blur')).toBe(1);
+
+    thumbLink.dispatchEvent(new FakeMouseEvent('mouseenter'));
+    expect(windowRef.pendingTimeoutCount()).toBe(1);
+    expect(windowRef.runNextTimeout()).toBe(true);
+    await flushMicrotasks();
+
+    const previewImage = thumbLink.children[0] as FakeImage;
+    expect(previewImage.src).toBe('hover-b.jpg');
+    expect(thumbLink.children).toHaveLength(1);
+
+    thumbLink.dispatchEvent(new FakeMouseEvent('mouseleave'));
+    expect(windowRef.pendingTimeoutCount()).toBe(0);
+    expect(previewImage.style.display).toBe('none');
+
+    thumbLink.dispatchEvent(new FakeMouseEvent('mouseenter'));
+    expect(windowRef.pendingTimeoutCount()).toBe(1);
+    expect(windowRef.runNextTimeout()).toBe(true);
+    await flushMicrotasks();
+
+    expect(thumbLink.children).toHaveLength(1);
+    expect((thumbLink.children[0] as FakeImage).src).toBe('hover-b.jpg');
+    expect(windowRef.pendingTimeoutCount()).toBe(0);
   });
 
   it('renders video preview when preview repository returns a likely video url', async () => {

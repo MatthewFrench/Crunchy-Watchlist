@@ -26,6 +26,7 @@ type FakeElement = {
   loading: string;
   src: string;
   alt: string;
+  title: string;
   complete?: boolean;
   naturalWidth?: number;
   naturalHeight?: number;
@@ -84,6 +85,7 @@ function createFakeDocument(): FakeDocument {
       loading: '',
       src: '',
       alt: '',
+      title: '',
       complete: false,
       naturalWidth: 0,
       naturalHeight: 0,
@@ -404,6 +406,61 @@ describe('curated-card-shell ui module', () => {
     expect(installCuratedCardPreview).toHaveBeenCalledTimes(2);
     expect(installCuratedCardPreview.mock.calls[1]?.[2]).toBe('portrait-updated.jpg');
     expect(installCuratedCardPreview.mock.calls[1]?.[3]).toBe('hover-updated.jpg');
+  });
+
+  it('patches favorite action button state in place when favorite flag changes', () => {
+    const documentRef = createFakeDocument();
+    let favoriteButtonRef: FakeElement | null = null;
+    const { runtime } = createCardShellRuntime({
+      documentRef,
+      createCuratedCardActions: () => {
+        const actions = documentRef.createElement('div');
+        const favoriteButton = documentRef.createElement('button');
+        favoriteButton.className = 'cw-card-action cw-card-action--favorite is-active';
+        favoriteButton.dataset.cwAction = 'favorite';
+        favoriteButton.textContent = '♥';
+        favoriteButton.setAttribute('aria-label', 'Unfavorite');
+        favoriteButton.setAttribute('aria-pressed', 'true');
+        favoriteButton.title = 'Unfavorite';
+
+        const removeButton = documentRef.createElement('button');
+        removeButton.className = 'cw-card-action cw-card-action--remove';
+        removeButton.dataset.cwAction = 'remove';
+        removeButton.textContent = '🗑';
+        removeButton.setAttribute('aria-label', 'Remove from watchlist');
+
+        actions.appendChild(favoriteButton);
+        actions.appendChild(removeButton);
+        favoriteButtonRef = favoriteButton;
+        return actions;
+      },
+    });
+
+    const card = runtime.createCuratedCard({
+      seriesId: 'series-1',
+      title: 'Series title',
+      href: '/series/series-1',
+      portraitImageUrl: 'portrait.jpg',
+      isFavorite: true,
+    });
+
+    runtime.patchCuratedCard(card, {
+      seriesId: 'series-1',
+      title: 'Series title',
+      href: '/series/series-1',
+      portraitImageUrl: 'portrait.jpg',
+      isFavorite: false,
+    });
+
+    if (!favoriteButtonRef) {
+      throw new Error('missing favorite button test ref');
+    }
+    const favoriteButton = favoriteButtonRef as FakeElement;
+    expect(favoriteButton.attributes['aria-pressed']).toBe('false');
+    expect(favoriteButton.attributes['aria-label']).toBe('Favorite');
+    expect(favoriteButton.title).toBe('Favorite');
+    expect(favoriteButton.textContent).toBe('♡');
+    expect(favoriteButton.className).not.toContain('is-active');
   });
 
   it('removes thumbnail loading state once the image reports load completion', () => {

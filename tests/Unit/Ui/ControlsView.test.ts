@@ -29,7 +29,7 @@ type ControlsViewRuntime = {
 };
 
 type ControlsViewModule = {
-  createControlsView: () => ControlsViewRuntime;
+  createControlsView: (options: Record<string, unknown>) => ControlsViewRuntime;
 };
 
 const controlsViewModuleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Ui', 'ControlsView.ts')).href;
@@ -94,7 +94,10 @@ describe('controls-view ui module', () => {
   });
 
   it('creates a secondary sort control with an explicit disabled option', () => {
-    const runtime = getControlsViewModule().createControlsView();
+    const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
+    const runtime = getControlsViewModule().createControlsView({
+      documentRef,
+    });
     const controls = runtime.createCuratedInterfaceControls(
       {
         sortMode: 'rating_desc',
@@ -112,7 +115,10 @@ describe('controls-view ui module', () => {
   });
 
   it('includes hide-not-started mode in watch-ready filter options', () => {
-    const runtime = getControlsViewModule().createControlsView();
+    const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
+    const runtime = getControlsViewModule().createControlsView({
+      documentRef,
+    });
     const controls = runtime.createCuratedInterfaceControls(
       {
         watchReadyFilterMode: 'hide_not_started',
@@ -129,7 +135,10 @@ describe('controls-view ui module', () => {
   });
 
   it('includes favorites in genre filter options', () => {
-    const runtime = getControlsViewModule().createControlsView();
+    const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
+    const runtime = getControlsViewModule().createControlsView({
+      documentRef,
+    });
     const controls = runtime.createCuratedInterfaceControls(
       {
         genreFilter: '__favorites__',

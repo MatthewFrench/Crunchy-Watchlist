@@ -59,9 +59,6 @@
     if (value && typeof value === 'object' && 'createElement' in (value as Record<string, unknown>)) {
       return value as Document;
     }
-    if (typeof document !== 'undefined') {
-      return document;
-    }
     throw new Error('[CW] Missing card metadata dependency: documentRef');
   }
 

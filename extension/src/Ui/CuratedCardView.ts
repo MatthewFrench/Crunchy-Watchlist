@@ -21,6 +21,7 @@
   } & Record<string, unknown>;
 
   type CardViewContext = {
+    documentRef: Document;
     getLastWatchedPresentation: (entry: CuratedEntry) => LastWatchedPresentation;
     setLabeledValue: (element: HTMLElement, label: string, value: string) => void;
     getSeriesScopePairs: (entry: CuratedEntry) => ScopePair[];
@@ -34,6 +35,7 @@
   };
 
   type CardViewDeps = {
+    documentRef?: unknown;
     getLastWatchedPresentation?: unknown;
     setLabeledValue?: unknown;
     getSeriesScopePairs?: unknown;
@@ -64,8 +66,16 @@
     return value as T;
   }
 
+  function resolveDocumentRef(value: unknown): Document {
+    if (value && typeof value === 'object' && typeof (value as Document).createElement === 'function') {
+      return value as Document;
+    }
+    throw new Error('[CW] Missing UI dependency: documentRef');
+  }
+
   function createCardViewContext(deps: CardViewDeps = {}): CardViewContext {
     return {
+      documentRef: resolveDocumentRef(deps.documentRef),
       getLastWatchedPresentation: requireFunction(
         'getLastWatchedPresentation',
         deps.getLastWatchedPresentation,
@@ -206,7 +216,7 @@
   }
 
   function createScopeElementInternal(context: CardViewContext, entry: CuratedEntry): HTMLElement {
-    const scope = document.createElement('div');
+    const scope = context.documentRef.createElement('div');
     scope.className = 'cw-curated-card__scope';
 
     const scopePairs = context.getSeriesScopePairs(entry);
@@ -227,7 +237,7 @@
     }
 
     if (summaryPairs.length) {
-      scope.appendChild(document.createElement('br'));
+      scope.appendChild(context.documentRef.createElement('br'));
     } else {
       scope.textContent = '';
     }
@@ -241,7 +251,7 @@
     entry: CuratedEntry,
   ): { genreValue: string; genres: HTMLElement } {
     const genreValue = context.getGenreValue(entry);
-    const genres = document.createElement('div');
+    const genres = context.documentRef.createElement('div');
     genres.className = 'cw-curated-card__genres';
 
     if (!genreValue) {
@@ -255,10 +265,10 @@
   }
 
   function createActionsRowInternal(context: CardViewContext, entry: CuratedEntry, actions: HTMLElement): HTMLElement {
-    const actionsRow = document.createElement('div');
+    const actionsRow = context.documentRef.createElement('div');
     actionsRow.className = 'cw-curated-card__actions-row';
 
-    const ratingMeta = document.createElement('div');
+    const ratingMeta = context.documentRef.createElement('div');
     ratingMeta.className = 'cw-curated-card__rating-meta';
 
     const votes = typeof entry.votes === 'number' && Number.isFinite(entry.votes) ? entry.votes : null;
@@ -269,8 +279,8 @@
     return actionsRow;
   }
 
-  function createDetailsSkeletonInternal(): HTMLElement {
-    const skeleton = document.createElement('div');
+  function createDetailsSkeletonInternal(context: CardViewContext): HTMLElement {
+    const skeleton = context.documentRef.createElement('div');
     skeleton.className = 'cw-curated-card__details-skeleton';
     skeleton.setAttribute('aria-hidden', 'true');
 
@@ -288,7 +298,7 @@
     ];
 
     lineClassNames.forEach((className) => {
-      const line = document.createElement('span');
+      const line = context.documentRef.createElement('span');
       line.className = className;
       skeleton.appendChild(line);
     });
@@ -360,18 +370,18 @@
   ): HTMLElement {
     const entry = toEntry(inputEntry);
 
-    const body = document.createElement('div');
+    const body = context.documentRef.createElement('div');
     body.className = 'cw-curated-card__body';
 
-    const description = document.createElement('div');
+    const description = context.documentRef.createElement('div');
     description.className = 'cw-curated-card__description';
     description.textContent = resolveDescriptionTextInternal(entry);
 
-    const status = document.createElement('div');
+    const status = context.documentRef.createElement('div');
     status.className = 'cw-curated-card__status';
     status.textContent = resolveStatusTextInternal(entry);
 
-    const lastWatched = document.createElement('div');
+    const lastWatched = context.documentRef.createElement('div');
     lastWatched.className = 'cw-curated-card__last-watched';
     const lastWatchedPresentation = context.getLastWatchedPresentation(entry);
     lastWatched.dataset.cwLastWatchedState = lastWatchedPresentation.state;
@@ -382,7 +392,7 @@
     const histogram = context.makeRatingHistogram(entry.distribution, entry.votes);
     const { histogramMissingElement, histogramRowsByStar } = createHistogramRefsInternal(histogram);
     const actionsRow = createActionsRowInternal(context, entry, actions);
-    const detailsSkeleton = createDetailsSkeletonInternal();
+    const detailsSkeleton = createDetailsSkeletonInternal(context);
 
     body.appendChild(description);
     body.appendChild(status);

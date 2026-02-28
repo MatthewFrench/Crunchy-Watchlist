@@ -219,7 +219,7 @@ function createCuratedCardMediaComponent(documentRef: Document): CuratedCardMedi
 2. **Strict linting by default**:
    - Run lint with warnings treated as failures.
    - Prefer introducing strict rules in low-risk batches that are proven clean before enabling in CI.
-   - Keep policy guards alongside lint (for example owned-DOM lookup and async event-listener guards).
+   - Keep policy guards alongside lint (for example owned-DOM lookup, async event-listener, and UI document-ref guards).
 
 3. **Semicolon policy changes require a dedicated migration**:
    - If switching semicolon style (for example to `always`), do a one-time repo-wide mechanical reformat in a dedicated change.
@@ -236,6 +236,7 @@ Before concluding substantial refactors, keep these green:
 - `npm run typecheck`
 - `npm run guard:dom-lookups`
 - `npm run guard:async-event-listeners`
+- `npm run guard:ui-document-ref`
 - `npm run lint`
 - `npm run format:check`
 - `npm run test:perf:budgets`

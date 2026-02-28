@@ -171,7 +171,9 @@
     const controlsView = requireFunction<AnyFn>(
       'createControlsView',
       options.modules.controlsViewModule.createControlsView,
-    )() as AnyFunctionRecord;
+    )({
+      documentRef: options.windowRef.document,
+    }) as AnyFunctionRecord;
     options.assertRuntimeMethods('controls view', controlsView, ['createCuratedInterfaceControls']);
     return () =>
       requireFunction<AnyFn>('createCuratedInterfaceControls', controlsView.createCuratedInterfaceControls)(
@@ -188,6 +190,7 @@
       'createCardView',
       options.modules.cardViewModule.createCardView,
     )({
+      documentRef: options.windowRef.document,
       getLastWatchedPresentation: cardMetadata.getLastWatchedPresentation,
       setLabeledValue: cardMetadata.setLabeledValue,
       getSeriesScopePairs: cardMetadata.getSeriesScopePairs,

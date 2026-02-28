@@ -470,6 +470,113 @@ describe('runtime route-lifecycle', () => {
     expect(debounceProcess).not.toHaveBeenCalled();
   });
 
+  it('treats repeated route watcher start/stop calls as idempotent without listener leaks', () => {
+    vi.useFakeTimers();
+    setPathname('/watch/GSERIES1');
+
+    const observerCallbacks: MutationCallback[] = [];
+    let structureObserverDisconnectCount = 0;
+    class FakeMutationObserver {
+      callback: MutationCallback;
+
+      constructor(callback: MutationCallback) {
+        this.callback = callback;
+        observerCallbacks.push(callback);
+      }
+
+      observe(): void {}
+      disconnect(): void {
+        structureObserverDisconnectCount += 1;
+      }
+      takeRecords(): MutationRecord[] {
+        return [];
+      }
+    }
+
+    const eventHandlers = new Map<string, (() => void)[]>();
+    Object.defineProperty(globalThis, 'MutationObserver', {
+      configurable: true,
+      writable: true,
+      value: FakeMutationObserver,
+    });
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      writable: true,
+      value: {
+        body: {},
+        documentElement: {},
+      },
+    });
+    Object.defineProperty(globalThis, 'history', {
+      configurable: true,
+      writable: true,
+      value: {
+        pushState: () => {},
+        replaceState: () => {},
+      },
+    });
+    Object.defineProperty(globalThis, 'addEventListener', {
+      configurable: true,
+      writable: true,
+      value: (eventName: string, handler: () => void) => {
+        const existing = eventHandlers.get(eventName) || [];
+        existing.push(handler);
+        eventHandlers.set(eventName, existing);
+      },
+    });
+    Object.defineProperty(globalThis, 'removeEventListener', {
+      configurable: true,
+      writable: true,
+      value: (eventName: string, handler: () => void) => {
+        const existing = eventHandlers.get(eventName) || [];
+        eventHandlers.set(
+          eventName,
+          existing.filter((candidate) => candidate !== handler),
+        );
+      },
+    });
+
+    const state = createBaseState();
+    state.mounted = false;
+    const debounceProcess = vi.fn();
+    const runtime = getRouteLifecycleModule().createRouteLifecycle({
+      state,
+      runtimeEvent: vi.fn(),
+      isWatchlistPath: (pathname: string) => pathname.endsWith('/watchlist'),
+      ensureInterface: vi.fn(),
+      applyTabUi: vi.fn(),
+      ensureCuratedDataLoad: vi.fn(async () => undefined),
+      renderCuratedPanel: vi.fn(),
+      setNativeVisibility: vi.fn(),
+      clearRootFrame: vi.fn(),
+      debounceProcess,
+    });
+
+    runtime.startRouteWatcher();
+    runtime.startRouteWatcher();
+    expect(state.routeWatcherStarted).toBe(true);
+    expect(eventHandlers.get('popstate')).toHaveLength(1);
+    expect(eventHandlers.get('hashchange')).toHaveLength(1);
+    expect(eventHandlers.get('pageshow')).toHaveLength(1);
+
+    runtime.stopRouteWatcher();
+    runtime.stopRouteWatcher();
+    expect(state.routeWatcherStarted).toBe(false);
+    expect(eventHandlers.get('popstate')).toHaveLength(0);
+    expect(eventHandlers.get('hashchange')).toHaveLength(0);
+    expect(eventHandlers.get('pageshow')).toHaveLength(0);
+    expect(structureObserverDisconnectCount).toBe(1);
+
+    setPathname('/watchlist');
+    observerCallbacks.forEach((callback) => {
+      callback([{ target: {} } as MutationRecord], {} as MutationObserver);
+    });
+    vi.runAllTimers();
+
+    expect(state.mounted).toBe(false);
+    expect(debounceProcess).not.toHaveBeenCalled();
+  });
+
   it('ignores observer churn when runtime ownership is no longer active', () => {
     setPathname('/watchlist');
 

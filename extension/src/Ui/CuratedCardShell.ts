@@ -725,6 +725,26 @@
     context.patchCuratedCardBody(bodyElement, entry);
   }
 
+  function patchActionButtonsInternal(refs: CuratedCardShellRefs, entry: CuratedEntry): void {
+    const actionRefs = refs.actionRefs || getOwnedCardActionRefs(refs.actions);
+    if (!actionRefs) {
+      return;
+    }
+
+    refs.actionRefs = actionRefs;
+    const isFavorite = Boolean(entry.isFavorite);
+    const favoriteButton = actionRefs.favoriteButton;
+    setClassToken(favoriteButton, 'is-active', isFavorite);
+    setElementAttributeIfChanged(favoriteButton, 'aria-label', isFavorite ? 'Unfavorite' : 'Favorite');
+    setElementAttributeIfChanged(favoriteButton, 'aria-pressed', isFavorite ? 'true' : 'false');
+
+    const nextTitle = isFavorite ? 'Unfavorite' : 'Favorite';
+    if (favoriteButton.title !== nextTitle) {
+      favoriteButton.title = nextTitle;
+    }
+    setElementTextContent(favoriteButton, isFavorite ? '♥' : '♡');
+  }
+
   function patchCuratedCardInternal(context: CardShellContext, cardValue: unknown, entryValue: unknown): void {
     const card = cardValue && typeof cardValue === 'object' ? (cardValue as Element) : null;
     if (!card) {
@@ -767,6 +787,7 @@
     patchRatingBadgeFromEntryInternal(context, refs, entry);
     patchCardThumbInternal(context, refs, entry);
     patchCardBodyInternal(context, refs.body, entry);
+    patchActionButtonsInternal(refs, entry);
   }
 
   function createCardShell(deps: CardShellDeps = {}) {

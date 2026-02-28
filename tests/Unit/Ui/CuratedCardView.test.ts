@@ -101,18 +101,20 @@ describe('curated-card-view ui module', () => {
   });
 
   it('merges next episode into the status line and removes next-unwatched row', () => {
+    const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
     const setLabeledValue = vi.fn((element: FakeElement, label: string, value: string) => {
       element.textContent = `${label}: ${value}`;
     });
 
     const runtime = getCardViewModule().createCardView({
+      documentRef,
       getLastWatchedPresentation: () => ({ state: 'dated', text: '2026-02-24' }),
       setLabeledValue,
       getSeriesScopePairs: () => [],
       setLabeledValuePairs: vi.fn(),
       appendLabeledValue: vi.fn(),
       getGenreValue: () => '',
-      makeRatingHistogram: () => (globalThis.document as ReturnType<typeof createFakeDocument>).createElement('div'),
+      makeRatingHistogram: () => documentRef.createElement('div'),
       formatVotes: () => '0',
       sanitizePercentage: () => 0,
       getStarCountFromDistribution: () => 0,
@@ -124,7 +126,7 @@ describe('curated-card-view ui module', () => {
         nextEpisodeLabel: 'S1 E3',
         description: 'Show description',
       },
-      (globalThis.document as ReturnType<typeof createFakeDocument>).createElement('div'),
+      documentRef.createElement('div'),
     );
 
     const status = findByClassName(body, 'cw-curated-card__status');
@@ -134,7 +136,9 @@ describe('curated-card-view ui module', () => {
   });
 
   it('keeps plain status text when next episode is unavailable', () => {
+    const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
     const runtime = getCardViewModule().createCardView({
+      documentRef,
       getLastWatchedPresentation: () => ({ state: 'unknown', text: 'unknown' }),
       setLabeledValue: (element: FakeElement, label: string, value: string) => {
         element.textContent = `${label}: ${value}`;
@@ -143,7 +147,7 @@ describe('curated-card-view ui module', () => {
       setLabeledValuePairs: vi.fn(),
       appendLabeledValue: vi.fn(),
       getGenreValue: () => '',
-      makeRatingHistogram: () => (globalThis.document as ReturnType<typeof createFakeDocument>).createElement('div'),
+      makeRatingHistogram: () => documentRef.createElement('div'),
       formatVotes: () => '0',
       sanitizePercentage: () => 0,
       getStarCountFromDistribution: () => 0,
@@ -154,7 +158,7 @@ describe('curated-card-view ui module', () => {
         statusBase: 'Continue',
         nextEpisodeLabel: '',
       },
-      (globalThis.document as ReturnType<typeof createFakeDocument>).createElement('div'),
+      documentRef.createElement('div'),
     );
 
     const status = findByClassName(body, 'cw-curated-card__status');
@@ -163,7 +167,9 @@ describe('curated-card-view ui module', () => {
   });
 
   it('merges continue status with the next episode label', () => {
+    const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
     const runtime = getCardViewModule().createCardView({
+      documentRef,
       getLastWatchedPresentation: () => ({ state: 'dated', text: '2026-02-24' }),
       setLabeledValue: (element: FakeElement, label: string, value: string) => {
         element.textContent = `${label}: ${value}`;
@@ -172,7 +178,7 @@ describe('curated-card-view ui module', () => {
       setLabeledValuePairs: vi.fn(),
       appendLabeledValue: vi.fn(),
       getGenreValue: () => '',
-      makeRatingHistogram: () => (globalThis.document as ReturnType<typeof createFakeDocument>).createElement('div'),
+      makeRatingHistogram: () => documentRef.createElement('div'),
       formatVotes: () => '0',
       sanitizePercentage: () => 0,
       getStarCountFromDistribution: () => 0,
@@ -183,7 +189,7 @@ describe('curated-card-view ui module', () => {
         statusBase: 'Continue',
         nextEpisodeLabel: 'S1 E4',
       },
-      (globalThis.document as ReturnType<typeof createFakeDocument>).createElement('div'),
+      documentRef.createElement('div'),
     );
 
     const status = findByClassName(body, 'cw-curated-card__status');
@@ -192,7 +198,9 @@ describe('curated-card-view ui module', () => {
   });
 
   it('renders a hidden empty-genre row and a dedicated details skeleton container', () => {
+    const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
     const runtime = getCardViewModule().createCardView({
+      documentRef,
       getLastWatchedPresentation: () => ({ state: 'unknown', text: 'unknown' }),
       setLabeledValue: (element: FakeElement, label: string, value: string) => {
         element.textContent = `${label}: ${value}`;
@@ -201,7 +209,7 @@ describe('curated-card-view ui module', () => {
       setLabeledValuePairs: vi.fn(),
       appendLabeledValue: vi.fn(),
       getGenreValue: () => '',
-      makeRatingHistogram: () => (globalThis.document as ReturnType<typeof createFakeDocument>).createElement('div'),
+      makeRatingHistogram: () => documentRef.createElement('div'),
       formatVotes: () => '0',
       sanitizePercentage: () => 0,
       getStarCountFromDistribution: () => 0,
@@ -212,7 +220,7 @@ describe('curated-card-view ui module', () => {
         statusBase: 'Continue',
         nextEpisodeLabel: '',
       },
-      (globalThis.document as ReturnType<typeof createFakeDocument>).createElement('div'),
+      documentRef.createElement('div'),
     );
 
     const genres = findByClassName(body, 'cw-curated-card__genres');
@@ -226,7 +234,9 @@ describe('curated-card-view ui module', () => {
   });
 
   it('patches existing body fields in place without recreating field nodes', () => {
+    const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
     const runtime = getCardViewModule().createCardView({
+      documentRef,
       getLastWatchedPresentation: (entry: Record<string, unknown>) => ({
         state: String(entry.lastWatchedState || 'unknown'),
         text: String(entry.lastWatchedText || 'unknown'),
@@ -244,7 +254,7 @@ describe('curated-card-view ui module', () => {
       },
       getGenreValue: (entry: Record<string, unknown>) => String(entry.genreValue || ''),
       makeRatingHistogram: () => {
-        const histogram = (globalThis.document as ReturnType<typeof createFakeDocument>).createElement('div');
+        const histogram = documentRef.createElement('div');
         histogram.className = 'cw-rating-histogram';
         return histogram;
       },
@@ -263,7 +273,7 @@ describe('curated-card-view ui module', () => {
       },
     });
 
-    const actions = (globalThis.document as ReturnType<typeof createFakeDocument>).createElement('div');
+    const actions = documentRef.createElement('div');
     const body = runtime.createCuratedCardBody(
       {
         description: 'Initial description',
@@ -281,7 +291,7 @@ describe('curated-card-view ui module', () => {
       actions,
     );
 
-    const card = (globalThis.document as ReturnType<typeof createFakeDocument>).createElement('article');
+    const card = documentRef.createElement('article');
     card.className = 'cw-curated-card';
     card.appendChild(body);
 
