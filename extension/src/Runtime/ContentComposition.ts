@@ -1,41 +1,41 @@
-;(() => {
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+(() => {
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
 
   function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing content composition dependency: ${name}`)
+      throw new Error(`[CW] Missing content composition dependency: ${name}`);
     }
-    return value as T
+    return value as T;
   }
 
   function toFunctionRecord(value: unknown): AnyFunctionRecord {
     if (!value || typeof value !== 'object') {
-      return {}
+      return {};
     }
-    return value as AnyFunctionRecord
+    return value as AnyFunctionRecord;
   }
 
   function getSettingsRecord(state: LooseRecord): LooseRecord {
     if (!state.settings || typeof state.settings !== 'object') {
-      return {}
+      return {};
     }
-    return state.settings as LooseRecord
+    return state.settings as LooseRecord;
   }
 
   type ContentCompositionBindingsRuntime = {
-    createEntryNormalizerBinding: (options: ContentCompositionOptions) => (rows: unknown[]) => unknown[]
+    createEntryNormalizerBinding: (options: ContentCompositionOptions) => (rows: unknown[]) => unknown[];
     createDebugRuntime: (options: {
-      state: LooseRecord
-      corePrimitives: AnyFunctionRecord
-      modules: LooseRecord
-      assertRuntimeMethods: (owner: string, runtime: AnyFunctionRecord, methods: string[]) => void
-      consoleRef: Console
-    }) => DebugRuntime
-  }
+      state: LooseRecord;
+      corePrimitives: AnyFunctionRecord;
+      modules: LooseRecord;
+      assertRuntimeMethods: (owner: string, runtime: AnyFunctionRecord, methods: string[]) => void;
+      consoleRef: Console;
+    }) => DebugRuntime;
+  };
 
   type ContentCompositionRuntimeBindingsRuntime = {
     createCuratedRuntime: (
@@ -43,40 +43,40 @@
       sortRuntime: SortRuntime,
       cardRuntime: CardRuntime,
       normalizeEntriesFromApiRows: (rows: unknown[]) => unknown[],
-    ) => CuratedRuntime
+    ) => CuratedRuntime;
     createInteractionRuntime: (
       options: ContentCompositionOptions,
       deferredCallbacks: DeferredCompositionCallbacks,
       curatedRuntime: CuratedRuntime,
-    ) => InteractionRuntime
+    ) => InteractionRuntime;
     createInterfaceRuntime: (
       options: ContentCompositionOptions,
       cardRuntime: CardRuntime,
       curatedRuntime: CuratedRuntime,
       interactionsRuntime: InteractionRuntime,
-    ) => InterfaceRuntime
-  }
+    ) => InterfaceRuntime;
+  };
 
   function createContentCompositionBindingsRuntime(): ContentCompositionBindingsRuntime {
-    const bindingsModule = toFunctionRecord(moduleRegistry.runtimeContentCompositionBindings)
+    const bindingsModule = toFunctionRecord(moduleRegistry.runtimeContentCompositionBindings);
     const createRuntime = requireFunction<AnyFn>(
       'createContentCompositionBindingsRuntime',
       bindingsModule.createContentCompositionBindingsRuntime,
-    )
-    return createRuntime() as ContentCompositionBindingsRuntime
+    );
+    return createRuntime() as ContentCompositionBindingsRuntime;
   }
 
   function createContentCompositionRuntimeBindingsRuntime(): ContentCompositionRuntimeBindingsRuntime {
-    const runtimeBindingsModule = toFunctionRecord(moduleRegistry.runtimeContentCompositionRuntimeBindings)
+    const runtimeBindingsModule = toFunctionRecord(moduleRegistry.runtimeContentCompositionRuntimeBindings);
     const createRuntime = requireFunction<AnyFn>(
       'createContentCompositionRuntimeBindingsRuntime',
       runtimeBindingsModule.createContentCompositionRuntimeBindingsRuntime,
-    )
-    return createRuntime() as ContentCompositionRuntimeBindingsRuntime
+    );
+    return createRuntime() as ContentCompositionRuntimeBindingsRuntime;
   }
 
   function createSortRuntime(options: ContentCompositionOptions): SortRuntime {
-    const corePrimitives = options.corePrimitives
+    const corePrimitives = options.corePrimitives;
     const sortMetrics = requireFunction<AnyFn>(
       'createSortMetrics',
       options.modules.sortMetricsModule.createSortMetrics,
@@ -86,7 +86,7 @@
       sanitizePositiveInt: corePrimitives.sanitizePositiveInt,
       parseDateMs: corePrimitives.parseDateMs,
       pickFirstPositiveInt: corePrimitives.pickFirstPositiveInt,
-    }) as AnyFunctionRecord
+    }) as AnyFunctionRecord;
     options.assertRuntimeMethods('sort metrics', sortMetrics, [
       'getStarCountFromDistribution',
       'getStarPercentageFromDistribution',
@@ -102,7 +102,7 @@
       'getDormantBacklogScore',
       'getRewatchMemoryScore',
       'estimateUnwatchedEpisodesLeft',
-    ])
+    ]);
 
     const entrySorting = requireFunction<AnyFn>(
       'createEntrySorting',
@@ -124,8 +124,8 @@
       getRewatchActivityTimestamp: sortMetrics.getRewatchActivityTimestamp,
       getMostRecentActivityTimestamp: sortMetrics.getMostRecentActivityTimestamp,
       getPlausiblePastTimestamp: sortMetrics.getPlausiblePastTimestamp,
-    }) as AnyFunctionRecord
-    options.assertRuntimeMethods('entry sorting', entrySorting, ['compareRenderableEntries'])
+    }) as AnyFunctionRecord;
+    options.assertRuntimeMethods('entry sorting', entrySorting, ['compareRenderableEntries']);
 
     return {
       sortMetrics,
@@ -133,11 +133,11 @@
         'compareRenderableEntries',
         entrySorting.compareRenderableEntries,
       ) as SortRuntime['compareRenderableEntries'],
-    }
+    };
   }
 
   function createCardMetadataRuntime(options: ContentCompositionOptions, sortRuntime: SortRuntime): AnyFunctionRecord {
-    const corePrimitives = options.corePrimitives
+    const corePrimitives = options.corePrimitives;
     const cardMetadata = requireFunction<AnyFn>(
       'createCardMetadata',
       options.modules.cardMetadataModule.createCardMetadata,
@@ -150,9 +150,11 @@
       getStarCountFromDistribution: sortRuntime.sortMetrics.getStarCountFromDistribution,
       getWatchHistoryStatus: () => options.state.watchHistoryStatus,
       documentRef: options.windowRef.document,
-    }) as AnyFunctionRecord
+    }) as AnyFunctionRecord;
     options.assertRuntimeMethods('card metadata', cardMetadata, [
       'formatVotes',
+      'sanitizePercentage',
+      'getStarCountFromDistribution',
       'getLastWatchedPresentation',
       'appendLabeledValue',
       'setLabeledValue',
@@ -161,27 +163,27 @@
       'getGenreValue',
       'makeRatingHistogram',
       'makeRatingBadge',
-    ])
-    return cardMetadata
+    ]);
+    return cardMetadata;
   }
 
   function createControlsBinding(options: ContentCompositionOptions): CardRuntime['createCuratedInterfaceControls'] {
     const controlsView = requireFunction<AnyFn>(
       'createControlsView',
       options.modules.controlsViewModule.createControlsView,
-    )() as AnyFunctionRecord
-    options.assertRuntimeMethods('controls view', controlsView, ['createCuratedInterfaceControls'])
+    )() as AnyFunctionRecord;
+    options.assertRuntimeMethods('controls view', controlsView, ['createCuratedInterfaceControls']);
     return () =>
       requireFunction<AnyFn>('createCuratedInterfaceControls', controlsView.createCuratedInterfaceControls)(
         getSettingsRecord(options.state),
         options.sortModeControlOptions,
-      )
+      );
   }
 
   function createCardViewBinding(
     options: ContentCompositionOptions,
     cardMetadata: AnyFunctionRecord,
-  ): CardRuntime['createCuratedCardBody'] {
+  ): Pick<CardRuntime, 'createCuratedCardBody' | 'patchCuratedCardBody' | 'getCuratedCardBodyRefs'> {
     const cardView = requireFunction<AnyFn>(
       'createCardView',
       options.modules.cardViewModule.createCardView,
@@ -194,20 +196,38 @@
       getGenreValue: cardMetadata.getGenreValue,
       makeRatingHistogram: cardMetadata.makeRatingHistogram,
       formatVotes: cardMetadata.formatVotes,
-    }) as AnyFunctionRecord
-    options.assertRuntimeMethods('card view', cardView, ['createCuratedCardBody'])
-    return requireFunction<AnyFn>(
+      sanitizePercentage: cardMetadata.sanitizePercentage,
+      getStarCountFromDistribution: cardMetadata.getStarCountFromDistribution,
+    }) as AnyFunctionRecord;
+    options.assertRuntimeMethods('card view', cardView, [
       'createCuratedCardBody',
-      cardView.createCuratedCardBody,
-    ) as CardRuntime['createCuratedCardBody']
+      'patchCuratedCardBody',
+      'getCuratedCardBodyRefs',
+    ]);
+    return {
+      createCuratedCardBody: requireFunction<AnyFn>(
+        'createCuratedCardBody',
+        cardView.createCuratedCardBody,
+      ) as CardRuntime['createCuratedCardBody'],
+      patchCuratedCardBody: requireFunction<AnyFn>(
+        'patchCuratedCardBody',
+        cardView.patchCuratedCardBody,
+      ) as CardRuntime['patchCuratedCardBody'],
+      getCuratedCardBodyRefs: requireFunction<AnyFn>(
+        'getCuratedCardBodyRefs',
+        cardView.getCuratedCardBodyRefs,
+      ) as CardRuntime['getCuratedCardBodyRefs'],
+    };
   }
 
   function createCardShellBinding(
     options: ContentCompositionOptions,
     cardMetadata: AnyFunctionRecord,
     createCuratedCardBody: CardRuntime['createCuratedCardBody'],
+    getCuratedCardBodyRefs: CardRuntime['getCuratedCardBodyRefs'],
+    patchCuratedCardBody: CardRuntime['patchCuratedCardBody'],
     deferredCallbacks: DeferredCompositionCallbacks,
-  ): CardRuntime['createCuratedCard'] {
+  ): Pick<CardRuntime, 'createCuratedCard' | 'patchCuratedCard'> {
     const cardShell = requireFunction<AnyFn>(
       'createCardShell',
       options.modules.cardShellModule.createCardShell,
@@ -220,6 +240,8 @@
       makeRatingBadge: cardMetadata.makeRatingBadge,
       createCuratedCardActions: (entry: unknown) => deferredCallbacks.createCuratedCardActions(entry),
       createCuratedCardBody,
+      getCuratedCardBodyRefs,
+      patchCuratedCardBody,
       installCuratedCardPreview: (
         thumbLink: unknown,
         entry: unknown,
@@ -228,9 +250,18 @@
         thumbImage: unknown,
       ) =>
         deferredCallbacks.installCuratedCardPreview(thumbLink, entry, coverImageUrl, hoverPreviewImageUrl, thumbImage),
-    }) as AnyFunctionRecord
-    options.assertRuntimeMethods('card shell', cardShell, ['createCuratedCard'])
-    return requireFunction<AnyFn>('createCuratedCard', cardShell.createCuratedCard) as CardRuntime['createCuratedCard']
+    }) as AnyFunctionRecord;
+    options.assertRuntimeMethods('card shell', cardShell, ['createCuratedCard', 'patchCuratedCard']);
+    return {
+      createCuratedCard: requireFunction<AnyFn>(
+        'createCuratedCard',
+        cardShell.createCuratedCard,
+      ) as CardRuntime['createCuratedCard'],
+      patchCuratedCard: requireFunction<AnyFn>(
+        'patchCuratedCard',
+        cardShell.patchCuratedCard,
+      ) as CardRuntime['patchCuratedCard'],
+    };
   }
 
   function createCardRuntime(
@@ -238,63 +269,73 @@
     sortRuntime: SortRuntime,
     deferredCallbacks: DeferredCompositionCallbacks,
   ): CardRuntime {
-    const cardMetadata = createCardMetadataRuntime(options, sortRuntime)
-    const createCuratedInterfaceControls = createControlsBinding(options)
-    const createCuratedCardBody = createCardViewBinding(options, cardMetadata)
-    const createCuratedCard = createCardShellBinding(options, cardMetadata, createCuratedCardBody, deferredCallbacks)
+    const cardMetadata = createCardMetadataRuntime(options, sortRuntime);
+    const createCuratedInterfaceControls = createControlsBinding(options);
+    const cardView = createCardViewBinding(options, cardMetadata);
+    const cardShell = createCardShellBinding(
+      options,
+      cardMetadata,
+      cardView.createCuratedCardBody,
+      cardView.getCuratedCardBodyRefs,
+      cardView.patchCuratedCardBody,
+      deferredCallbacks,
+    );
     return {
       createCuratedInterfaceControls,
-      createCuratedCardBody,
-      createCuratedCard,
-    }
+      createCuratedCardBody: cardView.createCuratedCardBody,
+      getCuratedCardBodyRefs: cardView.getCuratedCardBodyRefs,
+      patchCuratedCardBody: cardView.patchCuratedCardBody,
+      createCuratedCard: cardShell.createCuratedCard,
+      patchCuratedCard: cardShell.patchCuratedCard,
+    };
   }
 
   function createContentComposition(input: ContentCompositionOptions): ContentCompositionRuntime {
     const options: ContentCompositionOptions = {
       ...input,
       corePrimitives: toFunctionRecord(input.corePrimitives),
-    }
-    requireFunction('normalizeImageUrlCandidate', options.dependencies.normalizeImageUrlCandidate)
-    requireFunction('extractCoverImagesFromApiImages', options.dependencies.extractCoverImagesFromApiImages)
-    requireFunction('extractThumbnailImageFromApiImages', options.dependencies.extractThumbnailImageFromApiImages)
-    requireFunction('getWatchlistRoot', options.dependencies.getWatchlistRoot)
-    requireFunction('getWatchlistHeader', options.dependencies.getWatchlistHeader)
-    const compositionBindingsRuntime = createContentCompositionBindingsRuntime()
-    const runtimeBindingsRuntime = createContentCompositionRuntimeBindingsRuntime()
+    };
+    requireFunction('normalizeImageUrlCandidate', options.dependencies.normalizeImageUrlCandidate);
+    requireFunction('extractCoverImagesFromApiImages', options.dependencies.extractCoverImagesFromApiImages);
+    requireFunction('extractThumbnailImageFromApiImages', options.dependencies.extractThumbnailImageFromApiImages);
+    requireFunction('getWatchlistRoot', options.dependencies.getWatchlistRoot);
+    requireFunction('getWatchlistHeader', options.dependencies.getWatchlistHeader);
+    const compositionBindingsRuntime = createContentCompositionBindingsRuntime();
+    const runtimeBindingsRuntime = createContentCompositionRuntimeBindingsRuntime();
 
     const deferredCallbacks: DeferredCompositionCallbacks = {
       createCuratedCardActions: () => [],
       installCuratedCardPreview: () => undefined,
       resetCuratedCachesForRefresh: () => undefined,
-    }
+    };
 
-    const normalizeEntriesFromApiRows = compositionBindingsRuntime.createEntryNormalizerBinding(options)
+    const normalizeEntriesFromApiRows = compositionBindingsRuntime.createEntryNormalizerBinding(options);
 
-    const sortRuntime = createSortRuntime(options)
-    const cardRuntime = createCardRuntime(options, sortRuntime, deferredCallbacks)
+    const sortRuntime = createSortRuntime(options);
+    const cardRuntime = createCardRuntime(options, sortRuntime, deferredCallbacks);
     const curatedRuntime = runtimeBindingsRuntime.createCuratedRuntime(
       options,
       sortRuntime,
       cardRuntime,
       normalizeEntriesFromApiRows,
-    )
+    );
 
-    deferredCallbacks.installCuratedCardPreview = curatedRuntime.installCuratedCardPreview
+    deferredCallbacks.installCuratedCardPreview = curatedRuntime.installCuratedCardPreview;
 
     const interactionsRuntime = runtimeBindingsRuntime.createInteractionRuntime(
       options,
       deferredCallbacks,
       curatedRuntime,
-    )
-    deferredCallbacks.createCuratedCardActions = interactionsRuntime.createCuratedCardActions
+    );
+    deferredCallbacks.createCuratedCardActions = interactionsRuntime.createCuratedCardActions;
 
     const interfaceRuntime = runtimeBindingsRuntime.createInterfaceRuntime(
       options,
       cardRuntime,
       curatedRuntime,
       interactionsRuntime,
-    )
-    deferredCallbacks.resetCuratedCachesForRefresh = interfaceRuntime.resetCuratedCachesForRefresh
+    );
+    deferredCallbacks.resetCuratedCachesForRefresh = interfaceRuntime.resetCuratedCachesForRefresh;
 
     const debugRuntime = compositionBindingsRuntime.createDebugRuntime({
       state: options.state,
@@ -302,13 +343,14 @@
       modules: options.modules,
       assertRuntimeMethods: options.assertRuntimeMethods,
       consoleRef: console,
-    })
+    });
 
     return {
       normalizeEntriesFromApiRows,
       createCuratedInterfaceControls: cardRuntime.createCuratedInterfaceControls,
       createCuratedCardBody: cardRuntime.createCuratedCardBody,
       createCuratedCard: cardRuntime.createCuratedCard,
+      patchCuratedCard: cardRuntime.patchCuratedCard,
       buildRenderableEntries: curatedRuntime.buildRenderableEntries,
       createCuratedCardActions: interactionsRuntime.createCuratedCardActions,
       compareRenderableEntries: sortRuntime.compareRenderableEntries,
@@ -323,16 +365,17 @@
       resetCuratedCachesForRefresh: interfaceRuntime.resetCuratedCachesForRefresh,
       ensureInterface: interfaceRuntime.ensureInterface,
       listKnownSeries: debugRuntime.listKnownSeries,
+      getCuratedDomStats: debugRuntime.getCuratedDomStats,
       dumpSeriesApiData: debugRuntime.dumpSeriesApiData,
       printSeriesApiData: debugRuntime.printSeriesApiData,
-    }
+    };
   }
 
-  let runtimeRegistry = moduleRegistry.runtimeContentComposition
+  let runtimeRegistry = moduleRegistry.runtimeContentComposition;
   if (!runtimeRegistry || typeof runtimeRegistry !== 'object') {
-    runtimeRegistry = {}
-    moduleRegistry.runtimeContentComposition = runtimeRegistry
+    runtimeRegistry = {};
+    moduleRegistry.runtimeContentComposition = runtimeRegistry;
   }
 
-  ;(runtimeRegistry as LooseRecord).createContentComposition = createContentComposition
-})()
+  (runtimeRegistry as LooseRecord).createContentComposition = createContentComposition;
+})();

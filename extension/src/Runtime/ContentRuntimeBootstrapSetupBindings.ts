@@ -1,17 +1,17 @@
-;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
-  type LooseRecord = Record<string, unknown>
+(() => {
+  type AnyFn = (...args: unknown[]) => unknown;
+  type LooseRecord = Record<string, unknown>;
 
   type RuntimeSetupBindingsConfig = {
-    runtimeSetupResult: LooseRecord
-    setRuntimeEvent: (nextRuntimeEvent: AnyFn) => void
-    setRuntimeSetupBindings: (runtimeSetupBindings: LooseRecord) => void
-  }
+    runtimeSetupResult: LooseRecord;
+    setRuntimeEvent: (nextRuntimeEvent: AnyFn) => void;
+    setRuntimeSetupBindings: (runtimeSetupBindings: LooseRecord) => void;
+  };
 
   type RuntimeSetupBindingsRuntime = {
-    createRuntimeSetupOptions: (options: LooseRecord) => LooseRecord
-    applyRuntimeSetupBindings: (options: RuntimeSetupBindingsConfig) => void
-  }
+    createRuntimeSetupOptions: (options: LooseRecord) => LooseRecord;
+    applyRuntimeSetupBindings: (options: RuntimeSetupBindingsConfig) => void;
+  };
 
   const runtimeSetupBindingKeys = [
     'runtimeEvent',
@@ -41,6 +41,7 @@
     'applyTabUi',
     'ensureInterface',
     'listKnownSeries',
+    'getCuratedDomStats',
     'dumpSeriesApiData',
     'resolveApiHref',
     'normalizeImageUrlCandidate',
@@ -61,26 +62,26 @@
     'persistSettings',
     'printSeriesApiData',
     'setWatchlistCacheRows',
-  ]
+  ];
 
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
     typeof globalThis & {
-      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord
-    }
+      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
+    };
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
 
   function toRecord(value: unknown): LooseRecord {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return {}
+      return {};
     }
-    return value as LooseRecord
+    return value as LooseRecord;
   }
 
   function createRuntimeSetupModuleOptions(bootstrapModulesRuntime: unknown): LooseRecord {
-    const modulesRuntime = toRecord(bootstrapModulesRuntime)
+    const modulesRuntime = toRecord(bootstrapModulesRuntime);
     return {
       runtimeTraceModule: modulesRuntime.runtimeTraceModule,
       runtimePreferredAudioModule: modulesRuntime.runtimePreferredAudioModule,
@@ -109,7 +110,7 @@
       runtimeCuratedInteractionsModule: modulesRuntime.runtimeCuratedInteractionsModule,
       runtimeInterfaceShellModule: modulesRuntime.runtimeInterfaceShellModule,
       runtimeDebugModule: modulesRuntime.runtimeDebugModule,
-    }
+    };
   }
 
   function createRuntimeSetupOptions({
@@ -151,14 +152,14 @@
       debounceProcess,
       createEmptyWatchHistoryCache,
       createWatchlistCacheSnapshot,
-    }
+    };
   }
 
   function extractRuntimeSetupBindings(runtimeSetupResult: LooseRecord): LooseRecord {
     return runtimeSetupBindingKeys.reduce<LooseRecord>((bindings, key) => {
-      bindings[key] = runtimeSetupResult[key]
-      return bindings
-    }, {})
+      bindings[key] = runtimeSetupResult[key];
+      return bindings;
+    }, {});
   }
 
   function applyRuntimeSetupBindings({
@@ -166,24 +167,24 @@
     setRuntimeEvent,
     setRuntimeSetupBindings,
   }: RuntimeSetupBindingsConfig): void {
-    const runtimeSetupBindings = extractRuntimeSetupBindings(runtimeSetupResult)
-    setRuntimeEvent(runtimeSetupBindings.runtimeEvent as AnyFn)
-    setRuntimeSetupBindings(runtimeSetupBindings)
+    const runtimeSetupBindings = extractRuntimeSetupBindings(runtimeSetupResult);
+    setRuntimeEvent(runtimeSetupBindings.runtimeEvent as AnyFn);
+    setRuntimeSetupBindings(runtimeSetupBindings);
   }
 
   function createContentRuntimeBootstrapSetupBindingsRuntime(): RuntimeSetupBindingsRuntime {
     return {
       createRuntimeSetupOptions,
       applyRuntimeSetupBindings,
-    }
+    };
   }
 
-  let runtimeRegistry = moduleRegistry.runtimeContentRuntimeBootstrapSetupBindings
+  let runtimeRegistry = moduleRegistry.runtimeContentRuntimeBootstrapSetupBindings;
   if (!runtimeRegistry || typeof runtimeRegistry !== 'object') {
-    runtimeRegistry = {}
-    moduleRegistry.runtimeContentRuntimeBootstrapSetupBindings = runtimeRegistry
+    runtimeRegistry = {};
+    moduleRegistry.runtimeContentRuntimeBootstrapSetupBindings = runtimeRegistry;
   }
 
-  ;(runtimeRegistry as LooseRecord).createContentRuntimeBootstrapSetupBindingsRuntime =
-    createContentRuntimeBootstrapSetupBindingsRuntime
-})()
+  (runtimeRegistry as LooseRecord).createContentRuntimeBootstrapSetupBindingsRuntime =
+    createContentRuntimeBootstrapSetupBindingsRuntime;
+})();

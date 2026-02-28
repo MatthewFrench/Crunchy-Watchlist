@@ -33,8 +33,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Owned DOM Lookup Guard
+        run: npm run guard:dom-lookups
+
       - name: Format check
         run: npm run format:check
+
+      - name: Perf budgets
+        run: npm run test:perf:budgets
 
       - name: Unit tests
         run: npm run test:unit

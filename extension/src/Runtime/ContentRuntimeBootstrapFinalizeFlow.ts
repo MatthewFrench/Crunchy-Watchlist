@@ -1,80 +1,80 @@
-;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
-  type LooseRecord = Record<string, unknown>
+(() => {
+  type AnyFn = (...args: unknown[]) => unknown;
+  type LooseRecord = Record<string, unknown>;
 
-  type RuntimeWindow = Window & typeof globalThis
+  type RuntimeWindow = Window & typeof globalThis;
 
   type RuntimeBootstrapHelpersContextLike = {
-    isCurrentRuntimeActive: () => boolean
-  }
+    isCurrentRuntimeActive: () => boolean;
+  };
 
   type RuntimeBootstrapSessionLike = {
-    runtimeBootstrapFinalizeModule: LooseRecord
-    storageModule: LooseRecord
-    storageLocalArea: unknown
-    runtimeLifecycleModule: LooseRecord
-    runtimeStateLoaderModule: LooseRecord
-    state: LooseRecord
-    isWatchlistPath: (pathname: string) => boolean
-    debounceProcess: () => void
-    defaultSettings: LooseRecord
-    validSortModes: unknown
-    defaultSortMode: unknown
-    runtimeConstants: LooseRecord
-  }
+    runtimeBootstrapFinalizeModule: LooseRecord;
+    storageModule: LooseRecord;
+    storageLocalArea: unknown;
+    runtimeLifecycleModule: LooseRecord;
+    runtimeStateLoaderModule: LooseRecord;
+    state: LooseRecord;
+    isWatchlistPath: (pathname: string) => boolean;
+    debounceProcess: () => void;
+    defaultSettings: LooseRecord;
+    validSortModes: unknown;
+    defaultSortMode: unknown;
+    runtimeConstants: LooseRecord;
+  };
 
   type CreateBootstrapFinalizeRuntimeFromSetupResultOptions = {
-    context: RuntimeBootstrapHelpersContextLike
-    windowRef: RuntimeWindow
-    runtimeSetupResult: LooseRecord
-    runtimeBootstrapSession: RuntimeBootstrapSessionLike
-  }
+    context: RuntimeBootstrapHelpersContextLike;
+    windowRef: RuntimeWindow;
+    runtimeSetupResult: LooseRecord;
+    runtimeBootstrapSession: RuntimeBootstrapSessionLike;
+  };
 
   type BindBootstrapFinalizeRuntimeMethodsOptions = {
-    bootstrapFinalizeRuntime: LooseRecord
-    setProcessWatchlist: (nextProcessWatchlist: AnyFn) => void
-    setSyncRouteRuntime: (nextSyncRouteRuntime: AnyFn) => void
-    setDestroyRuntime: (nextDestroyRuntime: AnyFn) => void
-    setBootstrapIssue: (reason: string, payload?: LooseRecord) => void
-    clearStaleInjectedShell: (reason: string) => void
-  }
+    bootstrapFinalizeRuntime: LooseRecord;
+    setProcessWatchlist: (nextProcessWatchlist: AnyFn) => void;
+    setSyncRouteRuntime: (nextSyncRouteRuntime: AnyFn) => void;
+    setDestroyRuntime: (nextDestroyRuntime: AnyFn) => void;
+    setBootstrapIssue: (reason: string, payload?: LooseRecord) => void;
+    clearStaleInjectedShell: (reason: string) => void;
+  };
 
   type RunBootstrapFinalizeInitFlowOptions = {
-    bootstrapFinalizeRuntime: LooseRecord
-    updateDiagnostics: (payload: LooseRecord) => void
-    startDomRuntimeLockHeartbeat: () => void
-    startWatchlistHealthRuntime: () => void
-    runtimeEvent: (event: string, payload?: LooseRecord) => void
-    setBootstrapIssue: (reason: string, payload?: LooseRecord) => void
-    shutdownRuntime: (payload?: LooseRecord) => void
-    clearStaleInjectedShell: (reason: string) => void
-  }
+    bootstrapFinalizeRuntime: LooseRecord;
+    updateDiagnostics: (payload: LooseRecord) => void;
+    startDomRuntimeLockHeartbeat: () => void;
+    startWatchlistHealthRuntime: () => void;
+    runtimeEvent: (event: string, payload?: LooseRecord) => void;
+    setBootstrapIssue: (reason: string, payload?: LooseRecord) => void;
+    shutdownRuntime: (payload?: LooseRecord) => void;
+    clearStaleInjectedShell: (reason: string) => void;
+  };
 
   type RuntimeBootstrapFinalizeFlowRuntime = {
     createBootstrapFinalizeRuntimeOptions: (
       context: RuntimeBootstrapHelpersContextLike,
       options: LooseRecord,
-    ) => LooseRecord
+    ) => LooseRecord;
     createBootstrapFinalizeRuntimeFromSetupResult: (
       options: CreateBootstrapFinalizeRuntimeFromSetupResultOptions,
-    ) => unknown
-    bindBootstrapFinalizeRuntimeMethods: (options: BindBootstrapFinalizeRuntimeMethodsOptions) => boolean
-    runBootstrapFinalizeInitFlow: (options: RunBootstrapFinalizeInitFlowOptions) => void
-  }
+    ) => unknown;
+    bindBootstrapFinalizeRuntimeMethods: (options: BindBootstrapFinalizeRuntimeMethodsOptions) => boolean;
+    runBootstrapFinalizeInitFlow: (options: RunBootstrapFinalizeInitFlowOptions) => void;
+  };
 
   const root = (typeof window !== 'undefined' ? window : globalThis) as RuntimeWindow & {
-    __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord
-  }
+    __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
+  };
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
 
   function toRecord(value: unknown): LooseRecord {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return {}
+      return {};
     }
-    return value as LooseRecord
+    return value as LooseRecord;
   }
 
   function createBootstrapFinalizeRuntimeLifecycleOptionsInternal(
@@ -93,11 +93,11 @@
       setNativeVisibility: options.setNativeVisibility,
       clearRootFrame: options.clearRootFrame,
       debounceProcess: options.debounceProcess,
-    }
+    };
   }
 
   function createBootstrapFinalizeRuntimeStateLoaderOptionsInternal(options: LooseRecord): LooseRecord {
-    const runtimeConstants = toRecord(options.runtimeConstants)
+    const runtimeConstants = toRecord(options.runtimeConstants);
     return {
       state: options.state,
       storageGet: options.storageGet,
@@ -115,7 +115,7 @@
       ratingCacheKey: runtimeConstants.ratingCacheKey,
       watchHistoryCacheKey: runtimeConstants.watchHistoryCacheKey,
       watchlistCacheKey: runtimeConstants.watchlistCacheKey,
-    }
+    };
   }
 
   function createBootstrapFinalizeRuntimeOptionsInternal(
@@ -130,9 +130,10 @@
       runtimeStateLoaderModule: options.runtimeStateLoaderModule,
       runtimeStateLoaderOptions: createBootstrapFinalizeRuntimeStateLoaderOptionsInternal(options),
       listKnownSeries: options.listKnownSeries,
+      getCuratedDomStats: options.getCuratedDomStats,
       dumpSeriesApiData: options.dumpSeriesApiData,
       printSeriesApiData: options.printSeriesApiData,
-    }
+    };
   }
 
   function createBootstrapFinalizeRuntimeFromSetupResultInternal({
@@ -141,20 +142,20 @@
     runtimeSetupResult,
     runtimeBootstrapSession,
   }: CreateBootstrapFinalizeRuntimeFromSetupResultOptions): unknown {
-    const runtimeBootstrapFinalizeModule = runtimeBootstrapSession.runtimeBootstrapFinalizeModule
-    const storageModule = runtimeBootstrapSession.storageModule
+    const runtimeBootstrapFinalizeModule = runtimeBootstrapSession.runtimeBootstrapFinalizeModule;
+    const storageModule = runtimeBootstrapSession.storageModule;
     const safeJsonParse = (value: unknown, fallback: unknown) =>
-      (runtimeBootstrapFinalizeModule.safeJsonParse as AnyFn)(value, fallback)
+      (runtimeBootstrapFinalizeModule.safeJsonParse as AnyFn)(value, fallback);
     const storageAdapter = (storageModule.createStorageAdapter as AnyFn)({
       storageArea: runtimeBootstrapSession.storageLocalArea,
       parseJson: safeJsonParse,
       localStorageRef: windowRef.localStorage,
       timeoutMs: 1500,
-    })
+    });
     const storageAccessors = (runtimeBootstrapFinalizeModule.createStorageAccessors as AnyFn)({
       storageAdapter,
-    }) as LooseRecord
-    const storageGet = (key: string, fallback: unknown) => (storageAccessors.storageGet as AnyFn)(key, fallback)
+    }) as LooseRecord;
+    const storageGet = (key: string, fallback: unknown) => (storageAccessors.storageGet as AnyFn)(key, fallback);
 
     return (runtimeBootstrapFinalizeModule.createBootstrapFinalizeRuntime as AnyFn)(
       createBootstrapFinalizeRuntimeOptionsInternal(context, {
@@ -183,10 +184,11 @@
         defaultSortMode: runtimeBootstrapSession.defaultSortMode,
         runtimeConstants: runtimeBootstrapSession.runtimeConstants,
         listKnownSeries: runtimeSetupResult.listKnownSeries,
+        getCuratedDomStats: runtimeSetupResult.getCuratedDomStats,
         dumpSeriesApiData: runtimeSetupResult.dumpSeriesApiData,
         printSeriesApiData: runtimeSetupResult.printSeriesApiData,
       }),
-    )
+    );
   }
 
   function bindBootstrapFinalizeRuntimeMethodsInternal({
@@ -198,20 +200,20 @@
     clearStaleInjectedShell,
   }: BindBootstrapFinalizeRuntimeMethodsOptions): boolean {
     if (bootstrapFinalizeRuntime && typeof bootstrapFinalizeRuntime.processWatchlist === 'function') {
-      setProcessWatchlist(bootstrapFinalizeRuntime.processWatchlist as AnyFn)
+      setProcessWatchlist(bootstrapFinalizeRuntime.processWatchlist as AnyFn);
     }
     if (bootstrapFinalizeRuntime && typeof bootstrapFinalizeRuntime.syncRoute === 'function') {
-      setSyncRouteRuntime(() => (bootstrapFinalizeRuntime.syncRoute as AnyFn)())
+      setSyncRouteRuntime(() => (bootstrapFinalizeRuntime.syncRoute as AnyFn)());
     }
     if (bootstrapFinalizeRuntime && typeof bootstrapFinalizeRuntime.destroy === 'function') {
-      setDestroyRuntime(() => (bootstrapFinalizeRuntime.destroy as AnyFn)())
+      setDestroyRuntime(() => (bootstrapFinalizeRuntime.destroy as AnyFn)());
     }
     if (!bootstrapFinalizeRuntime || typeof bootstrapFinalizeRuntime.init !== 'function') {
-      setBootstrapIssue('missing-bootstrap-finalize-runtime')
-      clearStaleInjectedShell('missing-bootstrap-finalize-runtime')
-      return false
+      setBootstrapIssue('missing-bootstrap-finalize-runtime');
+      clearStaleInjectedShell('missing-bootstrap-finalize-runtime');
+      return false;
     }
-    return true
+    return true;
   }
 
   function runBootstrapFinalizeInitFlowInternal({
@@ -227,30 +229,30 @@
     updateDiagnostics({
       ok: false,
       stage: 'init-started',
-    })
+    });
 
-    ;((bootstrapFinalizeRuntime.init as AnyFn)() as Promise<unknown>)
+    ((bootstrapFinalizeRuntime.init as AnyFn)() as Promise<unknown>)
       .then(() => {
         updateDiagnostics({
           ok: true,
           stage: 'init-complete',
-        })
-        startDomRuntimeLockHeartbeat()
-        startWatchlistHealthRuntime()
+        });
+        startDomRuntimeLockHeartbeat();
+        startWatchlistHealthRuntime();
       })
       .catch((error: { message?: string }) => {
         runtimeEvent('init-error', {
           message: error?.message || 'unknown',
-        })
+        });
         setBootstrapIssue('init-error', {
           message: error?.message || 'unknown',
-        })
+        });
         shutdownRuntime({
           reason: 'init-error',
           message: error?.message || 'unknown',
-        })
-        clearStaleInjectedShell('init-error')
-      })
+        });
+        clearStaleInjectedShell('init-error');
+      });
   }
 
   function createContentRuntimeBootstrapFinalizeFlowRuntime(): RuntimeBootstrapFinalizeFlowRuntime {
@@ -261,10 +263,10 @@
         createBootstrapFinalizeRuntimeFromSetupResultInternal(options),
       bindBootstrapFinalizeRuntimeMethods: (options) => bindBootstrapFinalizeRuntimeMethodsInternal(options),
       runBootstrapFinalizeInitFlow: (options) => runBootstrapFinalizeInitFlowInternal(options),
-    }
+    };
   }
 
   moduleRegistry.runtimeContentRuntimeBootstrapFinalizeFlow = {
     createContentRuntimeBootstrapFinalizeFlowRuntime,
-  }
-})()
+  };
+})();

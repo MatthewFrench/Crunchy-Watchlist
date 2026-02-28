@@ -1,19 +1,19 @@
-;(() => {
+(() => {
   // biome-ignore lint/suspicious/noExplicitAny: Runtime composition wiring is intentionally dynamic.
-  type AnyFn = (...args: unknown[]) => any
-  type LooseRecord = Record<string, unknown>
+  type AnyFn = (...args: unknown[]) => any;
+  type LooseRecord = Record<string, unknown>;
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
 
   function requireFunction<T>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing content runtime setup composition dependency: ${name}`)
+      throw new Error(`[CW] Missing content runtime setup composition dependency: ${name}`);
     }
-    return value as T
+    return value as T;
   }
 
   function createCompositionModulesInternal(context: LooseRecord): LooseRecord {
@@ -32,7 +32,7 @@
       runtimeCuratedInteractionsModule: context.runtimeCuratedInteractionsModule,
       runtimeInterfaceShellModule: context.runtimeInterfaceShellModule,
       runtimeDebugModule: context.runtimeDebugModule,
-    }
+    };
   }
 
   function createCompositionDependenciesInternal(
@@ -85,7 +85,7 @@
       storageSet: (key: string, value: unknown) => storageSet(key, value),
       runtimeEvent: bindings.runtimeEvent,
       resolveApiHref: bindings.resolveApiHref,
-    }
+    };
   }
 
   function createContentCompositionRuntimeInternal(
@@ -108,7 +108,7 @@
       corePrimitives,
       modules: createCompositionModulesInternal(context),
       dependencies: createCompositionDependenciesInternal(context, bindings, storageSet, requireFn),
-    }) as LooseRecord
+    }) as LooseRecord;
   }
 
   function bindCompositionRuntimeInternal(
@@ -119,16 +119,17 @@
     bindings.normalizeEntriesFromApiRows = requireFn(
       'normalizeEntriesFromApiRows',
       compositionRuntime.normalizeEntriesFromApiRows,
-    )
-    bindings.ensureCuratedDataLoad = requireFn('ensureCuratedDataLoad', compositionRuntime.ensureCuratedDataLoad)
-    bindings.renderCuratedPanel = requireFn('renderCuratedPanel', compositionRuntime.renderCuratedPanel)
-    bindings.clearRootFrame = requireFn('clearRootFrame', compositionRuntime.clearRootFrame)
-    bindings.setNativeVisibility = requireFn('setNativeVisibility', compositionRuntime.setNativeVisibility)
-    bindings.applyTabUi = requireFn('applyTabUi', compositionRuntime.applyTabUi)
-    bindings.ensureInterface = requireFn('ensureInterface', compositionRuntime.ensureInterface)
-    bindings.listKnownSeries = requireFn('listKnownSeries', compositionRuntime.listKnownSeries)
-    bindings.dumpSeriesApiData = requireFn('dumpSeriesApiData', compositionRuntime.dumpSeriesApiData)
-    bindings.printSeriesApiData = requireFn('printSeriesApiData', compositionRuntime.printSeriesApiData)
+    );
+    bindings.ensureCuratedDataLoad = requireFn('ensureCuratedDataLoad', compositionRuntime.ensureCuratedDataLoad);
+    bindings.renderCuratedPanel = requireFn('renderCuratedPanel', compositionRuntime.renderCuratedPanel);
+    bindings.clearRootFrame = requireFn('clearRootFrame', compositionRuntime.clearRootFrame);
+    bindings.setNativeVisibility = requireFn('setNativeVisibility', compositionRuntime.setNativeVisibility);
+    bindings.applyTabUi = requireFn('applyTabUi', compositionRuntime.applyTabUi);
+    bindings.ensureInterface = requireFn('ensureInterface', compositionRuntime.ensureInterface);
+    bindings.listKnownSeries = requireFn('listKnownSeries', compositionRuntime.listKnownSeries);
+    bindings.getCuratedDomStats = requireFn('getCuratedDomStats', compositionRuntime.getCuratedDomStats);
+    bindings.dumpSeriesApiData = requireFn('dumpSeriesApiData', compositionRuntime.dumpSeriesApiData);
+    bindings.printSeriesApiData = requireFn('printSeriesApiData', compositionRuntime.printSeriesApiData);
   }
 
   function initializeCompositionBindingInternal(
@@ -144,14 +145,15 @@
       corePrimitives,
       storageSet,
       requireFn,
-    )
-    const assertRuntimeMethods = requireFn<AnyFn>('assertRuntimeMethods', context.assertRuntimeMethods)
+    );
+    const assertRuntimeMethods = requireFn<AnyFn>('assertRuntimeMethods', context.assertRuntimeMethods);
     assertRuntimeMethods('content composition runtime', compositionRuntime, [
       'normalizeEntriesFromApiRows',
       'ensureInterface',
       'listKnownSeries',
-    ])
-    bindCompositionRuntimeInternal(bindings, compositionRuntime, requireFn)
+      'getCuratedDomStats',
+    ]);
+    bindCompositionRuntimeInternal(bindings, compositionRuntime, requireFn);
   }
 
   function buildContentRuntimeSetupSuccessInternal(context: LooseRecord, bindings: LooseRecord): LooseRecord {
@@ -185,6 +187,7 @@
       applyTabUi: bindings.applyTabUi,
       ensureInterface: bindings.ensureInterface,
       listKnownSeries: bindings.listKnownSeries,
+      getCuratedDomStats: bindings.getCuratedDomStats,
       dumpSeriesApiData: bindings.dumpSeriesApiData,
       resolveApiHref: bindings.resolveApiHref,
       normalizeImageUrlCandidate: bindings.normalizeImageUrlCandidate,
@@ -208,12 +211,12 @@
       defaultSettings: context.defaultSettings,
       defaultSortMode: context.defaultSortMode,
       validSortModes: context.validSortModes,
-    }
+    };
   }
 
   function createContentRuntimeSetupCompositionRuntime(options: LooseRecord = {}): LooseRecord {
     const requireFn =
-      (options.requireFunction as (<T>(name: string, value: unknown) => T) | undefined) ?? requireFunction
+      (options.requireFunction as (<T>(name: string, value: unknown) => T) | undefined) ?? requireFunction;
     return {
       initializeCompositionBinding: (
         context: LooseRecord,
@@ -223,10 +226,10 @@
       ) => initializeCompositionBindingInternal(context, bindings, corePrimitives, storageSet, requireFn),
       buildContentRuntimeSetupSuccess: (context: LooseRecord, bindings: LooseRecord) =>
         buildContentRuntimeSetupSuccessInternal(context, bindings),
-    }
+    };
   }
 
   moduleRegistry.runtimeContentRuntimeSetupComposition = {
     createContentRuntimeSetupCompositionRuntime,
-  }
-})()
+  };
+})();

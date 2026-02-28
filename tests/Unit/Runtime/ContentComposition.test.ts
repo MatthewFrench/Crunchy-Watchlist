@@ -1,31 +1,31 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type ContentCompositionModule = {
-  createContentComposition: (options: Record<string, unknown>) => Record<string, unknown>
-}
+  createContentComposition: (options: Record<string, unknown>) => Record<string, unknown>;
+};
 
 const contentCompositionModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentComposition.ts'),
-).href
+).href;
 const contentCompositionBindingsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentCompositionBindings.ts'),
-).href
+).href;
 const contentCompositionRuntimeBindingsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentCompositionRuntimeBindings.ts'),
-).href
+).href;
 
 function getContentCompositionModule(): ContentCompositionModule {
   const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    runtimeContentComposition?: ContentCompositionModule
-  }
-  return registry.runtimeContentComposition as ContentCompositionModule
+    runtimeContentComposition?: ContentCompositionModule;
+  };
+  return registry.runtimeContentComposition as ContentCompositionModule;
 }
 
 function createSortMetricsRuntime(): Record<string, unknown> {
-  const numericMethod = () => 0
+  const numericMethod = () => 0;
   return {
     getStarCountFromDistribution: numericMethod,
     getStarPercentageFromDistribution: numericMethod,
@@ -41,7 +41,7 @@ function createSortMetricsRuntime(): Record<string, unknown> {
     getDormantBacklogScore: numericMethod,
     getRewatchMemoryScore: numericMethod,
     estimateUnwatchedEpisodesLeft: numericMethod,
-  }
+  };
 }
 
 function createCorePrimitivesRuntime(): Record<string, unknown> {
@@ -68,7 +68,7 @@ function createCorePrimitivesRuntime(): Record<string, unknown> {
     getWatchHistorySeriesId: () => 'history-series-id',
     getWatchlistSeriesTitle: () => 'Watchlist Title',
     getWatchHistorySeriesTitle: () => 'History Title',
-  }
+  };
 }
 
 describe('content composition runtime module', () => {
@@ -77,17 +77,17 @@ describe('content composition runtime module', () => {
       contentCompositionBindingsModuleUrl,
       contentCompositionRuntimeBindingsModuleUrl,
       contentCompositionModuleUrl,
-    ])
-  })
+    ]);
+  });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry()
-  })
+    clearRuntimeModulesRegistry();
+  });
 
   it('wires deferred runtime callbacks for card actions and preview installation', () => {
-    const createCuratedCardActions = vi.fn(() => ['favorite'])
-    const installCuratedCardPreview = vi.fn(() => 'preview-installed')
-    let cardShellOptions: Record<string, unknown> | null = null
+    const createCuratedCardActions = vi.fn(() => ['favorite']);
+    const installCuratedCardPreview = vi.fn(() => 'preview-installed');
+    let cardShellOptions: Record<string, unknown> | null = null;
 
     const runtime = getContentCompositionModule().createContentComposition({
       windowRef: {
@@ -126,6 +126,8 @@ describe('content composition runtime module', () => {
         cardMetadataModule: {
           createCardMetadata: () => ({
             formatVotes: () => '',
+            sanitizePercentage: () => 0,
+            getStarCountFromDistribution: () => 0,
             getLastWatchedPresentation: () => '',
             appendLabeledValue: () => undefined,
             setLabeledValue: () => undefined,
@@ -144,11 +146,13 @@ describe('content composition runtime module', () => {
         cardViewModule: {
           createCardView: () => ({
             createCuratedCardBody: (entry: unknown) => ({ entry }),
+            getCuratedCardBodyRefs: () => null,
+            patchCuratedCardBody: () => undefined,
           }),
         },
         cardShellModule: {
           createCardShell: (options: Record<string, unknown>) => {
-            cardShellOptions = options
+            cardShellOptions = options;
             return {
               createCuratedCard: (entry: unknown) => ({
                 entry,
@@ -161,7 +165,8 @@ describe('content composition runtime module', () => {
                   null,
                 ),
               }),
-            }
+              patchCuratedCard: () => undefined,
+            };
           },
         },
         runtimeRenderableModule: {
@@ -205,6 +210,7 @@ describe('content composition runtime module', () => {
         runtimeDebugModule: {
           createDebugApiRuntime: () => ({
             listSeries: () => ['series-id'],
+            getCuratedDomStats: () => ({ identityChurnRate: 0 }),
             dumpSeriesApiData: () => ({ ok: true }),
             printSeriesApiData: () => ({ printed: true }),
           }),
@@ -247,15 +253,15 @@ describe('content composition runtime module', () => {
         runtimeEvent: () => undefined,
         resolveApiHref: (value: unknown) => String(value),
       },
-    })
+    });
 
-    const createCuratedCard = runtime.createCuratedCard as (entry: unknown) => Record<string, unknown>
-    const card = createCuratedCard({ id: 'series-1' })
+    const createCuratedCard = runtime.createCuratedCard as (entry: unknown) => Record<string, unknown>;
+    const card = createCuratedCard({ id: 'series-1' });
 
-    expect(card.actions).toEqual(['favorite'])
-    expect(card.preview).toBe('preview-installed')
-    expect(createCuratedCardActions).toHaveBeenCalledTimes(1)
-    expect(installCuratedCardPreview).toHaveBeenCalledTimes(1)
-    expect(cardShellOptions).toBeTruthy()
-  })
-})
+    expect(card.actions).toEqual(['favorite']);
+    expect(card.preview).toBe('preview-installed');
+    expect(createCuratedCardActions).toHaveBeenCalledTimes(1);
+    expect(installCuratedCardPreview).toHaveBeenCalledTimes(1);
+    expect(cardShellOptions).toBeTruthy();
+  });
+});

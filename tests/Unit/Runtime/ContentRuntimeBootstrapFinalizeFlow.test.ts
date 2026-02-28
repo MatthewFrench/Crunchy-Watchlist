@@ -1,66 +1,66 @@
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type RuntimeBootstrapFinalizeFlowRuntime = {
   createBootstrapFinalizeRuntimeOptions: (
     context: { isCurrentRuntimeActive: () => boolean },
     options: Record<string, unknown>,
-  ) => Record<string, unknown>
+  ) => Record<string, unknown>;
   bindBootstrapFinalizeRuntimeMethods: (options: {
-    bootstrapFinalizeRuntime: Record<string, unknown>
-    setProcessWatchlist: (nextProcessWatchlist: (...args: unknown[]) => unknown) => void
-    setSyncRouteRuntime: (nextSyncRouteRuntime: (...args: unknown[]) => unknown) => void
-    setDestroyRuntime: (nextDestroyRuntime: (...args: unknown[]) => unknown) => void
-    setBootstrapIssue: (reason: string, payload?: Record<string, unknown>) => void
-    clearStaleInjectedShell: (reason: string) => void
-  }) => boolean
+    bootstrapFinalizeRuntime: Record<string, unknown>;
+    setProcessWatchlist: (nextProcessWatchlist: (...args: unknown[]) => unknown) => void;
+    setSyncRouteRuntime: (nextSyncRouteRuntime: (...args: unknown[]) => unknown) => void;
+    setDestroyRuntime: (nextDestroyRuntime: (...args: unknown[]) => unknown) => void;
+    setBootstrapIssue: (reason: string, payload?: Record<string, unknown>) => void;
+    clearStaleInjectedShell: (reason: string) => void;
+  }) => boolean;
   runBootstrapFinalizeInitFlow: (options: {
-    bootstrapFinalizeRuntime: Record<string, unknown>
-    updateDiagnostics: (payload: Record<string, unknown>) => void
-    startDomRuntimeLockHeartbeat: () => void
-    startWatchlistHealthRuntime: () => void
-    runtimeEvent: (event: string, payload?: Record<string, unknown>) => void
-    setBootstrapIssue: (reason: string, payload?: Record<string, unknown>) => void
-    shutdownRuntime: (payload?: Record<string, unknown>) => void
-    clearStaleInjectedShell: (reason: string) => void
-  }) => void
-}
+    bootstrapFinalizeRuntime: Record<string, unknown>;
+    updateDiagnostics: (payload: Record<string, unknown>) => void;
+    startDomRuntimeLockHeartbeat: () => void;
+    startWatchlistHealthRuntime: () => void;
+    runtimeEvent: (event: string, payload?: Record<string, unknown>) => void;
+    setBootstrapIssue: (reason: string, payload?: Record<string, unknown>) => void;
+    shutdownRuntime: (payload?: Record<string, unknown>) => void;
+    clearStaleInjectedShell: (reason: string) => void;
+  }) => void;
+};
 
 type RuntimeBootstrapFinalizeFlowModule = {
   runtimeContentRuntimeBootstrapFinalizeFlow: {
-    createContentRuntimeBootstrapFinalizeFlowRuntime: () => RuntimeBootstrapFinalizeFlowRuntime
-  }
-}
+    createContentRuntimeBootstrapFinalizeFlowRuntime: () => RuntimeBootstrapFinalizeFlowRuntime;
+  };
+};
 
 const contentRuntimeBootstrapFinalizeFlowModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentRuntimeBootstrapFinalizeFlow.ts'),
-).href
+).href;
 
 async function flushMicrotasks(iterations = 4): Promise<void> {
   for (let index = 0; index < iterations; index += 1) {
-    await Promise.resolve()
+    await Promise.resolve();
   }
 }
 
 function getRuntimeBootstrapFinalizeFlowModule() {
   const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as RuntimeBootstrapFinalizeFlowModule
-  return registry.runtimeContentRuntimeBootstrapFinalizeFlow
+    .__CW_WATCHLIST_CURATOR_MODULES__ as RuntimeBootstrapFinalizeFlowModule;
+  return registry.runtimeContentRuntimeBootstrapFinalizeFlow;
 }
 
 describe('content-runtime-bootstrap-finalize-flow runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([contentRuntimeBootstrapFinalizeFlowModuleUrl])
-  })
+    await loadRuntimeModules([contentRuntimeBootstrapFinalizeFlowModuleUrl]);
+  });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry()
-  })
+    clearRuntimeModulesRegistry();
+  });
 
   it('builds runtime lifecycle + state-loader options with runtime constants', () => {
-    const runtime = getRuntimeBootstrapFinalizeFlowModule().createContentRuntimeBootstrapFinalizeFlowRuntime()
+    const runtime = getRuntimeBootstrapFinalizeFlowModule().createContentRuntimeBootstrapFinalizeFlowRuntime();
 
     const options = runtime.createBootstrapFinalizeRuntimeOptions(
       {
@@ -100,18 +100,19 @@ describe('content-runtime-bootstrap-finalize-flow runtime', () => {
           watchlistCacheKey: 'watchlist-cache',
         },
         listKnownSeries: vi.fn(),
+        getCuratedDomStats: vi.fn(() => ({ identityChurnRate: 0 })),
         dumpSeriesApiData: vi.fn(),
         printSeriesApiData: vi.fn(),
       },
-    )
+    );
 
     expect(options.runtimeLifecycleOptions).toEqual(
       expect.objectContaining({
         isRuntimeActive: expect.any(Function),
         ensureInterface: expect.any(Function),
       }),
-    )
-    expect((options.runtimeLifecycleOptions as { isRuntimeActive: () => boolean }).isRuntimeActive()).toBe(true)
+    );
+    expect((options.runtimeLifecycleOptions as { isRuntimeActive: () => boolean }).isRuntimeActive()).toBe(true);
     expect(options.runtimeStateLoaderOptions).toEqual(
       expect.objectContaining({
         settingsKey: 'settings',
@@ -119,13 +120,13 @@ describe('content-runtime-bootstrap-finalize-flow runtime', () => {
         watchHistoryCacheKey: 'watch-history-cache',
         watchlistCacheKey: 'watchlist-cache',
       }),
-    )
-  })
+    );
+  });
 
   it('returns false and marks bootstrap issue when init method is missing', () => {
-    const runtime = getRuntimeBootstrapFinalizeFlowModule().createContentRuntimeBootstrapFinalizeFlowRuntime()
-    const setBootstrapIssue = vi.fn()
-    const clearStaleInjectedShell = vi.fn()
+    const runtime = getRuntimeBootstrapFinalizeFlowModule().createContentRuntimeBootstrapFinalizeFlowRuntime();
+    const setBootstrapIssue = vi.fn();
+    const clearStaleInjectedShell = vi.fn();
 
     const result = runtime.bindBootstrapFinalizeRuntimeMethods({
       bootstrapFinalizeRuntime: {
@@ -136,25 +137,25 @@ describe('content-runtime-bootstrap-finalize-flow runtime', () => {
       setDestroyRuntime: vi.fn(),
       setBootstrapIssue,
       clearStaleInjectedShell,
-    })
+    });
 
-    expect(result).toBe(false)
-    expect(setBootstrapIssue).toHaveBeenCalledWith('missing-bootstrap-finalize-runtime')
-    expect(clearStaleInjectedShell).toHaveBeenCalledWith('missing-bootstrap-finalize-runtime')
-  })
+    expect(result).toBe(false);
+    expect(setBootstrapIssue).toHaveBeenCalledWith('missing-bootstrap-finalize-runtime');
+    expect(clearStaleInjectedShell).toHaveBeenCalledWith('missing-bootstrap-finalize-runtime');
+  });
 
   it('handles init failure by emitting runtime diagnostics and shutdown payload', async () => {
-    const runtime = getRuntimeBootstrapFinalizeFlowModule().createContentRuntimeBootstrapFinalizeFlowRuntime()
-    const updateDiagnostics = vi.fn()
-    const runtimeEvent = vi.fn()
-    const setBootstrapIssue = vi.fn()
-    const shutdownRuntime = vi.fn()
-    const clearStaleInjectedShell = vi.fn()
+    const runtime = getRuntimeBootstrapFinalizeFlowModule().createContentRuntimeBootstrapFinalizeFlowRuntime();
+    const updateDiagnostics = vi.fn();
+    const runtimeEvent = vi.fn();
+    const setBootstrapIssue = vi.fn();
+    const shutdownRuntime = vi.fn();
+    const clearStaleInjectedShell = vi.fn();
 
     runtime.runBootstrapFinalizeInitFlow({
       bootstrapFinalizeRuntime: {
         init: vi.fn(async () => {
-          throw new Error('init failed')
+          throw new Error('init failed');
         }),
       },
       updateDiagnostics,
@@ -164,24 +165,24 @@ describe('content-runtime-bootstrap-finalize-flow runtime', () => {
       setBootstrapIssue,
       shutdownRuntime,
       clearStaleInjectedShell,
-    })
+    });
 
-    await flushMicrotasks()
+    await flushMicrotasks();
 
     expect(updateDiagnostics).toHaveBeenCalledWith({
       ok: false,
       stage: 'init-started',
-    })
+    });
     expect(runtimeEvent).toHaveBeenCalledWith('init-error', {
       message: 'init failed',
-    })
+    });
     expect(setBootstrapIssue).toHaveBeenCalledWith('init-error', {
       message: 'init failed',
-    })
+    });
     expect(shutdownRuntime).toHaveBeenCalledWith({
       reason: 'init-error',
       message: 'init failed',
-    })
-    expect(clearStaleInjectedShell).toHaveBeenCalledWith('init-error')
-  })
-})
+    });
+    expect(clearStaleInjectedShell).toHaveBeenCalledWith('init-error');
+  });
+});

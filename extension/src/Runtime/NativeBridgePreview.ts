@@ -1,43 +1,47 @@
-;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
+(() => {
+  type AnyFn = (...args: unknown[]) => unknown;
 
   type NativeActionBridgeRuntime = {
-    findNativeCardBySeriesId: (seriesId: unknown) => HTMLElement | null
-  }
+    findNativeCardBySeriesId: (seriesId: unknown) => HTMLElement | null;
+  };
 
   type EntryLike = {
-    seriesId?: unknown
-    streamsLink?: unknown
-  }
+    seriesId?: unknown;
+    streamsLink?: unknown;
+  };
 
   type PreviewContext = {
-    thumbLink: HTMLAnchorElement
-    thumbImage: HTMLImageElement | null
-    previewImage: HTMLImageElement | null
-    previewVideo: HTMLVideoElement | null
-    previewTimer: number | null
-    previewPollTimer: number | null
-    previewSession: number
-    activeNativeCard: HTMLElement | null
-  }
+    thumbLink: HTMLAnchorElement;
+    thumbImage: HTMLImageElement | null;
+    entry: EntryLike;
+    coverImageUrl: string;
+    hoverPreviewImageUrl: string;
+    previewImage: HTMLImageElement | null;
+    previewVideo: HTMLVideoElement | null;
+    previewTimer: number | null;
+    previewPollTimer: number | null;
+    previewSession: number;
+    activeNativeCard: HTMLElement | null;
+  };
 
   type NativeBridgePreviewContext = {
-    windowRef: Window
-    nativeActionBridgeRuntime: NativeActionBridgeRuntime
-    normalizeImageUrlCandidate: (value: unknown) => string
-    fetchPreviewUrlForEntry: (entry: unknown) => Promise<unknown>
-    isLikelyVideoUrl: (url: unknown) => boolean
-    previewHoverDelayMs: number
-  }
+    windowRef: Window;
+    nativeActionBridgeRuntime: NativeActionBridgeRuntime;
+    normalizeImageUrlCandidate: (value: unknown) => string;
+    fetchPreviewUrlForEntry: (entry: unknown) => Promise<unknown>;
+    isLikelyVideoUrl: (url: unknown) => boolean;
+    previewHoverDelayMs: number;
+    previewContextsByThumbLink: WeakMap<HTMLAnchorElement, PreviewContext>;
+  };
 
   type NativeBridgePreviewOptions = {
-    windowRef?: unknown
-    nativeActionBridgeRuntime?: unknown
-    normalizeImageUrlCandidate?: unknown
-    fetchPreviewUrlForEntry?: unknown
-    isLikelyVideoUrl?: unknown
-    previewHoverDelayMs?: unknown
-  }
+    windowRef?: unknown;
+    nativeActionBridgeRuntime?: unknown;
+    normalizeImageUrlCandidate?: unknown;
+    fetchPreviewUrlForEntry?: unknown;
+    isLikelyVideoUrl?: unknown;
+    previewHoverDelayMs?: unknown;
+  };
 
   type NativeBridgePreviewRuntime = {
     installCuratedCardPreview: (
@@ -46,43 +50,43 @@
       coverImageUrl: unknown,
       hoverPreviewImageUrl: unknown,
       thumbImage: unknown,
-    ) => void
-  }
+    ) => void;
+  };
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
   function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing native bridge preview dependency: ${name}`)
+      throw new Error(`[CW] Missing native bridge preview dependency: ${name}`);
     }
-    return value as T
+    return value as T;
   }
 
   function resolveWindowRef(value: unknown): Window {
     if (!value || typeof value !== 'object') {
-      throw new Error('[CW] Missing native bridge preview windowRef')
+      throw new Error('[CW] Missing native bridge preview windowRef');
     }
-    return value as Window
+    return value as Window;
   }
 
   function normalizePositiveNumber(value: unknown, fallback: number): number {
-    const number = Number(value)
+    const number = Number(value);
     if (!Number.isFinite(number) || number <= 0) {
-      return fallback
+      return fallback;
     }
-    return Math.round(number)
+    return Math.round(number);
   }
 
   function getString(value: unknown): string {
-    return typeof value === 'string' ? value.trim() : ''
+    return typeof value === 'string' ? value.trim() : '';
   }
 
   function createNativeBridgePreviewContext(options: NativeBridgePreviewOptions = {}): NativeBridgePreviewContext {
-    const nativeActionBridgeRuntime = options.nativeActionBridgeRuntime as NativeActionBridgeRuntime
+    const nativeActionBridgeRuntime = options.nativeActionBridgeRuntime as NativeActionBridgeRuntime;
 
     return {
       windowRef: resolveWindowRef(options.windowRef),
@@ -105,29 +109,30 @@
         options.isLikelyVideoUrl,
       ) as NativeBridgePreviewContext['isLikelyVideoUrl'],
       previewHoverDelayMs: normalizePositiveNumber(options.previewHoverDelayMs, 220),
-    }
+      previewContextsByThumbLink: new WeakMap<HTMLAnchorElement, PreviewContext>(),
+    };
   }
 
   function contextNormalizeUrl(value: unknown): string {
-    const normalized = getString(value)
+    const normalized = getString(value);
     if (!normalized) {
-      return ''
+      return '';
     }
 
     try {
-      return (root.location ? new URL(normalized, root.location.origin).toString() : normalized) || normalized
+      return (root.location ? new URL(normalized, root.location.origin).toString() : normalized) || normalized;
     } catch {
-      return normalized
+      return normalized;
     }
   }
 
   function extractUrlFromCssBackground(backgroundValue: string): string {
-    const match = backgroundValue.match(/url\((['"]?)(.*?)\1\)/i)
+    const match = backgroundValue.match(/url\((['"]?)(.*?)\1\)/i);
     if (!match || !match[2]) {
-      return ''
+      return '';
     }
 
-    return contextNormalizeUrl(match[2])
+    return contextNormalizeUrl(match[2]);
   }
 
   function getNativeCardPreviewUrl(context: NativeBridgePreviewContext, card: HTMLElement): string {
@@ -140,115 +145,123 @@
       '[class*="thumbnail"]',
       '[class*="poster"]',
       '[class*="image"]',
-    ].join(', ')
+    ].join(', ');
 
-    const candidates = Array.from(card.querySelectorAll(mediaSelector))
+    const candidates = Array.from(card.querySelectorAll(mediaSelector));
     for (const candidate of candidates) {
       if (!(candidate instanceof HTMLElement)) {
-        continue
+        continue;
       }
 
       if (candidate instanceof HTMLVideoElement) {
-        const current = candidate.currentSrc || candidate.src
+        const current = candidate.currentSrc || candidate.src;
         if (current) {
-          return current
+          return current;
         }
       }
 
       if (candidate instanceof HTMLImageElement) {
-        const current = candidate.currentSrc || candidate.src
+        const current = candidate.currentSrc || candidate.src;
         if (current) {
-          return current
+          return current;
         }
       }
 
-      const styleValue = context.windowRef.getComputedStyle(candidate).backgroundImage
-      const backgroundUrl = extractUrlFromCssBackground(styleValue)
+      const styleValue = context.windowRef.getComputedStyle(candidate).backgroundImage;
+      const backgroundUrl = extractUrlFromCssBackground(styleValue);
       if (backgroundUrl) {
-        return backgroundUrl
+        return backgroundUrl;
       }
     }
 
-    return extractUrlFromCssBackground(context.windowRef.getComputedStyle(card).backgroundImage) || ''
+    return extractUrlFromCssBackground(context.windowRef.getComputedStyle(card).backgroundImage) || '';
   }
 
   function createCuratedPreviewContext(
     thumbLink: HTMLAnchorElement,
     thumbImage: HTMLImageElement | null,
+    entry: EntryLike,
+    coverImageUrl: string,
+    hoverPreviewImageUrl: string,
   ): PreviewContext {
     return {
       thumbLink,
       thumbImage,
+      entry,
+      coverImageUrl,
+      hoverPreviewImageUrl,
       previewImage: null,
       previewVideo: null,
       previewTimer: null,
       previewPollTimer: null,
       previewSession: 0,
       activeNativeCard: null,
-    }
+    };
   }
 
   function stopCuratedPreview(context: NativeBridgePreviewContext, previewContext: PreviewContext): void {
     if (previewContext.previewTimer != null) {
-      context.windowRef.clearTimeout(previewContext.previewTimer)
+      context.windowRef.clearTimeout(previewContext.previewTimer);
     }
     if (previewContext.previewPollTimer != null) {
-      context.windowRef.clearTimeout(previewContext.previewPollTimer)
+      context.windowRef.clearTimeout(previewContext.previewPollTimer);
     }
-    previewContext.previewTimer = null
-    previewContext.previewPollTimer = null
+    previewContext.previewTimer = null;
+    previewContext.previewPollTimer = null;
 
     if (previewContext.activeNativeCard) {
       try {
-        previewContext.activeNativeCard.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true }))
-        previewContext.activeNativeCard.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, cancelable: true }))
+        previewContext.activeNativeCard.dispatchEvent(
+          new MouseEvent('mouseleave', { bubbles: true, cancelable: true }),
+        );
+        previewContext.activeNativeCard.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, cancelable: true }));
       } catch {
         // no-op
       }
     }
-    previewContext.activeNativeCard = null
+    previewContext.activeNativeCard = null;
 
     if (previewContext.previewVideo) {
-      previewContext.previewVideo.pause()
-      previewContext.previewVideo.currentTime = 0
-      previewContext.previewVideo.style.display = 'none'
+      previewContext.previewVideo.pause();
+      previewContext.previewVideo.currentTime = 0;
+      previewContext.previewVideo.style.display = 'none';
     }
 
     if (previewContext.previewImage) {
-      previewContext.previewImage.style.display = 'none'
+      previewContext.previewImage.style.display = 'none';
     }
 
-    previewContext.thumbLink.classList.remove('cw-curated-card__thumb--previewing')
+    previewContext.thumbLink.classList.remove('cw-curated-card__thumb--previewing');
     if (previewContext.thumbImage) {
-      previewContext.thumbImage.style.opacity = ''
+      previewContext.thumbImage.style.opacity = '';
     }
   }
 
   function showCuratedPreviewImage(previewContext: PreviewContext, url: string): void {
     if (!url) {
-      return
+      return;
     }
 
     if (!previewContext.previewImage) {
-      const ownerDocument = previewContext.thumbLink.ownerDocument
-      previewContext.previewImage = ownerDocument.createElement('img')
-      previewContext.previewImage.className = 'cw-curated-card__preview cw-curated-card__preview-image'
-      previewContext.previewImage.alt = ''
-      previewContext.previewImage.setAttribute('aria-hidden', 'true')
-      previewContext.thumbLink.appendChild(previewContext.previewImage)
+      const ownerDocument = previewContext.thumbLink.ownerDocument;
+      previewContext.previewImage = ownerDocument.createElement('img');
+      previewContext.previewImage.className = 'cw-curated-card__preview cw-curated-card__preview-image';
+      previewContext.previewImage.alt = '';
+      previewContext.previewImage.setAttribute('aria-hidden', 'true');
+      previewContext.thumbLink.appendChild(previewContext.previewImage);
     }
 
-    previewContext.previewImage.src = url
-    previewContext.previewImage.style.display = 'block'
+    previewContext.previewImage.src = url;
+    previewContext.previewImage.style.display = 'block';
 
     if (previewContext.previewVideo) {
-      previewContext.previewVideo.pause()
-      previewContext.previewVideo.style.display = 'none'
+      previewContext.previewVideo.pause();
+      previewContext.previewVideo.style.display = 'none';
     }
 
-    previewContext.thumbLink.classList.add('cw-curated-card__thumb--previewing')
+    previewContext.thumbLink.classList.add('cw-curated-card__thumb--previewing');
     if (previewContext.thumbImage) {
-      previewContext.thumbImage.style.opacity = '0'
+      previewContext.thumbImage.style.opacity = '0';
     }
   }
 
@@ -258,39 +271,39 @@
     url: string,
   ): Promise<void> {
     if (!url) {
-      return
+      return;
     }
 
     if (!previewContext.previewVideo) {
-      const ownerDocument = previewContext.thumbLink.ownerDocument
-      previewContext.previewVideo = ownerDocument.createElement('video')
-      previewContext.previewVideo.className = 'cw-curated-card__preview cw-curated-card__preview-video'
-      previewContext.previewVideo.muted = true
-      previewContext.previewVideo.loop = true
-      previewContext.previewVideo.playsInline = true
-      previewContext.previewVideo.preload = 'none'
-      previewContext.previewVideo.setAttribute('aria-hidden', 'true')
-      previewContext.thumbLink.appendChild(previewContext.previewVideo)
+      const ownerDocument = previewContext.thumbLink.ownerDocument;
+      previewContext.previewVideo = ownerDocument.createElement('video');
+      previewContext.previewVideo.className = 'cw-curated-card__preview cw-curated-card__preview-video';
+      previewContext.previewVideo.muted = true;
+      previewContext.previewVideo.loop = true;
+      previewContext.previewVideo.playsInline = true;
+      previewContext.previewVideo.preload = 'none';
+      previewContext.previewVideo.setAttribute('aria-hidden', 'true');
+      previewContext.thumbLink.appendChild(previewContext.previewVideo);
     }
 
     if (previewContext.previewVideo.src !== url) {
-      previewContext.previewVideo.src = url
+      previewContext.previewVideo.src = url;
     }
-    previewContext.previewVideo.style.display = 'block'
+    previewContext.previewVideo.style.display = 'block';
 
     if (previewContext.previewImage) {
-      previewContext.previewImage.style.display = 'none'
+      previewContext.previewImage.style.display = 'none';
     }
 
-    previewContext.thumbLink.classList.add('cw-curated-card__thumb--previewing')
+    previewContext.thumbLink.classList.add('cw-curated-card__thumb--previewing');
     if (previewContext.thumbImage) {
-      previewContext.thumbImage.style.opacity = '0'
+      previewContext.thumbImage.style.opacity = '0';
     }
 
     try {
-      await previewContext.previewVideo.play()
+      await previewContext.previewVideo.play();
     } catch {
-      stopCuratedPreview(context, previewContext)
+      stopCuratedPreview(context, previewContext);
     }
   }
 
@@ -302,105 +315,105 @@
     sessionId: number,
   ): Promise<boolean> {
     return new Promise((resolve) => {
-      const nativeCard = context.nativeActionBridgeRuntime.findNativeCardBySeriesId(seriesId)
+      const nativeCard = context.nativeActionBridgeRuntime.findNativeCardBySeriesId(seriesId);
       if (!nativeCard) {
-        resolve(false)
-        return
+        resolve(false);
+        return;
       }
 
-      previewContext.activeNativeCard = nativeCard
+      previewContext.activeNativeCard = nativeCard;
 
-      let baseline = ''
+      let baseline = '';
       try {
-        baseline = getNativeCardPreviewUrl(context, nativeCard)
+        baseline = getNativeCardPreviewUrl(context, nativeCard);
       } catch {
-        resolve(false)
-        return
+        resolve(false);
+        return;
       }
       const fallbackPoster =
-        previewContext.thumbImage?.currentSrc || previewContext.thumbImage?.src || coverImageUrl || ''
+        previewContext.thumbImage?.currentSrc || previewContext.thumbImage?.src || coverImageUrl || '';
 
       try {
-        nativeCard.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }))
-        nativeCard.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }))
+        nativeCard.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
+        nativeCard.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }));
       } catch {
         // no-op
       }
 
-      let attempts = 0
+      let attempts = 0;
       const poll = () => {
         try {
           if (sessionId !== previewContext.previewSession) {
-            resolve(false)
-            return
+            resolve(false);
+            return;
           }
 
-          const current = getNativeCardPreviewUrl(context, nativeCard)
+          const current = getNativeCardPreviewUrl(context, nativeCard);
           if (current && current !== baseline && current !== fallbackPoster) {
-            showCuratedPreviewImage(previewContext, current)
-            resolve(true)
-            return
+            showCuratedPreviewImage(previewContext, current);
+            resolve(true);
+            return;
           }
 
-          attempts += 1
+          attempts += 1;
           if (attempts >= 8) {
-            resolve(false)
-            return
+            resolve(false);
+            return;
           }
 
-          previewContext.previewPollTimer = context.windowRef.setTimeout(poll, 120)
+          previewContext.previewPollTimer = context.windowRef.setTimeout(poll, 120);
         } catch {
-          resolve(false)
+          resolve(false);
         }
-      }
+      };
 
-      previewContext.previewPollTimer = context.windowRef.setTimeout(poll, 120)
-    })
+      previewContext.previewPollTimer = context.windowRef.setTimeout(poll, 120);
+    });
   }
 
   async function startCuratedPreviewSession(
     context: NativeBridgePreviewContext,
     previewContext: PreviewContext,
-    entry: EntryLike,
-    coverImageUrl: string,
-    hoverPreviewImageUrl: string,
     sessionId: number,
   ): Promise<void> {
-    const seriesId = getString(entry.seriesId)
+    const entry = previewContext.entry;
+    const coverImageUrl = previewContext.coverImageUrl;
+    const hoverPreviewImageUrl = previewContext.hoverPreviewImageUrl;
+    const seriesId = getString(entry.seriesId);
     const mirrored = await startMirroredNativePreviewSession(
       context,
       previewContext,
       seriesId,
       coverImageUrl,
       sessionId,
-    )
+    );
     if (mirrored || sessionId !== previewContext.previewSession) {
-      return
+      return;
     }
 
-    const fallbackPreviewUrl = hoverPreviewImageUrl || coverImageUrl || ''
+    const fallbackPreviewUrl = hoverPreviewImageUrl || coverImageUrl || '';
     if (!getString(entry.streamsLink)) {
       if (fallbackPreviewUrl) {
-        showCuratedPreviewImage(previewContext, fallbackPreviewUrl)
+        showCuratedPreviewImage(previewContext, fallbackPreviewUrl);
       }
-      return
+      return;
     }
 
-    let previewUrl = ''
+    let previewUrl = '';
     try {
-      previewUrl = getString(await context.fetchPreviewUrlForEntry(entry))
+      previewUrl = getString(await context.fetchPreviewUrlForEntry(entry));
     } catch {
-      previewUrl = ''
+      previewUrl = '';
     }
 
     if (!previewUrl || sessionId !== previewContext.previewSession) {
       if (sessionId === previewContext.previewSession && fallbackPreviewUrl) {
-        showCuratedPreviewImage(previewContext, fallbackPreviewUrl)
+        showCuratedPreviewImage(previewContext, fallbackPreviewUrl);
       }
-      return
+      return;
     }
 
-    const normalizedPreviewUrl = context.normalizeImageUrlCandidate(previewUrl)
+    const normalizedPreviewUrl = context.normalizeImageUrlCandidate(previewUrl);
     if (
       normalizedPreviewUrl &&
       coverImageUrl &&
@@ -408,14 +421,14 @@
       hoverPreviewImageUrl &&
       hoverPreviewImageUrl !== coverImageUrl
     ) {
-      showCuratedPreviewImage(previewContext, hoverPreviewImageUrl)
-      return
+      showCuratedPreviewImage(previewContext, hoverPreviewImageUrl);
+      return;
     }
 
     if (context.isLikelyVideoUrl(previewUrl)) {
-      await showCuratedPreviewVideo(context, previewContext, previewUrl)
+      await showCuratedPreviewVideo(context, previewContext, previewUrl);
     } else {
-      showCuratedPreviewImage(previewContext, previewUrl)
+      showCuratedPreviewImage(previewContext, previewUrl);
     }
   }
 
@@ -424,16 +437,16 @@
     previewContext: PreviewContext,
     onStartPreview: (sessionId: number) => Promise<void>,
   ): void {
-    previewContext.previewSession += 1
-    const currentSession = previewContext.previewSession
+    previewContext.previewSession += 1;
+    const currentSession = previewContext.previewSession;
     if (previewContext.previewTimer != null) {
-      context.windowRef.clearTimeout(previewContext.previewTimer)
+      context.windowRef.clearTimeout(previewContext.previewTimer);
     }
     previewContext.previewTimer = context.windowRef.setTimeout(() => {
       onStartPreview(currentSession).catch(() => {
         // no-op
-      })
-    }, context.previewHoverDelayMs)
+      });
+    }, context.previewHoverDelayMs);
   }
 
   function installCuratedCardPreviewInternal(
@@ -444,45 +457,59 @@
     hoverPreviewImageUrlValue: unknown,
     thumbImageValue: unknown,
   ): void {
-    const thumbLink = thumbLinkValue instanceof HTMLAnchorElement ? thumbLinkValue : null
+    const thumbLink = thumbLinkValue instanceof HTMLAnchorElement ? thumbLinkValue : null;
     if (!thumbLink) {
-      return
+      return;
     }
 
-    const entry = (entryValue && typeof entryValue === 'object' ? entryValue : {}) as EntryLike
-    const coverImageUrl = context.normalizeImageUrlCandidate(coverImageUrlValue)
-    const hoverPreviewImageUrl = context.normalizeImageUrlCandidate(hoverPreviewImageUrlValue)
-    const thumbImage = thumbImageValue instanceof HTMLImageElement ? thumbImageValue : null
-    const previewContext = createCuratedPreviewContext(thumbLink, thumbImage)
+    const entry = (entryValue && typeof entryValue === 'object' ? entryValue : {}) as EntryLike;
+    const coverImageUrl = context.normalizeImageUrlCandidate(coverImageUrlValue);
+    const hoverPreviewImageUrl = context.normalizeImageUrlCandidate(hoverPreviewImageUrlValue);
+    const thumbImage = thumbImageValue instanceof HTMLImageElement ? thumbImageValue : null;
+    const existingPreviewContext = context.previewContextsByThumbLink.get(thumbLink);
+    if (existingPreviewContext) {
+      existingPreviewContext.thumbImage = thumbImage;
+      existingPreviewContext.entry = entry;
+      existingPreviewContext.coverImageUrl = coverImageUrl;
+      existingPreviewContext.hoverPreviewImageUrl = hoverPreviewImageUrl;
+      return;
+    }
+    const previewContext = createCuratedPreviewContext(
+      thumbLink,
+      thumbImage,
+      entry,
+      coverImageUrl,
+      hoverPreviewImageUrl,
+    );
+    context.previewContextsByThumbLink.set(thumbLink, previewContext);
 
-    const startPreview = (sessionId: number) =>
-      startCuratedPreviewSession(context, previewContext, entry, coverImageUrl, hoverPreviewImageUrl, sessionId)
+    const startPreview = (sessionId: number) => startCuratedPreviewSession(context, previewContext, sessionId);
     const stopPreview = () => {
-      previewContext.previewSession += 1
-      stopCuratedPreview(context, previewContext)
-    }
+      previewContext.previewSession += 1;
+      stopCuratedPreview(context, previewContext);
+    };
 
     thumbLink.addEventListener('mouseenter', () => {
-      queueCuratedPreviewSession(context, previewContext, startPreview)
-    })
+      queueCuratedPreviewSession(context, previewContext, startPreview);
+    });
     thumbLink.addEventListener('mouseleave', () => {
-      stopPreview()
-    })
+      stopPreview();
+    });
     thumbLink.addEventListener('blur', () => {
-      stopPreview()
-    })
+      stopPreview();
+    });
   }
 
   function createNativeBridgePreviewRuntime(options: NativeBridgePreviewOptions = {}): NativeBridgePreviewRuntime {
-    const context = createNativeBridgePreviewContext(options)
+    const context = createNativeBridgePreviewContext(options);
     return {
       installCuratedCardPreview: (thumbLink, entry, coverImageUrl, hoverPreviewImageUrl, thumbImage) => {
-        installCuratedCardPreviewInternal(context, thumbLink, entry, coverImageUrl, hoverPreviewImageUrl, thumbImage)
+        installCuratedCardPreviewInternal(context, thumbLink, entry, coverImageUrl, hoverPreviewImageUrl, thumbImage);
       },
-    }
+    };
   }
 
   moduleRegistry.runtimeNativeBridgePreview = {
     createNativeBridgePreviewRuntime,
-  }
-})()
+  };
+})();

@@ -1,58 +1,59 @@
-;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
-  type LooseRecord = Record<string, unknown>
-  type AnyFunctionRecord = Record<string, AnyFn>
+(() => {
+  type AnyFn = (...args: unknown[]) => unknown;
+  type LooseRecord = Record<string, unknown>;
+  type AnyFunctionRecord = Record<string, AnyFn>;
 
   type ContentCompositionOptions = {
-    state: LooseRecord
-    modules: LooseRecord
-    corePrimitives: LooseRecord
-    dependencies: LooseRecord
-  }
+    state: LooseRecord;
+    modules: LooseRecord;
+    corePrimitives: LooseRecord;
+    dependencies: LooseRecord;
+  };
 
   type DebugRuntime = {
-    listKnownSeries: (options?: unknown) => unknown
-    dumpSeriesApiData: (seriesId: unknown, options?: unknown) => unknown
-    printSeriesApiData: (seriesId: unknown, options?: unknown) => unknown
-  }
+    listKnownSeries: (options?: unknown) => unknown;
+    getCuratedDomStats: (options?: unknown) => unknown;
+    dumpSeriesApiData: (seriesId: unknown, options?: unknown) => unknown;
+    printSeriesApiData: (seriesId: unknown, options?: unknown) => unknown;
+  };
 
   type ContentCompositionBindingsRuntime = {
-    createEntryNormalizerBinding: (options: ContentCompositionOptions) => (rows: unknown[]) => unknown[]
+    createEntryNormalizerBinding: (options: ContentCompositionOptions) => (rows: unknown[]) => unknown[];
     createDebugRuntime: (options: {
-      state: LooseRecord
-      corePrimitives: LooseRecord
-      modules: LooseRecord
-      assertRuntimeMethods: (owner: string, runtime: AnyFunctionRecord, methods: string[]) => void
-      consoleRef: Console
-    }) => DebugRuntime
-  }
+      state: LooseRecord;
+      corePrimitives: LooseRecord;
+      modules: LooseRecord;
+      assertRuntimeMethods: (owner: string, runtime: AnyFunctionRecord, methods: string[]) => void;
+      consoleRef: Console;
+    }) => DebugRuntime;
+  };
 
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
     typeof globalThis & {
-      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord
-    }
+      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
+    };
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
 
   function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing content composition binding dependency: ${name}`)
+      throw new Error(`[CW] Missing content composition binding dependency: ${name}`);
     }
-    return value as T
+    return value as T;
   }
 
   function toRecord(value: unknown): LooseRecord {
     if (!value || typeof value !== 'object') {
-      return {}
+      return {};
     }
-    return value as LooseRecord
+    return value as LooseRecord;
   }
 
   function createEntryNormalizerBinding(options: ContentCompositionOptions): (rows: unknown[]) => unknown[] {
-    const corePrimitives = options.corePrimitives
-    const entryNormalizerModule = toRecord(options.modules.entryNormalizerModule)
+    const corePrimitives = options.corePrimitives;
+    const entryNormalizerModule = toRecord(options.modules.entryNormalizerModule);
     const entryNormalizer = requireFunction<AnyFn>(
       'createEntryNormalizer',
       entryNormalizerModule.createEntryNormalizer,
@@ -69,13 +70,13 @@
       getEpisodeAvailabilityByAudioLocale: corePrimitives.getEpisodeAvailabilityByAudioLocale,
       mergeEpisodeAvailabilityByAudioLocale: corePrimitives.mergeEpisodeAvailabilityByAudioLocale,
       normalizeAudioLocales: corePrimitives.normalizeAudioLocales,
-    }) as Record<string, unknown>
+    }) as Record<string, unknown>;
 
     return (rows) =>
       requireFunction<AnyFn>(
         'normalizeEntriesFromApiRows',
         (entryNormalizer as Record<string, unknown>).normalizeEntriesFromApiRows,
-      )(rows) as unknown[]
+      )(rows) as unknown[];
   }
 
   function createDebugRuntime({
@@ -85,13 +86,13 @@
     assertRuntimeMethods,
     consoleRef,
   }: {
-    state: LooseRecord
-    corePrimitives: LooseRecord
-    modules: LooseRecord
-    assertRuntimeMethods: (owner: string, runtime: AnyFunctionRecord, methods: string[]) => void
-    consoleRef: Console
+    state: LooseRecord;
+    corePrimitives: LooseRecord;
+    modules: LooseRecord;
+    assertRuntimeMethods: (owner: string, runtime: AnyFunctionRecord, methods: string[]) => void;
+    consoleRef: Console;
   }): DebugRuntime {
-    const runtimeDebugModule = toRecord(modules.runtimeDebugModule)
+    const runtimeDebugModule = toRecord(modules.runtimeDebugModule);
     const runtime = requireFunction<AnyFn>(
       'createDebugApiRuntime',
       runtimeDebugModule.createDebugApiRuntime,
@@ -103,26 +104,32 @@
       getWatchHistorySeriesTitle: corePrimitives.getWatchHistorySeriesTitle,
       logRef: (message: unknown) => {
         // eslint-disable-next-line no-console
-        consoleRef.log(message)
+        consoleRef.log(message);
       },
-    }) as AnyFunctionRecord
-    assertRuntimeMethods('debug runtime', runtime, ['listSeries', 'dumpSeriesApiData', 'printSeriesApiData'])
+    }) as AnyFunctionRecord;
+    assertRuntimeMethods('debug runtime', runtime, [
+      'listSeries',
+      'getCuratedDomStats',
+      'dumpSeriesApiData',
+      'printSeriesApiData',
+    ]);
 
     return {
       listKnownSeries: requireFunction<AnyFn>('listKnownSeries', runtime.listSeries),
+      getCuratedDomStats: requireFunction<AnyFn>('getCuratedDomStats', runtime.getCuratedDomStats),
       dumpSeriesApiData: requireFunction<AnyFn>('dumpSeriesApiData', runtime.dumpSeriesApiData),
       printSeriesApiData: requireFunction<AnyFn>('printSeriesApiData', runtime.printSeriesApiData),
-    }
+    };
   }
 
   function createContentCompositionBindingsRuntime(): ContentCompositionBindingsRuntime {
     return {
       createEntryNormalizerBinding,
       createDebugRuntime,
-    }
+    };
   }
 
   moduleRegistry.runtimeContentCompositionBindings = {
     createContentCompositionBindingsRuntime,
-  }
-})()
+  };
+})();
