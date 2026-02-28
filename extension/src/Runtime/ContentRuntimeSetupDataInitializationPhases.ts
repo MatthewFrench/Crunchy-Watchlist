@@ -1,5 +1,5 @@
-import { initializeWatchlistHistoryAndPreviewRuntime } from './ContentRuntimeSetupDataInitializationWatchlistHistory.js';
 import { createBootstrapFinalizeRuntimeModule } from './BootstrapFinalize.js';
+import { initializeWatchlistHistoryAndPreviewRuntime } from './ContentRuntimeSetupDataInitializationWatchlistHistory.js';
 
 export type UnknownFn = (...args: unknown[]) => unknown;
 export type LooseRecord = Record<string, unknown>;
