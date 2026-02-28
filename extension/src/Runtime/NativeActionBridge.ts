@@ -1,5 +1,6 @@
 import {
   createNativeCardSelectorAdapterRuntime,
+  type NativeActionType,
   type NativeCardSelectorAdapterRuntime,
 } from './NativeCardSelectorAdapter.js';
 
@@ -16,7 +17,7 @@ export type NativeActionBridgeRuntime = {
 
 type NativeActionSelectorAdapterRuntime = Pick<
   NativeCardSelectorAdapterRuntime,
-  'findNativeCards' | 'findSeriesLinks' | 'findNativeActionButton'
+  'findNativeCardMatches' | 'findNativeActionButton'
 >;
 
 type NativeActionBridgeContext = {
@@ -62,13 +63,9 @@ function getString(value: unknown): string {
 function resolveSelectorAdapterRuntime(runtimeValue: unknown, sourceLabel: string): NativeActionSelectorAdapterRuntime {
   const runtimeRecord = asRecord(runtimeValue);
   return {
-    findNativeCards: requireFunction<NativeActionSelectorAdapterRuntime['findNativeCards']>(
-      `${sourceLabel}.findNativeCards`,
-      runtimeRecord.findNativeCards,
-    ),
-    findSeriesLinks: requireFunction<NativeActionSelectorAdapterRuntime['findSeriesLinks']>(
-      `${sourceLabel}.findSeriesLinks`,
-      runtimeRecord.findSeriesLinks,
+    findNativeCardMatches: requireFunction<NativeActionSelectorAdapterRuntime['findNativeCardMatches']>(
+      `${sourceLabel}.findNativeCardMatches`,
+      runtimeRecord.findNativeCardMatches,
     ),
     findNativeActionButton: requireFunction<NativeActionSelectorAdapterRuntime['findNativeActionButton']>(
       `${sourceLabel}.findNativeActionButton`,
@@ -86,42 +83,15 @@ function createNativeActionBridgeContext(options: NativeActionBridgeOptions = {}
       : createNativeCardSelectorAdapterRuntime({}),
   };
 }
-
-function extractSeriesIdFromHref(href: string): string | null {
-  const match = href.match(/\/series\/([^/?#]+)/i);
-  if (!match || !match[1]) {
-    return null;
-  }
-
-  try {
-    return decodeURIComponent(match[1]);
-  } catch {
-    return match[1];
-  }
-}
-
-function getNativeCardSeriesId(context: NativeActionBridgeContext, card: HTMLElement): string | null {
-  const links = context.selectorAdapterRuntime.findSeriesLinks(card);
-  for (const link of links) {
-    const href = typeof link.getAttribute === 'function' ? link.getAttribute('href') || '' : '';
-    const seriesId = extractSeriesIdFromHref(href);
-    if (seriesId) {
-      return seriesId;
-    }
-  }
-
-  return null;
-}
-
 function findNativeCardBySeriesIdInternal(context: NativeActionBridgeContext, seriesId: string): HTMLElement | null {
   if (!seriesId) {
     return null;
   }
 
-  const nativeCards = context.selectorAdapterRuntime.findNativeCards(context.documentRef);
-  for (const card of nativeCards) {
-    if (getNativeCardSeriesId(context, card) === seriesId) {
-      return card;
+  const nativeCardMatches = context.selectorAdapterRuntime.findNativeCardMatches(context.documentRef);
+  for (const nativeCardMatch of nativeCardMatches) {
+    if (nativeCardMatch.seriesId === seriesId) {
+      return nativeCardMatch.card;
     }
   }
 
@@ -144,7 +114,10 @@ function triggerNativeCardActionInternal(
     return false;
   }
 
-  const nativeButton = context.selectorAdapterRuntime.findNativeActionButton(nativeCard, actionType);
+  const nativeButton = context.selectorAdapterRuntime.findNativeActionButton(
+    nativeCard,
+    actionType as NativeActionType,
+  );
   if (!nativeButton) {
     return false;
   }

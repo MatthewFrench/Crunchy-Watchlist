@@ -60,19 +60,19 @@ Audit date: 2026-02-28
 
 | Surface | Current baseline |
 | --- | --- |
-| Files using `__CW_WATCHLIST_CURATOR_MODULES__` | 81 files |
-| Registry references (`__CW_WATCHLIST_CURATOR_MODULES__`) | 353 occurrences |
+| Files using `__CW_WATCHLIST_CURATOR_MODULES__` | 79 files |
+| Registry references (`__CW_WATCHLIST_CURATOR_MODULES__`) | 351 occurrences |
 | Runtime files with registry usage | 48/48 |
 | UI files with registry usage | 9/9 |
 | Data files with registry usage | 15/15 |
 | Domain files with registry usage | 7/7 |
-| `unknown` token count in Runtime | 1506 |
-| `unknown` token count in UI | 279 |
+| `unknown` token count in Runtime | 1523 |
+| `unknown` token count in UI | 178 |
 | `unknown` token count in Data | 539 |
-| `unknown` token count in Domain | 391 |
-| `AnyFn` occurrences (all `extension/src/**`) | 247 |
+| `unknown` token count in Domain | 394 |
+| `AnyFn` occurrences (all `extension/src/**`) | 213 |
 | Selector-lookup callsites in Runtime/UI | 7 |
-| Selector-lookup files in Runtime/UI | 3 |
+| Selector-lookup files in Runtime/UI | 4 |
 | Dataset read/write callsites in Runtime/UI | 34 |
 | Dataset files in Runtime/UI | 12 |
 | DOM expando callsites (`__cw...__`) | 0 |
@@ -183,6 +183,35 @@ Policy status:
 - Reduction of widespread runtime-internal `unknown`/`AnyFn` re-widening after boundary checks.
 - Class-first owner/controller normalization for all UI manipulation surfaces.
 - Consolidation of repetitive module-registry bootstrapping helpers into cleaner composition-root patterns (or full removal once bundled).
+
+## Next Execution Queue (High Impact)
+
+1. WS4-first slice: native interop adapter boundary hardening.
+   - Target files:
+     - `extension/src/Runtime/NativeCardSelectorAdapter.ts`
+     - `tests/Unit/Runtime/NativeCardSelectorAdapter.test.ts`
+   - Done criteria:
+     - Convert host DOM reads to validated typed adapter DTOs at the boundary.
+     - Keep owned runtime/UI layers free of adapter-shaped `unknown` payloads.
+     - Preserve selector-policy constraints (native/root-only lookup allowed).
+
+2. WS2-first slice: bootstrap/runtime boundary contract extraction.
+   - Target files:
+     - `extension/src/Runtime/ContentRuntimeBootstrapHelpers.ts`
+     - `extension/src/Runtime/ContentRuntimeBootstrapSession.ts`
+     - `extension/src/Runtime/ContentRuntimeSetupDataInitializationPhases.ts`
+   - Done criteria:
+     - Reduce `AnyFn`/`unknown` usage in internal owner paths by promoting explicit typed contracts.
+     - Keep external-boundary guards at ingress only.
+
+3. WS5-first slice: API contract normalization boundary tightening.
+   - Target files:
+     - `extension/src/Data/ApiContracts.ts`
+     - `extension/src/Data/WatchlistClient.ts`
+     - `extension/src/Data/WatchlistRepository.ts`
+   - Done criteria:
+     - Normalize payload uncertainty once in Data boundary modules.
+     - Runtime/UI consumers receive typed normalized models only.
 
 ## Workstreams and Plan
 
