@@ -1,6 +1,4 @@
 (() => {
-  type AnyFn = (...args: unknown[]) => unknown;
-
   type TokenEntry = {
     accessToken?: string;
   } & Record<string, unknown>;
@@ -51,7 +49,7 @@
   }
   const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
-  function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
+  function requireFunction<T>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
       throw new Error(`[CW] Missing preview dependency: ${name}`);
     }

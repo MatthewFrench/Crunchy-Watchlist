@@ -68,9 +68,9 @@ Audit date: 2026-02-28
 | Domain files with registry usage | 7/7 |
 | `unknown` token count in Runtime | 1533 |
 | `unknown` token count in UI | 178 |
-| `unknown` token count in Data | 517 |
+| `unknown` token count in Data | 504 |
 | `unknown` token count in Domain | 394 |
-| `AnyFn` occurrences (all `extension/src/**`) | 207 |
+| `AnyFn` occurrences (all `extension/src/**`) | 203 |
 | Selector-lookup callsites in Runtime/UI | 7 |
 | Selector-lookup files in Runtime/UI | 4 |
 | Dataset read/write callsites in Runtime/UI | 34 |
@@ -225,6 +225,8 @@ Policy status:
    - Progress:
      - `ApiContracts` now normalizes `payload.data[]` to object-record rows at ingress and emits contract warnings for non-object rows.
      - `WatchlistClient` and `WatchlistRepository` removed `AnyFn`-based function constraints in favor of explicit generic function contracts.
+     - `RatingsClient` now consumes typed CMS object rows from `ApiContracts` and no longer uses `AnyFn`-based function constraints.
+     - `PreviewRepository` removed `AnyFn`-based function constraints.
    - Pending:
      - Continue data-boundary normalization for additional repositories/clients so runtime/UI layers consume typed normalized payloads consistently.
 

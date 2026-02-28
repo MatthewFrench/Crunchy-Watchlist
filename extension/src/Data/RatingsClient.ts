@@ -1,9 +1,9 @@
 (() => {
-  type AnyFn = (...args: unknown[]) => unknown;
+  type ApiObjectRecord = Record<string, unknown>;
 
   type TokenEntry = {
     accessToken?: string;
-  } & Record<string, unknown>;
+  } & ApiObjectRecord;
 
   type ParsedRatingRecord = {
     seriesId?: string;
@@ -48,9 +48,9 @@
     normalizeAudioLocale: (value: unknown) => string;
     getPreferredAudioLanguage: () => string;
     getLocale: () => string;
-    requirePayloadDataArray: (endpoint: string, payload: unknown) => unknown[];
-    auditCmsObjectContract: (rows: unknown[]) => void;
-    parseCmsObjectRecord: (row: unknown) => ParsedRatingRecord | null;
+    requirePayloadDataArray: (endpoint: string, payload: unknown) => ApiObjectRecord[];
+    auditCmsObjectContract: (rows: ApiObjectRecord[]) => void;
+    parseCmsObjectRecord: (row: ApiObjectRecord) => ParsedRatingRecord | null;
     parseRatingPayload: (payload: unknown) => { rating: number | null; votes: number | null };
     sanitizeRating: (value: unknown) => number | null;
     sanitizeVotes: (value: unknown) => number | null;
@@ -80,7 +80,7 @@
   }
   const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
-  function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
+  function requireFunction<T>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
       throw new Error(`[CW] Missing ratings dependency: ${name}`);
     }
@@ -123,18 +123,14 @@
     };
   }
 
-  function findCmsRecordForSeries(records: unknown[], seriesId: string): unknown | null {
+  function findCmsRecordForSeries(records: ApiObjectRecord[], seriesId: string): ApiObjectRecord | null {
     if (!Array.isArray(records) || !records.length) {
       return null;
     }
 
     return (
       records.find((row) => {
-        if (!row || typeof row !== 'object') {
-          return false;
-        }
-
-        const recordId = (row as Record<string, unknown>).id;
+        const recordId = row.id;
         return recordId === seriesId;
       }) ||
       records[0] ||
@@ -208,7 +204,7 @@
     preferredAudioLanguage: string,
     seriesIds: string[],
     payload: unknown,
-    records: unknown[],
+    records: ApiObjectRecord[],
   ): void {
     context.pushApiTrace('cmsObjects', {
       at: Date.now(),
@@ -231,7 +227,7 @@
     cmsUrl: string,
     tokenEntry: TokenEntry | null,
     label: string,
-  ): Promise<{ payload: unknown; records: unknown[] }> {
+  ): Promise<{ payload: unknown; records: ApiObjectRecord[] }> {
     const requestOptions: {
       label: string;
       bearerToken?: string;
@@ -302,7 +298,7 @@
     context: RatingsContext,
     seriesId: string,
     payload: unknown,
-    records: unknown[],
+    records: ApiObjectRecord[],
     preferredAudioLocale: string,
   ): RatingResult {
     const record = findCmsRecordForSeries(records, seriesId);

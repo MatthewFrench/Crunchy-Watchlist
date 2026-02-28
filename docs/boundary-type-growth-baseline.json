@@ -8,8 +8,6 @@
     "extension/src/Data/HistoryRepository.ts",
     "extension/src/Data/HistoryRepositoryCache.ts",
     "extension/src/Data/HistoryRepositoryPreload.ts",
-    "extension/src/Data/PreviewRepository.ts",
-    "extension/src/Data/RatingsClient.ts",
     "extension/src/Domain/CorePrimitives.ts",
     "extension/src/Domain/EntryNormalizer.ts",
     "extension/src/Domain/EntrySorting.ts",
