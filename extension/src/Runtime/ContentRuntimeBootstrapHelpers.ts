@@ -154,6 +154,14 @@ function toRecord(value: unknown): LooseRecord {
   return value as LooseRecord;
 }
 
+function requireFunction<T>(name: string, value: unknown): T {
+  if (typeof value !== 'function') {
+    throw new Error(`[CW] Missing content-runtime-bootstrap-helpers dependency: ${name}`);
+  }
+
+  return value as T;
+}
+
 function toRuntimeWindow(value: unknown): RuntimeWindow {
   if (value && typeof value === 'object') {
     return value as RuntimeWindow;
@@ -266,9 +274,39 @@ function createDomLockRuntimeForContext(
   context: RuntimeBootstrapHelpersContext,
 ): RuntimeBootstrapDomLockRuntime | null {
   try {
-    return createContentRuntimeBootstrapDomLockRuntime({
-      context,
-    }) as RuntimeBootstrapDomLockRuntime;
+    const runtimeRecord = toRecord(
+      createContentRuntimeBootstrapDomLockRuntime({
+        context,
+      }),
+    );
+    return {
+      resolveRuntimeLockNode: requireFunction<RuntimeBootstrapDomLockRuntime['resolveRuntimeLockNode']>(
+        'domLockRuntime.resolveRuntimeLockNode',
+        runtimeRecord.resolveRuntimeLockNode,
+      ),
+      tryAcquireDomRuntimeLock: requireFunction<RuntimeBootstrapDomLockRuntime['tryAcquireDomRuntimeLock']>(
+        'domLockRuntime.tryAcquireDomRuntimeLock',
+        runtimeRecord.tryAcquireDomRuntimeLock,
+      ),
+      releaseDomRuntimeLock: requireFunction<RuntimeBootstrapDomLockRuntime['releaseDomRuntimeLock']>(
+        'domLockRuntime.releaseDomRuntimeLock',
+        runtimeRecord.releaseDomRuntimeLock,
+      ),
+      requestRuntimeTakeover: requireFunction<RuntimeBootstrapDomLockRuntime['requestRuntimeTakeover']>(
+        'domLockRuntime.requestRuntimeTakeover',
+        runtimeRecord.requestRuntimeTakeover,
+      ),
+      clearStaleInjectedShell: requireFunction<RuntimeBootstrapDomLockRuntime['clearStaleInjectedShell']>(
+        'domLockRuntime.clearStaleInjectedShell',
+        runtimeRecord.clearStaleInjectedShell,
+      ),
+      resolveValidatedBootstrapContext: requireFunction<
+        RuntimeBootstrapDomLockRuntime['resolveValidatedBootstrapContext']
+      >('domLockRuntime.resolveValidatedBootstrapContext', runtimeRecord.resolveValidatedBootstrapContext),
+      createRuntimeLockLifecycleControl: requireFunction<
+        RuntimeBootstrapDomLockRuntime['createRuntimeLockLifecycleControl']
+      >('domLockRuntime.createRuntimeLockLifecycleControl', runtimeRecord.createRuntimeLockLifecycleControl),
+    };
   } catch {
     context.consoleRef.error('[CW] missing-content-runtime-bootstrap-dom-lock-module');
     markRuntimeUnavailable(context, 'missing-content-runtime-bootstrap-dom-lock-module');
@@ -281,11 +319,47 @@ function createSessionRuntimeForContext(
   domLockRuntime: RuntimeBootstrapDomLockRuntime,
 ): RuntimeBootstrapSessionRuntime | null {
   try {
-    return createContentRuntimeBootstrapSessionRuntime({
-      context,
-      clearStaleInjectedShell: domLockRuntime.clearStaleInjectedShell,
-      createRuntimeLockLifecycleControl: domLockRuntime.createRuntimeLockLifecycleControl,
-    }) as RuntimeBootstrapSessionRuntime;
+    const runtimeRecord = toRecord(
+      createContentRuntimeBootstrapSessionRuntime({
+        context,
+        clearStaleInjectedShell: domLockRuntime.clearStaleInjectedShell,
+        createRuntimeLockLifecycleControl: domLockRuntime.createRuntimeLockLifecycleControl,
+      }),
+    );
+    return {
+      createRuntimeSetup: requireFunction<RuntimeBootstrapSessionRuntime['createRuntimeSetup']>(
+        'sessionRuntime.createRuntimeSetup',
+        runtimeRecord.createRuntimeSetup,
+      ),
+      createRuntimeSetupOptions: requireFunction<RuntimeBootstrapSessionRuntime['createRuntimeSetupOptions']>(
+        'sessionRuntime.createRuntimeSetupOptions',
+        runtimeRecord.createRuntimeSetupOptions,
+      ),
+      applyRuntimeSetupBindings: requireFunction<RuntimeBootstrapSessionRuntime['applyRuntimeSetupBindings']>(
+        'sessionRuntime.applyRuntimeSetupBindings',
+        runtimeRecord.applyRuntimeSetupBindings,
+      ),
+      createRuntimeBootstrapSession: requireFunction<RuntimeBootstrapSessionRuntime['createRuntimeBootstrapSession']>(
+        'sessionRuntime.createRuntimeBootstrapSession',
+        runtimeRecord.createRuntimeBootstrapSession,
+      ),
+      createBootstrapFinalizeRuntimeOptions: requireFunction<
+        RuntimeBootstrapSessionRuntime['createBootstrapFinalizeRuntimeOptions']
+      >('sessionRuntime.createBootstrapFinalizeRuntimeOptions', runtimeRecord.createBootstrapFinalizeRuntimeOptions),
+      createBootstrapFinalizeRuntimeFromSetupResult: requireFunction<
+        RuntimeBootstrapSessionRuntime['createBootstrapFinalizeRuntimeFromSetupResult']
+      >(
+        'sessionRuntime.createBootstrapFinalizeRuntimeFromSetupResult',
+        runtimeRecord.createBootstrapFinalizeRuntimeFromSetupResult,
+      ),
+      bindBootstrapFinalizeRuntimeMethods: requireFunction<
+        RuntimeBootstrapSessionRuntime['bindBootstrapFinalizeRuntimeMethods']
+      >('sessionRuntime.bindBootstrapFinalizeRuntimeMethods', runtimeRecord.bindBootstrapFinalizeRuntimeMethods),
+      runBootstrapFinalizeInitFlow: requireFunction<RuntimeBootstrapSessionRuntime['runBootstrapFinalizeInitFlow']>(
+        'sessionRuntime.runBootstrapFinalizeInitFlow',
+        runtimeRecord.runBootstrapFinalizeInitFlow,
+      ),
+    };
   } catch {
     context.consoleRef.error('[CW] missing-content-runtime-bootstrap-session-module');
     markRuntimeUnavailable(context, 'missing-content-runtime-bootstrap-session-module');

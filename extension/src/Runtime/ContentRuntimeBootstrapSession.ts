@@ -178,20 +178,114 @@ type RuntimeBootstrapSessionAssemblyRuntime = {
   ) => BootstrapRuntimeSession | null;
 };
 
+function toRecord(value: unknown): LooseRecord {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as LooseRecord;
+}
+
+function requireFunction<T>(name: string, value: unknown): T {
+  if (typeof value !== 'function') {
+    throw new Error(`[CW] Missing content-runtime-bootstrap-session dependency: ${name}`);
+  }
+
+  return value as T;
+}
+
+function resolveRuntimeSetupBindingsRuntime(value: unknown): RuntimeSetupBindingsRuntime {
+  const runtimeRecord = toRecord(value);
+  return {
+    createRuntimeSetupOptions: requireFunction<RuntimeSetupBindingsRuntime['createRuntimeSetupOptions']>(
+      'runtimeSetupBindingsRuntime.createRuntimeSetupOptions',
+      runtimeRecord.createRuntimeSetupOptions,
+    ),
+    applyRuntimeSetupBindings: requireFunction<RuntimeSetupBindingsRuntime['applyRuntimeSetupBindings']>(
+      'runtimeSetupBindingsRuntime.applyRuntimeSetupBindings',
+      runtimeRecord.applyRuntimeSetupBindings,
+    ),
+  };
+}
+
+function resolveBootstrapFinalizeFlowRuntime(value: unknown): RuntimeBootstrapFinalizeFlowRuntime {
+  const runtimeRecord = toRecord(value);
+  return {
+    createBootstrapFinalizeRuntimeOptions: requireFunction<
+      RuntimeBootstrapFinalizeFlowRuntime['createBootstrapFinalizeRuntimeOptions']
+    >(
+      'bootstrapFinalizeFlowRuntime.createBootstrapFinalizeRuntimeOptions',
+      runtimeRecord.createBootstrapFinalizeRuntimeOptions,
+    ),
+    createBootstrapFinalizeRuntimeFromSetupResult: requireFunction<
+      RuntimeBootstrapFinalizeFlowRuntime['createBootstrapFinalizeRuntimeFromSetupResult']
+    >(
+      'bootstrapFinalizeFlowRuntime.createBootstrapFinalizeRuntimeFromSetupResult',
+      runtimeRecord.createBootstrapFinalizeRuntimeFromSetupResult,
+    ),
+    bindBootstrapFinalizeRuntimeMethods: requireFunction<
+      RuntimeBootstrapFinalizeFlowRuntime['bindBootstrapFinalizeRuntimeMethods']
+    >(
+      'bootstrapFinalizeFlowRuntime.bindBootstrapFinalizeRuntimeMethods',
+      runtimeRecord.bindBootstrapFinalizeRuntimeMethods,
+    ),
+    runBootstrapFinalizeInitFlow: requireFunction<RuntimeBootstrapFinalizeFlowRuntime['runBootstrapFinalizeInitFlow']>(
+      'bootstrapFinalizeFlowRuntime.runBootstrapFinalizeInitFlow',
+      runtimeRecord.runBootstrapFinalizeInitFlow,
+    ),
+  };
+}
+
+function resolveBootstrapSessionSupportRuntime(value: unknown): RuntimeBootstrapSessionSupportRuntime {
+  const runtimeRecord = toRecord(value);
+  return {
+    createRuntimeBootstrapMutableAccessors: requireFunction<
+      RuntimeBootstrapSessionSupportRuntime['createRuntimeBootstrapMutableAccessors']
+    >(
+      'bootstrapSessionSupportRuntime.createRuntimeBootstrapMutableAccessors',
+      runtimeRecord.createRuntimeBootstrapMutableAccessors,
+    ),
+    resolveStorageLocalArea: requireFunction<RuntimeBootstrapSessionSupportRuntime['resolveStorageLocalArea']>(
+      'bootstrapSessionSupportRuntime.resolveStorageLocalArea',
+      runtimeRecord.resolveStorageLocalArea,
+    ),
+    createDebounceProcess: requireFunction<RuntimeBootstrapSessionSupportRuntime['createDebounceProcess']>(
+      'bootstrapSessionSupportRuntime.createDebounceProcess',
+      runtimeRecord.createDebounceProcess,
+    ),
+    startWatchlistHealthRuntime: requireFunction<RuntimeBootstrapSessionSupportRuntime['startWatchlistHealthRuntime']>(
+      'bootstrapSessionSupportRuntime.startWatchlistHealthRuntime',
+      runtimeRecord.startWatchlistHealthRuntime,
+    ),
+  };
+}
+
+function resolveBootstrapSessionAssemblyRuntime(value: unknown): RuntimeBootstrapSessionAssemblyRuntime {
+  const runtimeRecord = toRecord(value);
+  return {
+    createRuntimeBootstrapSessionForContext: requireFunction<
+      RuntimeBootstrapSessionAssemblyRuntime['createRuntimeBootstrapSessionForContext']
+    >(
+      'bootstrapSessionAssemblyRuntime.createRuntimeBootstrapSessionForContext',
+      runtimeRecord.createRuntimeBootstrapSessionForContext,
+    ),
+  };
+}
+
 function createRuntimeSetupBindingsRuntime(): RuntimeSetupBindingsRuntime {
-  return createContentRuntimeBootstrapSetupBindingsRuntime() as RuntimeSetupBindingsRuntime;
+  return resolveRuntimeSetupBindingsRuntime(createContentRuntimeBootstrapSetupBindingsRuntime());
 }
 
 function createBootstrapFinalizeFlowRuntime(): RuntimeBootstrapFinalizeFlowRuntime {
-  return createContentRuntimeBootstrapFinalizeFlowRuntime() as RuntimeBootstrapFinalizeFlowRuntime;
+  return resolveBootstrapFinalizeFlowRuntime(createContentRuntimeBootstrapFinalizeFlowRuntime());
 }
 
 function createBootstrapSessionSupportRuntime(): RuntimeBootstrapSessionSupportRuntime {
-  return createContentRuntimeBootstrapSessionSupportRuntime() as RuntimeBootstrapSessionSupportRuntime;
+  return resolveBootstrapSessionSupportRuntime(createContentRuntimeBootstrapSessionSupportRuntime());
 }
 
 function createBootstrapSessionAssemblyRuntime(): RuntimeBootstrapSessionAssemblyRuntime {
-  return createContentRuntimeBootstrapSessionAssemblyRuntime() as RuntimeBootstrapSessionAssemblyRuntime;
+  return resolveBootstrapSessionAssemblyRuntime(createContentRuntimeBootstrapSessionAssemblyRuntime());
 }
 
 export function createContentRuntimeBootstrapSessionRuntime({
@@ -209,7 +303,7 @@ export function createContentRuntimeBootstrapSessionRuntime({
   const bootstrapSessionAssemblyRuntime = createBootstrapSessionAssemblyRuntime();
 
   return {
-    createRuntimeSetup: (options: LooseRecord) => createContentRuntimeSetup(options) as LooseRecord,
+    createRuntimeSetup: (options: LooseRecord) => toRecord(createContentRuntimeSetup(options)),
     createRuntimeSetupOptions: runtimeSetupBindingsRuntime.createRuntimeSetupOptions,
     applyRuntimeSetupBindings: runtimeSetupBindingsRuntime.applyRuntimeSetupBindings,
     createRuntimeBootstrapSession: ({ bootstrapContext }: { bootstrapContext: LooseRecord }) =>

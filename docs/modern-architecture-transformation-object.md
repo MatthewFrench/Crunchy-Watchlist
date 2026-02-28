@@ -66,7 +66,7 @@ Audit date: 2026-02-28
 | UI files with registry usage | 9/9 |
 | Data files with registry usage | 15/15 |
 | Domain files with registry usage | 7/7 |
-| `unknown` token count in Runtime | 1523 |
+| `unknown` token count in Runtime | 1530 |
 | `unknown` token count in UI | 178 |
 | `unknown` token count in Data | 539 |
 | `unknown` token count in Domain | 394 |
@@ -187,6 +187,7 @@ Policy status:
 ## Next Execution Queue (High Impact)
 
 1. WS4-first slice: native interop adapter boundary hardening.
+   - Status: Completed (2026-02-28)
    - Target files:
      - `extension/src/Runtime/NativeCardSelectorAdapter.ts`
      - `tests/Unit/Runtime/NativeCardSelectorAdapter.test.ts`
@@ -196,6 +197,7 @@ Policy status:
      - Preserve selector-policy constraints (native/root-only lookup allowed).
 
 2. WS2-first slice: bootstrap/runtime boundary contract extraction.
+   - Status: In progress (2026-02-28)
    - Target files:
      - `extension/src/Runtime/ContentRuntimeBootstrapHelpers.ts`
      - `extension/src/Runtime/ContentRuntimeBootstrapSession.ts`
@@ -203,6 +205,12 @@ Policy status:
    - Done criteria:
      - Reduce `AnyFn`/`unknown` usage in internal owner paths by promoting explicit typed contracts.
      - Keep external-boundary guards at ingress only.
+   - Progress:
+     - Added explicit ingress contract resolvers for module runtime dependencies in:
+       - `ContentRuntimeBootstrapSession` (setup-bindings/finalize-flow/session-support/session-assembly runtime contract validation)
+       - `ContentRuntimeBootstrapHelpers` (dom-lock/session runtime contract validation)
+     - Pending:
+       - Apply the same ingress-contract pattern through `ContentRuntimeSetupDataInitializationPhases` and follow-up bootstrap owner paths to continue reducing `AnyFn`/`unknown` spread.
 
 3. WS5-first slice: API contract normalization boundary tightening.
    - Target files:
