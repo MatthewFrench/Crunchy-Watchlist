@@ -1,4 +1,9 @@
 import { getElementDataAttribute, setElementDataAttribute, toggleClassNameToken } from './CuratedPanelGridDom.js';
+import {
+  type CuratedGridRenderContext,
+  renderCuratedGridPass,
+  shouldSkipCuratedGridRenderPass,
+} from './CuratedPanelGridRenderPass.js';
 
 (() => {
   type CuratedPanelGridState = {
@@ -665,87 +670,63 @@ import { getElementDataAttribute, setElementDataAttribute, toggleClassNameToken 
       return;
     }
 
-    const gridEl = state.gridEl;
-    if (
-      renderPhasesRuntime.shouldSkipCuratedGridRender({
-        stateRenderSignature: state.curatedGridRenderSignature,
-        gridRenderSignature,
-        visible,
-        total,
-        loading,
-        gridEl,
-        isCuratedCardElement,
-        getEntrySeriesId,
-        getElementDataAttribute,
-        isCuratedGridEmptyElement,
-      })
-    ) {
+    const renderContext: CuratedGridRenderContext = {
+      stateRenderSignature: state.curatedGridRenderSignature,
+      gridRenderSignature,
+      documentRef,
+      visible,
+      total,
+      loading,
+      metadataLoading,
+      gridEl: state.gridEl,
+      transitionsRuntime,
+      renderPhasesRuntime,
+      isCuratedCardElement,
+      getEntrySeriesId,
+      getElementDataAttribute,
+      isCuratedGridEmptyElement,
+      isRenderableEntryMetadataLoading,
+      setCardParkedState,
+      parkGridCardsForReuse: (gridElement: Element) => {
+        parkGridCardsForReuse(state, runtimeState, documentRef, gridElement);
+      },
+      parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => {
+        parkUnusedControllersForReuse(state, runtimeState, documentRef, visibleSeriesIds);
+      },
+      createCuratedGridEmptyElement: (nextDocumentRef: Document, nextTotal: number) =>
+        createCuratedGridEmptyElement(nextDocumentRef, state, nextTotal),
+      trimParkedCardsForReuse: () => {
+        trimParkedCardsForReuse(state, runtimeState);
+      },
+      createOrReuseCuratedCard: (
+        entry: Record<string, unknown>,
+        detailsLoading: boolean,
+        visibleSeriesIds: Set<string>,
+      ) =>
+        createOrReuseCuratedCard(
+          state,
+          runtimeState,
+          createCuratedCard,
+          patchCuratedCard ?? null,
+          visibleSeriesIds,
+          entry,
+          detailsLoading,
+        ),
+      markCardControllerActive: (seriesId: string) => {
+        markCardControllerActive(state, runtimeState, seriesId);
+      },
+      parkCardForReuse: (card: Element) => {
+        parkCardForReuse(state, runtimeState, documentRef, card);
+      },
+    };
+
+    if (shouldSkipCuratedGridRenderPass(renderContext)) {
       return;
     }
 
     incrementCuratedDomLifecycleCounter(state, 'renderPasses');
 
-    if (!visible.length) {
-      renderPhasesRuntime.renderEmptyCuratedGridState({
-        documentRef,
-        gridEl,
-        total,
-        loading,
-        parkGridCardsForReuse: (gridElement: Element) => {
-          parkGridCardsForReuse(state, runtimeState, documentRef, gridElement);
-        },
-        parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => {
-          parkUnusedControllersForReuse(state, runtimeState, documentRef, visibleSeriesIds);
-        },
-        createCuratedGridEmptyElement: (nextDocumentRef: Document, nextTotal: number) =>
-          createCuratedGridEmptyElement(nextDocumentRef, state, nextTotal),
-        trimParkedCardsForReuse: () => {
-          trimParkedCardsForReuse(state, runtimeState);
-        },
-      });
-    } else {
-      renderPhasesRuntime.renderVisibleCuratedGridState({
-        visible,
-        metadataLoading,
-        gridEl,
-        createOrReuseCuratedCard: (
-          entry: Record<string, unknown>,
-          detailsLoading: boolean,
-          visibleSeriesIds: Set<string>,
-        ) =>
-          createOrReuseCuratedCard(
-            state,
-            runtimeState,
-            createCuratedCard,
-            patchCuratedCard,
-            visibleSeriesIds,
-            entry,
-            detailsLoading,
-          ),
-        getEntrySeriesId,
-        markCardControllerActive: (seriesId: string) => {
-          markCardControllerActive(state, runtimeState, seriesId);
-        },
-        setCardParkedState,
-        isRenderableEntryMetadataLoading,
-        reorderCuratedGridChildren: (
-          gridElement: Element,
-          nextCards: Element[],
-          reorderOptions?: CuratedGridReorderOptions,
-        ) => {
-          transitionsRuntime.reorderCuratedGridChildren(gridElement, nextCards, reorderOptions);
-        },
-        parkCardForReuse: (card: Element) => {
-          parkCardForReuse(state, runtimeState, documentRef, card);
-        },
-        parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => {
-          parkUnusedControllersForReuse(state, runtimeState, documentRef, visibleSeriesIds);
-        },
-        trimParkedCardsForReuse: () => {
-          trimParkedCardsForReuse(state, runtimeState);
-        },
-      });
-    }
+    renderCuratedGridPass(renderContext);
 
     state.curatedGridRenderSignature = gridRenderSignature;
   }

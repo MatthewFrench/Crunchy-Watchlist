@@ -1,55 +1,17 @@
+import {
+  type CoverImageResult,
+  createEpisodePrimitivesRuntime,
+  createRatingPrimitivesRuntime,
+} from './CorePrimitivesRuntimeFactories.js';
+
 (() => {
   type AnyFn = (...args: unknown[]) => unknown;
-
-  type CoverImageResult = {
-    portrait: string;
-    landscape: string;
-    fallback: string;
-  };
 
   type CorePrimitivesDeps = {
     extractCoverImagesFromApiImages?: unknown;
   };
 
   type CountType = 'season' | 'episode';
-
-  type RatingPrimitivesDeps = {
-    sanitizeRating: (value: unknown) => number | null;
-    sanitizeVotes: (value: unknown) => number | null;
-    sanitizePositiveInt: (value: unknown) => number | null;
-    sanitizePercentage: (value: unknown) => number | null;
-    normalizeAudioLocales: (locales: unknown) => string[];
-    normalizeTagList: (values: unknown) => string[];
-    extractCoverImagesFromApiImages: (images: unknown) => CoverImageResult;
-  };
-
-  type RatingPrimitivesRuntime = {
-    parseRatingPayload: (payload: Record<string, unknown> | null | undefined) => {
-      rating: number | null;
-      votes: number | null;
-    };
-    parseRatingDistribution: (ratingBlock: unknown) => Record<string, number | null> | null;
-    parseCmsObjectRecord: (record: unknown) => Record<string, unknown>;
-  };
-
-  type EpisodePrimitivesDeps = {
-    sanitizePositiveInt: (value: unknown) => number | null;
-    pickFirstPositiveInt: (values: unknown[]) => number | null;
-    normalizeAudioLocale: (locale: unknown) => string | null;
-    normalizeAudioLocaleCountMap: (value: unknown) => Record<string, number>;
-  };
-
-  type EpisodePrimitivesRuntime = {
-    extractSeasonCoreFromSeasonId: (value: unknown) => number | null;
-    parseCanonicalEpisodeIdentifier: (
-      value: unknown,
-    ) => { seriesId: string; seasonCore: number; episodeNumber: number; canonicalEpisodeKey: string } | null;
-    buildCanonicalEpisodeKey: (seriesId: unknown, seasonCore: unknown, episodeNumber: unknown) => string | null;
-    deriveCanonicalEpisodeKeyFromEpisodeMetadata: (meta: unknown, fallbackSeriesId?: unknown) => string | null;
-    getAbsoluteEpisodeNumberFromEpisodeMetadata: (meta: unknown) => number | null;
-    getEpisodeAvailabilityByAudioLocale: (meta: unknown) => Record<string, number>;
-    mergeEpisodeAvailabilityByAudioLocale: (previousMap: unknown, nextMap: unknown) => Record<string, number>;
-  };
 
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
@@ -62,67 +24,6 @@
       throw new Error(`[CW] Missing primitive dependency: ${name}`);
     }
     return value as T;
-  }
-
-  function createRatingPrimitivesRuntime(deps: RatingPrimitivesDeps): RatingPrimitivesRuntime {
-    const domainRegistry =
-      moduleRegistry.domain && typeof moduleRegistry.domain === 'object'
-        ? (moduleRegistry.domain as Record<string, unknown>)
-        : {};
-    const ratingPrimitivesModule =
-      domainRegistry.ratingPrimitives && typeof domainRegistry.ratingPrimitives === 'object'
-        ? (domainRegistry.ratingPrimitives as Record<string, unknown>)
-        : {};
-    const createRatingPrimitives = ratingPrimitivesModule.createRatingPrimitives;
-    if (typeof createRatingPrimitives !== 'function') {
-      throw new Error('[CW] Missing primitive dependency: createRatingPrimitives');
-    }
-
-    const runtime = (createRatingPrimitives as (deps: RatingPrimitivesDeps) => unknown)(
-      deps,
-    ) as Partial<RatingPrimitivesRuntime>;
-    const requiredMethods = ['parseRatingPayload', 'parseRatingDistribution', 'parseCmsObjectRecord'] as const;
-    for (const methodName of requiredMethods) {
-      if (typeof runtime?.[methodName] !== 'function') {
-        throw new Error(`[CW] Missing rating primitive method: ${methodName}`);
-      }
-    }
-
-    return runtime as RatingPrimitivesRuntime;
-  }
-
-  function createEpisodePrimitivesRuntime(deps: EpisodePrimitivesDeps): EpisodePrimitivesRuntime {
-    const domainRegistry =
-      moduleRegistry.domain && typeof moduleRegistry.domain === 'object'
-        ? (moduleRegistry.domain as Record<string, unknown>)
-        : {};
-    const episodePrimitivesModule =
-      domainRegistry.episodePrimitives && typeof domainRegistry.episodePrimitives === 'object'
-        ? (domainRegistry.episodePrimitives as Record<string, unknown>)
-        : {};
-    const createEpisodePrimitives = episodePrimitivesModule.createEpisodePrimitives;
-    if (typeof createEpisodePrimitives !== 'function') {
-      throw new Error('[CW] Missing primitive dependency: createEpisodePrimitives');
-    }
-    const runtime = (createEpisodePrimitives as (deps: EpisodePrimitivesDeps) => unknown)(
-      deps,
-    ) as Partial<EpisodePrimitivesRuntime>;
-    const requiredMethods = [
-      'extractSeasonCoreFromSeasonId',
-      'parseCanonicalEpisodeIdentifier',
-      'buildCanonicalEpisodeKey',
-      'deriveCanonicalEpisodeKeyFromEpisodeMetadata',
-      'getAbsoluteEpisodeNumberFromEpisodeMetadata',
-      'getEpisodeAvailabilityByAudioLocale',
-      'mergeEpisodeAvailabilityByAudioLocale',
-    ] as const;
-    for (const methodName of requiredMethods) {
-      if (typeof runtime?.[methodName] !== 'function') {
-        throw new Error(`[CW] Missing episode primitive method: ${methodName}`);
-      }
-    }
-
-    return runtime as EpisodePrimitivesRuntime;
   }
 
   function sanitizeRating(value: unknown): number | null {
@@ -467,13 +368,13 @@
       'extractCoverImagesFromApiImages',
       deps.extractCoverImagesFromApiImages,
     );
-    const episodePrimitives = createEpisodePrimitivesRuntime({
+    const episodePrimitives = createEpisodePrimitivesRuntime(moduleRegistry, {
       sanitizePositiveInt,
       pickFirstPositiveInt,
       normalizeAudioLocale,
       normalizeAudioLocaleCountMap,
     });
-    const ratingPrimitives = createRatingPrimitivesRuntime({
+    const ratingPrimitives = createRatingPrimitivesRuntime(moduleRegistry, {
       sanitizeRating,
       sanitizeVotes,
       sanitizePositiveInt,

@@ -59,6 +59,16 @@ import { type CuratedCardEntry, createCardShell } from '../Ui/CuratedCardShell.j
     ) => InterfaceRuntime;
   };
 
+  type ContentCompositionAssembly = {
+    normalizeEntriesFromApiRows: (rows: unknown[]) => unknown[];
+    cardRuntime: CardRuntime;
+    sortRuntime: SortRuntime;
+    curatedRuntime: CuratedRuntime;
+    interactionsRuntime: InteractionRuntime;
+    interfaceRuntime: InterfaceRuntime;
+    debugRuntime: DebugRuntime;
+  };
+
   function createContentCompositionBindingsRuntime(): ContentCompositionBindingsRuntime {
     const bindingsModule = toFunctionRecord(moduleRegistry.runtimeContentCompositionBindings);
     const createRuntime = requireFunction<AnyFn>(
@@ -245,6 +255,13 @@ import { type CuratedCardEntry, createCardShell } from '../Ui/CuratedCardShell.j
       'makeRatingBadge',
       cardMetadata.makeRatingBadge,
     );
+    const installCuratedCardPreview: DeferredCompositionCallbacks['installCuratedCardPreview'] = (
+      thumbLink,
+      entry,
+      coverImageUrl,
+      hoverPreviewImageUrl,
+      thumbImage,
+    ) => deferredCallbacks.installCuratedCardPreview(thumbLink, entry, coverImageUrl, hoverPreviewImageUrl, thumbImage);
     const cardShellDeps = {
       documentRef: options.windowRef.document,
       windowRef: options.windowRef,
@@ -260,14 +277,7 @@ import { type CuratedCardEntry, createCardShell } from '../Ui/CuratedCardShell.j
       patchCuratedCardBody: (card: Element, entry: CuratedCardEntry) => {
         patchCuratedCardBody(card, entry);
       },
-      installCuratedCardPreview: (
-        thumbLink: unknown,
-        entry: unknown,
-        coverImageUrl: unknown,
-        hoverPreviewImageUrl: unknown,
-        thumbImage: unknown,
-      ) =>
-        deferredCallbacks.installCuratedCardPreview(thumbLink, entry, coverImageUrl, hoverPreviewImageUrl, thumbImage),
+      installCuratedCardPreview,
     };
 
     const moduleCardShellFactory = toFunctionRecord(options.modules.cardShellModule).createCardShell;
@@ -319,27 +329,27 @@ import { type CuratedCardEntry, createCardShell } from '../Ui/CuratedCardShell.j
     };
   }
 
-  function createContentComposition(input: ContentCompositionOptions): ContentCompositionRuntime {
-    const options: ContentCompositionOptions = {
-      ...input,
-      corePrimitives: toFunctionRecord(input.corePrimitives),
-    };
+  function assertContentCompositionDependencies(options: ContentCompositionOptions): void {
     requireFunction('normalizeImageUrlCandidate', options.dependencies.normalizeImageUrlCandidate);
     requireFunction('extractCoverImagesFromApiImages', options.dependencies.extractCoverImagesFromApiImages);
     requireFunction('extractThumbnailImageFromApiImages', options.dependencies.extractThumbnailImageFromApiImages);
     requireFunction('getWatchlistRoot', options.dependencies.getWatchlistRoot);
     requireFunction('getWatchlistHeader', options.dependencies.getWatchlistHeader);
-    const compositionBindingsRuntime = createContentCompositionBindingsRuntime();
-    const runtimeBindingsRuntime = createContentCompositionRuntimeBindingsRuntime();
+  }
 
-    const deferredCallbacks: DeferredCompositionCallbacks = {
+  function createDeferredCallbacks(): DeferredCompositionCallbacks {
+    return {
       createCuratedCardActions: () => [],
       installCuratedCardPreview: () => undefined,
       resetCuratedCachesForRefresh: () => undefined,
     };
+  }
 
+  function assembleContentCompositionRuntimes(options: ContentCompositionOptions): ContentCompositionAssembly {
+    const compositionBindingsRuntime = createContentCompositionBindingsRuntime();
+    const runtimeBindingsRuntime = createContentCompositionRuntimeBindingsRuntime();
+    const deferredCallbacks = createDeferredCallbacks();
     const normalizeEntriesFromApiRows = compositionBindingsRuntime.createEntryNormalizerBinding(options);
-
     const sortRuntime = createSortRuntime(options);
     const cardRuntime = createCardRuntime(options, sortRuntime, deferredCallbacks);
     const curatedRuntime = runtimeBindingsRuntime.createCuratedRuntime(
@@ -357,7 +367,6 @@ import { type CuratedCardEntry, createCardShell } from '../Ui/CuratedCardShell.j
       curatedRuntime,
     );
     deferredCallbacks.createCuratedCardActions = interactionsRuntime.createCuratedCardActions;
-
     const interfaceRuntime = runtimeBindingsRuntime.createInterfaceRuntime(
       options,
       cardRuntime,
@@ -365,7 +374,6 @@ import { type CuratedCardEntry, createCardShell } from '../Ui/CuratedCardShell.j
       interactionsRuntime,
     );
     deferredCallbacks.resetCuratedCachesForRefresh = interfaceRuntime.resetCuratedCachesForRefresh;
-
     const debugRuntime = compositionBindingsRuntime.createDebugRuntime({
       state: options.state,
       corePrimitives: options.corePrimitives,
@@ -376,27 +384,46 @@ import { type CuratedCardEntry, createCardShell } from '../Ui/CuratedCardShell.j
 
     return {
       normalizeEntriesFromApiRows,
-      createCuratedInterfaceControls: cardRuntime.createCuratedInterfaceControls,
-      createCuratedCardBody: cardRuntime.createCuratedCardBody,
-      createCuratedCard: cardRuntime.createCuratedCard,
-      patchCuratedCard: cardRuntime.patchCuratedCard,
-      buildRenderableEntries: curatedRuntime.buildRenderableEntries,
-      createCuratedCardActions: interactionsRuntime.createCuratedCardActions,
-      compareRenderableEntries: sortRuntime.compareRenderableEntries,
-      triggerNativeCardAction: curatedRuntime.triggerNativeCardAction,
-      installCuratedCardPreview: curatedRuntime.installCuratedCardPreview,
-      bindCuratedInterfaceControls: interactionsRuntime.bindCuratedInterfaceControls,
-      ensureCuratedDataLoad: curatedRuntime.ensureCuratedDataLoad,
-      renderCuratedPanel: curatedRuntime.renderCuratedPanel,
-      clearRootFrame: interfaceRuntime.clearRootFrame,
-      setNativeVisibility: interfaceRuntime.setNativeVisibility,
-      applyTabUi: interfaceRuntime.applyTabUi,
-      resetCuratedCachesForRefresh: interfaceRuntime.resetCuratedCachesForRefresh,
-      ensureInterface: interfaceRuntime.ensureInterface,
-      listKnownSeries: debugRuntime.listKnownSeries,
-      getCuratedDomStats: debugRuntime.getCuratedDomStats,
-      dumpSeriesApiData: debugRuntime.dumpSeriesApiData,
-      printSeriesApiData: debugRuntime.printSeriesApiData,
+      cardRuntime,
+      sortRuntime,
+      curatedRuntime,
+      interactionsRuntime,
+      interfaceRuntime,
+      debugRuntime,
+    };
+  }
+
+  function createContentComposition(input: ContentCompositionOptions): ContentCompositionRuntime {
+    const options: ContentCompositionOptions = {
+      ...input,
+      corePrimitives: toFunctionRecord(input.corePrimitives),
+    };
+    assertContentCompositionDependencies(options);
+    const assembly = assembleContentCompositionRuntimes(options);
+
+    return {
+      normalizeEntriesFromApiRows: assembly.normalizeEntriesFromApiRows,
+      createCuratedInterfaceControls: assembly.cardRuntime.createCuratedInterfaceControls,
+      createCuratedCardBody: assembly.cardRuntime.createCuratedCardBody,
+      createCuratedCard: assembly.cardRuntime.createCuratedCard,
+      patchCuratedCard: assembly.cardRuntime.patchCuratedCard,
+      buildRenderableEntries: assembly.curatedRuntime.buildRenderableEntries,
+      createCuratedCardActions: assembly.interactionsRuntime.createCuratedCardActions,
+      compareRenderableEntries: assembly.sortRuntime.compareRenderableEntries,
+      triggerNativeCardAction: assembly.curatedRuntime.triggerNativeCardAction,
+      installCuratedCardPreview: assembly.curatedRuntime.installCuratedCardPreview,
+      bindCuratedInterfaceControls: assembly.interactionsRuntime.bindCuratedInterfaceControls,
+      ensureCuratedDataLoad: assembly.curatedRuntime.ensureCuratedDataLoad,
+      renderCuratedPanel: assembly.curatedRuntime.renderCuratedPanel,
+      clearRootFrame: assembly.interfaceRuntime.clearRootFrame,
+      setNativeVisibility: assembly.interfaceRuntime.setNativeVisibility,
+      applyTabUi: assembly.interfaceRuntime.applyTabUi,
+      resetCuratedCachesForRefresh: assembly.interfaceRuntime.resetCuratedCachesForRefresh,
+      ensureInterface: assembly.interfaceRuntime.ensureInterface,
+      listKnownSeries: assembly.debugRuntime.listKnownSeries,
+      getCuratedDomStats: assembly.debugRuntime.getCuratedDomStats,
+      dumpSeriesApiData: assembly.debugRuntime.dumpSeriesApiData,
+      printSeriesApiData: assembly.debugRuntime.printSeriesApiData,
     };
   }
 

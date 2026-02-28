@@ -1,6 +1,6 @@
 # Crunchy Watchlist Curator Architecture Standards
 
-Last updated: 2026-02-27
+Last updated: 2026-02-28
 
 This document is the architecture contract for this repository. It defines required boundaries, ownership, and quality gates for extension runtime code, build/distribution tooling, and automated tests.
 
@@ -326,17 +326,29 @@ For each architecture PR:
 - Do not introduce new JavaScript-only modules in `extension/src/**` once TypeScript migration starts for that layer.
 - Do not bypass schema validation at API boundaries by casting unknown payloads directly to typed shapes.
 
-## 20) Prioritized Next Items (Post-Completion Optimization Queue, Reviewed 2026-02-27)
+## 20) Prioritized Next Items (Post-Completion Optimization Queue, Reviewed 2026-02-28)
 
 Priority order for the next optimization cycle:
 
 1. Priority 0: execute one full batched release-confidence run (`test:e2e` + signed/notarized Safari build) to close the remaining verification-confidence gap.
-2. Priority 1: continue strict-size optimization for the next large compliant owners:
-   - `extension/src/Data/HistoryRepositoryCache.ts` (`574`)
-   - `extension/src/Runtime/ContentRuntimeSetupDataInitialization.ts` (`550`)
-   - `extension/src/Domain/CorePrimitives.ts` (`539`)
+2. Priority 1: continue strict-size optimization for the next largest runtime owners:
+   - `extension/src/Runtime/CuratedPanelGrid.ts` (`753`)
+   - `extension/src/Runtime/CuratedPanel.ts` (`685`)
+   - `extension/src/Runtime/InterfaceShell.ts` (`632`)
 3. Priority 1: keep adding seam-level unit coverage around newly extracted owners (`CuratedPanelGridTransitions`, `RatingsRepositoryCacheSupport`, `CuratedLoaderLoadCycle`, `CuratedLoaderPendingRequests`, `ContentRuntimeBootstrapFinalizeFlow`).
 4. Priority 2: keep architecture standards/transformation/progress docs synchronized every structural cycle, especially when CI workflow structure changes.
+
+Completed in the previous cycle:
+
+- Reduced the former Priority 1 owners via decomposition:
+  - `extension/src/Data/HistoryRepositoryCache.ts`: `574` -> `134`
+  - `extension/src/Runtime/ContentRuntimeSetupDataInitialization.ts`: `551` -> `38`
+  - `extension/src/Domain/CorePrimitives.ts`: `539` -> `440`
+- Cleared remaining warning-level function hotspots:
+  - `renderCuratedGridIfNeeded`: `84` -> `65`
+  - `runDeferredMetadataChunkInternal`: `73` -> below warning threshold
+  - `createContentComposition`: `72` -> below warning threshold
+- Updated architecture growth baseline to remove now-resolved warning allowlist entries (`0` warning files, `0` warning functions).
 
 Definition of successful next cycle:
 

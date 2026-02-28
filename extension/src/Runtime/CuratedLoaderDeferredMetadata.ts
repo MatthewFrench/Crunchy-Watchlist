@@ -43,6 +43,19 @@
     completedChunks: number;
   };
 
+  type RunDeferredMetadataChunkOptions = {
+    context: CuratedLoaderDeferredMetadataContext;
+    runId: number;
+    chunks: unknown[][];
+    chunkIndex: number;
+    tokenEntry: unknown;
+    preloadMetadataForEntries: (entries: unknown[], tokenEntry: unknown) => Promise<void>;
+    deferredEntryCount: number;
+    startedAt: number;
+    progress: DeferredMetadataChunkProgress;
+    renderProgress: DeferredMetadataProgressRenderer;
+  };
+
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
     typeof globalThis & {
       __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
@@ -290,40 +303,86 @@
     });
   }
 
-  function runDeferredMetadataChunkInternal({
-    context,
-    runId,
-    chunks,
-    chunkIndex,
-    tokenEntry,
-    preloadMetadataForEntries,
-    deferredEntryCount,
-    startedAt,
-    progress,
-    renderProgress,
-  }: {
-    context: CuratedLoaderDeferredMetadataContext;
-    runId: number;
-    chunks: unknown[][];
-    chunkIndex: number;
-    tokenEntry: unknown;
-    preloadMetadataForEntries: (entries: unknown[], tokenEntry: unknown) => Promise<void>;
-    deferredEntryCount: number;
-    startedAt: number;
-    progress: DeferredMetadataChunkProgress;
-    renderProgress: DeferredMetadataProgressRenderer;
-  }): void {
+  function stopDeferredMetadataRunIfCurrent(context: CuratedLoaderDeferredMetadataContext, runId: number): void {
+    if (runId === context.deferredMetadataRunId) {
+      setDeferredMetadataInFlightInternal(context, false);
+    }
+  }
+
+  function scheduleNextDeferredMetadataChunk(options: RunDeferredMetadataChunkOptions): void {
+    const {
+      context,
+      runId,
+      chunks,
+      chunkIndex,
+      tokenEntry,
+      preloadMetadataForEntries,
+      deferredEntryCount,
+      startedAt,
+      progress,
+      renderProgress,
+    } = options;
+    scheduleDeferredMetadataStepInternal(
+      context,
+      () =>
+        runDeferredMetadataChunkInternal({
+          context,
+          runId,
+          chunks,
+          chunkIndex: chunkIndex + 1,
+          tokenEntry,
+          preloadMetadataForEntries,
+          deferredEntryCount,
+          startedAt,
+          progress,
+          renderProgress,
+        }),
+      false,
+    );
+  }
+
+  function finalizeDeferredMetadataChunk(options: RunDeferredMetadataChunkOptions): void {
+    const { context, runId, chunks, chunkIndex, deferredEntryCount, startedAt, progress, renderProgress } = options;
+    if (runId !== context.deferredMetadataRunId) {
+      return;
+    }
+
+    progress.completedChunks += 1;
+    if (chunkIndex + 1 < chunks.length) {
+      scheduleNextDeferredMetadataChunk(options);
+      return;
+    }
+
+    setDeferredMetadataInFlightInternal(context, false);
+    renderProgress(true);
+    emitDeferredMetadataDoneEventInternal(
+      context,
+      deferredEntryCount,
+      chunks.length,
+      progress.completedChunks,
+      startedAt,
+    );
+  }
+
+  function runDeferredMetadataChunkInternal(options: RunDeferredMetadataChunkOptions): void {
+    const {
+      context,
+      runId,
+      chunks,
+      chunkIndex,
+      tokenEntry,
+      preloadMetadataForEntries,
+      deferredEntryCount,
+      startedAt,
+      renderProgress,
+    } = options;
     const chunk = chunks[chunkIndex];
     if (shouldSkipDeferredMetadataChunkInternal(context, runId, chunk)) {
-      if (runId === context.deferredMetadataRunId) {
-        setDeferredMetadataInFlightInternal(context, false);
-      }
+      stopDeferredMetadataRunIfCurrent(context, runId);
       return;
     }
     if (!chunk || !chunk.length) {
-      if (runId === context.deferredMetadataRunId) {
-        setDeferredMetadataInFlightInternal(context, false);
-      }
+      stopDeferredMetadataRunIfCurrent(context, runId);
       return;
     }
 
@@ -344,41 +403,7 @@
         );
       })
       .finally(() => {
-        if (runId !== context.deferredMetadataRunId) {
-          return;
-        }
-
-        progress.completedChunks += 1;
-        if (chunkIndex + 1 < chunks.length) {
-          scheduleDeferredMetadataStepInternal(
-            context,
-            () =>
-              runDeferredMetadataChunkInternal({
-                context,
-                runId,
-                chunks,
-                chunkIndex: chunkIndex + 1,
-                tokenEntry,
-                preloadMetadataForEntries,
-                deferredEntryCount,
-                startedAt,
-                progress,
-                renderProgress,
-              }),
-            false,
-          );
-          return;
-        }
-
-        setDeferredMetadataInFlightInternal(context, false);
-        renderProgress(true);
-        emitDeferredMetadataDoneEventInternal(
-          context,
-          deferredEntryCount,
-          chunks.length,
-          progress.completedChunks,
-          startedAt,
-        );
+        finalizeDeferredMetadataChunk(options);
       });
   }
 

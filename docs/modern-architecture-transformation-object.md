@@ -1,6 +1,6 @@
 # Modern Architecture Transformation Object
 
-Last updated: 2026-02-27
+Last updated: 2026-02-28
 Status: Active
 Owner: Runtime/Data/UI architecture
 Scope: `extension/src/**`, `extension/Content.js`, `extension/manifest.json`, runtime build scripts, and affected tests/docs
@@ -163,6 +163,14 @@ Policy status:
 - No element expando surfaces in runtime/UI.
 - No clone-based transition/rendering paths.
 - Guardrails in place: owned-DOM lookups, async event listeners, UI document refs, architecture growth.
+- Strict-size decomposition completed for the 2026-02-27 priority owners:
+  - `extension/src/Data/HistoryRepositoryCache.ts` -> `HistoryRepositoryCache.ts` + `HistoryRepositoryCacheNormalization.ts`
+  - `extension/src/Runtime/ContentRuntimeSetupDataInitialization.ts` -> thin composition + `ContentRuntimeSetupDataInitializationPhases.ts` + `ContentRuntimeSetupDataInitializationWatchlistHistory.ts`
+  - `extension/src/Domain/CorePrimitives.ts` -> core primitives + `CorePrimitivesRuntimeFactories.ts`
+- Runtime warning hotspots reduced below threshold with extracted phase helpers:
+  - `CuratedPanelGrid` render pass orchestration via `CuratedPanelGridRenderPass.ts`
+  - `CuratedLoaderDeferredMetadata` chunk-finalization scheduling helpers
+  - `ContentComposition` runtime assembly helpers
 
 ### Not Completed
 
@@ -204,7 +212,7 @@ Progress notes:
 
 ## WS2: Boundary-Type Discipline Cleanup
 
-Status: Not started
+Status: In progress
 Priority: P0
 
 Goal:
@@ -221,6 +229,10 @@ Deliverables:
 
 Done when:
 - Internal owner APIs stop re-widening to `unknown`/`AnyFn` after boundary conversion.
+
+Progress notes:
+- 2026-02-28: reduced boundary-noise concentration by extracting typed normalization/runtime-factory seams from `HistoryRepositoryCache`, `ContentRuntimeSetupDataInitialization`, and `CorePrimitives` while preserving existing public registry APIs.
+- 2026-02-28: hardened runtime wiring seams with deferred checked binding adapters in `ContentRuntimeSetupDataInitializationPhases.ts` (preserving intentional late-bound callbacks) and extracted composition/render-phase helpers to keep warning hotspots at zero.
 
 ## WS3: Class-Based UI Owner/Controller Standardization
 
