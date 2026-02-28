@@ -1,6 +1,24 @@
 (() => {
   type AnyFn = (...args: unknown[]) => unknown;
 
+  type RuntimeControlOwnedRefs = {
+    hostEl?: Element | null;
+    tabCrunchyrollEl?: Element | null;
+    tabCuratedEl?: Element | null;
+    curatedPanelEl?: Element | null;
+    gridEl?: Element | null;
+    loadingIndicatorEl?: Element | null;
+  };
+
+  type RuntimeControl = {
+    ownedRefs?: RuntimeControlOwnedRefs;
+  } & Record<string, unknown>;
+
+  type InterfaceWindow = Window &
+    typeof globalThis & {
+      __CW_WATCHLIST_CURATOR_CONTROL__?: RuntimeControl;
+    };
+
   type RuntimeState = {
     framedRootEl: Element | null;
     nativeHiddenNodes: Element[];
@@ -46,7 +64,7 @@
   type InterfaceShellContext = {
     state: RuntimeState;
     documentRef: Document;
-    windowRef: Window;
+    windowRef: InterfaceWindow;
     getWatchlistRoot: () => Element | null;
     getWatchlistHeader: () => Element | null;
     runtimeEvent: (event: string, data?: unknown) => void;
@@ -152,7 +170,7 @@
     return value as Document;
   }
 
-  function resolveWindowRef(value: unknown): Window | null {
+  function resolveWindowRef(value: unknown): InterfaceWindow | null {
     if (!value || typeof value !== 'object') {
       return null;
     }
@@ -163,7 +181,7 @@
     if (typeof record.dispatchEvent !== 'function') {
       return null;
     }
-    return value as Window;
+    return value as InterfaceWindow;
   }
 
   function requireStorageKey(options: InterfaceShellOptions, key: 'ratingCacheKey' | 'watchHistoryCacheKey'): string {
@@ -287,6 +305,23 @@
     showNative: boolean,
   ): void {
     hostLifecycleRuntime.setNativeVisibility(context, showNative);
+  }
+
+  function syncRuntimeControlOwnedRefs(context: InterfaceShellContext): void {
+    const runtimeControl = context.windowRef.__CW_WATCHLIST_CURATOR_CONTROL__;
+    if (!runtimeControl || typeof runtimeControl !== 'object' || Array.isArray(runtimeControl)) {
+      return;
+    }
+
+    runtimeControl.ownedRefs = {
+      hostEl: context.state.hostEl,
+      tabCrunchyrollEl: context.state.tabCrunchyrollEl,
+      tabCuratedEl: context.state.tabCuratedEl,
+      curatedPanelEl: context.state.curatedPanelEl,
+      gridEl: context.state.gridEl,
+      loadingIndicatorEl: context.state.loadingIndicatorEl,
+    };
+    context.windowRef.__CW_WATCHLIST_CURATOR_CONTROL__ = runtimeControl;
   }
 
   function clearRootFrameInternal(
@@ -441,6 +476,7 @@
       if (!hostLifecycleRuntime.isConnectedElement(context.state.hostEl)) {
         hostLifecycleRuntime.clearInterfaceReferences(context);
       }
+      syncRuntimeControlOwnedRefs(context);
       context.runtimeEvent('ui-missing-watchlist-structure');
       return;
     }
@@ -449,6 +485,7 @@
     hostLifecycleRuntime.removeOrphanCuratedHosts(context, rootElement);
 
     if (hostLifecycleRuntime.isInterfaceShellIntact(context)) {
+      syncRuntimeControlOwnedRefs(context);
       return;
     }
 
@@ -506,6 +543,7 @@
     context.state.statsEl = controlsContext.stats;
     context.state.gridEl = grid;
     context.state.curatedGridRenderSignature = '';
+    syncRuntimeControlOwnedRefs(context);
 
     context.runtimeEvent('ui-mounted', {
       headerClass: String(headerElement.className || ''),

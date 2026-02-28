@@ -1,6 +1,5 @@
 (() => {
-  // biome-ignore lint/suspicious/noExplicitAny: Composition-root runtime wiring relies on dynamic owner injection.
-  type AnyFn = (...args: unknown[]) => any;
+  type UnknownFn = (...args: unknown[]) => unknown;
   type LooseRecord = Record<string, unknown>;
   type RequireFunction = <T>(name: string, value: unknown) => T;
 
@@ -65,7 +64,7 @@
     const corePrimitives = traceContractsRuntime.corePrimitives;
     const runtimeBootstrapHelpersModule = toRecord(context.runtimeBootstrapHelpersModule);
     const runtimeConstants = toRecord(context.runtimeConstants);
-    const bootstrapHelpersRuntime = requireFn<AnyFn>(
+    const bootstrapHelpersRuntime = requireFn<UnknownFn>(
       'createBootstrapHelpersRuntime',
       runtimeBootstrapHelpersModule.createBootstrapHelpersRuntime,
     )({
@@ -78,24 +77,24 @@
       watchHistoryCacheKey: runtimeConstants.watchHistoryCacheKey,
       watchlistCacheKey: runtimeConstants.watchlistCacheKey,
       preferredAudioCacheTtlMs: runtimeConstants.preferredAudioCacheTtlMs,
-      normalizeAudioLocale: (value: unknown) => (corePrimitives.normalizeAudioLocale as AnyFn)(value),
-      detectPreferredAudioLanguage: () => (bindings.detectPreferredAudioLanguage as AnyFn)(),
+      normalizeAudioLocale: (value: unknown) => (corePrimitives.normalizeAudioLocale as UnknownFn)(value),
+      detectPreferredAudioLanguage: () => (bindings.detectPreferredAudioLanguage as UnknownFn)(),
       isLocalizedRatingDataMissingForEntries: (entries: unknown, audioLocale: unknown) =>
-        (bindings.isLocalizedRatingDataMissingForEntries as AnyFn)(entries, audioLocale),
+        (bindings.isLocalizedRatingDataMissingForEntries as UnknownFn)(entries, audioLocale),
       isLocalizedWatchHistoryDataMissingForEntries: (entries: unknown, audioLocale: unknown) =>
-        (bindings.isLocalizedWatchHistoryDataMissingForEntries as AnyFn)(entries, audioLocale),
-      getAccessToken: (forceRefresh = false) => (bindings.getAccessToken as AnyFn)(forceRefresh),
+        (bindings.isLocalizedWatchHistoryDataMissingForEntries as UnknownFn)(entries, audioLocale),
+      getAccessToken: (forceRefresh = false) => (bindings.getAccessToken as UnknownFn)(forceRefresh),
       preloadRatingsForEntries: (entries: unknown, tokenEntry: unknown, preferredAudioLanguage: unknown) =>
-        (bindings.preloadRatingsForEntries as AnyFn)(entries, tokenEntry, preferredAudioLanguage),
+        (bindings.preloadRatingsForEntries as UnknownFn)(entries, tokenEntry, preferredAudioLanguage),
       preloadWatchHistoryForEntries: (
         entries: unknown,
         tokenEntry: unknown,
         force: unknown,
         preferredAudioLanguage: unknown,
-      ) => (bindings.preloadWatchHistoryForEntries as AnyFn)(entries, tokenEntry, force, preferredAudioLanguage),
+      ) => (bindings.preloadWatchHistoryForEntries as UnknownFn)(entries, tokenEntry, force, preferredAudioLanguage),
     }) as LooseRecord;
 
-    (context.assertRuntimeMethods as AnyFn)('bootstrap helpers runtime', bootstrapHelpersRuntime, [
+    (context.assertRuntimeMethods as UnknownFn)('bootstrap helpers runtime', bootstrapHelpersRuntime, [
       'scheduleSaveRatings',
       'scheduleSaveWatchHistory',
       'scheduleSaveWatchlistCache',
@@ -138,7 +137,7 @@
     const apiContractsModule = toRecord(context.apiContractsModule);
     const windowRef = context.windowRef as Window;
 
-    const runtimeTrace = requireFn<AnyFn>(
+    const runtimeTrace = requireFn<UnknownFn>(
       'createRuntimeTrace',
       runtimeTraceModule.createRuntimeTrace,
     )({
@@ -146,36 +145,37 @@
       state: context.state,
       apiTraceLimitPerEndpoint: runtimeConstants.apiTraceLimitPerEndpoint,
     }) as LooseRecord;
-    (context.assertRuntimeMethods as AnyFn)('runtime trace', runtimeTrace, ['runtimeEvent', 'pushApiTrace']);
+    (context.assertRuntimeMethods as UnknownFn)('runtime trace', runtimeTrace, ['runtimeEvent', 'pushApiTrace']);
     bindings.runtimeEvent = runtimeTrace.runtimeEvent;
     bindings.pushApiTrace = runtimeTrace.pushApiTrace;
 
-    const corePrimitives = requireFn<AnyFn>(
+    const corePrimitives = requireFn<UnknownFn>(
       'createCorePrimitives',
       corePrimitivesModule.createCorePrimitives,
     )({
-      extractCoverImagesFromApiImages: (images: unknown) => (bindings.extractCoverImagesFromApiImages as AnyFn)(images),
+      extractCoverImagesFromApiImages: (images: unknown) =>
+        (bindings.extractCoverImagesFromApiImages as UnknownFn)(images),
     }) as LooseRecord;
-    (context.assertRuntimeMethods as AnyFn)('core primitives', corePrimitives, [
+    (context.assertRuntimeMethods as UnknownFn)('core primitives', corePrimitives, [
       'sanitizeRating',
       'parseCmsObjectRecord',
       'deriveDisplayStatusBase',
     ]);
 
-    const apiContracts = requireFn<AnyFn>(
+    const apiContracts = requireFn<UnknownFn>(
       'createApiContracts',
       apiContractsModule.createApiContracts,
     )({
       windowRef,
       navigatorRef: windowRef.navigator,
       runtimeEvent: bindings.runtimeEvent,
-      parseDateMs: (value: unknown) => (corePrimitives.parseDateMs as AnyFn)(value),
-      getWatchlistSeriesId: (entry: unknown) => (corePrimitives.getWatchlistSeriesId as AnyFn)(entry),
-      getWatchHistorySeriesId: (entry: unknown) => (corePrimitives.getWatchHistorySeriesId as AnyFn)(entry),
+      parseDateMs: (value: unknown) => (corePrimitives.parseDateMs as UnknownFn)(value),
+      getWatchlistSeriesId: (entry: unknown) => (corePrimitives.getWatchlistSeriesId as UnknownFn)(entry),
+      getWatchHistorySeriesId: (entry: unknown) => (corePrimitives.getWatchHistorySeriesId as UnknownFn)(entry),
       fetchBackoffBaseMs: runtimeConstants.fetchBackoffBaseMs,
       fetchBackoffJitterMs: runtimeConstants.fetchBackoffJitterMs,
     }) as LooseRecord;
-    (context.assertRuntimeMethods as AnyFn)('api contracts', apiContracts, [
+    (context.assertRuntimeMethods as UnknownFn)('api contracts', apiContracts, [
       'shouldRetryStatus',
       'requirePayloadDataArray',
       'resolveApiHref',
@@ -199,13 +199,13 @@
     const windowRef = context.windowRef as Window;
 
     const safeJsonParse = (value: unknown, fallback: unknown) =>
-      requireFn<AnyFn>('safeJsonParse', runtimeBootstrapFinalizeModule.safeJsonParse)(value, fallback);
+      requireFn<UnknownFn>('safeJsonParse', runtimeBootstrapFinalizeModule.safeJsonParse)(value, fallback);
 
-    const preferredAudioDetector = requireFn<AnyFn>(
+    const preferredAudioDetector = requireFn<UnknownFn>(
       'createPreferredAudioDetector',
       runtimePreferredAudioModule.createPreferredAudioDetector,
     )({
-      normalizeAudioLocale: (value: unknown) => (corePrimitives.normalizeAudioLocale as AnyFn)(value),
+      normalizeAudioLocale: (value: unknown) => (corePrimitives.normalizeAudioLocale as UnknownFn)(value),
       parseJson: safeJsonParse,
       localStorageRef: windowRef.localStorage,
       navigatorRef: windowRef.navigator,
@@ -213,13 +213,13 @@
       storageScanLimit: runtimeConstants.preferredAudioStorageScanLimit,
       valueScanLimit: runtimeConstants.preferredAudioValueScanLimit,
     }) as LooseRecord;
-    (context.assertRuntimeMethods as AnyFn)('preferred audio detector', preferredAudioDetector, [
+    (context.assertRuntimeMethods as UnknownFn)('preferred audio detector', preferredAudioDetector, [
       'detectPreferredAudioLanguage',
     ]);
     bindings.detectPreferredAudioLanguage = () =>
-      (preferredAudioDetector.detectPreferredAudioLanguage as AnyFn)() as string;
+      (preferredAudioDetector.detectPreferredAudioLanguage as UnknownFn)() as string;
 
-    const storageAdapter = requireFn<AnyFn>(
+    const storageAdapter = requireFn<UnknownFn>(
       'createStorageAdapter',
       storageModule.createStorageAdapter,
     )({
@@ -228,13 +228,13 @@
       localStorageRef: windowRef.localStorage,
       timeoutMs: 1500,
     });
-    const storageAccessors = requireFn<AnyFn>(
+    const storageAccessors = requireFn<UnknownFn>(
       'createStorageAccessors',
       runtimeBootstrapFinalizeModule.createStorageAccessors,
     )({
       storageAdapter,
     }) as LooseRecord;
-    const storageSet = (key: string, value: unknown) => (storageAccessors.storageSet as AnyFn)(key, value);
+    const storageSet = (key: string, value: unknown) => (storageAccessors.storageSet as UnknownFn)(key, value);
 
     bindBootstrapHelpersRuntimeInternal(context, bindings, traceContractsRuntime, storageSet, requireFn);
     return { storageSet };
@@ -253,7 +253,7 @@
     const imageVariantsModule = toRecord(context.imageVariantsModule);
     const windowRef = context.windowRef as Window;
 
-    const authClient = requireFn<AnyFn>(
+    const authClient = requireFn<UnknownFn>(
       'createAuthClient',
       authClientModule.createAuthClient,
     )({
@@ -261,10 +261,10 @@
       runtimeEvent: bindings.runtimeEvent,
       pushApiTrace: bindings.pushApiTrace,
       resolveApiHref: bindings.resolveApiHref,
-      sanitizePositiveInt: corePrimitives.sanitizePositiveInt as AnyFn,
-      shouldRetryStatus: apiContracts.shouldRetryStatus as AnyFn,
-      computeFetchRetryDelayMs: apiContracts.computeFetchRetryDelayMs as AnyFn,
-      sleep: apiContracts.sleep as AnyFn,
+      sanitizePositiveInt: corePrimitives.sanitizePositiveInt as UnknownFn,
+      shouldRetryStatus: apiContracts.shouldRetryStatus as UnknownFn,
+      computeFetchRetryDelayMs: apiContracts.computeFetchRetryDelayMs as UnknownFn,
+      sleep: apiContracts.sleep as UnknownFn,
       fetchTimeoutMs: runtimeConstants.fetchTimeoutMs,
       fetchMaxAttempts: runtimeConstants.fetchMaxAttempts,
       authTokenSkewMs: runtimeConstants.authTokenSkewMs,
@@ -275,7 +275,7 @@
       cryptoRef: windowRef.crypto,
       fetchImpl: windowRef.fetch.bind(windowRef),
     }) as LooseRecord;
-    (context.assertRuntimeMethods as AnyFn)('auth client', authClient, [
+    (context.assertRuntimeMethods as UnknownFn)('auth client', authClient, [
       'fetchWithResilience',
       'getAccessToken',
       'createAuthRefreshHandler',
@@ -284,14 +284,14 @@
     bindings.getAccessToken = authClient.getAccessToken;
     bindings.createAuthRefreshHandler = authClient.createAuthRefreshHandler;
 
-    const imageVariants = requireFn<AnyFn>(
+    const imageVariants = requireFn<UnknownFn>(
       'createImageVariants',
       imageVariantsModule.createImageVariants,
     )({
-      sanitizePositiveInt: corePrimitives.sanitizePositiveInt as AnyFn,
+      sanitizePositiveInt: corePrimitives.sanitizePositiveInt as UnknownFn,
       resolveApiHref: bindings.resolveApiHref,
     }) as LooseRecord;
-    (context.assertRuntimeMethods as AnyFn)('image variants', imageVariants, [
+    (context.assertRuntimeMethods as UnknownFn)('image variants', imageVariants, [
       'normalizeImageUrlCandidate',
       'extractCoverImagesFromApiImages',
       'extractThumbnailImageFromApiImages',
@@ -313,7 +313,7 @@
     const ratingsClientModule = toRecord(context.ratingsClientModule);
     const ratingsRepositoryModule = toRecord(context.ratingsRepositoryModule);
 
-    const ratingsClient = requireFn<AnyFn>(
+    const ratingsClient = requireFn<UnknownFn>(
       'createRatingsClient',
       ratingsClientModule.createRatingsClient,
     )({
@@ -321,35 +321,35 @@
       getAccessToken: bindings.getAccessToken,
       createAuthRefreshHandler: bindings.createAuthRefreshHandler,
       resolveApiHref: bindings.resolveApiHref,
-      normalizeAudioLocale: corePrimitives.normalizeAudioLocale as AnyFn,
+      normalizeAudioLocale: corePrimitives.normalizeAudioLocale as UnknownFn,
       getPreferredAudioLanguage: bindings.getPreferredAudioLanguage,
-      getLocale: apiContracts.getLocale as AnyFn,
-      requirePayloadDataArray: apiContracts.requirePayloadDataArray as AnyFn,
-      auditCmsObjectContract: apiContracts.auditCmsObjectContract as AnyFn,
-      parseCmsObjectRecord: corePrimitives.parseCmsObjectRecord as AnyFn,
-      parseRatingPayload: corePrimitives.parseRatingPayload as AnyFn,
-      sanitizeRating: corePrimitives.sanitizeRating as AnyFn,
-      sanitizeVotes: corePrimitives.sanitizeVotes as AnyFn,
+      getLocale: apiContracts.getLocale as UnknownFn,
+      requirePayloadDataArray: apiContracts.requirePayloadDataArray as UnknownFn,
+      auditCmsObjectContract: apiContracts.auditCmsObjectContract as UnknownFn,
+      parseCmsObjectRecord: corePrimitives.parseCmsObjectRecord as UnknownFn,
+      parseRatingPayload: corePrimitives.parseRatingPayload as UnknownFn,
+      sanitizeRating: corePrimitives.sanitizeRating as UnknownFn,
+      sanitizeVotes: corePrimitives.sanitizeVotes as UnknownFn,
       pushApiTrace: bindings.pushApiTrace,
     }) as LooseRecord;
-    (context.assertRuntimeMethods as AnyFn)('ratings client', ratingsClient, ['fetchRatingsBatch', 'fetchRating']);
+    (context.assertRuntimeMethods as UnknownFn)('ratings client', ratingsClient, ['fetchRatingsBatch', 'fetchRating']);
     bindings.fetchRatingsBatch = ratingsClient.fetchRatingsBatch;
     bindings.fetchRating = ratingsClient.fetchRating;
 
-    const ratingsRepository = requireFn<AnyFn>(
+    const ratingsRepository = requireFn<UnknownFn>(
       'createRatingsRepository',
       ratingsRepositoryModule.createRatingsRepository,
     )({
       state: context.state,
-      normalizeAudioLocale: corePrimitives.normalizeAudioLocale as AnyFn,
-      normalizeAudioLocales: corePrimitives.normalizeAudioLocales as AnyFn,
-      sanitizePositiveInt: corePrimitives.sanitizePositiveInt as AnyFn,
-      normalizeTagList: corePrimitives.normalizeTagList as AnyFn,
+      normalizeAudioLocale: corePrimitives.normalizeAudioLocale as UnknownFn,
+      normalizeAudioLocales: corePrimitives.normalizeAudioLocales as UnknownFn,
+      sanitizePositiveInt: corePrimitives.sanitizePositiveInt as UnknownFn,
+      normalizeTagList: corePrimitives.normalizeTagList as UnknownFn,
       normalizeImageUrlCandidate: bindings.normalizeImageUrlCandidate,
-      getAudioLocaleCountFromMap: corePrimitives.getAudioLocaleCountFromMap as AnyFn,
-      mergeAudioLocaleCountMap: corePrimitives.mergeAudioLocaleCountMap as AnyFn,
+      getAudioLocaleCountFromMap: corePrimitives.getAudioLocaleCountFromMap as UnknownFn,
+      mergeAudioLocaleCountMap: corePrimitives.mergeAudioLocaleCountMap as UnknownFn,
       getPreferredAudioLanguage: bindings.getPreferredAudioLanguage,
-      chunkArray: corePrimitives.chunkArray as AnyFn,
+      chunkArray: corePrimitives.chunkArray as UnknownFn,
       fetchRatingsBatch: bindings.fetchRatingsBatch,
       fetchRating: bindings.fetchRating,
       scheduleSaveRatings: bindings.scheduleSaveRatings,
@@ -358,7 +358,7 @@
       ratingBatchParallelChunks: runtimeConstants.ratingBatchParallelChunks,
       ratingCacheTtlMs: runtimeConstants.ratingCacheTtlMs,
     }) as LooseRecord;
-    (context.assertRuntimeMethods as AnyFn)('ratings repository', ratingsRepository, [
+    (context.assertRuntimeMethods as UnknownFn)('ratings repository', ratingsRepository, [
       'getSeriesRating',
       'preloadRatingsForEntries',
       'getCachedRating',
@@ -391,28 +391,28 @@
     const watchlistRepositoryModule = toRecord(context.watchlistRepositoryModule);
     const runtimeConstants = toRecord(context.runtimeConstants);
 
-    const watchlistClient = requireFn<AnyFn>(
+    const watchlistClient = requireFn<UnknownFn>(
       'createWatchlistClient',
       watchlistClientModule.createWatchlistClient,
     )({
       fetchWithResilience: bindings.fetchWithResilience,
       createAuthRefreshHandler: bindings.createAuthRefreshHandler,
       resolveApiHref: bindings.resolveApiHref,
-      requirePayloadDataArray: apiContracts.requirePayloadDataArray as AnyFn,
-      auditWatchlistRowsContract: apiContracts.auditWatchlistRowsContract as AnyFn,
+      requirePayloadDataArray: apiContracts.requirePayloadDataArray as UnknownFn,
+      auditWatchlistRowsContract: apiContracts.auditWatchlistRowsContract as UnknownFn,
       getPreferredAudioLanguage: bindings.getPreferredAudioLanguage,
-      getLocale: apiContracts.getLocale as AnyFn,
-      getWatchlistSeriesId: corePrimitives.getWatchlistSeriesId as AnyFn,
+      getLocale: apiContracts.getLocale as UnknownFn,
+      getWatchlistSeriesId: corePrimitives.getWatchlistSeriesId as UnknownFn,
       pushApiTrace: bindings.pushApiTrace,
       runtimeEvent: bindings.runtimeEvent,
       watchlistPageSize: runtimeConstants.watchlistPageSize,
       watchlistMaxPages: runtimeConstants.watchlistMaxPages,
       watchlistParallelRequests: runtimeConstants.watchlistParallelRequests,
     }) as LooseRecord;
-    (context.assertRuntimeMethods as AnyFn)('watchlist client', watchlistClient, ['fetchAllWatchlistRows']);
+    (context.assertRuntimeMethods as UnknownFn)('watchlist client', watchlistClient, ['fetchAllWatchlistRows']);
     bindings.fetchAllWatchlistRows = watchlistClient.fetchAllWatchlistRows;
 
-    const watchlistRepository = requireFn<AnyFn>(
+    const watchlistRepository = requireFn<UnknownFn>(
       'createWatchlistRepository',
       watchlistRepositoryModule.createWatchlistRepository,
     )({
@@ -421,7 +421,7 @@
       scheduleSaveWatchlistCache: bindings.scheduleSaveWatchlistCache,
       watchlistCacheTtlMs: runtimeConstants.watchlistCacheTtlMs,
     }) as LooseRecord;
-    (context.assertRuntimeMethods as AnyFn)('watchlist repository', watchlistRepository, [
+    (context.assertRuntimeMethods as UnknownFn)('watchlist repository', watchlistRepository, [
       'normalizeStoredWatchlistCache',
       'isWatchlistCacheValid',
       'resetWatchlistCacheOnAccountMismatch',
@@ -445,25 +445,26 @@
     const historyRepositoryModule = toRecord(context.historyRepositoryModule);
     const previewRepositoryModule = toRecord(context.previewRepositoryModule);
 
-    const historyRepository = requireFn<AnyFn>(
+    const historyRepository = requireFn<UnknownFn>(
       'createHistoryRepository',
       historyRepositoryModule.createHistoryRepository,
     )({
       state: context.state,
-      normalizeAudioLocale: corePrimitives.normalizeAudioLocale as AnyFn,
-      sanitizePositiveInt: corePrimitives.sanitizePositiveInt as AnyFn,
-      parseDateMs: corePrimitives.parseDateMs as AnyFn,
-      pickFirstPositiveInt: corePrimitives.pickFirstPositiveInt as AnyFn,
+      normalizeAudioLocale: corePrimitives.normalizeAudioLocale as UnknownFn,
+      sanitizePositiveInt: corePrimitives.sanitizePositiveInt as UnknownFn,
+      parseDateMs: corePrimitives.parseDateMs as UnknownFn,
+      pickFirstPositiveInt: corePrimitives.pickFirstPositiveInt as UnknownFn,
       deriveCanonicalEpisodeKeyFromEpisodeMetadata:
-        corePrimitives.deriveCanonicalEpisodeKeyFromEpisodeMetadata as AnyFn,
-      getAbsoluteEpisodeNumberFromEpisodeMetadata: corePrimitives.getAbsoluteEpisodeNumberFromEpisodeMetadata as AnyFn,
+        corePrimitives.deriveCanonicalEpisodeKeyFromEpisodeMetadata as UnknownFn,
+      getAbsoluteEpisodeNumberFromEpisodeMetadata:
+        corePrimitives.getAbsoluteEpisodeNumberFromEpisodeMetadata as UnknownFn,
       getPreferredAudioLanguage: bindings.getPreferredAudioLanguage,
-      getLocale: apiContracts.getLocale as AnyFn,
+      getLocale: apiContracts.getLocale as UnknownFn,
       resolveApiHref: bindings.resolveApiHref,
       fetchWithResilience: bindings.fetchWithResilience,
       createAuthRefreshHandler: bindings.createAuthRefreshHandler,
-      requirePayloadDataArray: apiContracts.requirePayloadDataArray as AnyFn,
-      auditWatchHistoryRowsContract: apiContracts.auditWatchHistoryRowsContract as AnyFn,
+      requirePayloadDataArray: apiContracts.requirePayloadDataArray as UnknownFn,
+      auditWatchHistoryRowsContract: apiContracts.auditWatchHistoryRowsContract as UnknownFn,
       createEmptyWatchHistoryCache: context.createEmptyWatchHistoryCache,
       scheduleSaveWatchHistory: bindings.scheduleSaveWatchHistory,
       pushApiTrace: bindings.pushApiTrace,
@@ -474,7 +475,7 @@
       watchHistoryMaxPages: runtimeConstants.watchHistoryMaxPages,
       watchHistoryNoMatchPageLimit: runtimeConstants.watchHistoryNoMatchPageLimit,
     }) as LooseRecord;
-    (context.assertRuntimeMethods as AnyFn)('history repository', historyRepository, [
+    (context.assertRuntimeMethods as UnknownFn)('history repository', historyRepository, [
       'normalizeStoredWatchHistoryCache',
       'isWatchHistoryCacheValid',
       'getCachedWatchHistory',
@@ -490,7 +491,7 @@
     bindings.isLocalizedWatchHistoryDataMissingForEntries =
       historyRepository.isLocalizedWatchHistoryDataMissingForEntries;
 
-    const previewRepository = requireFn<AnyFn>(
+    const previewRepository = requireFn<UnknownFn>(
       'createPreviewRepository',
       previewRepositoryModule.createPreviewRepository,
     )({
@@ -502,7 +503,7 @@
       pushApiTrace: bindings.pushApiTrace,
       runtimeEvent: bindings.runtimeEvent,
     }) as LooseRecord;
-    (context.assertRuntimeMethods as AnyFn)('preview repository', previewRepository, ['fetchPreviewUrlForEntry']);
+    (context.assertRuntimeMethods as UnknownFn)('preview repository', previewRepository, ['fetchPreviewUrlForEntry']);
     bindings.fetchPreviewUrlForEntry = previewRepository.fetchPreviewUrlForEntry;
   }
 

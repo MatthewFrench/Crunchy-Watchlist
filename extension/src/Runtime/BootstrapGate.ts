@@ -20,6 +20,21 @@
     getWatchlistHeader: (documentRef: unknown) => Element | null;
   };
 
+  type RuntimeControlOwnedRefs = {
+    hostEl?: unknown;
+    tabCrunchyrollEl?: unknown;
+    tabCuratedEl?: unknown;
+    curatedPanelEl?: unknown;
+    gridEl?: unknown;
+    loadingIndicatorEl?: unknown;
+  };
+
+  type RuntimeControl = {
+    version?: string;
+    shutdown?: (payload?: unknown) => void;
+    ownedRefs?: RuntimeControlOwnedRefs;
+  };
+
   type WindowWithRegistry = Window &
     typeof globalThis & {
       __CW_WATCHLIST_CURATOR_MODULES__?: Record<string, unknown>;
@@ -27,10 +42,7 @@
         version?: string;
         loadedAt?: number;
       };
-      __CW_WATCHLIST_CURATOR_CONTROL__?: {
-        version?: string;
-        shutdown?: (payload?: unknown) => void;
-      };
+      __CW_WATCHLIST_CURATOR_CONTROL__?: RuntimeControl;
     };
 
   const root = (typeof window !== 'undefined' ? window : globalThis) as WindowWithRegistry;
@@ -97,6 +109,50 @@
     return container.contains(candidate);
   }
 
+  function toRuntimeControl(value: unknown): RuntimeControl | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    return value as RuntimeControl;
+  }
+
+  function toElement(value: unknown): Element | null {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+    const record = value as Record<string, unknown>;
+    if (typeof record.contains !== 'function') {
+      return null;
+    }
+    return value as Element;
+  }
+
+  function resolveOwnedRefElement(control: RuntimeControl | null, key: keyof RuntimeControlOwnedRefs): Element | null {
+    if (!control || !control.ownedRefs || typeof control.ownedRefs !== 'object') {
+      return null;
+    }
+    return toElement((control.ownedRefs as Record<string, unknown>)[key]);
+  }
+
+  function hasShellOwnershipRefs(control: RuntimeControl | null): boolean {
+    return Boolean(
+      resolveOwnedRefElement(control, 'hostEl') ||
+        resolveOwnedRefElement(control, 'tabCrunchyrollEl') ||
+        resolveOwnedRefElement(control, 'tabCuratedEl') ||
+        resolveOwnedRefElement(control, 'curatedPanelEl') ||
+        resolveOwnedRefElement(control, 'gridEl') ||
+        resolveOwnedRefElement(control, 'loadingIndicatorEl'),
+    );
+  }
+
+  function isElementVisible(element: Element | null): boolean {
+    if (!element) {
+      return false;
+    }
+    const style = (element as Element & { style?: { display?: string } }).style;
+    return !style || style.display !== 'none';
+  }
+
   function hasStaleCuratedShell(windowRef: WindowWithRegistry): boolean {
     if (!isWatchlistPathInternal(windowRef.location?.pathname)) {
       return false;
@@ -107,18 +163,25 @@
       return false;
     }
 
+    const runtimeControl = toRuntimeControl(windowRef.__CW_WATCHLIST_CURATOR_CONTROL__);
     const watchlistRoot = getWatchlistRoot(documentRef);
-    const host = documentRef.querySelector('.cw-host');
+    const ownedHost = resolveOwnedRefElement(runtimeControl, 'hostEl');
+    const discoveredHost = toElement(documentRef.querySelector('.cw-host'));
+    const host = ownedHost || discoveredHost;
     const framedRootHasWatchlistFrame = hasClassToken(watchlistRoot, 'cw-watchlist-frame');
     const hasHiddenNativeNodes = Boolean(watchlistRoot?.querySelector('[data-cw-prev-display]'));
+    const hasOwnedRefs = hasShellOwnershipRefs(runtimeControl);
 
     // A stale frame can survive extension reload/reinjection even if host refs are gone.
-    // Treat any framed/hidden-native residue as stale so same-version bootstrap can recover.
+    // Treat framed/hidden-native residue as stale when shell refs are unavailable or detached.
     if (framedRootHasWatchlistFrame || hasHiddenNativeNodes) {
       if (!host) {
         return true;
       }
       if (!containsElement(watchlistRoot, host)) {
+        return true;
+      }
+      if (!hasOwnedRefs) {
         return true;
       }
     }
@@ -131,12 +194,23 @@
       return true;
     }
 
-    if (!host.querySelector('.cw-tabs') || !host.querySelector('.cw-panel')) {
-      return true;
+    if (!hasOwnedRefs) {
+      return false;
     }
 
-    const grid = host.querySelector('.cw-curated-grid');
-    if (!grid) {
+    const tabCrunchyroll = resolveOwnedRefElement(runtimeControl, 'tabCrunchyrollEl');
+    const tabCurated = resolveOwnedRefElement(runtimeControl, 'tabCuratedEl');
+    const panel = resolveOwnedRefElement(runtimeControl, 'curatedPanelEl');
+    const grid = resolveOwnedRefElement(runtimeControl, 'gridEl');
+    if (!tabCrunchyroll || !tabCurated || !panel || !grid) {
+      return true;
+    }
+    if (
+      !containsElement(host, tabCrunchyroll) ||
+      !containsElement(host, tabCurated) ||
+      !containsElement(host, panel) ||
+      !containsElement(host, grid)
+    ) {
       return true;
     }
 
@@ -144,10 +218,8 @@
       return false;
     }
 
-    // A truly stale shell has no cards and no visible loading indicator.
-    const loading = host.querySelector('.cw-loading-indicator');
-    const loadingStyle = (loading as (Element & { style?: { display?: string } }) | null)?.style;
-    const loadingVisible = Boolean(loading && (!loadingStyle || loadingStyle.display !== 'none'));
+    const loadingIndicator = resolveOwnedRefElement(runtimeControl, 'loadingIndicatorEl');
+    const loadingVisible = containsElement(host, loadingIndicator) && isElementVisible(loadingIndicator);
     return !loadingVisible;
   }
 

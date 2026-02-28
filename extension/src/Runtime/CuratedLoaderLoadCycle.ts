@@ -117,7 +117,9 @@
     progress: PendingRequestProgress,
     forceRefresh: boolean,
   ): Promise<{ tokenEntry: TokenEntry; accountId: string; profileId: string }> {
-    const shouldForceRefresh = forceRefresh || context.state.curatedSource === 'cache';
+    // Cache-backed refreshes should still reuse warm/inflight auth when available.
+    // We only force-refresh when the caller explicitly requests it or fallback recovery requires it.
+    const shouldForceRefresh = forceRefresh;
     let tokenEntry = await pendingRequestsRuntime.withTrackedPendingRequest(
       context,
       activeRequests,

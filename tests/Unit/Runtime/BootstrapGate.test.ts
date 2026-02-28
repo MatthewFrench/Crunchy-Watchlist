@@ -134,18 +134,7 @@ describe('bootstrap-gate runtime', () => {
     };
     const host = {
       kind: 'host',
-      querySelector: (selector: string) => {
-        if (selector === '.cw-tabs' || selector === '.cw-panel') {
-          return {};
-        }
-        if (selector === '.cw-curated-grid') {
-          return {
-            children: [],
-            querySelector: () => null,
-          };
-        }
-        return null;
-      },
+      contains: (_candidate: unknown) => false,
     };
     const topWindow = {
       top: null as unknown,
@@ -187,6 +176,96 @@ describe('bootstrap-gate runtime', () => {
 
     expect(firstRun).toBe(true);
     expect(secondRun).toBe(true);
+  });
+
+  it('keeps same-version run blocked when stable owned refs indicate a healthy shell', () => {
+    const runtime = getBootstrapGateRuntime();
+    const tabCrunchyroll = {
+      className: 'cw-tab',
+      contains: (_candidate: unknown) => false,
+    };
+    const tabCurated = {
+      className: 'cw-tab',
+      contains: (_candidate: unknown) => false,
+    };
+    const loadingIndicator = {
+      className: 'cw-loading-indicator',
+      style: {
+        display: 'none',
+      },
+      contains: (_candidate: unknown) => false,
+    };
+    const grid = {
+      className: 'cw-curated-grid',
+      children: [{}],
+      contains: (_candidate: unknown) => false,
+    };
+    const panel = {
+      className: 'cw-panel',
+      contains: (candidate: unknown) => candidate === loadingIndicator || candidate === grid,
+    };
+    const host = {
+      className: 'cw-host',
+      contains: (candidate: unknown) =>
+        candidate === tabCrunchyroll || candidate === tabCurated || candidate === panel || candidate === grid,
+    };
+    const watchlistRoot = {
+      classList: {
+        contains: (name: string) => name === 'cw-watchlist-frame',
+      },
+      querySelector: (_selector: string) => null,
+      contains: (element: unknown) => element === host,
+    };
+    const topWindow = {
+      top: null as unknown,
+      __CW_WATCHLIST_CURATOR_MODULES__: {},
+      __CW_WATCHLIST_CURATOR_LOADED__: undefined as unknown,
+      __CW_WATCHLIST_CURATOR_CONTROL__: {
+        ownedRefs: {
+          hostEl: host,
+          tabCrunchyrollEl: tabCrunchyroll,
+          tabCuratedEl: tabCurated,
+          curatedPanelEl: panel,
+          gridEl: grid,
+          loadingIndicatorEl: loadingIndicator,
+        },
+      },
+      location: {
+        pathname: '/watchlist',
+      },
+      document: {
+        querySelector: (selector: string) => {
+          if (selector === '.erc-watchlist') {
+            return watchlistRoot;
+          }
+          if (selector === '.cw-host') {
+            return host;
+          }
+          return null;
+        },
+      },
+    };
+    topWindow.top = topWindow;
+
+    const firstRun = runtime.shouldRun({
+      windowRef: topWindow,
+      browserRef: {
+        runtime: {
+          getManifest: () => ({ version: '1.2.3' }),
+        },
+      },
+    });
+    const secondRun = runtime.shouldRun({
+      windowRef: topWindow,
+      browserRef: {
+        runtime: {
+          getManifest: () => ({ version: '1.2.3' }),
+        },
+      },
+    });
+
+    expect(firstRun).toBe(true);
+    expect(secondRun).toBe(false);
   });
 
   it('allows same-version rebootstrap when framed watchlist residue exists without host nodes', () => {

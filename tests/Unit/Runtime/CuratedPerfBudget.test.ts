@@ -292,6 +292,23 @@ function createFakeDocumentRef() {
   };
 }
 
+function findCardBySeriesId(cards: FakeElement[], seriesId: string): FakeElement | null {
+  const found = cards.find((card) => card.dataset.cwSeriesId === seriesId);
+  return found || null;
+}
+
+function findCardThumbImage(card: FakeElement | null): FakeElement | null {
+  if (!card) {
+    return null;
+  }
+  const thumbLink = card.children[0] || null;
+  if (!thumbLink) {
+    return null;
+  }
+  const thumbImage = thumbLink.children[0] || null;
+  return thumbImage || null;
+}
+
 function median(values: number[]): number {
   if (!values.length) {
     return 0;
@@ -415,6 +432,8 @@ describe('curated perf budgets', () => {
     const renderables = [visibleBase, visibleSorted, visibleFiltered, visibleBase];
     let renderIndex = 0;
     let createdCards = 0;
+    const trackedSeriesIds = ['series-1', 'series-2', 'series-161', 'series-320'];
+    const initialThumbImagesBySeriesId = new Map<string, FakeElement>();
 
     const state = {
       mounted: true,
@@ -457,6 +476,18 @@ describe('curated perf budgets', () => {
         card.tagName = 'article';
         card.className = 'cw-curated-card';
         card.dataset.cwSeriesId = String(entry.seriesId || '');
+
+        const thumbLink = createFakeElement();
+        thumbLink.tagName = 'a';
+        thumbLink.className = 'cw-curated-card__thumb';
+        card.appendChild(thumbLink);
+
+        const thumbImage = createFakeElement();
+        thumbImage.tagName = 'img';
+        thumbImage.className = 'cw-curated-card__thumb-image';
+        thumbImage.dataset.cwSeriesId = String(entry.seriesId || '');
+        thumbLink.appendChild(thumbImage);
+
         return card;
       },
       patchCuratedCard: () => undefined,
@@ -491,6 +522,13 @@ describe('curated perf budgets', () => {
       runtime.renderCuratedPanel();
       if (index === 0) {
         firstRenderSecondCard = gridEl.children[1];
+        trackedSeriesIds.forEach((seriesId) => {
+          const card = findCardBySeriesId(gridEl.children, seriesId);
+          const thumbImage = findCardThumbImage(card);
+          if (thumbImage) {
+            initialThumbImagesBySeriesId.set(seriesId, thumbImage);
+          }
+        });
       }
       renderDurationsMs.push(performance.now() - start);
     }
@@ -509,6 +547,11 @@ describe('curated perf budgets', () => {
     expect(gridEl.children).toHaveLength(320);
     expect(firstCard?.dataset.cwSeriesId).toBe('series-1');
     expect(recreatedSecondCard).toBe(firstRenderSecondCard);
+    trackedSeriesIds.forEach((seriesId) => {
+      const finalCard = findCardBySeriesId(gridEl.children, seriesId);
+      const finalThumbImage = findCardThumbImage(finalCard);
+      expect(finalThumbImage).toBe(initialThumbImagesBySeriesId.get(seriesId));
+    });
     expect(renderDurationsMs[1]).toBeLessThan(180);
     expect(renderDurationsMs[2]).toBeLessThan(180);
     expect(renderDurationsMs[3]).toBeLessThan(180);
