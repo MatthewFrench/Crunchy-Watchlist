@@ -259,6 +259,7 @@ Before concluding substantial refactors, keep these green:
 - `npm run typecheck`
 - `npm run guard:dom-lookups`
 - `npm run guard:async-event-listeners`
+- `npm run guard:module-registry-growth`
 - `npm run guard:ui-document-ref`
 - `npm run lint`
 - `npm run format:check`

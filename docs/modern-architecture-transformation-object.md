@@ -54,14 +54,14 @@ acceptance:
 
 ## Baseline Inventory (Measured)
 
-Audit date: 2026-02-27
+Audit date: 2026-02-28
 
 ### Key Counts
 
 | Surface | Current baseline |
 | --- | --- |
-| Files using `__CW_WATCHLIST_CURATOR_MODULES__` | 79 files |
-| Registry references (`__CW_WATCHLIST_CURATOR_MODULES__`) | 261 occurrences |
+| Files using `__CW_WATCHLIST_CURATOR_MODULES__` | 81 files |
+| Registry references (`__CW_WATCHLIST_CURATOR_MODULES__`) | 353 occurrences |
 | Runtime files with registry usage | 48/48 |
 | UI files with registry usage | 9/9 |
 | Data files with registry usage | 15/15 |
@@ -71,8 +71,8 @@ Audit date: 2026-02-27
 | `unknown` token count in Data | 539 |
 | `unknown` token count in Domain | 391 |
 | `AnyFn` occurrences (all `extension/src/**`) | 247 |
-| Selector-lookup callsites in Runtime/UI | 14 |
-| Selector-lookup files in Runtime/UI | 4 |
+| Selector-lookup callsites in Runtime/UI | 7 |
+| Selector-lookup files in Runtime/UI | 3 |
 | Dataset read/write callsites in Runtime/UI | 34 |
 | Dataset files in Runtime/UI | 12 |
 | DOM expando callsites (`__cw...__`) | 0 |
@@ -163,6 +163,9 @@ Policy status:
 - No element expando surfaces in runtime/UI.
 - No clone-based transition/rendering paths.
 - Guardrails in place: owned-DOM lookups, async event listeners, UI document refs, architecture growth.
+- Added guardrails for registry backslide and bundled-runtime CI discipline:
+  - `scripts/guard-module-registry-growth.mts` + `docs/module-registry-growth-baseline.json`
+  - CI/runtime scripts now reject unbundled content-script mode (`CW_BUNDLE_CONTENT_SCRIPTS=0`) in CI.
 - Strict-size decomposition completed for the 2026-02-27 priority owners:
   - `extension/src/Data/HistoryRepositoryCache.ts` -> `HistoryRepositoryCache.ts` + `HistoryRepositoryCacheNormalization.ts`
   - `extension/src/Runtime/ContentRuntimeSetupDataInitialization.ts` -> thin composition + `ContentRuntimeSetupDataInitializationPhases.ts` + `ContentRuntimeSetupDataInitializationWatchlistHistory.ts`
@@ -171,6 +174,8 @@ Policy status:
   - `CuratedPanelGrid` render pass orchestration via `CuratedPanelGridRenderPass.ts`
   - `CuratedLoaderDeferredMetadata` chunk-finalization scheduling helpers
   - `ContentComposition` runtime assembly helpers
+- `ContentRuntimeSetup` no longer silently falls back to registry-hydrated setup modules; composition/data-init module dependencies are now explicit.
+- `CuratedPanelLoadingIndicator` now uses a class-based owner/controller with explicit owned refs/state.
 
 ### Not Completed
 
@@ -209,6 +214,8 @@ Done when:
 Progress notes:
 - 2026-02-27: Added bundled content-script build mode in `scripts/build-extension-runtime.mts` (`--bundle-content-scripts`), then wired all `build:runtime:*` scripts in `package.json` to emit one bundled file per `content_scripts` entry while preserving declared script order via generated side-effect imports.
 - 2026-02-27: Hardened bundling with fail-fast source-script existence checks and `treeShaking: false`; updated `scripts/run-playwright-suite.mts`, `scripts/live-runtime-smoke.mts`, and `scripts/live-webkit-watchlist.mts` so bundled mode is the default verification path (with explicit opt-out via `CW_BUNDLE_CONTENT_SCRIPTS=0`).
+- 2026-02-28: Added hard CI policy enforcement so unbundled runtime mode is rejected in CI paths (`build-extension-runtime`, `run-playwright-suite`, `live-runtime-smoke`, and `live-webkit-watchlist`).
+- 2026-02-28: Added `guard-module-registry-growth` baseline gate to block growth and new-file spread of `__CW_WATCHLIST_CURATOR_MODULES__` usage during migration.
 
 ## WS2: Boundary-Type Discipline Cleanup
 
@@ -236,7 +243,7 @@ Progress notes:
 
 ## WS3: Class-Based UI Owner/Controller Standardization
 
-Status: Not started
+Status: In progress
 Priority: P1
 
 Goal:
@@ -254,6 +261,9 @@ Deliverables:
 
 Done when:
 - UI manipulation paths are owner/class driven, ref-based, and teardown-safe.
+
+Progress notes:
+- 2026-02-28: Migrated `CuratedPanelLoadingIndicator` to a class-based controller with explicit owned state (`WeakMap` refs) and a single `sync(...)` patch surface.
 
 ## WS4: Native Interop Adapter Isolation and Cleanup
 
@@ -309,6 +319,7 @@ Required gates:
 - `npm run typecheck`
 - `npm run guard:dom-lookups`
 - `npm run guard:async-event-listeners`
+- `npm run guard:module-registry-growth`
 - `npm run guard:ui-document-ref`
 - `npm run lint`
 - `npm run format:check`
