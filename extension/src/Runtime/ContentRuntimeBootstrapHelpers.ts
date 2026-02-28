@@ -28,8 +28,6 @@ type RuntimeLockLifecycleControl = {
 type BootstrapRuntimeSession = {
   runtimeBootstrapGateModule: LooseRecord;
   runtimeBootstrapFinalizeModule: LooseRecord;
-  runtimeContentCompositionModule: LooseRecord;
-  runtimeContentRuntimeSetupModule: LooseRecord;
   runtimeStateLoaderModule: LooseRecord;
   runtimeLifecycleModule: LooseRecord;
   runtimeBootstrapHelpersModule: LooseRecord;
@@ -106,11 +104,12 @@ type RuntimeBootstrapDomLockRuntime = {
   releaseDomRuntimeLock: () => void;
   requestRuntimeTakeover: (targetInstanceId?: string) => void;
   clearStaleInjectedShell: (reason: string) => void;
-  resolveValidatedBootstrapContext: (moduleRegistryRef: unknown) => LooseRecord | null;
+  resolveValidatedBootstrapContext: () => LooseRecord | null;
   createRuntimeLockLifecycleControl: (options: RuntimeLockLifecycleOptions) => RuntimeLockLifecycleControl;
 };
 
 type RuntimeBootstrapSessionRuntime = {
+  createRuntimeSetup: (options: LooseRecord) => LooseRecord;
   createRuntimeSetupOptions: (options: LooseRecord) => LooseRecord;
   applyRuntimeSetupBindings: (options: {
     runtimeSetupResult: LooseRecord;
@@ -320,8 +319,11 @@ function createFallbackRuntimeBootstrapHelpers(
     clearStaleInjectedShell: (reason: string) => {
       domLockRuntime?.clearStaleInjectedShell(reason);
     },
-    resolveValidatedBootstrapContext: (moduleRegistryRef: unknown) =>
-      domLockRuntime?.resolveValidatedBootstrapContext(moduleRegistryRef) || null,
+    resolveValidatedBootstrapContext: () => domLockRuntime?.resolveValidatedBootstrapContext() || null,
+    createRuntimeSetup: () => ({
+      ok: false,
+      message: 'runtime setup unavailable',
+    }),
     createRuntimeSetupOptions: (options: LooseRecord) => toRecord(options),
     applyRuntimeSetupBindings: () => {},
     createRuntimeLockLifecycleControl: () => createFallbackRuntimeLockLifecycleControl(),
@@ -352,8 +354,8 @@ function createBoundContentRuntimeBootstrapHelpers(context: RuntimeBootstrapHelp
     releaseDomRuntimeLock: () => domLockRuntime.releaseDomRuntimeLock(),
     requestRuntimeTakeover: (targetInstanceId = '') => domLockRuntime.requestRuntimeTakeover(targetInstanceId),
     clearStaleInjectedShell: (reason: string) => domLockRuntime.clearStaleInjectedShell(reason),
-    resolveValidatedBootstrapContext: (moduleRegistryRef: unknown) =>
-      domLockRuntime.resolveValidatedBootstrapContext(moduleRegistryRef),
+    resolveValidatedBootstrapContext: () => domLockRuntime.resolveValidatedBootstrapContext(),
+    createRuntimeSetup: sessionRuntime.createRuntimeSetup,
     createRuntimeSetupOptions: sessionRuntime.createRuntimeSetupOptions,
     applyRuntimeSetupBindings: sessionRuntime.applyRuntimeSetupBindings,
     createRuntimeLockLifecycleControl: (options: RuntimeLockLifecycleOptions) =>

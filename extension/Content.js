@@ -145,7 +145,7 @@
   };
 
   const resolveRuntimeSetupResult = (runtimeBootstrapSession, bootstrapContext) => {
-    const runtimeSetupResult = runtimeBootstrapSession.runtimeContentRuntimeSetupModule.createContentRuntimeSetup(
+    const runtimeSetupResult = runtimeBootstrapHelpersRuntime.createRuntimeSetup(
       runtimeBootstrapHelpersRuntime.createRuntimeSetupOptions({
         windowRef: window,
         ...runtimeBootstrapSession,
@@ -191,7 +191,7 @@
       return;
     }
 
-    const bootstrapContext = runtimeBootstrapHelpersRuntime.resolveValidatedBootstrapContext(moduleRegistry);
+    const bootstrapContext = runtimeBootstrapHelpersRuntime.resolveValidatedBootstrapContext();
     if (!bootstrapContext) {
       return;
     }

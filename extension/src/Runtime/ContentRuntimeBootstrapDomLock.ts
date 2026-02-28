@@ -54,23 +54,13 @@ type RuntimeLockLifecycleControl = {
   shutdownRuntime: (payload?: LooseRecord) => void;
 };
 
-type BootstrapSessionCoreModules = {
-  runtimeBootstrapGateModule: LooseRecord;
-  runtimeBootstrapModulesModule: LooseRecord;
-  runtimeBootstrapFinalizeModule: LooseRecord;
-  bootstrapModulesRuntime: LooseRecord;
-  runtimeContentCompositionModule: LooseRecord;
-  runtimeContentRuntimeSetupModule: LooseRecord;
-  runtimeWatchlistHealthModule: LooseRecord;
-};
-
 type RuntimeBootstrapDomLockRuntime = {
   resolveRuntimeLockNode: () => HTMLElement | null;
   tryAcquireDomRuntimeLock: () => boolean;
   releaseDomRuntimeLock: () => void;
   requestRuntimeTakeover: (targetInstanceId?: string) => void;
   clearStaleInjectedShell: (reason: string) => void;
-  resolveValidatedBootstrapContext: (moduleRegistryRef: unknown) => LooseRecord | null;
+  resolveValidatedBootstrapContext: () => LooseRecord | null;
   createRuntimeLockLifecycleControl: (options: RuntimeLockLifecycleOptions) => RuntimeLockLifecycleControl;
 };
 
@@ -254,24 +244,7 @@ function clearStaleInjectedShellForContext(context: RuntimeBootstrapHelpersConte
   });
 }
 
-function resolveBootstrapModules(moduleRegistryRef: unknown): BootstrapSessionCoreModules {
-  const registry = toRecord(moduleRegistryRef);
-  return {
-    runtimeBootstrapGateModule: {},
-    runtimeBootstrapModulesModule: {},
-    runtimeBootstrapFinalizeModule: {},
-    bootstrapModulesRuntime: {},
-    runtimeContentCompositionModule: toRecord(registry.runtimeContentComposition),
-    runtimeContentRuntimeSetupModule: toRecord(registry.runtimeContentRuntimeSetup),
-    runtimeWatchlistHealthModule: toRecord(registry.runtimeWatchlistHealth),
-  };
-}
-
-function resolveValidatedBootstrapContextForContext(
-  context: RuntimeBootstrapHelpersContext,
-  moduleRegistryRef: unknown,
-): LooseRecord | null {
-  const resolvedModules = resolveBootstrapModules(moduleRegistryRef);
+function resolveValidatedBootstrapContextForContext(context: RuntimeBootstrapHelpersContext): LooseRecord | null {
   const bootstrapPrelude = createContentBootstrapPrelude({
     windowRef: context.windowRef,
     consoleRef: context.consoleRef,
@@ -284,21 +257,6 @@ function resolveValidatedBootstrapContextForContext(
   }
 
   const setBootstrapIssue = bootstrapPrelude.setBootstrapIssue as AnyFn;
-  if (typeof resolvedModules.runtimeContentCompositionModule.createContentComposition !== 'function') {
-    setBootstrapIssue('missing-content-composition-module');
-    clearStaleInjectedShellForContext(context, 'missing-content-composition-module');
-    return null;
-  }
-  if (typeof resolvedModules.runtimeContentRuntimeSetupModule.createContentRuntimeSetup !== 'function') {
-    setBootstrapIssue('missing-content-runtime-setup-module');
-    clearStaleInjectedShellForContext(context, 'missing-content-runtime-setup-module');
-    return null;
-  }
-  if (typeof resolvedModules.runtimeWatchlistHealthModule.createWatchlistHealthRuntime !== 'function') {
-    setBootstrapIssue('missing-watchlist-health-module');
-    clearStaleInjectedShellForContext(context, 'missing-watchlist-health-module');
-    return null;
-  }
 
   return {
     updateDiagnostics: bootstrapPrelude.updateDiagnostics as AnyFn,
@@ -307,9 +265,6 @@ function resolveValidatedBootstrapContextForContext(
     runtimeBootstrapModulesModule: toRecord(bootstrapPrelude.runtimeBootstrapModulesModule),
     runtimeBootstrapFinalizeModule: toRecord(bootstrapPrelude.runtimeBootstrapFinalizeModule),
     bootstrapModulesRuntime: toRecord(bootstrapPrelude.bootstrapModulesRuntime),
-    runtimeContentCompositionModule: resolvedModules.runtimeContentCompositionModule,
-    runtimeContentRuntimeSetupModule: resolvedModules.runtimeContentRuntimeSetupModule,
-    runtimeWatchlistHealthModule: resolvedModules.runtimeWatchlistHealthModule,
   };
 }
 
@@ -498,8 +453,7 @@ export function createContentRuntimeBootstrapDomLockRuntime({
     releaseDomRuntimeLock: () => releaseDomRuntimeLockForContext(context),
     requestRuntimeTakeover: (targetInstanceId = '') => requestRuntimeTakeoverForContext(context, targetInstanceId),
     clearStaleInjectedShell: (reason: string) => clearStaleInjectedShellForContext(context, reason),
-    resolveValidatedBootstrapContext: (moduleRegistryRef: unknown) =>
-      resolveValidatedBootstrapContextForContext(context, moduleRegistryRef),
+    resolveValidatedBootstrapContext: () => resolveValidatedBootstrapContextForContext(context),
     createRuntimeLockLifecycleControl: (options: RuntimeLockLifecycleOptions) =>
       createRuntimeLockLifecycleControlForContext(context, options),
   };

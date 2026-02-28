@@ -1,3 +1,5 @@
+let createWatchlistHealthRuntimeFactory: ((options?: object) => object) | null = null;
+
 (() => {
   type AnyFn = (...args: unknown[]) => unknown;
 
@@ -490,7 +492,16 @@
     };
   }
 
+  createWatchlistHealthRuntimeFactory = createWatchlistHealthRuntime as (options?: object) => object;
+
   moduleRegistry.runtimeWatchlistHealth = {
     createWatchlistHealthRuntime,
   };
 })();
+
+export function createWatchlistHealthRuntime(options: object = {}): object {
+  if (typeof createWatchlistHealthRuntimeFactory !== 'function') {
+    throw new Error('[CW] Watchlist health factory was not initialized.');
+  }
+  return createWatchlistHealthRuntimeFactory(options);
+}

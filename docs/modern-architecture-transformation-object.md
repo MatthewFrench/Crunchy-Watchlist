@@ -226,6 +226,18 @@ Progress notes:
   - `ContentRuntimeSetup` now binds `createContentComposition` directly from static imports with an explicit optional override hook.
   - `ContentRuntimeSetupComposition` now calls `createContentComposition` via direct import wiring (or explicit override), not `context.runtimeContentCompositionModule.createContentComposition`.
   - `ContentRuntimeBootstrapSetupBindings` no longer forwards `runtimeContentCompositionModule` into runtime-setup options.
+- 2026-02-28: Removed `runtimeContentCompositionModule` and `runtimeContentRuntimeSetupModule` from bootstrap-context/session payload plumbing:
+  - `ContentRuntimeBootstrapDomLock` no longer validates or forwards either module object through `resolveValidatedBootstrapContext`.
+  - `ContentRuntimeBootstrapSessionAssembly` no longer carries either module in runtime session composition.
+  - `Content.js` no longer reaches through `runtimeBootstrapSession.runtimeContentRuntimeSetupModule`; runtime setup execution now routes through `runtimeBootstrapHelpersRuntime.createRuntimeSetup(...)`.
+  - `ContentRuntimeBootstrapSession` now binds runtime setup via direct import (`createContentRuntimeSetup`) and exposes it through the session helper runtime.
+- 2026-02-28: Removed `runtimeWatchlistHealthModule` from bootstrap-context/session payload plumbing:
+  - `ContentRuntimeBootstrapDomLock` no longer validates or forwards watchlist-health registry module objects.
+  - `ContentRuntimeBootstrapSessionAssembly` now binds watchlist-health runtime via direct import (`createWatchlistHealthRuntime`) instead of bootstrap-context module injection.
+  - `WatchlistHealth` now exports a direct factory surface while preserving existing module-registry registration compatibility.
+- 2026-02-28: Simplified bootstrap validation API after registry-decoupling:
+  - `resolveValidatedBootstrapContext(...)` no longer accepts/passes a module-registry argument (`ContentRuntimeBootstrapDomLock`, `ContentRuntimeBootstrapHelpers`, `Content.js`).
+  - Bootstrap context validation now depends only on `createContentBootstrapPrelude(...)` output for runtime module wiring.
 
 ## WS2: Boundary-Type Discipline Cleanup
 

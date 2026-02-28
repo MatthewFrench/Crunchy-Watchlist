@@ -2,6 +2,8 @@ import { createContentComposition as createContentCompositionFactory } from './C
 import { createContentRuntimeSetupCompositionRuntime as createContentRuntimeSetupCompositionRuntimeFactory } from './ContentRuntimeSetupComposition.js';
 import { createContentRuntimeSetupDataInitializationRuntime as createContentRuntimeSetupDataInitializationRuntimeFactory } from './ContentRuntimeSetupDataInitialization.js';
 
+let createContentRuntimeSetupFactory: ((options?: object) => object) | null = null;
+
 (() => {
   type UnknownFn = (...args: unknown[]) => unknown;
   type RequireFunction = <T>(name: string, value: unknown) => T;
@@ -386,6 +388,8 @@ import { createContentRuntimeSetupDataInitializationRuntime as createContentRunt
     }
   }
 
+  createContentRuntimeSetupFactory = createContentRuntimeSetup as (options?: object) => object;
+
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
     root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
@@ -396,3 +400,10 @@ import { createContentRuntimeSetupDataInitializationRuntime as createContentRunt
     createContentRuntimeSetup,
   };
 })();
+
+export function createContentRuntimeSetup(options: object = {}): object {
+  if (typeof createContentRuntimeSetupFactory !== 'function') {
+    throw new Error('[CW] Content runtime setup factory was not initialized.');
+  }
+  return createContentRuntimeSetupFactory(options);
+}

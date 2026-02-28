@@ -143,11 +143,6 @@ describe('content-runtime-bootstrap-session runtime', () => {
       shutdownRuntime,
     }));
     const setRuntimeControl = vi.fn();
-    const watchlistHealthRuntime = {
-      start: vi.fn(),
-      stop: vi.fn(),
-      runCheck: vi.fn(),
-    };
     const assertRuntimeMethods = vi.fn();
     const createRuntimeState = vi.fn(() => ({
       processTimer: null,
@@ -195,11 +190,6 @@ describe('content-runtime-bootstrap-session runtime', () => {
           assertRuntimeMethods,
         },
         runtimeBootstrapFinalizeModule: {},
-        runtimeContentCompositionModule: {},
-        runtimeContentRuntimeSetupModule: {},
-        runtimeWatchlistHealthModule: {
-          createWatchlistHealthRuntime: vi.fn(() => watchlistHealthRuntime),
-        },
         bootstrapModulesRuntime: {
           runtimeStoreModule: {
             createRuntimeState,
@@ -241,11 +231,15 @@ describe('content-runtime-bootstrap-session runtime', () => {
     });
     expect(createRuntimeLockLifecycleControl).toHaveBeenCalledTimes(1);
     expect(startRuntimeTakeoverRequestListener).toHaveBeenCalledTimes(1);
-    expect(assertRuntimeMethods).toHaveBeenCalledWith('watchlist health runtime', watchlistHealthRuntime, [
-      'runCheck',
-      'start',
-      'stop',
-    ]);
+    expect(assertRuntimeMethods).toHaveBeenCalledWith(
+      'watchlist health runtime',
+      expect.objectContaining({
+        runCheck: expect.any(Function),
+        start: expect.any(Function),
+        stop: expect.any(Function),
+      }),
+      ['runCheck', 'start', 'stop'],
+    );
     expect(setRuntimeControl).toHaveBeenCalledWith(
       expect.objectContaining({
         version: '1.0.0',

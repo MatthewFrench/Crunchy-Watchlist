@@ -1,3 +1,5 @@
+import { createWatchlistHealthRuntime } from './WatchlistHealth.js';
+
 type AnyFn = (...args: unknown[]) => unknown;
 type LooseRecord = Record<string, unknown>;
 
@@ -54,9 +56,6 @@ type BootstrapSessionCoreModules = {
   runtimeBootstrapModulesModule: LooseRecord;
   runtimeBootstrapFinalizeModule: LooseRecord;
   bootstrapModulesRuntime: LooseRecord;
-  runtimeContentCompositionModule: LooseRecord;
-  runtimeContentRuntimeSetupModule: LooseRecord;
-  runtimeWatchlistHealthModule: LooseRecord;
 };
 
 type BootstrapSessionDependencies = {
@@ -104,8 +103,6 @@ type RuntimeBootstrapSessionSupportRuntime = {
 type BootstrapRuntimeSession = {
   runtimeBootstrapGateModule: LooseRecord;
   runtimeBootstrapFinalizeModule: LooseRecord;
-  runtimeContentCompositionModule: LooseRecord;
-  runtimeContentRuntimeSetupModule: LooseRecord;
   runtimeStateLoaderModule: LooseRecord;
   runtimeLifecycleModule: LooseRecord;
   runtimeBootstrapHelpersModule: LooseRecord;
@@ -163,9 +160,6 @@ function resolveBootstrapSessionCoreModules(bootstrapContext: LooseRecord): Boot
     runtimeBootstrapModulesModule: toRecord(bootstrapContext.runtimeBootstrapModulesModule),
     runtimeBootstrapFinalizeModule: toRecord(bootstrapContext.runtimeBootstrapFinalizeModule),
     bootstrapModulesRuntime: toRecord(bootstrapContext.bootstrapModulesRuntime),
-    runtimeContentCompositionModule: toRecord(bootstrapContext.runtimeContentCompositionModule),
-    runtimeContentRuntimeSetupModule: toRecord(bootstrapContext.runtimeContentRuntimeSetupModule),
-    runtimeWatchlistHealthModule: toRecord(bootstrapContext.runtimeWatchlistHealthModule),
   };
 }
 
@@ -232,7 +226,7 @@ function createWatchlistHealthRuntimeForSession({
   getProcessWatchlist: () => AnyFn;
   getSyncRouteRuntime: () => AnyFn;
 }): LooseRecord {
-  return (coreModules.runtimeWatchlistHealthModule.createWatchlistHealthRuntime as AnyFn)({
+  return createWatchlistHealthRuntime({
     state,
     windowRef: context.windowRef,
     runtimeEvent: (event: string, data: unknown) => getRuntimeEvent()(event, data),
@@ -344,8 +338,6 @@ function createBootstrapRuntimeSessionForContext({
   return {
     runtimeBootstrapGateModule: coreModules.runtimeBootstrapGateModule,
     runtimeBootstrapFinalizeModule: coreModules.runtimeBootstrapFinalizeModule,
-    runtimeContentCompositionModule: coreModules.runtimeContentCompositionModule,
-    runtimeContentRuntimeSetupModule: coreModules.runtimeContentRuntimeSetupModule,
     runtimeStateLoaderModule: sessionDependencies.runtimeStateLoaderModule,
     runtimeLifecycleModule: sessionDependencies.runtimeLifecycleModule,
     runtimeBootstrapHelpersModule: sessionDependencies.runtimeBootstrapHelpersModule,

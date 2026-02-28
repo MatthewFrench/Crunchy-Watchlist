@@ -2,6 +2,7 @@ import { createContentRuntimeBootstrapFinalizeFlowRuntime } from './ContentRunti
 import { createContentRuntimeBootstrapSessionAssemblyRuntime } from './ContentRuntimeBootstrapSessionAssembly.js';
 import { createContentRuntimeBootstrapSessionSupportRuntime } from './ContentRuntimeBootstrapSessionSupport.js';
 import { createContentRuntimeBootstrapSetupBindingsRuntime } from './ContentRuntimeBootstrapSetupBindings.js';
+import { createContentRuntimeSetup } from './ContentRuntimeSetup.js';
 
 type AnyFn = (...args: unknown[]) => unknown;
 type LooseRecord = Record<string, unknown>;
@@ -40,8 +41,6 @@ type RuntimeLockLifecycleControl = {
 type BootstrapRuntimeSession = {
   runtimeBootstrapGateModule: LooseRecord;
   runtimeBootstrapFinalizeModule: LooseRecord;
-  runtimeContentCompositionModule: LooseRecord;
-  runtimeContentRuntimeSetupModule: LooseRecord;
   runtimeStateLoaderModule: LooseRecord;
   runtimeLifecycleModule: LooseRecord;
   runtimeBootstrapHelpersModule: LooseRecord;
@@ -70,6 +69,7 @@ type BootstrapRuntimeSession = {
 };
 
 type RuntimeBootstrapSessionRuntime = {
+  createRuntimeSetup: (options: LooseRecord) => LooseRecord;
   createRuntimeSetupOptions: (options: LooseRecord) => LooseRecord;
   applyRuntimeSetupBindings: (options: {
     runtimeSetupResult: LooseRecord;
@@ -210,6 +210,7 @@ export function createContentRuntimeBootstrapSessionRuntime({
   const bootstrapSessionAssemblyRuntime = createBootstrapSessionAssemblyRuntime();
 
   return {
+    createRuntimeSetup: (options: LooseRecord) => createContentRuntimeSetup(options) as LooseRecord,
     createRuntimeSetupOptions: runtimeSetupBindingsRuntime.createRuntimeSetupOptions,
     applyRuntimeSetupBindings: runtimeSetupBindingsRuntime.applyRuntimeSetupBindings,
     createRuntimeBootstrapSession: ({ bootstrapContext }: { bootstrapContext: LooseRecord }) =>
