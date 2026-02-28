@@ -249,12 +249,13 @@ async function bundleManifestContentScripts(
 
     const tempEntryFileName = `.cw-content-script-${index}.entry.js`;
     const tempEntryPath = path.join(outputDir, tempEntryFileName);
-    const bundledFileName = `ContentScript.${index}.bundle.js`;
+    const bundledFileName = path.posix.join('src', `ContentScript.${index}.bundle.js`);
     const bundledFilePath = path.join(outputDir, bundledFileName);
     const entryContents = scriptPaths
       .map((scriptPath) => `import "${normalizeImportSpecifier(scriptPath)}";`)
       .join('\n');
     await fs.writeFile(tempEntryPath, `${entryContents}\n`, 'utf8');
+    await ensureDirectoryForFile(bundledFilePath);
 
     try {
       await build({
