@@ -13,7 +13,6 @@ const buildScriptPath = path.join(repoRoot, 'scripts', 'build-extension-runtime.
 const playwrightCliPath = path.join(repoRoot, 'node_modules', '@playwright', 'test', 'cli.js');
 const keepRuntimeOutput = /^(1|true|yes)$/i.test(String(process.env.CW_KEEP_E2E_RUNTIME || '').trim());
 const bundleContentScripts = !/^(0|false|no)$/i.test(String(process.env.CW_BUNDLE_CONTENT_SCRIPTS ?? '1').trim());
-const ciEnvironment = /^(1|true|yes)$/i.test(String(process.env.CI || '').trim());
 
 type CommandResult = {
   code: number;
@@ -94,8 +93,8 @@ function allocateFixtureServerPort(): Promise<number> {
 }
 
 async function main(): Promise<void> {
-  if (ciEnvironment && !bundleContentScripts) {
-    throw new Error('CW_BUNDLE_CONTENT_SCRIPTS=0 is forbidden in CI; bundled content scripts are required.');
+  if (!bundleContentScripts) {
+    throw new Error('CW_BUNDLE_CONTENT_SCRIPTS=0 is no longer supported; bundled content scripts are required.');
   }
 
   const playwrightArgs = process.argv.slice(2);
@@ -104,8 +103,8 @@ async function main(): Promise<void> {
   const commandEnv = createPlaywrightEnv(runtimeDir, fixtureServerPort);
 
   try {
-    const bundleFlag = bundleContentScripts ? '--bundle-content-scripts' : '--no-bundle-content-scripts';
-    process.stdout.write(`[e2e-runtime] Content script mode: ${bundleContentScripts ? 'bundled' : 'unbundled'}\n`);
+    const bundleFlag = '--bundle-content-scripts';
+    process.stdout.write('[e2e-runtime] Content script mode: bundled\n');
     process.stdout.write(`[e2e-runtime] Building generated runtime at ${runtimeDir}\n`);
     process.stdout.write(`[e2e-runtime] Reserved fixture server port ${fixtureServerPort}\n`);
     const buildResult = await runCommand('tsx', [buildScriptPath, bundleFlag, '--out', runtimeDir], commandEnv);

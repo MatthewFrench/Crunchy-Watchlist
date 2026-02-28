@@ -163,9 +163,9 @@ Policy status:
 - No element expando surfaces in runtime/UI.
 - No clone-based transition/rendering paths.
 - Guardrails in place: owned-DOM lookups, async event listeners, UI document refs, architecture growth.
-- Added guardrails for registry backslide and bundled-runtime CI discipline:
+- Added guardrails for registry backslide and bundled-runtime discipline:
   - `scripts/guard-module-registry-growth.mts` + `docs/module-registry-growth-baseline.json`
-  - CI/runtime scripts now reject unbundled content-script mode (`CW_BUNDLE_CONTENT_SCRIPTS=0`) in CI.
+  - Runtime build/verification scripts now reject unbundled content-script mode (`CW_BUNDLE_CONTENT_SCRIPTS=0`) in all environments.
 - Strict-size decomposition completed for the 2026-02-27 priority owners:
   - `extension/src/Data/HistoryRepositoryCache.ts` -> `HistoryRepositoryCache.ts` + `HistoryRepositoryCacheNormalization.ts`
   - `extension/src/Runtime/ContentRuntimeSetupDataInitialization.ts` -> thin composition + `ContentRuntimeSetupDataInitializationPhases.ts` + `ContentRuntimeSetupDataInitializationWatchlistHistory.ts`
@@ -213,8 +213,9 @@ Done when:
 
 Progress notes:
 - 2026-02-27: Added bundled content-script build mode in `scripts/build-extension-runtime.mts` (`--bundle-content-scripts`), then wired all `build:runtime:*` scripts in `package.json` to emit one bundled file per `content_scripts` entry while preserving declared script order via generated side-effect imports.
-- 2026-02-27: Hardened bundling with fail-fast source-script existence checks and `treeShaking: false`; updated `scripts/run-playwright-suite.mts`, `scripts/live-runtime-smoke.mts`, and `scripts/live-webkit-watchlist.mts` so bundled mode is the default verification path (with explicit opt-out via `CW_BUNDLE_CONTENT_SCRIPTS=0`).
-- 2026-02-28: Added hard CI policy enforcement so unbundled runtime mode is rejected in CI paths (`build-extension-runtime`, `run-playwright-suite`, `live-runtime-smoke`, and `live-webkit-watchlist`).
+- 2026-02-27: Hardened bundling with fail-fast source-script existence checks and `treeShaking: false`; updated `scripts/run-playwright-suite.mts`, `scripts/live-runtime-smoke.mts`, and `scripts/live-webkit-watchlist.mts` so bundled mode is the default verification path.
+- 2026-02-28: Elevated bundled runtime to a hard policy in all environments; unbundled runtime mode is rejected in `build-extension-runtime`, `run-playwright-suite`, `live-runtime-smoke`, and `live-webkit-watchlist`.
+- 2026-02-28: Added Safari packaged-manifest validation in `scripts/build-safari-macos.sh` to fail builds when any `content_scripts[].js` path is missing from packaged `.appex` resources.
 - 2026-02-28: Added `guard-module-registry-growth` baseline gate to block growth and new-file spread of `__CW_WATCHLIST_CURATOR_MODULES__` usage during migration.
 - 2026-02-28: Reduced registry coupling in bootstrap flow by switching helper/session wiring to static module imports for owned dependencies (`ContentRuntimeBootstrapHelpers`, `ContentRuntimeBootstrapSession`, and `ContentRuntimeBootstrapDomLock`), while retaining registry registration compatibility at module boundaries.
 

@@ -26,7 +26,6 @@ const sourceManifestPath = path.join(repoRoot, 'extension', 'manifest.json');
 const buildScriptPath = path.join(repoRoot, 'scripts', 'build-extension-runtime.mts');
 const keepOutput = /^(1|true|yes)$/i.test(String(process.env.CW_KEEP_LIVE_SMOKE_RUNTIME || '').trim());
 const bundleContentScripts = !/^(0|false|no)$/i.test(String(process.env.CW_BUNDLE_CONTENT_SCRIPTS ?? '1').trim());
-const ciEnvironment = /^(1|true|yes)$/i.test(String(process.env.CI || '').trim());
 
 function runCommand(command: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -97,20 +96,18 @@ async function assertFilesExist(baseDir: string, relativePaths: string[]): Promi
 }
 
 async function main(): Promise<void> {
-  if (ciEnvironment && !bundleContentScripts) {
-    throw new Error('CW_BUNDLE_CONTENT_SCRIPTS=0 is forbidden in CI; bundled content scripts are required.');
+  if (!bundleContentScripts) {
+    throw new Error('CW_BUNDLE_CONTENT_SCRIPTS=0 is no longer supported; bundled content scripts are required.');
   }
 
   const tmpRoot = path.join(repoRoot, '.tmp');
   await fs.mkdir(tmpRoot, { recursive: true });
   const runtimeDir = await fs.mkdtemp(path.join(tmpRoot, 'extension-runtime-live-smoke-'));
   const runtimeManifestPath = path.join(runtimeDir, 'manifest.json');
-  const bundleFlag = bundleContentScripts ? '--bundle-content-scripts' : '--no-bundle-content-scripts';
+  const bundleFlag = '--bundle-content-scripts';
 
   try {
-    process.stdout.write(
-      `[live-smoke] Building generated runtime at ${runtimeDir} (${bundleContentScripts ? 'bundled' : 'unbundled'})\n`,
-    );
+    process.stdout.write(`[live-smoke] Building generated runtime at ${runtimeDir} (bundled)\n`);
     await runCommand('tsx', [buildScriptPath, bundleFlag, '--out', runtimeDir]);
 
     const sourceAssets = await readManifestAssets(sourceManifestPath);
@@ -118,27 +115,20 @@ async function main(): Promise<void> {
 
     assertArrayEqual('content_scripts[0].css', sourceAssets.cssFiles, runtimeAssets.cssFiles);
 
-    if (bundleContentScripts) {
-      if (runtimeAssets.jsFiles.length !== 1) {
-        throw new Error(
-          `Bundled runtime expected one JS entry for content_scripts[0], received ${runtimeAssets.jsFiles.length}.`,
-        );
-      }
-      const bundledFile = runtimeAssets.jsFiles[0] || '';
-      if (!bundledFile.endsWith('.bundle.js')) {
-        throw new Error(`Bundled runtime expected a *.bundle.js script, received "${bundledFile}".`);
-      }
-    } else {
-      assertArrayEqual('content_scripts[0].js', sourceAssets.jsFiles, runtimeAssets.jsFiles);
-      if (!runtimeAssets.jsFiles.length || runtimeAssets.jsFiles[runtimeAssets.jsFiles.length - 1] !== 'Content.js') {
-        throw new Error('Generated runtime content script ordering is invalid: expected Content.js as final JS entry.');
-      }
+    if (runtimeAssets.jsFiles.length !== 1) {
+      throw new Error(
+        `Bundled runtime expected one JS entry for content_scripts[0], received ${runtimeAssets.jsFiles.length}.`,
+      );
+    }
+    const bundledFile = runtimeAssets.jsFiles[0] || '';
+    if (!bundledFile.endsWith('.bundle.js')) {
+      throw new Error(`Bundled runtime expected a *.bundle.js script, received "${bundledFile}".`);
     }
 
     await assertFilesExist(runtimeDir, [...runtimeAssets.cssFiles, ...runtimeAssets.jsFiles]);
 
     process.stdout.write(
-      `[live-smoke] OK: manifest/assets validated (${runtimeAssets.cssFiles.length} css, ${runtimeAssets.jsFiles.length} js, mode=${bundleContentScripts ? 'bundled' : 'unbundled'}).\n`,
+      `[live-smoke] OK: manifest/assets validated (${runtimeAssets.cssFiles.length} css, ${runtimeAssets.jsFiles.length} js, mode=bundled).\n`,
     );
   } finally {
     if (!keepOutput) {

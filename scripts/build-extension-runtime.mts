@@ -34,17 +34,10 @@ interface ExtensionManifest {
   }>;
 }
 
-function isCiEnvironment(): boolean {
-  const ciValue = String(process.env.CI || '')
-    .trim()
-    .toLowerCase();
-  return ciValue === '1' || ciValue === 'true' || ciValue === 'yes';
-}
-
 function parseCliOptions(argv: string[]): CliOptions {
   let sourceDir = defaultSourceDir;
   let outputDir = defaultOutputDir;
-  let bundleContentScripts = false;
+  let bundleContentScripts = true;
 
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
@@ -87,14 +80,13 @@ function parseCliOptions(argv: string[]): CliOptions {
 }
 
 function assertBundledRuntimePolicy(options: CliOptions): void {
-  if (!isCiEnvironment()) {
-    return;
-  }
   if (options.bundleContentScripts) {
     return;
   }
 
-  throw new Error('Unbundled content-script runtime builds are forbidden in CI. Remove --no-bundle-content-scripts.');
+  throw new Error(
+    'Unbundled content-script runtime builds are no longer supported. Remove --no-bundle-content-scripts.',
+  );
 }
 
 function isTranspilableTypeScriptFile(filePath: string): boolean {

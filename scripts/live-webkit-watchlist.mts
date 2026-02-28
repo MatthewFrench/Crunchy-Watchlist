@@ -52,7 +52,6 @@ const runtimeOutputRelativeDir = String(process.env.EXTENSION_RUNTIME_DIR || '.t
 const runtimeOutputDir = path.resolve(repoRoot, runtimeOutputRelativeDir);
 const manifestPath = path.join(runtimeOutputDir, 'manifest.json');
 const bundleContentScripts = !/^(0|false|no)$/i.test(String(process.env.CW_BUNDLE_CONTENT_SCRIPTS ?? '1').trim());
-const ciEnvironment = /^(1|true|yes)$/i.test(String(process.env.CI || '').trim());
 const hotReloadEnabled = !/^(0|false|no)$/i.test(String(process.env.CW_PW_HOT_RELOAD ?? '1'));
 const execFileAsync = promisify(execFile);
 
@@ -73,12 +72,12 @@ function getErrorMessage(error: unknown): string {
 }
 
 async function buildGeneratedRuntime(): Promise<void> {
-  if (ciEnvironment && !bundleContentScripts) {
-    throw new Error('CW_BUNDLE_CONTENT_SCRIPTS=0 is forbidden in CI; bundled content scripts are required.');
+  if (!bundleContentScripts) {
+    throw new Error('CW_BUNDLE_CONTENT_SCRIPTS=0 is no longer supported; bundled content scripts are required.');
   }
 
   const buildScriptPath = path.join(repoRoot, 'scripts', 'build-extension-runtime.mts');
-  const bundleFlag = bundleContentScripts ? '--bundle-content-scripts' : '--no-bundle-content-scripts';
+  const bundleFlag = '--bundle-content-scripts';
   try {
     await execFileAsync('tsx', [buildScriptPath, bundleFlag, '--out', runtimeOutputDir], {
       cwd: repoRoot,
