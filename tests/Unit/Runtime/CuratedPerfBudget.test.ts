@@ -67,6 +67,12 @@ const curatedPanelGridModuleUrl = pathToFileURL(
 const curatedPanelGridTransitionsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridTransitions.ts'),
 ).href;
+const curatedPanelGridSignatureModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridSignature.ts'),
+).href;
+const curatedPanelGridRenderPhasesModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridRenderPhases.ts'),
+).href;
 const curatedPanelLoadingIndicatorModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelLoadingIndicator.ts'),
 ).href;
@@ -330,6 +336,8 @@ describe('curated perf budgets', () => {
       curatedRenderableMergeSupportModuleUrl,
       curatedRenderableModuleUrl,
       curatedPanelGridTransitionsModuleUrl,
+      curatedPanelGridSignatureModuleUrl,
+      curatedPanelGridRenderPhasesModuleUrl,
       curatedPanelGridModuleUrl,
       curatedPanelLoadingIndicatorModuleUrl,
       curatedPanelModuleUrl,

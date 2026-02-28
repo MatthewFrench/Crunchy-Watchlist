@@ -49,6 +49,12 @@ const curatedPanelGridModuleUrl = pathToFileURL(
 const curatedPanelGridTransitionsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridTransitions.ts'),
 ).href;
+const curatedPanelGridSignatureModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridSignature.ts'),
+).href;
+const curatedPanelGridRenderPhasesModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridRenderPhases.ts'),
+).href;
 const curatedPanelLoadingIndicatorModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelLoadingIndicator.ts'),
 ).href;
@@ -236,6 +242,8 @@ describe('curated-panel runtime', () => {
   beforeEach(async () => {
     await loadRuntimeModules([
       curatedPanelGridTransitionsModuleUrl,
+      curatedPanelGridSignatureModuleUrl,
+      curatedPanelGridRenderPhasesModuleUrl,
       curatedPanelGridModuleUrl,
       curatedPanelLoadingIndicatorModuleUrl,
       curatedPanelModuleUrl,
@@ -1505,6 +1513,132 @@ describe('curated-panel runtime', () => {
     expect(gridEl.children[0]).toBe(firstCard);
     expect(gridEl.children[0]?.dataset.cwLoadingDetails).toBe('false');
     expect(gridEl.children[0]?.dataset.cwPatchedDescription).toBe('Updated description');
+  });
+
+  it('patches the existing card when metadata loading settles even if entry content did not change', () => {
+    const gridEl = createFakeElement();
+    const statsEl = createFakeElement();
+    const loadingIndicatorEl = createFakeElement();
+    const renderables = [
+      [
+        {
+          seriesId: 'series-1',
+          title: 'Series 1',
+          description: 'Stable description',
+          rating: 4.2,
+          votes: 120,
+          distribution: { 5: 60 },
+          neverWatched: false,
+          lastWatchedMs: null,
+          watchHistoryProgressEntry: null,
+        },
+      ],
+      [
+        {
+          seriesId: 'series-1',
+          title: 'Series 1',
+          description: 'Stable description',
+          rating: 4.2,
+          votes: 120,
+          distribution: { 5: 60 },
+          neverWatched: false,
+          lastWatchedMs: null,
+          watchHistoryProgressEntry: null,
+        },
+      ],
+    ];
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [],
+      curatedInflight: Promise.resolve([]) as Promise<unknown[]> | null,
+      curatedPendingRequests: ['Fetching watch history (/watch-history/v2/{account_id}/watchlist)'],
+      curatedPendingRequestStartedCount: 2,
+      curatedPendingRequestCompletedCount: 1,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    };
+    let renderIndex = 0;
+    let createdCards = 0;
+    let patchedCards = 0;
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: (entry: Record<string, unknown>) => {
+        createdCards += 1;
+        const card = createFakeElement();
+        card.className = 'cw-curated-card';
+        card.dataset.cwSeriesId = String(entry.seriesId || '');
+        return card;
+      },
+      patchCuratedCard: (card: Record<string, unknown>) => {
+        patchedCards += 1;
+        const dataset = (card.dataset && typeof card.dataset === 'object' ? card.dataset : {}) as Record<
+          string,
+          string
+        >;
+        dataset.cwPatchedCount = String(patchedCards);
+        card.dataset = dataset;
+      },
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => {
+        const visible = renderables[renderIndex] || [];
+        return {
+          mode: 'hide',
+          total: visible.length,
+          visible,
+          audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+          genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+          selectedAudioFilter: 'any',
+          selectedGenreFilter: 'any',
+        };
+      },
+      withMutedObserver: (work: () => void) => {
+        work();
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    });
+
+    runtime.renderCuratedPanel();
+    const firstCard = gridEl.children[0];
+    expect(createdCards).toBe(1);
+    expect(firstCard?.dataset.cwLoadingDetails).toBe('true');
+
+    renderIndex = 1;
+    runtime.renderCuratedPanel();
+
+    expect(createdCards).toBe(1);
+    expect(patchedCards).toBe(0);
+    expect(gridEl.children[0]).toBe(firstCard);
+    expect(gridEl.children[0]?.dataset.cwLoadingDetails).toBe('true');
+
+    state.curatedInflight = null;
+    state.curatedPendingRequests = [];
+    state.curatedPendingRequestStartedCount = 2;
+    state.curatedPendingRequestCompletedCount = 2;
+
+    runtime.renderCuratedPanel();
+
+    expect(createdCards).toBe(1);
+    expect(patchedCards).toBe(1);
+    expect(gridEl.children[0]).toBe(firstCard);
+    expect(gridEl.children[0]?.dataset.cwLoadingDetails).toBe('false');
+    expect(gridEl.children[0]?.dataset.cwPatchedCount).toBe('1');
   });
 
   it('defers card refresh while deferred metadata is inflight, then patches in place', () => {

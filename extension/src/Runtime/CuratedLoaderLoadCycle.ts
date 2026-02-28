@@ -133,16 +133,23 @@
     let profileId = getString(tokenEntry?.profileId);
 
     if (!shouldForceRefresh && (!accessToken || !accountId || !profileId)) {
-      tokenEntry = await pendingRequestsRuntime.withTrackedPendingRequest(
+      const refreshedTokenEntry = await pendingRequestsRuntime.withTrackedPendingRequest(
         context,
         activeRequests,
         progress,
         'Refreshing Crunchyroll API token (/auth/v1/token)',
         () => context.getAccessToken(true),
       );
-      accessToken = getString(tokenEntry?.accessToken);
-      accountId = getString(tokenEntry?.accountId);
-      profileId = getString(tokenEntry?.profileId);
+      const refreshedAccessToken = getString(refreshedTokenEntry?.accessToken);
+      const refreshedAccountId = getString(refreshedTokenEntry?.accountId);
+      const refreshedProfileId = getString(refreshedTokenEntry?.profileId);
+
+      if (refreshedAccessToken && refreshedAccountId) {
+        tokenEntry = refreshedTokenEntry;
+        accessToken = refreshedAccessToken;
+        accountId = refreshedAccountId;
+        profileId = refreshedProfileId;
+      }
     }
 
     if (!accessToken || !accountId) {

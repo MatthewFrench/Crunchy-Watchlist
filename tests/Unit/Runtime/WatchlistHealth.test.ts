@@ -199,6 +199,7 @@ describe('watchlist-health runtime', () => {
     harness.runtime.stop();
 
     expect(harness.setIntervalSpy).toHaveBeenCalledTimes(1);
+    expect(harness.setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 1_500);
     expect(harness.clearIntervalSpy).toHaveBeenCalledWith(42);
   });
 

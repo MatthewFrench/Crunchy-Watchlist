@@ -191,7 +191,7 @@
       blankShellReloadCooldownMs: normalizePositiveNumber(options.blankShellReloadCooldownMs, 60_000),
       blankShellReloadMaxPerSession: normalizePositiveNumber(options.blankShellReloadMaxPerSession, 1),
       blankShellRecoveryStabilizeMs: normalizePositiveNumber(options.blankShellRecoveryStabilizeMs, 4_000),
-      blankShellCheckIntervalMs: normalizePositiveNumber(options.blankShellCheckIntervalMs, 5_000),
+      blankShellCheckIntervalMs: normalizePositiveNumber(options.blankShellCheckIntervalMs, 1_500),
       identityChurnWarnCooldownMs: normalizePositiveNumber(options.identityChurnWarnCooldownMs, 15_000),
       identityChurnMinCreatedDelta: normalizePositiveNumber(options.identityChurnMinCreatedDelta, 20),
       identityChurnWarnRate: normalizeRateNumber(options.identityChurnWarnRate, 0.6),

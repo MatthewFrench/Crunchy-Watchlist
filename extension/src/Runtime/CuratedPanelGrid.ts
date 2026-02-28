@@ -1,3 +1,5 @@
+import { getElementDataAttribute, setElementDataAttribute, toggleClassNameToken } from './CuratedPanelGridDom.js';
+
 (() => {
   type CuratedPanelGridState = {
     curatedError: unknown;
@@ -44,6 +46,18 @@
     ) => void;
   };
 
+  type CuratedPanelGridSignatureRuntime = {
+    normalizeCardLayout: (value: unknown) => CuratedCardLayout;
+    buildCuratedCardContentSignature: (entry: Record<string, unknown>, cardLayout: unknown) => string;
+    parseCardLayoutFromContentSignature: (signature: string) => CuratedCardLayout | null;
+  };
+
+  type CuratedPanelGridRenderPhasesRuntime = {
+    shouldSkipCuratedGridRender: (options: Record<string, unknown>) => boolean;
+    renderEmptyCuratedGridState: (options: Record<string, unknown>) => void;
+    renderVisibleCuratedGridState: (options: Record<string, unknown>) => void;
+  };
+
   type CuratedCardLayout = 'portrait' | 'landscape';
 
   type CuratedCardController = {
@@ -67,6 +81,7 @@
   const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
   const maxParkedCardCount = 180;
   const maxParkedCardAgeMs = 5 * 60_000;
+  let cachedSignatureRuntime: CuratedPanelGridSignatureRuntime | null = null;
 
   function toNonNegativeInt(value: unknown): number {
     const normalizedValue = Number(value);
@@ -155,6 +170,67 @@
     };
   }
 
+  function resolveCuratedPanelGridSignatureRuntime(): CuratedPanelGridSignatureRuntime {
+    const createRuntime = requireRuntimeFactory<unknown>(
+      'runtimeCuratedPanelGridSignature',
+      'createCuratedPanelGridSignatureRuntime',
+    );
+    const runtime = createRuntime();
+    if (!runtime || typeof runtime !== 'object') {
+      throw new Error('[CW] Missing curated panel grid dependency: runtimeCuratedPanelGridSignature.runtime');
+    }
+
+    return {
+      normalizeCardLayout: requireFunction(
+        'runtimeCuratedPanelGridSignature.normalizeCardLayout',
+        (runtime as Record<string, unknown>).normalizeCardLayout,
+      ),
+      buildCuratedCardContentSignature: requireFunction(
+        'runtimeCuratedPanelGridSignature.buildCuratedCardContentSignature',
+        (runtime as Record<string, unknown>).buildCuratedCardContentSignature,
+      ),
+      parseCardLayoutFromContentSignature: requireFunction(
+        'runtimeCuratedPanelGridSignature.parseCardLayoutFromContentSignature',
+        (runtime as Record<string, unknown>).parseCardLayoutFromContentSignature,
+      ),
+    };
+  }
+
+  function resolveCuratedPanelGridRenderPhasesRuntime(): CuratedPanelGridRenderPhasesRuntime {
+    const createRuntime = requireRuntimeFactory<unknown>(
+      'runtimeCuratedPanelGridRenderPhases',
+      'createCuratedPanelGridRenderPhasesRuntime',
+    );
+    const runtime = createRuntime();
+    if (!runtime || typeof runtime !== 'object') {
+      throw new Error('[CW] Missing curated panel grid dependency: runtimeCuratedPanelGridRenderPhases.runtime');
+    }
+
+    return {
+      shouldSkipCuratedGridRender: requireFunction(
+        'runtimeCuratedPanelGridRenderPhases.shouldSkipCuratedGridRender',
+        (runtime as Record<string, unknown>).shouldSkipCuratedGridRender,
+      ),
+      renderEmptyCuratedGridState: requireFunction(
+        'runtimeCuratedPanelGridRenderPhases.renderEmptyCuratedGridState',
+        (runtime as Record<string, unknown>).renderEmptyCuratedGridState,
+      ),
+      renderVisibleCuratedGridState: requireFunction(
+        'runtimeCuratedPanelGridRenderPhases.renderVisibleCuratedGridState',
+        (runtime as Record<string, unknown>).renderVisibleCuratedGridState,
+      ),
+    };
+  }
+
+  function getCuratedPanelGridSignatureRuntime(): CuratedPanelGridSignatureRuntime {
+    if (cachedSignatureRuntime) {
+      return cachedSignatureRuntime;
+    }
+
+    cachedSignatureRuntime = resolveCuratedPanelGridSignatureRuntime();
+    return cachedSignatureRuntime;
+  }
+
   function getEntrySeriesId(entry: Record<string, unknown>): string {
     const value = entry.seriesId;
     if (typeof value === 'string') {
@@ -164,105 +240,6 @@
       return '';
     }
     return String(value).trim();
-  }
-
-  function normalizeCardLayout(value: unknown): CuratedCardLayout {
-    return value === 'landscape' ? 'landscape' : 'portrait';
-  }
-
-  function updateRevisionHash(hash: number, value: string): number {
-    let next = hash >>> 0;
-    for (let index = 0; index < value.length; index += 1) {
-      next ^= value.charCodeAt(index);
-      next = Math.imul(next, 16777619) >>> 0;
-    }
-    return next >>> 0;
-  }
-
-  function hashRevisionToken(hash: number, value: unknown, seen: Set<unknown>): number {
-    if (value == null) {
-      return updateRevisionHash(hash, 'null');
-    }
-
-    if (typeof value === 'string') {
-      return updateRevisionHash(hash, `str:${value}`);
-    }
-
-    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
-      return updateRevisionHash(hash, `${typeof value}:${String(value)}`);
-    }
-
-    if (Array.isArray(value)) {
-      let next = updateRevisionHash(hash, `arr:${value.length}`);
-      value.forEach((item) => {
-        next = hashRevisionToken(next, item, seen);
-      });
-      return next;
-    }
-
-    if (typeof value === 'object') {
-      if (seen.has(value)) {
-        return updateRevisionHash(hash, 'circular');
-      }
-      seen.add(value);
-      const record = value as Record<string, unknown>;
-      const keys = Object.keys(record).sort();
-      let next = updateRevisionHash(hash, `obj:${keys.length}`);
-      keys.forEach((key) => {
-        next = updateRevisionHash(next, `key:${key}`);
-        next = hashRevisionToken(next, record[key], seen);
-      });
-      seen.delete(value);
-      return next;
-    }
-
-    return updateRevisionHash(hash, `${typeof value}:${String(value)}`);
-  }
-
-  function buildEntryRevisionToken(entry: Record<string, unknown>): string {
-    return hashRevisionToken(2166136261, entry, new Set<unknown>()).toString(16);
-  }
-
-  function buildCuratedCardContentSignature(entry: Record<string, unknown>, cardLayout: unknown): string {
-    const normalizedCardLayout = normalizeCardLayout(cardLayout);
-    return `l:${normalizedCardLayout}|r:${buildEntryRevisionToken(entry)}`;
-  }
-
-  function getElementDataAttribute(element: Element, datasetKey: string, attributeName: string): string {
-    const datasetValue = (element as Element & { dataset?: Record<string, unknown> }).dataset?.[datasetKey];
-    if (typeof datasetValue === 'string') {
-      return datasetValue;
-    }
-    if (typeof element.getAttribute !== 'function') {
-      return '';
-    }
-    return element.getAttribute(attributeName) || '';
-  }
-
-  function setElementDataAttribute(element: Element, datasetKey: string, attributeName: string, value: string): void {
-    const dataset = (element as Element & { dataset?: Record<string, unknown> }).dataset;
-    if (dataset && typeof dataset === 'object') {
-      dataset[datasetKey] = value;
-      return;
-    }
-    if (typeof element.setAttribute === 'function') {
-      element.setAttribute(attributeName, value);
-    }
-  }
-
-  function toggleClassNameToken(className: string, token: string, enabled: boolean): string {
-    const classTokens = className
-      .split(' ')
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const hasToken = classTokens.includes(token);
-    if (enabled && !hasToken) {
-      classTokens.push(token);
-    }
-    if (!enabled && hasToken) {
-      return classTokens.filter((item) => item !== token).join(' ');
-    }
-    return classTokens.join(' ');
   }
 
   function annotateCuratedCardElement(
@@ -328,20 +305,6 @@
     return false;
   }
 
-  function parseCardLayoutFromContentSignature(signature: string): CuratedCardLayout | null {
-    if (!signature) {
-      return null;
-    }
-
-    if (signature.startsWith('l:landscape|')) {
-      return 'landscape';
-    }
-    if (signature.startsWith('l:portrait|')) {
-      return 'portrait';
-    }
-    return null;
-  }
-
   function createOrReuseCuratedCard(
     state: CuratedPanelGridState,
     runtimeState: CuratedPanelGridRuntimeState,
@@ -352,8 +315,9 @@
     detailsLoading: boolean,
   ): Element {
     const seriesId = getEntrySeriesId(entry);
-    const normalizedCardLayout = normalizeCardLayout(state.settings.cardLayout);
-    const contentSignature = buildCuratedCardContentSignature(entry, normalizedCardLayout);
+    const signatureRuntime = getCuratedPanelGridSignatureRuntime();
+    const normalizedCardLayout = signatureRuntime.normalizeCardLayout(state.settings.cardLayout);
+    const contentSignature = signatureRuntime.buildCuratedCardContentSignature(entry, normalizedCardLayout);
 
     if (!seriesId || usedSeriesIds.has(seriesId)) {
       const nextCard = createCuratedCard(entry);
@@ -381,11 +345,15 @@
 
     const previousSignature = controller.contentSignature;
     const hasMatchingSignature = previousSignature === contentSignature;
+    const previousDetailsLoading =
+      getElementDataAttribute(controller.card, 'cwLoadingDetails', 'data-cw-loading-details') === 'true';
+    const detailsLoadingResolved = previousDetailsLoading && !detailsLoading;
     // Preserve existing nodes while metadata is still enriching so skeleton shimmers don't reset.
     const canDeferContentRefresh =
       detailsLoading && Boolean(previousSignature) && controller.cardLayout === normalizedCardLayout;
 
-    if (!hasMatchingSignature && !canDeferContentRefresh) {
+    const shouldPatchForContent = !hasMatchingSignature && !canDeferContentRefresh;
+    if (shouldPatchForContent) {
       if (typeof patchCuratedCard === 'function') {
         patchCuratedCard(controller.card, entry);
         incrementCuratedDomLifecycleCounter(state, 'patched');
@@ -398,6 +366,9 @@
       }
       controller.contentSignature = contentSignature;
       controller.cardLayout = normalizedCardLayout;
+    } else if (detailsLoadingResolved && typeof patchCuratedCard === 'function') {
+      patchCuratedCard(controller.card, entry);
+      incrementCuratedDomLifecycleCounter(state, 'patched');
     }
 
     if (controller.parkedAt != null) {
@@ -488,7 +459,8 @@
 
   function createControllerFromCard(seriesId: string, card: Element): CuratedCardController {
     const contentSignature = getElementDataAttribute(card, 'cwCardContentSignature', 'data-cw-card-content-signature');
-    const cardLayout = parseCardLayoutFromContentSignature(contentSignature) || 'portrait';
+    const cardLayout =
+      getCuratedPanelGridSignatureRuntime().parseCardLayoutFromContentSignature(contentSignature) || 'portrait';
     return {
       seriesId,
       card,
@@ -526,7 +498,6 @@
     runtimeState: CuratedPanelGridRuntimeState,
     now = Date.now(),
   ): void {
-    // Reclaim stale parked nodes so detached card state does not grow unbounded.
     runtimeState.parkedCardSeriesOrder.slice().forEach((seriesId) => {
       const controller = runtimeState.cardControllersBySeriesId.get(seriesId);
       if (!controller || controller.parkedAt == null) {
@@ -676,6 +647,7 @@
   function renderCuratedGridIfNeeded(
     options: CuratedPanelGridRenderOptions,
     transitionsRuntime: CuratedPanelGridTransitionsRuntime,
+    renderPhasesRuntime: CuratedPanelGridRenderPhasesRuntime,
     runtimeState: CuratedPanelGridRuntimeState,
   ): void {
     const {
@@ -694,72 +666,85 @@
     }
 
     const gridEl = state.gridEl;
-    const canSkipBySignature = state.curatedGridRenderSignature === gridRenderSignature;
-    if (canSkipBySignature) {
-      const children = Array.from(gridEl.children);
-      if (visible.length > 0) {
-        const hasExpectedCards =
-          children.length === visible.length &&
-          children.every((child, index) => {
-            if (!isCuratedCardElement(child)) {
-              return false;
-            }
-            const expectedSeriesId = getEntrySeriesId(visible[index] || {});
-            if (!expectedSeriesId) {
-              return true;
-            }
-            const renderedSeriesId = getElementDataAttribute(child, 'cwSeriesId', 'data-cw-series-id');
-            return renderedSeriesId === expectedSeriesId;
-          });
-        if (hasExpectedCards) {
-          return;
-        }
-      } else {
-        const firstChild = children[0];
-        if (loading && total === 0 && children.length === 0) {
-          return;
-        }
-        if (children.length === 1 && isCuratedGridEmptyElement(firstChild)) {
-          return;
-        }
-      }
+    if (
+      renderPhasesRuntime.shouldSkipCuratedGridRender({
+        stateRenderSignature: state.curatedGridRenderSignature,
+        gridRenderSignature,
+        visible,
+        total,
+        loading,
+        gridEl,
+        isCuratedCardElement,
+        getEntrySeriesId,
+        getElementDataAttribute,
+        isCuratedGridEmptyElement,
+      })
+    ) {
+      return;
     }
 
     incrementCuratedDomLifecycleCounter(state, 'renderPasses');
 
     if (!visible.length) {
-      const visibleSeriesIds = new Set<string>();
-      parkGridCardsForReuse(state, runtimeState, documentRef, gridEl);
-      parkUnusedControllersForReuse(state, runtimeState, documentRef, visibleSeriesIds);
-      gridEl.textContent = '';
-      if (!(loading && total === 0)) {
-        gridEl.appendChild(createCuratedGridEmptyElement(documentRef, state, total));
-      }
-      trimParkedCardsForReuse(state, runtimeState);
-    } else {
-      const visibleSeriesIds = new Set<string>();
-      const nextCards = visible.map((entry) => {
-        const nextCard = createOrReuseCuratedCard(
-          state,
-          runtimeState,
-          createCuratedCard,
-          patchCuratedCard,
-          visibleSeriesIds,
-          entry,
-          metadataLoading && isRenderableEntryMetadataLoading(entry),
-        );
-        const seriesId = getEntrySeriesId(entry);
-        markCardControllerActive(state, runtimeState, seriesId);
-        setCardParkedState(nextCard, false);
-        return nextCard;
-      });
-      transitionsRuntime.reorderCuratedGridChildren(gridEl, nextCards, {
-        onCardRemoved: (removedCard) => {
-          parkCardForReuse(state, runtimeState, documentRef, removedCard);
+      renderPhasesRuntime.renderEmptyCuratedGridState({
+        documentRef,
+        gridEl,
+        total,
+        loading,
+        parkGridCardsForReuse: (gridElement: Element) => {
+          parkGridCardsForReuse(state, runtimeState, documentRef, gridElement);
+        },
+        parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => {
+          parkUnusedControllersForReuse(state, runtimeState, documentRef, visibleSeriesIds);
+        },
+        createCuratedGridEmptyElement: (nextDocumentRef: Document, nextTotal: number) =>
+          createCuratedGridEmptyElement(nextDocumentRef, state, nextTotal),
+        trimParkedCardsForReuse: () => {
+          trimParkedCardsForReuse(state, runtimeState);
         },
       });
-      parkUnusedControllersForReuse(state, runtimeState, documentRef, visibleSeriesIds);
-      trimParkedCardsForReuse(state, runtimeState);
+    } else {
+      renderPhasesRuntime.renderVisibleCuratedGridState({
+        visible,
+        metadataLoading,
+        gridEl,
+        createOrReuseCuratedCard: (
+          entry: Record<string, unknown>,
+          detailsLoading: boolean,
+          visibleSeriesIds: Set<string>,
+        ) =>
+          createOrReuseCuratedCard(
+            state,
+            runtimeState,
+            createCuratedCard,
+            patchCuratedCard,
+            visibleSeriesIds,
+            entry,
+            detailsLoading,
+          ),
+        getEntrySeriesId,
+        markCardControllerActive: (seriesId: string) => {
+          markCardControllerActive(state, runtimeState, seriesId);
+        },
+        setCardParkedState,
+        isRenderableEntryMetadataLoading,
+        reorderCuratedGridChildren: (
+          gridElement: Element,
+          nextCards: Element[],
+          reorderOptions?: CuratedGridReorderOptions,
+        ) => {
+          transitionsRuntime.reorderCuratedGridChildren(gridElement, nextCards, reorderOptions);
+        },
+        parkCardForReuse: (card: Element) => {
+          parkCardForReuse(state, runtimeState, documentRef, card);
+        },
+        parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => {
+          parkUnusedControllersForReuse(state, runtimeState, documentRef, visibleSeriesIds);
+        },
+        trimParkedCardsForReuse: () => {
+          trimParkedCardsForReuse(state, runtimeState);
+        },
+      });
     }
 
     state.curatedGridRenderSignature = gridRenderSignature;
@@ -767,13 +752,16 @@
 
   function createCuratedPanelGridRuntime(): CuratedPanelGridRuntime {
     const transitionsRuntime = resolveCuratedPanelGridTransitionsRuntime();
+    const renderPhasesRuntime = resolveCuratedPanelGridRenderPhasesRuntime();
+    cachedSignatureRuntime = resolveCuratedPanelGridSignatureRuntime();
     const runtimeState: CuratedPanelGridRuntimeState = {
       cardControllersBySeriesId: new Map<string, CuratedCardController>(),
       parkedCardSeriesOrder: [],
       parkedCardContainer: null,
     };
     return {
-      renderCuratedGridIfNeeded: (options) => renderCuratedGridIfNeeded(options, transitionsRuntime, runtimeState),
+      renderCuratedGridIfNeeded: (options) =>
+        renderCuratedGridIfNeeded(options, transitionsRuntime, renderPhasesRuntime, runtimeState),
     };
   }
 
