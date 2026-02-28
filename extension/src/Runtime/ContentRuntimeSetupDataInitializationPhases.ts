@@ -33,11 +33,25 @@ export type DataInitializationRuntime = {
   ) => void;
 };
 
+type AssertRuntimeMethods = (owner: string, runtime: LooseRecord, requiredMethods: string[]) => void;
+
 function toRecord(value: unknown): LooseRecord {
   if (!value || typeof value !== 'object') {
     return {};
   }
   return value as LooseRecord;
+}
+
+function resolveWindowRef(context: LooseRecord): Window {
+  if (!context.windowRef || typeof context.windowRef !== 'object') {
+    throw new Error('[CW] Missing runtime setup context dependency: windowRef');
+  }
+
+  return context.windowRef as Window;
+}
+
+function resolveAssertRuntimeMethods(context: LooseRecord): AssertRuntimeMethods {
+  return requireRecordFunction<AssertRuntimeMethods>('runtime setup context', context, 'assertRuntimeMethods');
 }
 
 function resolveBootstrapFinalizeModule(context: LooseRecord): LooseRecord {
@@ -51,7 +65,7 @@ function resolveBootstrapFinalizeModule(context: LooseRecord): LooseRecord {
   return toRecord(createBootstrapFinalizeRuntimeModule());
 }
 
-function requireRecordFunction<T extends UnknownFn>(owner: string, value: LooseRecord, name: string): T {
+function requireRecordFunction<T>(owner: string, value: LooseRecord, name: string): T {
   const candidate = value[name];
   if (typeof candidate !== 'function') {
     throw new Error(`[CW] Missing ${owner} dependency: ${name}`);
@@ -140,37 +154,41 @@ function bindBootstrapHelpersRuntime(
   storageSet: (key: string, value: unknown) => unknown,
   requireFn: RequireFunction,
 ): void {
+  const assertRuntimeMethods = resolveAssertRuntimeMethods(context);
   const dependencyFns = resolveBootstrapHelperDependencyFns(traceContractsRuntime, bindings);
   const runtimeBootstrapHelpersModule = toRecord(context.runtimeBootstrapHelpersModule);
   const runtimeConstants = toRecord(context.runtimeConstants);
-  const bootstrapHelpersRuntime = requireFn<UnknownFn>(
+  const createBootstrapHelpersRuntime = requireFn<UnknownFn>(
     'createBootstrapHelpersRuntime',
     runtimeBootstrapHelpersModule.createBootstrapHelpersRuntime,
-  )({
-    state: context.state,
-    windowRef: context.windowRef,
-    runtimeEvent: bindings.runtimeEvent,
-    storageSet: (key: string, value: unknown) => storageSet(key, value),
-    settingsKey: runtimeConstants.settingsKey,
-    ratingCacheKey: runtimeConstants.ratingCacheKey,
-    watchHistoryCacheKey: runtimeConstants.watchHistoryCacheKey,
-    watchlistCacheKey: runtimeConstants.watchlistCacheKey,
-    preferredAudioCacheTtlMs: runtimeConstants.preferredAudioCacheTtlMs,
-    normalizeAudioLocale: dependencyFns.normalizeAudioLocale,
-    detectPreferredAudioLanguage: dependencyFns.detectPreferredAudioLanguage,
-    isLocalizedRatingDataMissingForEntries: dependencyFns.isLocalizedRatingDataMissingForEntries,
-    isLocalizedWatchHistoryDataMissingForEntries: dependencyFns.isLocalizedWatchHistoryDataMissingForEntries,
-    getAccessToken: (forceRefresh = false) => dependencyFns.getAccessToken(forceRefresh),
-    preloadRatingsForEntries: dependencyFns.preloadRatingsForEntries,
-    preloadWatchHistoryForEntries: (
-      entries: unknown,
-      tokenEntry: unknown,
-      force: unknown,
-      preferredAudioLanguage: unknown,
-    ) => dependencyFns.preloadWatchHistoryForEntries(entries, tokenEntry, force, preferredAudioLanguage),
-  }) as LooseRecord;
+  );
+  const bootstrapHelpersRuntime = toRecord(
+    createBootstrapHelpersRuntime({
+      state: context.state,
+      windowRef: context.windowRef,
+      runtimeEvent: bindings.runtimeEvent,
+      storageSet: (key: string, value: unknown) => storageSet(key, value),
+      settingsKey: runtimeConstants.settingsKey,
+      ratingCacheKey: runtimeConstants.ratingCacheKey,
+      watchHistoryCacheKey: runtimeConstants.watchHistoryCacheKey,
+      watchlistCacheKey: runtimeConstants.watchlistCacheKey,
+      preferredAudioCacheTtlMs: runtimeConstants.preferredAudioCacheTtlMs,
+      normalizeAudioLocale: dependencyFns.normalizeAudioLocale,
+      detectPreferredAudioLanguage: dependencyFns.detectPreferredAudioLanguage,
+      isLocalizedRatingDataMissingForEntries: dependencyFns.isLocalizedRatingDataMissingForEntries,
+      isLocalizedWatchHistoryDataMissingForEntries: dependencyFns.isLocalizedWatchHistoryDataMissingForEntries,
+      getAccessToken: (forceRefresh = false) => dependencyFns.getAccessToken(forceRefresh),
+      preloadRatingsForEntries: dependencyFns.preloadRatingsForEntries,
+      preloadWatchHistoryForEntries: (
+        entries: unknown,
+        tokenEntry: unknown,
+        force: unknown,
+        preferredAudioLanguage: unknown,
+      ) => dependencyFns.preloadWatchHistoryForEntries(entries, tokenEntry, force, preferredAudioLanguage),
+    }),
+  );
 
-  (context.assertRuntimeMethods as UnknownFn)('bootstrap helpers runtime', bootstrapHelpersRuntime, [
+  assertRuntimeMethods('bootstrap helpers runtime', bootstrapHelpersRuntime, [
     'scheduleSaveRatings',
     'scheduleSaveWatchHistory',
     'scheduleSaveWatchlistCache',
@@ -194,35 +212,36 @@ function initializeTraceAndContracts(
   bindings: LooseRecord,
   requireFn: RequireFunction,
 ): TraceContractsRuntime {
+  const assertRuntimeMethods = resolveAssertRuntimeMethods(context);
   const runtimeTraceModule = toRecord(context.runtimeTraceModule);
   const runtimeConstants = toRecord(context.runtimeConstants);
   const corePrimitivesModule = toRecord(context.corePrimitivesModule);
   const apiContractsModule = toRecord(context.apiContractsModule);
-  const windowRef = context.windowRef as Window;
+  const windowRef = resolveWindowRef(context);
 
-  const runtimeTrace = requireFn<UnknownFn>(
-    'createRuntimeTrace',
-    runtimeTraceModule.createRuntimeTrace,
-  )({
-    windowRef,
-    state: context.state,
-    apiTraceLimitPerEndpoint: runtimeConstants.apiTraceLimitPerEndpoint,
-  }) as LooseRecord;
-  (context.assertRuntimeMethods as UnknownFn)('runtime trace', runtimeTrace, ['runtimeEvent', 'pushApiTrace']);
+  const createRuntimeTrace = requireFn<UnknownFn>('createRuntimeTrace', runtimeTraceModule.createRuntimeTrace);
+  const runtimeTrace = toRecord(
+    createRuntimeTrace({
+      windowRef,
+      state: context.state,
+      apiTraceLimitPerEndpoint: runtimeConstants.apiTraceLimitPerEndpoint,
+    }),
+  );
+  assertRuntimeMethods('runtime trace', runtimeTrace, ['runtimeEvent', 'pushApiTrace']);
   bindings.runtimeEvent = runtimeTrace.runtimeEvent;
   bindings.pushApiTrace = runtimeTrace.pushApiTrace;
 
-  const corePrimitives = requireFn<UnknownFn>(
-    'createCorePrimitives',
-    corePrimitivesModule.createCorePrimitives,
-  )({
-    extractCoverImagesFromApiImages: createDeferredBindingFunction<(images: unknown) => unknown>(
-      'content runtime setup bindings',
-      bindings,
-      'extractCoverImagesFromApiImages',
-    ),
-  }) as LooseRecord;
-  (context.assertRuntimeMethods as UnknownFn)('core primitives', corePrimitives, [
+  const createCorePrimitives = requireFn<UnknownFn>('createCorePrimitives', corePrimitivesModule.createCorePrimitives);
+  const corePrimitives = toRecord(
+    createCorePrimitives({
+      extractCoverImagesFromApiImages: createDeferredBindingFunction<(images: unknown) => unknown>(
+        'content runtime setup bindings',
+        bindings,
+        'extractCoverImagesFromApiImages',
+      ),
+    }),
+  );
+  assertRuntimeMethods('core primitives', corePrimitives, [
     'sanitizeRating',
     'parseCmsObjectRecord',
     'deriveDisplayStatusBase',
@@ -243,20 +262,20 @@ function initializeTraceAndContracts(
     'getWatchHistorySeriesId',
   );
 
-  const apiContracts = requireFn<UnknownFn>(
-    'createApiContracts',
-    apiContractsModule.createApiContracts,
-  )({
-    windowRef,
-    navigatorRef: windowRef.navigator,
-    runtimeEvent: bindings.runtimeEvent,
-    parseDateMs,
-    getWatchlistSeriesId,
-    getWatchHistorySeriesId,
-    fetchBackoffBaseMs: runtimeConstants.fetchBackoffBaseMs,
-    fetchBackoffJitterMs: runtimeConstants.fetchBackoffJitterMs,
-  }) as LooseRecord;
-  (context.assertRuntimeMethods as UnknownFn)('api contracts', apiContracts, [
+  const createApiContracts = requireFn<UnknownFn>('createApiContracts', apiContractsModule.createApiContracts);
+  const apiContracts = toRecord(
+    createApiContracts({
+      windowRef,
+      navigatorRef: windowRef.navigator,
+      runtimeEvent: bindings.runtimeEvent,
+      parseDateMs,
+      getWatchlistSeriesId,
+      getWatchHistorySeriesId,
+      fetchBackoffBaseMs: runtimeConstants.fetchBackoffBaseMs,
+      fetchBackoffJitterMs: runtimeConstants.fetchBackoffJitterMs,
+    }),
+  );
+  assertRuntimeMethods('api contracts', apiContracts, [
     'shouldRetryStatus',
     'requirePayloadDataArray',
     'resolveApiHref',
@@ -272,50 +291,66 @@ function initializePreferredAudioAndStorage(
   traceContractsRuntime: TraceContractsRuntime,
   requireFn: RequireFunction,
 ): StorageRuntime {
+  const assertRuntimeMethods = resolveAssertRuntimeMethods(context);
   const corePrimitives = traceContractsRuntime.corePrimitives;
   const runtimeConstants = toRecord(context.runtimeConstants);
   const runtimePreferredAudioModule = toRecord(context.runtimePreferredAudioModule);
   const runtimeBootstrapFinalizeModule = resolveBootstrapFinalizeModule(context);
   const storageModule = toRecord(context.storageModule);
-  const windowRef = context.windowRef as Window;
+  const windowRef = resolveWindowRef(context);
+  const normalizeAudioLocale = requireRecordFunction<(value: unknown) => unknown>(
+    'core primitives',
+    corePrimitives,
+    'normalizeAudioLocale',
+  );
 
-  const safeJsonParse = (value: unknown, fallback: unknown) =>
-    requireFn<UnknownFn>('safeJsonParse', runtimeBootstrapFinalizeModule.safeJsonParse)(value, fallback);
+  const safeJsonParseImpl = requireFn<UnknownFn>('safeJsonParse', runtimeBootstrapFinalizeModule.safeJsonParse);
+  const safeJsonParse = (value: unknown, fallback: unknown) => safeJsonParseImpl(value, fallback);
 
-  const preferredAudioDetector = requireFn<UnknownFn>(
+  const createPreferredAudioDetector = requireFn<UnknownFn>(
     'createPreferredAudioDetector',
     runtimePreferredAudioModule.createPreferredAudioDetector,
-  )({
-    normalizeAudioLocale: (value: unknown) => (corePrimitives.normalizeAudioLocale as UnknownFn)(value),
-    parseJson: safeJsonParse,
-    localStorageRef: windowRef.localStorage,
-    navigatorRef: windowRef.navigator,
-    documentRef: windowRef.document,
-    storageScanLimit: runtimeConstants.preferredAudioStorageScanLimit,
-    valueScanLimit: runtimeConstants.preferredAudioValueScanLimit,
-  }) as LooseRecord;
-  (context.assertRuntimeMethods as UnknownFn)('preferred audio detector', preferredAudioDetector, [
+  );
+  const preferredAudioDetector = toRecord(
+    createPreferredAudioDetector({
+      normalizeAudioLocale,
+      parseJson: safeJsonParse,
+      localStorageRef: windowRef.localStorage,
+      navigatorRef: windowRef.navigator,
+      documentRef: windowRef.document,
+      storageScanLimit: runtimeConstants.preferredAudioStorageScanLimit,
+      valueScanLimit: runtimeConstants.preferredAudioValueScanLimit,
+    }),
+  );
+  assertRuntimeMethods('preferred audio detector', preferredAudioDetector, ['detectPreferredAudioLanguage']);
+  const detectPreferredAudioLanguage = requireRecordFunction<() => unknown>(
+    'preferred audio detector',
+    preferredAudioDetector,
     'detectPreferredAudioLanguage',
-  ]);
-  bindings.detectPreferredAudioLanguage = () =>
-    (preferredAudioDetector.detectPreferredAudioLanguage as UnknownFn)() as string;
+  );
+  bindings.detectPreferredAudioLanguage = () => detectPreferredAudioLanguage() as string;
 
-  const storageAdapter = requireFn<UnknownFn>(
-    'createStorageAdapter',
-    storageModule.createStorageAdapter,
-  )({
+  const createStorageAdapter = requireFn<UnknownFn>('createStorageAdapter', storageModule.createStorageAdapter);
+  const storageAdapter = createStorageAdapter({
     storageArea: context.storageLocalArea,
     parseJson: safeJsonParse,
     localStorageRef: windowRef.localStorage,
     timeoutMs: 1500,
   });
-  const storageAccessors = requireFn<UnknownFn>(
+  const createStorageAccessors = requireFn<UnknownFn>(
     'createStorageAccessors',
     runtimeBootstrapFinalizeModule.createStorageAccessors,
-  )({
-    storageAdapter,
-  }) as LooseRecord;
-  const storageSet = (key: string, value: unknown) => (storageAccessors.storageSet as UnknownFn)(key, value);
+  );
+  const storageAccessors = toRecord(
+    createStorageAccessors({
+      storageAdapter,
+    }),
+  );
+  const storageSet = requireRecordFunction<(key: string, value: unknown) => unknown>(
+    'storage accessors',
+    storageAccessors,
+    'storageSet',
+  );
 
   bindBootstrapHelpersRuntime(context, bindings, traceContractsRuntime, storageSet, requireFn);
   return { storageSet };
@@ -327,36 +362,49 @@ function initializeAuthAndImageRuntime(
   traceContractsRuntime: TraceContractsRuntime,
   requireFn: RequireFunction,
 ): void {
+  const assertRuntimeMethods = resolveAssertRuntimeMethods(context);
   const corePrimitives = traceContractsRuntime.corePrimitives;
   const apiContracts = traceContractsRuntime.apiContracts;
   const runtimeConstants = toRecord(context.runtimeConstants);
   const authClientModule = toRecord(context.authClientModule);
   const imageVariantsModule = toRecord(context.imageVariantsModule);
-  const windowRef = context.windowRef as Window;
+  const windowRef = resolveWindowRef(context);
+  const sanitizePositiveInt = requireRecordFunction<UnknownFn>(
+    'core primitives',
+    corePrimitives,
+    'sanitizePositiveInt',
+  );
+  const shouldRetryStatus = requireRecordFunction<UnknownFn>('api contracts', apiContracts, 'shouldRetryStatus');
+  const computeFetchRetryDelayMs = requireRecordFunction<UnknownFn>(
+    'api contracts',
+    apiContracts,
+    'computeFetchRetryDelayMs',
+  );
+  const sleep = requireRecordFunction<UnknownFn>('api contracts', apiContracts, 'sleep');
 
-  const authClient = requireFn<UnknownFn>(
-    'createAuthClient',
-    authClientModule.createAuthClient,
-  )({
-    state: context.state,
-    runtimeEvent: bindings.runtimeEvent,
-    pushApiTrace: bindings.pushApiTrace,
-    resolveApiHref: bindings.resolveApiHref,
-    sanitizePositiveInt: corePrimitives.sanitizePositiveInt as UnknownFn,
-    shouldRetryStatus: apiContracts.shouldRetryStatus as UnknownFn,
-    computeFetchRetryDelayMs: apiContracts.computeFetchRetryDelayMs as UnknownFn,
-    sleep: apiContracts.sleep as UnknownFn,
-    fetchTimeoutMs: runtimeConstants.fetchTimeoutMs,
-    fetchMaxAttempts: runtimeConstants.fetchMaxAttempts,
-    authTokenSkewMs: runtimeConstants.authTokenSkewMs,
-    authClientBasic: runtimeConstants.authClientBasic,
-    authDeviceKey: runtimeConstants.authDeviceKey,
-    localStorageRef: windowRef.localStorage,
-    navigatorRef: windowRef.navigator,
-    cryptoRef: windowRef.crypto,
-    fetchImpl: windowRef.fetch.bind(windowRef),
-  }) as LooseRecord;
-  (context.assertRuntimeMethods as UnknownFn)('auth client', authClient, [
+  const createAuthClient = requireFn<UnknownFn>('createAuthClient', authClientModule.createAuthClient);
+  const authClient = toRecord(
+    createAuthClient({
+      state: context.state,
+      runtimeEvent: bindings.runtimeEvent,
+      pushApiTrace: bindings.pushApiTrace,
+      resolveApiHref: bindings.resolveApiHref,
+      sanitizePositiveInt,
+      shouldRetryStatus,
+      computeFetchRetryDelayMs,
+      sleep,
+      fetchTimeoutMs: runtimeConstants.fetchTimeoutMs,
+      fetchMaxAttempts: runtimeConstants.fetchMaxAttempts,
+      authTokenSkewMs: runtimeConstants.authTokenSkewMs,
+      authClientBasic: runtimeConstants.authClientBasic,
+      authDeviceKey: runtimeConstants.authDeviceKey,
+      localStorageRef: windowRef.localStorage,
+      navigatorRef: windowRef.navigator,
+      cryptoRef: windowRef.crypto,
+      fetchImpl: windowRef.fetch.bind(windowRef),
+    }),
+  );
+  assertRuntimeMethods('auth client', authClient, [
     'fetchWithResilience',
     'getAccessToken',
     'createAuthRefreshHandler',
@@ -365,14 +413,14 @@ function initializeAuthAndImageRuntime(
   bindings.getAccessToken = authClient.getAccessToken;
   bindings.createAuthRefreshHandler = authClient.createAuthRefreshHandler;
 
-  const imageVariants = requireFn<UnknownFn>(
-    'createImageVariants',
-    imageVariantsModule.createImageVariants,
-  )({
-    sanitizePositiveInt: corePrimitives.sanitizePositiveInt as UnknownFn,
-    resolveApiHref: bindings.resolveApiHref,
-  }) as LooseRecord;
-  (context.assertRuntimeMethods as UnknownFn)('image variants', imageVariants, [
+  const createImageVariants = requireFn<UnknownFn>('createImageVariants', imageVariantsModule.createImageVariants);
+  const imageVariants = toRecord(
+    createImageVariants({
+      sanitizePositiveInt,
+      resolveApiHref: bindings.resolveApiHref,
+    }),
+  );
+  assertRuntimeMethods('image variants', imageVariants, [
     'normalizeImageUrlCandidate',
     'extractCoverImagesFromApiImages',
     'extractThumbnailImageFromApiImages',
@@ -382,64 +430,116 @@ function initializeAuthAndImageRuntime(
   bindings.extractThumbnailImageFromApiImages = imageVariants.extractThumbnailImageFromApiImages;
 }
 
+type RatingsRuntimeDependencyFns = {
+  normalizeAudioLocale: UnknownFn;
+  normalizeAudioLocales: UnknownFn;
+  sanitizePositiveInt: UnknownFn;
+  normalizeTagList: UnknownFn;
+  getAudioLocaleCountFromMap: UnknownFn;
+  mergeAudioLocaleCountMap: UnknownFn;
+  chunkArray: UnknownFn;
+  parseCmsObjectRecord: UnknownFn;
+  parseRatingPayload: UnknownFn;
+  sanitizeRating: UnknownFn;
+  sanitizeVotes: UnknownFn;
+  getLocale: UnknownFn;
+  requirePayloadDataArray: UnknownFn;
+  auditCmsObjectContract: UnknownFn;
+};
+
+function resolveRatingsRuntimeDependencyFns(
+  corePrimitives: LooseRecord,
+  apiContracts: LooseRecord,
+): RatingsRuntimeDependencyFns {
+  return {
+    normalizeAudioLocale: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'normalizeAudioLocale'),
+    normalizeAudioLocales: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'normalizeAudioLocales'),
+    sanitizePositiveInt: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'sanitizePositiveInt'),
+    normalizeTagList: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'normalizeTagList'),
+    getAudioLocaleCountFromMap: requireRecordFunction<UnknownFn>(
+      'core primitives',
+      corePrimitives,
+      'getAudioLocaleCountFromMap',
+    ),
+    mergeAudioLocaleCountMap: requireRecordFunction<UnknownFn>(
+      'core primitives',
+      corePrimitives,
+      'mergeAudioLocaleCountMap',
+    ),
+    chunkArray: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'chunkArray'),
+    parseCmsObjectRecord: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'parseCmsObjectRecord'),
+    parseRatingPayload: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'parseRatingPayload'),
+    sanitizeRating: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'sanitizeRating'),
+    sanitizeVotes: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'sanitizeVotes'),
+    getLocale: requireRecordFunction<UnknownFn>('api contracts', apiContracts, 'getLocale'),
+    requirePayloadDataArray: requireRecordFunction<UnknownFn>('api contracts', apiContracts, 'requirePayloadDataArray'),
+    auditCmsObjectContract: requireRecordFunction<UnknownFn>('api contracts', apiContracts, 'auditCmsObjectContract'),
+  };
+}
+
 function initializeRatingsRuntime(
   context: LooseRecord,
   bindings: LooseRecord,
   traceContractsRuntime: TraceContractsRuntime,
   requireFn: RequireFunction,
 ): void {
+  const assertRuntimeMethods = resolveAssertRuntimeMethods(context);
   const corePrimitives = traceContractsRuntime.corePrimitives;
   const apiContracts = traceContractsRuntime.apiContracts;
   const runtimeConstants = toRecord(context.runtimeConstants);
   const ratingsClientModule = toRecord(context.ratingsClientModule);
   const ratingsRepositoryModule = toRecord(context.ratingsRepositoryModule);
+  const ratingsDependencyFns = resolveRatingsRuntimeDependencyFns(corePrimitives, apiContracts);
 
-  const ratingsClient = requireFn<UnknownFn>(
-    'createRatingsClient',
-    ratingsClientModule.createRatingsClient,
-  )({
-    fetchWithResilience: bindings.fetchWithResilience,
-    getAccessToken: bindings.getAccessToken,
-    createAuthRefreshHandler: bindings.createAuthRefreshHandler,
-    resolveApiHref: bindings.resolveApiHref,
-    normalizeAudioLocale: corePrimitives.normalizeAudioLocale as UnknownFn,
-    getPreferredAudioLanguage: bindings.getPreferredAudioLanguage,
-    getLocale: apiContracts.getLocale as UnknownFn,
-    requirePayloadDataArray: apiContracts.requirePayloadDataArray as UnknownFn,
-    auditCmsObjectContract: apiContracts.auditCmsObjectContract as UnknownFn,
-    parseCmsObjectRecord: corePrimitives.parseCmsObjectRecord as UnknownFn,
-    parseRatingPayload: corePrimitives.parseRatingPayload as UnknownFn,
-    sanitizeRating: corePrimitives.sanitizeRating as UnknownFn,
-    sanitizeVotes: corePrimitives.sanitizeVotes as UnknownFn,
-    pushApiTrace: bindings.pushApiTrace,
-  }) as LooseRecord;
-  (context.assertRuntimeMethods as UnknownFn)('ratings client', ratingsClient, ['fetchRatingsBatch', 'fetchRating']);
+  const createRatingsClient = requireFn<UnknownFn>('createRatingsClient', ratingsClientModule.createRatingsClient);
+  const ratingsClient = toRecord(
+    createRatingsClient({
+      fetchWithResilience: bindings.fetchWithResilience,
+      getAccessToken: bindings.getAccessToken,
+      createAuthRefreshHandler: bindings.createAuthRefreshHandler,
+      resolveApiHref: bindings.resolveApiHref,
+      normalizeAudioLocale: ratingsDependencyFns.normalizeAudioLocale,
+      getPreferredAudioLanguage: bindings.getPreferredAudioLanguage,
+      getLocale: ratingsDependencyFns.getLocale,
+      requirePayloadDataArray: ratingsDependencyFns.requirePayloadDataArray,
+      auditCmsObjectContract: ratingsDependencyFns.auditCmsObjectContract,
+      parseCmsObjectRecord: ratingsDependencyFns.parseCmsObjectRecord,
+      parseRatingPayload: ratingsDependencyFns.parseRatingPayload,
+      sanitizeRating: ratingsDependencyFns.sanitizeRating,
+      sanitizeVotes: ratingsDependencyFns.sanitizeVotes,
+      pushApiTrace: bindings.pushApiTrace,
+    }),
+  );
+  assertRuntimeMethods('ratings client', ratingsClient, ['fetchRatingsBatch', 'fetchRating']);
   bindings.fetchRatingsBatch = ratingsClient.fetchRatingsBatch;
   bindings.fetchRating = ratingsClient.fetchRating;
 
-  const ratingsRepository = requireFn<UnknownFn>(
+  const createRatingsRepository = requireFn<UnknownFn>(
     'createRatingsRepository',
     ratingsRepositoryModule.createRatingsRepository,
-  )({
-    state: context.state,
-    normalizeAudioLocale: corePrimitives.normalizeAudioLocale as UnknownFn,
-    normalizeAudioLocales: corePrimitives.normalizeAudioLocales as UnknownFn,
-    sanitizePositiveInt: corePrimitives.sanitizePositiveInt as UnknownFn,
-    normalizeTagList: corePrimitives.normalizeTagList as UnknownFn,
-    normalizeImageUrlCandidate: bindings.normalizeImageUrlCandidate,
-    getAudioLocaleCountFromMap: corePrimitives.getAudioLocaleCountFromMap as UnknownFn,
-    mergeAudioLocaleCountMap: corePrimitives.mergeAudioLocaleCountMap as UnknownFn,
-    getPreferredAudioLanguage: bindings.getPreferredAudioLanguage,
-    chunkArray: corePrimitives.chunkArray as UnknownFn,
-    fetchRatingsBatch: bindings.fetchRatingsBatch,
-    fetchRating: bindings.fetchRating,
-    scheduleSaveRatings: bindings.scheduleSaveRatings,
-    runtimeEvent: bindings.runtimeEvent,
-    ratingBatchSize: runtimeConstants.ratingBatchSize,
-    ratingBatchParallelChunks: runtimeConstants.ratingBatchParallelChunks,
-    ratingCacheTtlMs: runtimeConstants.ratingCacheTtlMs,
-  }) as LooseRecord;
-  (context.assertRuntimeMethods as UnknownFn)('ratings repository', ratingsRepository, [
+  );
+  const ratingsRepository = toRecord(
+    createRatingsRepository({
+      state: context.state,
+      normalizeAudioLocale: ratingsDependencyFns.normalizeAudioLocale,
+      normalizeAudioLocales: ratingsDependencyFns.normalizeAudioLocales,
+      sanitizePositiveInt: ratingsDependencyFns.sanitizePositiveInt,
+      normalizeTagList: ratingsDependencyFns.normalizeTagList,
+      normalizeImageUrlCandidate: bindings.normalizeImageUrlCandidate,
+      getAudioLocaleCountFromMap: ratingsDependencyFns.getAudioLocaleCountFromMap,
+      mergeAudioLocaleCountMap: ratingsDependencyFns.mergeAudioLocaleCountMap,
+      getPreferredAudioLanguage: bindings.getPreferredAudioLanguage,
+      chunkArray: ratingsDependencyFns.chunkArray,
+      fetchRatingsBatch: bindings.fetchRatingsBatch,
+      fetchRating: bindings.fetchRating,
+      scheduleSaveRatings: bindings.scheduleSaveRatings,
+      runtimeEvent: bindings.runtimeEvent,
+      ratingBatchSize: runtimeConstants.ratingBatchSize,
+      ratingBatchParallelChunks: runtimeConstants.ratingBatchParallelChunks,
+      ratingCacheTtlMs: runtimeConstants.ratingCacheTtlMs,
+    }),
+  );
+  assertRuntimeMethods('ratings repository', ratingsRepository, [
     'getSeriesRating',
     'preloadRatingsForEntries',
     'getCachedRating',

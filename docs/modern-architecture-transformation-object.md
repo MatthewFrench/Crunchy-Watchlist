@@ -66,7 +66,7 @@ Audit date: 2026-02-28
 | UI files with registry usage | 9/9 |
 | Data files with registry usage | 15/15 |
 | Domain files with registry usage | 7/7 |
-| `unknown` token count in Runtime | 1530 |
+| `unknown` token count in Runtime | 1533 |
 | `unknown` token count in UI | 178 |
 | `unknown` token count in Data | 539 |
 | `unknown` token count in Domain | 394 |
@@ -209,8 +209,9 @@ Policy status:
      - Added explicit ingress contract resolvers for module runtime dependencies in:
        - `ContentRuntimeBootstrapSession` (setup-bindings/finalize-flow/session-support/session-assembly runtime contract validation)
        - `ContentRuntimeBootstrapHelpers` (dom-lock/session runtime contract validation)
+       - `ContentRuntimeSetupDataInitializationPhases` (window/assert-runtime-method dependency validation and required-function extraction instead of deep internal cast chains)
      - Pending:
-       - Apply the same ingress-contract pattern through `ContentRuntimeSetupDataInitializationPhases` and follow-up bootstrap owner paths to continue reducing `AnyFn`/`unknown` spread.
+       - Continue rolling the same ingress-contract pattern through remaining bootstrap owner paths to reduce `AnyFn`/`unknown` spread without widening internal runtime signatures.
 
 3. WS5-first slice: API contract normalization boundary tightening.
    - Target files:
