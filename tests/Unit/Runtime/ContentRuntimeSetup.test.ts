@@ -96,6 +96,8 @@ describe('content-runtime-setup runtime', () => {
       defaultSortMode: 'recentActivity',
       validSortModes: ['recentActivity'],
       sortModeControlOptions: [],
+      getWatchlistRoot: vi.fn(() => null),
+      getWatchlistHeader: vi.fn(() => null),
     });
 
     expect(result).toEqual({
@@ -143,6 +145,8 @@ describe('content-runtime-setup runtime', () => {
       defaultSortMode: 'recentActivity',
       validSortModes: ['recentActivity'],
       sortModeControlOptions: [],
+      getWatchlistRoot: vi.fn(() => null),
+      getWatchlistHeader: vi.fn(() => null),
     });
 
     expect(result.ok).toBe(false);
@@ -168,6 +172,8 @@ describe('content-runtime-setup runtime', () => {
       defaultSortMode: 'recentActivity',
       validSortModes: ['recentActivity'],
       sortModeControlOptions: [],
+      getWatchlistRoot: vi.fn(() => null),
+      getWatchlistHeader: vi.fn(() => null),
     });
 
     expect(result.ok).toBe(false);

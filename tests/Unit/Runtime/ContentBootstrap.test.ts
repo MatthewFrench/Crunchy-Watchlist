@@ -5,7 +5,9 @@ import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/Modu
 
 type ContentBootstrapPrelude = {
   ok: boolean;
-  runtimeBootstrapGateModule?: Record<string, unknown>;
+  isWatchlistPath?: (pathname: string) => boolean;
+  getWatchlistRoot?: (documentRef: Document) => Element | null;
+  getWatchlistHeader?: (documentRef: Document) => Element | null;
   assertRuntimeMethods?: (...args: unknown[]) => unknown;
   bootstrapModulesRuntime?: Record<string, unknown>;
 };
@@ -130,7 +132,9 @@ describe('content-bootstrap runtime module', () => {
     });
 
     expect(prelude.ok).toBe(true);
-    expect(prelude.runtimeBootstrapGateModule).toBe(gateModule);
+    expect(prelude.isWatchlistPath).toBe(gateModule.isWatchlistPath);
+    expect(prelude.getWatchlistRoot).toBe(gateModule.getWatchlistRoot);
+    expect(prelude.getWatchlistHeader).toBe(gateModule.getWatchlistHeader);
     expect(prelude.assertRuntimeMethods).toBe(modulesModule.assertRuntimeMethods);
     expect(prelude.bootstrapModulesRuntime).toEqual({ runtimeStoreModule: {} });
     expect(setBootstrapIssue).not.toHaveBeenCalled();

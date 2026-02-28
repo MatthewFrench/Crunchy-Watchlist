@@ -11,11 +11,19 @@ type DiagnosticsRuntime = {
   setBootstrapIssue: (reason: string, payload?: unknown) => void;
 };
 
+type BootstrapGateContracts = {
+  isWatchlistPath: (pathname: string) => boolean;
+  getWatchlistRoot: (documentRef: Document) => Element | null;
+  getWatchlistHeader: (documentRef: Document) => Element | null;
+};
+
 type ContentBootstrapPrelude = {
   ok: boolean;
   updateDiagnostics?: DiagnosticsRuntime['updateDiagnostics'];
   setBootstrapIssue?: DiagnosticsRuntime['setBootstrapIssue'];
-  runtimeBootstrapGateModule?: LooseRecord;
+  isWatchlistPath?: BootstrapGateContracts['isWatchlistPath'];
+  getWatchlistRoot?: BootstrapGateContracts['getWatchlistRoot'];
+  getWatchlistHeader?: BootstrapGateContracts['getWatchlistHeader'];
   assertRuntimeMethods?: RuntimeFn;
   bootstrapModulesRuntime?: LooseRecord;
 };
@@ -67,39 +75,62 @@ function resolveDiagnosticsRuntime(
   windowRef: Window & typeof globalThis,
   consoleRef: Console,
 ): DiagnosticsRuntime | null {
-  let runtimeBootstrapDiagnosticsModule = toRecord(options.runtimeBootstrapDiagnosticsModule);
-  if (!hasMethods(runtimeBootstrapDiagnosticsModule, ['createBootstrapDiagnostics'])) {
-    try {
-      runtimeBootstrapDiagnosticsModule = toRecord(createBootstrapDiagnosticsRuntime());
-    } catch {
-      runtimeBootstrapDiagnosticsModule = {};
+  const diagnosticsModule = toRecord(options.runtimeBootstrapDiagnosticsModule);
+  if (hasMethods(diagnosticsModule, ['createBootstrapDiagnostics'])) {
+    const diagnosticsRuntime = toDiagnosticsRuntime(
+      (diagnosticsModule.createBootstrapDiagnostics as RuntimeFn)({
+        windowRef,
+        consoleRef,
+      }),
+    );
+    if (!diagnosticsRuntime) {
+      // eslint-disable-next-line no-console
+      consoleRef.error('[CW] invalid-bootstrap-diagnostics-runtime');
+      return null;
     }
-  }
-  if (!hasMethods(runtimeBootstrapDiagnosticsModule, ['createBootstrapDiagnostics'])) {
-    // eslint-disable-next-line no-console
-    consoleRef.error('[CW] missing-bootstrap-diagnostics-module');
-    return null;
+
+    return diagnosticsRuntime;
   }
 
-  const diagnosticsRuntime = toDiagnosticsRuntime(
-    (runtimeBootstrapDiagnosticsModule.createBootstrapDiagnostics as RuntimeFn)({
+  try {
+    const fallbackRuntimeOrModule = createBootstrapDiagnosticsRuntime({
       windowRef,
       consoleRef,
-    }),
-  );
-  if (!diagnosticsRuntime) {
-    // eslint-disable-next-line no-console
-    consoleRef.error('[CW] invalid-bootstrap-diagnostics-runtime');
-    return null;
+    });
+    const fallbackRuntime = toDiagnosticsRuntime(fallbackRuntimeOrModule);
+    if (fallbackRuntime) {
+      return fallbackRuntime;
+    }
+
+    const fallbackModule = toRecord(fallbackRuntimeOrModule);
+    if (hasMethods(fallbackModule, ['createBootstrapDiagnostics'])) {
+      const moduleRuntime = toDiagnosticsRuntime(
+        (fallbackModule.createBootstrapDiagnostics as RuntimeFn)({
+          windowRef,
+          consoleRef,
+        }),
+      );
+      if (moduleRuntime) {
+        return moduleRuntime;
+      }
+      // eslint-disable-next-line no-console
+      consoleRef.error('[CW] invalid-bootstrap-diagnostics-runtime');
+      return null;
+    }
+  } catch {
+    // no-op
   }
-  return diagnosticsRuntime;
+
+  // eslint-disable-next-line no-console
+  consoleRef.error('[CW] missing-bootstrap-diagnostics-module');
+  return null;
 }
 
 function resolveGateModule(
   options: ContentBootstrapOptions,
   diagnosticsRuntime: DiagnosticsRuntime,
   windowRef: Window & typeof globalThis,
-): LooseRecord | null {
+): BootstrapGateContracts | null {
   let runtimeBootstrapGateModule = toRecord(options.runtimeBootstrapGateModule);
   if (
     !hasMethods(runtimeBootstrapGateModule, ['shouldRun', 'isWatchlistPath', 'getWatchlistRoot', 'getWatchlistHeader'])
@@ -132,7 +163,11 @@ function resolveGateModule(
     return null;
   }
 
-  return runtimeBootstrapGateModule;
+  return {
+    isWatchlistPath: runtimeBootstrapGateModule.isWatchlistPath as BootstrapGateContracts['isWatchlistPath'],
+    getWatchlistRoot: runtimeBootstrapGateModule.getWatchlistRoot as BootstrapGateContracts['getWatchlistRoot'],
+    getWatchlistHeader: runtimeBootstrapGateModule.getWatchlistHeader as BootstrapGateContracts['getWatchlistHeader'],
+  };
 }
 
 function resolveBootstrapRuntimeModules(
@@ -207,8 +242,8 @@ export function createContentBootstrapPrelude(options: ContentBootstrapOptions =
     pathname: windowRef.location?.pathname || '',
   });
 
-  const runtimeBootstrapGateModule = resolveGateModule(options, diagnosticsRuntime, windowRef);
-  if (!runtimeBootstrapGateModule) {
+  const bootstrapGateContracts = resolveGateModule(options, diagnosticsRuntime, windowRef);
+  if (!bootstrapGateContracts) {
     return { ok: false };
   }
   diagnosticsRuntime.updateDiagnostics({ ok: false, stage: 'bootstrap-started' });
@@ -222,7 +257,9 @@ export function createContentBootstrapPrelude(options: ContentBootstrapOptions =
     ok: true,
     updateDiagnostics: diagnosticsRuntime.updateDiagnostics,
     setBootstrapIssue: diagnosticsRuntime.setBootstrapIssue,
-    runtimeBootstrapGateModule,
+    isWatchlistPath: bootstrapGateContracts.isWatchlistPath,
+    getWatchlistRoot: bootstrapGateContracts.getWatchlistRoot,
+    getWatchlistHeader: bootstrapGateContracts.getWatchlistHeader,
     assertRuntimeMethods: runtimeModules.assertRuntimeMethods,
     bootstrapModulesRuntime: runtimeModules.bootstrapModulesRuntime,
   };

@@ -181,11 +181,9 @@ describe('content-runtime-bootstrap-session runtime', () => {
 
     const runtimeSession = runtime.createRuntimeBootstrapSession({
       bootstrapContext: {
-        runtimeBootstrapGateModule: {
-          isWatchlistPath: vi.fn((pathname: string) => pathname.endsWith('/watchlist')),
-          getWatchlistRoot: vi.fn(() => null),
-          getWatchlistHeader: vi.fn(() => null),
-        },
+        isWatchlistPath: vi.fn((pathname: string) => pathname.endsWith('/watchlist')),
+        getWatchlistRoot: vi.fn(() => null),
+        getWatchlistHeader: vi.fn(() => null),
         assertRuntimeMethods,
         bootstrapModulesRuntime: {
           runtimeStoreModule: {
@@ -249,6 +247,8 @@ describe('content-runtime-bootstrap-session runtime', () => {
     });
     expect(runtimeSession?.isWatchlistPath).toBeTypeOf('function');
     expect((runtimeSession?.isWatchlistPath as (pathname: string) => boolean)('/watchlist')).toBe(true);
+    expect(runtimeSession?.getWatchlistRoot).toBeTypeOf('function');
+    expect(runtimeSession?.getWatchlistHeader).toBeTypeOf('function');
     expect(runtimeSession?.startDomRuntimeLockHeartbeat).toBe(startDomRuntimeLockHeartbeat);
     expect(createEmptyWatchHistoryCache).not.toHaveBeenCalled();
     expect(createWatchlistCacheSnapshot).not.toHaveBeenCalled();

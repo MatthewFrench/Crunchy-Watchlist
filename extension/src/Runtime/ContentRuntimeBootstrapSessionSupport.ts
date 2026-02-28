@@ -25,7 +25,6 @@ type RuntimeBootstrapMutableAccessors = {
 type RuntimeBootstrapSessionSupportRuntime = {
   createRuntimeBootstrapMutableAccessors: () => RuntimeBootstrapMutableAccessors;
   resolveStorageLocalArea: (context: RuntimeBootstrapHelpersContextLike) => unknown;
-  createIsWatchlistPath: (runtimeBootstrapGateModule: LooseRecord) => (pathname: string) => boolean;
   createDebounceProcess: (options: {
     context: RuntimeBootstrapHelpersContextLike;
     state: LooseRecord;
@@ -91,10 +90,6 @@ function resolveStorageLocalArea(context: RuntimeBootstrapHelpersContextLike): u
   );
 }
 
-function createIsWatchlistPath(runtimeBootstrapGateModule: LooseRecord): (pathname: string) => boolean {
-  return (pathname: string) => (runtimeBootstrapGateModule.isWatchlistPath as AnyFn)(pathname) as boolean;
-}
-
 function createDebounceProcess({
   context,
   state,
@@ -127,7 +122,6 @@ export function createContentRuntimeBootstrapSessionSupportRuntime(): RuntimeBoo
   return {
     createRuntimeBootstrapMutableAccessors: () => createRuntimeBootstrapMutableAccessors(),
     resolveStorageLocalArea: (context) => resolveStorageLocalArea(context),
-    createIsWatchlistPath: (runtimeBootstrapGateModule) => createIsWatchlistPath(runtimeBootstrapGateModule),
     createDebounceProcess: (options) => createDebounceProcess(options),
     startWatchlistHealthRuntime: (accessors) => startWatchlistHealthRuntime(accessors),
   };

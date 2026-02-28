@@ -46,13 +46,14 @@ describe('content-runtime-bootstrap-setup-bindings runtime', () => {
       runtimeConstants: { settingsKey: 'settings' },
       assertRuntimeMethods: vi.fn(),
       runtimeBootstrapHelpersModule: { marker: 'helpers' },
-      runtimeBootstrapGateModule: { marker: 'gate' },
       defaultSettings: { cardLayout: 'portrait' },
       defaultSortMode: 'recentActivity',
       validSortModes: ['recentActivity'],
       sortModeControlOptions: [{ label: 'Recent Activity', value: 'recentActivity' }],
       storageLocalArea: { get: vi.fn() },
       isWatchlistPath: vi.fn(),
+      getWatchlistRoot: vi.fn(() => null),
+      getWatchlistHeader: vi.fn(() => null),
       debounceProcess: vi.fn(),
       createEmptyWatchHistoryCache: vi.fn(),
       createWatchlistCacheSnapshot: vi.fn(),
@@ -72,6 +73,8 @@ describe('content-runtime-bootstrap-setup-bindings runtime', () => {
     expect(runtimeSetupOptions.runtimeDebugModule).toEqual({ marker: 'debug' });
     expect(runtimeSetupOptions.defaultSortMode).toBe('recentActivity');
     expect(runtimeSetupOptions.defaultSettings).toEqual({ cardLayout: 'portrait' });
+    expect(runtimeSetupOptions.getWatchlistRoot).toBeTypeOf('function');
+    expect(runtimeSetupOptions.getWatchlistHeader).toBeTypeOf('function');
     expect(runtimeSetupOptions.createWatchlistCacheSnapshot).toBeTypeOf('function');
   });
 

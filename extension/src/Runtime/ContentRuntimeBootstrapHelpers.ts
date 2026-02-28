@@ -26,7 +26,6 @@ type RuntimeLockLifecycleControl = {
 };
 
 type BootstrapRuntimeSession = {
-  runtimeBootstrapGateModule: LooseRecord;
   runtimeStateLoaderModule: LooseRecord;
   runtimeLifecycleModule: LooseRecord;
   runtimeBootstrapHelpersModule: LooseRecord;
@@ -40,6 +39,8 @@ type BootstrapRuntimeSession = {
   state: LooseRecord;
   storageLocalArea: unknown;
   isWatchlistPath: (pathname: string) => boolean;
+  getWatchlistRoot: (documentRef: Document) => Element | null;
+  getWatchlistHeader: (documentRef: Document) => Element | null;
   debounceProcess: () => void;
   createEmptyWatchHistoryCache: AnyFn;
   createWatchlistCacheSnapshot: AnyFn;

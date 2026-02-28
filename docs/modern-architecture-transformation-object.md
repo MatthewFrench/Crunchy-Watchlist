@@ -254,6 +254,12 @@ Progress notes:
   - `ContentRuntimeBootstrapDomLock` and `ContentRuntimeBootstrapSessionAssembly` no longer carry `runtimeBootstrapFinalizeModule` in runtime bootstrap context/session objects.
   - `ContentRuntimeBootstrapSetupBindings` and `ContentRuntimeSetup` no longer require `runtimeBootstrapFinalizeModule` option plumbing.
   - `ContentRuntimeSetupDataInitializationPhases` now resolves finalize helpers via direct import wiring (`createBootstrapFinalizeRuntimeModule`) with an optional context override seam for deterministic tests.
+- 2026-02-28: Removed `runtimeBootstrapGateModule` object plumbing from bootstrap-context/session/setup-option handoff:
+  - `ContentBootstrap` now returns direct gate contracts (`isWatchlistPath`, `getWatchlistRoot`, `getWatchlistHeader`) instead of forwarding a gate-module object.
+  - `ContentRuntimeBootstrapDomLock` validates/forwards gate contracts directly in validated bootstrap context.
+  - `ContentRuntimeBootstrapSessionAssembly` consumes gate contracts directly for watchlist path/root ownership and no longer uses `createIsWatchlistPath` adapter indirection.
+  - `ContentRuntimeBootstrapSetupBindings`, `ContentRuntimeSetup`, and `ContentRuntimeSetupComposition` now pass/consume `getWatchlistRoot` and `getWatchlistHeader` as typed setup contracts.
+- 2026-02-28: Fixed `ContentBootstrap` diagnostics fallback shape mismatch (runtime object vs module object) so bundled runtime startup no longer fails prelude resolution with `missing-bootstrap-diagnostics-module`.
 
 ## WS2: Boundary-Type Discipline Cleanup
 

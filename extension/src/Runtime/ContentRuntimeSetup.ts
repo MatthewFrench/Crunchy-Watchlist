@@ -102,7 +102,6 @@ let createContentRuntimeSetupFactory: ((options?: object) => object) | null = nu
     runtimeTraceModule: Record<string, unknown>;
     runtimePreferredAudioModule: Record<string, unknown>;
     runtimeBootstrapHelpersModule: Record<string, unknown>;
-    runtimeBootstrapGateModule: Record<string, unknown>;
     storageModule: Record<string, unknown>;
     apiContractsModule: Record<string, unknown>;
     authClientModule: Record<string, unknown>;
@@ -137,6 +136,8 @@ let createContentRuntimeSetupFactory: ((options?: object) => object) | null = nu
     sortModeControlOptions: unknown[];
     storageLocalArea: unknown;
     isWatchlistPath: (pathname: string) => boolean;
+    getWatchlistRoot: (documentRef: Document) => Element | null;
+    getWatchlistHeader: (documentRef: Document) => Element | null;
     debounceProcess: UnknownFn;
     createEmptyWatchHistoryCache: () => unknown;
     createWatchlistCacheSnapshot: WatchlistCacheSnapshotFactory;
@@ -177,6 +178,45 @@ let createContentRuntimeSetupFactory: ((options?: object) => object) | null = nu
     ) => void;
   };
 
+  type ContentRuntimeSetupModuleBindings = Pick<
+    ContentRuntimeSetupContext,
+    | 'runtimeTraceModule'
+    | 'runtimePreferredAudioModule'
+    | 'runtimeBootstrapHelpersModule'
+    | 'storageModule'
+    | 'apiContractsModule'
+    | 'authClientModule'
+    | 'watchlistClientModule'
+    | 'watchlistRepositoryModule'
+    | 'historyRepositoryModule'
+    | 'ratingsClientModule'
+    | 'ratingsRepositoryModule'
+    | 'previewRepositoryModule'
+    | 'corePrimitivesModule'
+    | 'imageVariantsModule'
+    | 'entryNormalizerModule'
+    | 'sortMetricsModule'
+    | 'entrySortingModule'
+    | 'cardMetadataModule'
+    | 'controlsViewModule'
+    | 'cardViewModule'
+    | 'cardShellModule'
+    | 'runtimeRenderableModule'
+    | 'runtimeCuratedPanelModule'
+    | 'runtimeCuratedLoaderModule'
+    | 'runtimeNativeBridgeModule'
+    | 'runtimeCuratedInteractionsModule'
+    | 'runtimeInterfaceShellModule'
+    | 'runtimeDebugModule'
+  >;
+
+  type ContentRuntimeSetupFactories = Pick<
+    ContentRuntimeSetupContext,
+    | 'createContentComposition'
+    | 'createContentRuntimeSetupCompositionRuntime'
+    | 'createContentRuntimeSetupDataInitializationRuntime'
+  >;
+
   function requireFunction<T>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
       throw new Error(`[CW] Missing content runtime setup dependency: ${name}`);
@@ -191,19 +231,13 @@ let createContentRuntimeSetupFactory: ((options?: object) => object) | null = nu
     return value as Record<string, unknown>;
   }
 
-  function resolveContentRuntimeSetupContext(options: ContentRuntimeSetupOptions): ContentRuntimeSetupContext {
+  function resolveContentRuntimeSetupModuleBindings(
+    options: ContentRuntimeSetupOptions,
+  ): ContentRuntimeSetupModuleBindings {
     return {
-      windowRef: ((options.windowRef as unknown) ?? window) as Window,
-      state: toRecord(options.state),
-      runtimeConstants: toRecord(options.runtimeConstants),
-      assertRuntimeMethods: requireFunction<(ownerLabel: string, instance: unknown, methodNames: string[]) => void>(
-        'assertRuntimeMethods',
-        options.assertRuntimeMethods,
-      ),
       runtimeTraceModule: toRecord(options.runtimeTraceModule),
       runtimePreferredAudioModule: toRecord(options.runtimePreferredAudioModule),
       runtimeBootstrapHelpersModule: toRecord(options.runtimeBootstrapHelpersModule),
-      runtimeBootstrapGateModule: toRecord(options.runtimeBootstrapGateModule),
       storageModule: toRecord(options.storageModule),
       apiContractsModule: toRecord(options.apiContractsModule),
       authClientModule: toRecord(options.authClientModule),
@@ -229,6 +263,11 @@ let createContentRuntimeSetupFactory: ((options?: object) => object) | null = nu
       runtimeCuratedInteractionsModule: toRecord(options.runtimeCuratedInteractionsModule),
       runtimeInterfaceShellModule: toRecord(options.runtimeInterfaceShellModule),
       runtimeDebugModule: toRecord(options.runtimeDebugModule),
+    };
+  }
+
+  function resolveContentRuntimeSetupFactories(options: ContentRuntimeSetupOptions): ContentRuntimeSetupFactories {
+    return {
       createContentComposition: requireFunction<UnknownFn>(
         'createContentComposition',
         options.createContentComposition ?? createContentCompositionFactory,
@@ -242,12 +281,34 @@ let createContentRuntimeSetupFactory: ((options?: object) => object) | null = nu
         options.createContentRuntimeSetupDataInitializationRuntime ??
           createContentRuntimeSetupDataInitializationRuntimeFactory,
       ),
+    };
+  }
+
+  function resolveContentRuntimeSetupContext(options: ContentRuntimeSetupOptions): ContentRuntimeSetupContext {
+    return {
+      windowRef: ((options.windowRef as unknown) ?? window) as Window,
+      state: toRecord(options.state),
+      runtimeConstants: toRecord(options.runtimeConstants),
+      assertRuntimeMethods: requireFunction<(ownerLabel: string, instance: unknown, methodNames: string[]) => void>(
+        'assertRuntimeMethods',
+        options.assertRuntimeMethods,
+      ),
+      ...resolveContentRuntimeSetupModuleBindings(options),
+      ...resolveContentRuntimeSetupFactories(options),
       defaultSettings: toRecord(options.defaultSettings),
       defaultSortMode: options.defaultSortMode,
       validSortModes: options.validSortModes,
       sortModeControlOptions: Array.isArray(options.sortModeControlOptions) ? options.sortModeControlOptions : [],
       storageLocalArea: options.storageLocalArea,
       isWatchlistPath: requireFunction<(pathname: string) => boolean>('isWatchlistPath', options.isWatchlistPath),
+      getWatchlistRoot: requireFunction<(documentRef: Document) => Element | null>(
+        'getWatchlistRoot',
+        options.getWatchlistRoot,
+      ),
+      getWatchlistHeader: requireFunction<(documentRef: Document) => Element | null>(
+        'getWatchlistHeader',
+        options.getWatchlistHeader,
+      ),
       debounceProcess: requireFunction<UnknownFn>('debounceProcess', options.debounceProcess),
       createEmptyWatchHistoryCache: requireFunction<() => unknown>(
         'createEmptyWatchHistoryCache',

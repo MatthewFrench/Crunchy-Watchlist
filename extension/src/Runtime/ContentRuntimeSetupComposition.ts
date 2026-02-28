@@ -77,15 +77,9 @@ let createContentRuntimeSetupCompositionRuntimeFactory: ((options?: LooseRecord)
       createEmptyWatchHistoryCache: () =>
         requireFn<() => unknown>('createEmptyWatchHistoryCache', context.createEmptyWatchHistoryCache)(),
       getWatchlistRoot: (documentRef: Document) =>
-        requireFn<(documentRef: Document) => unknown>(
-          'getWatchlistRoot',
-          context.runtimeBootstrapGateModule && (context.runtimeBootstrapGateModule as LooseRecord).getWatchlistRoot,
-        )(documentRef),
+        requireFn<(documentRef: Document) => unknown>('getWatchlistRoot', context.getWatchlistRoot)(documentRef),
       getWatchlistHeader: (documentRef: Document) =>
-        requireFn<(documentRef: Document) => unknown>(
-          'getWatchlistHeader',
-          context.runtimeBootstrapGateModule && (context.runtimeBootstrapGateModule as LooseRecord).getWatchlistHeader,
-        )(documentRef),
+        requireFn<(documentRef: Document) => unknown>('getWatchlistHeader', context.getWatchlistHeader)(documentRef),
       storageSet: (key: string, value: unknown) => storageSet(key, value),
       runtimeEvent: bindings.runtimeEvent,
       resolveApiHref: bindings.resolveApiHref,

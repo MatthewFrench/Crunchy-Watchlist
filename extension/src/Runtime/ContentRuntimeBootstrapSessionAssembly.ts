@@ -52,7 +52,9 @@ type BootstrapSessionAssembledRuntime = {
 };
 
 type BootstrapSessionCoreModules = {
-  runtimeBootstrapGateModule: LooseRecord;
+  isWatchlistPath: (pathname: string) => boolean;
+  getWatchlistRoot: (documentRef: Document) => Element | null;
+  getWatchlistHeader: (documentRef: Document) => Element | null;
   assertRuntimeMethods: AnyFn;
   bootstrapModulesRuntime: LooseRecord;
 };
@@ -89,7 +91,6 @@ type RuntimeBootstrapMutableAccessors = {
 type RuntimeBootstrapSessionSupportRuntime = {
   createRuntimeBootstrapMutableAccessors: () => RuntimeBootstrapMutableAccessors;
   resolveStorageLocalArea: (context: RuntimeBootstrapHelpersContext) => unknown;
-  createIsWatchlistPath: (runtimeBootstrapGateModule: LooseRecord) => (pathname: string) => boolean;
   createDebounceProcess: (options: {
     context: RuntimeBootstrapHelpersContext;
     state: LooseRecord;
@@ -100,7 +101,6 @@ type RuntimeBootstrapSessionSupportRuntime = {
 };
 
 type BootstrapRuntimeSession = {
-  runtimeBootstrapGateModule: LooseRecord;
   runtimeStateLoaderModule: LooseRecord;
   runtimeLifecycleModule: LooseRecord;
   runtimeBootstrapHelpersModule: LooseRecord;
@@ -114,6 +114,8 @@ type BootstrapRuntimeSession = {
   state: LooseRecord;
   storageLocalArea: unknown;
   isWatchlistPath: (pathname: string) => boolean;
+  getWatchlistRoot: (documentRef: Document) => Element | null;
+  getWatchlistHeader: (documentRef: Document) => Element | null;
   debounceProcess: () => void;
   createEmptyWatchHistoryCache: AnyFn;
   createWatchlistCacheSnapshot: AnyFn;
@@ -152,9 +154,28 @@ function toRecord(value: unknown): LooseRecord {
   return value as LooseRecord;
 }
 
+function requireFunction<T>(name: string, value: unknown): T {
+  if (typeof value !== 'function') {
+    throw new Error(`[CW] Missing bootstrap session dependency: ${name}`);
+  }
+
+  return value as T;
+}
+
 function resolveBootstrapSessionCoreModules(bootstrapContext: LooseRecord): BootstrapSessionCoreModules {
   return {
-    runtimeBootstrapGateModule: toRecord(bootstrapContext.runtimeBootstrapGateModule),
+    isWatchlistPath: requireFunction<(pathname: string) => boolean>(
+      'isWatchlistPath',
+      bootstrapContext.isWatchlistPath,
+    ),
+    getWatchlistRoot: requireFunction<(documentRef: Document) => Element | null>(
+      'getWatchlistRoot',
+      bootstrapContext.getWatchlistRoot,
+    ),
+    getWatchlistHeader: requireFunction<(documentRef: Document) => Element | null>(
+      'getWatchlistHeader',
+      bootstrapContext.getWatchlistHeader,
+    ),
     assertRuntimeMethods: bootstrapContext.assertRuntimeMethods as AnyFn,
     bootstrapModulesRuntime: toRecord(bootstrapContext.bootstrapModulesRuntime),
   };
@@ -229,8 +250,7 @@ function createWatchlistHealthRuntimeForSession({
     runtimeEvent: (event: string, data: unknown) => getRuntimeEvent()(event, data),
     isRuntimeActive: () => context.isCurrentRuntimeActive(),
     isWatchlistPath: (pathname: string) => isWatchlistPath(pathname),
-    getWatchlistRoot: (documentRef: Document) =>
-      (coreModules.runtimeBootstrapGateModule.getWatchlistRoot as AnyFn)(documentRef),
+    getWatchlistRoot: (documentRef: Document) => coreModules.getWatchlistRoot(documentRef),
     processWatchlist: () => getProcessWatchlist()(),
     syncRouteRuntime: () => getSyncRouteRuntime()(),
   }) as LooseRecord;
@@ -284,14 +304,12 @@ function assembleBootstrapSessionRuntimeForContext({
   coreModules,
   sessionDependencies,
   accessors,
-  supportRuntime,
   createRuntimeLockLifecycleControl,
 }: {
   context: RuntimeBootstrapHelpersContext;
   coreModules: BootstrapSessionCoreModules;
   sessionDependencies: BootstrapSessionDependencies;
   accessors: RuntimeBootstrapMutableAccessors;
-  supportRuntime: RuntimeBootstrapSessionSupportRuntime;
   createRuntimeLockLifecycleControl: (options: RuntimeLockLifecycleOptions) => RuntimeLockLifecycleControl;
 }): BootstrapSessionAssembledRuntime {
   const runtimeLockLifecycleControl = createRuntimeLockLifecycleControlForSession({
@@ -299,7 +317,7 @@ function assembleBootstrapSessionRuntimeForContext({
     accessors,
     createRuntimeLockLifecycleControl,
   });
-  const isWatchlistPath = supportRuntime.createIsWatchlistPath(coreModules.runtimeBootstrapGateModule);
+  const isWatchlistPath = coreModules.isWatchlistPath;
   activateRuntimeControlForSession(context, accessors.getRuntimeEvent, runtimeLockLifecycleControl.shutdownRuntime);
   runtimeLockLifecycleControl.startRuntimeTakeoverRequestListener();
   attachWatchlistHealthRuntimeForSession({
@@ -333,7 +351,6 @@ function createBootstrapRuntimeSessionForContext({
   isWatchlistPath: (pathname: string) => boolean;
 }): BootstrapRuntimeSession {
   return {
-    runtimeBootstrapGateModule: coreModules.runtimeBootstrapGateModule,
     runtimeStateLoaderModule: sessionDependencies.runtimeStateLoaderModule,
     runtimeLifecycleModule: sessionDependencies.runtimeLifecycleModule,
     runtimeBootstrapHelpersModule: sessionDependencies.runtimeBootstrapHelpersModule,
@@ -347,6 +364,8 @@ function createBootstrapRuntimeSessionForContext({
     state: sessionDependencies.state,
     storageLocalArea: supportRuntime.resolveStorageLocalArea(context),
     isWatchlistPath,
+    getWatchlistRoot: coreModules.getWatchlistRoot,
+    getWatchlistHeader: coreModules.getWatchlistHeader,
     debounceProcess: supportRuntime.createDebounceProcess({
       context,
       state: sessionDependencies.state,
@@ -390,7 +409,6 @@ function createRuntimeBootstrapSessionForContext(
     coreModules,
     sessionDependencies,
     accessors,
-    supportRuntime,
     createRuntimeLockLifecycleControl,
   });
 

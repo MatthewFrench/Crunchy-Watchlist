@@ -262,11 +262,22 @@ function resolveValidatedBootstrapContextForContext(context: RuntimeBootstrapHel
     clearStaleInjectedShellForContext(context, 'missing-bootstrap-assert-runtime-methods');
     return null;
   }
+  if (
+    typeof bootstrapPrelude.isWatchlistPath !== 'function' ||
+    typeof bootstrapPrelude.getWatchlistRoot !== 'function' ||
+    typeof bootstrapPrelude.getWatchlistHeader !== 'function'
+  ) {
+    setBootstrapIssue('missing-bootstrap-gate-contracts');
+    clearStaleInjectedShellForContext(context, 'missing-bootstrap-gate-contracts');
+    return null;
+  }
 
   return {
     updateDiagnostics: bootstrapPrelude.updateDiagnostics as AnyFn,
     setBootstrapIssue,
-    runtimeBootstrapGateModule: toRecord(bootstrapPrelude.runtimeBootstrapGateModule),
+    isWatchlistPath: bootstrapPrelude.isWatchlistPath as AnyFn,
+    getWatchlistRoot: bootstrapPrelude.getWatchlistRoot as AnyFn,
+    getWatchlistHeader: bootstrapPrelude.getWatchlistHeader as AnyFn,
     assertRuntimeMethods: bootstrapPrelude.assertRuntimeMethods as AnyFn,
     bootstrapModulesRuntime: toRecord(bootstrapPrelude.bootstrapModulesRuntime),
   };
