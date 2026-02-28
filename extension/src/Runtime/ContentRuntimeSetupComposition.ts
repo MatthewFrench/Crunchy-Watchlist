@@ -146,9 +146,10 @@
       storageSet,
       requireFn,
     );
-    const assertRuntimeMethods = requireFn<
-      (ownerLabel: string, instance: unknown, methodNames: string[]) => void
-    >('assertRuntimeMethods', context.assertRuntimeMethods);
+    const assertRuntimeMethods = requireFn<(ownerLabel: string, instance: unknown, methodNames: string[]) => void>(
+      'assertRuntimeMethods',
+      context.assertRuntimeMethods,
+    );
     assertRuntimeMethods('content composition runtime', compositionRuntime, [
       'normalizeEntriesFromApiRows',
       'ensureInterface',

@@ -112,10 +112,7 @@
     const dependencies = options.dependencies;
     const createCuratedRenderable = requireFunction<
       (dependencies: Record<string, unknown>) => CuratedRenderableFactoryRuntime
-    >(
-      'createCuratedRenderable',
-      options.modules.runtimeRenderableModule.createCuratedRenderable,
-    );
+    >('createCuratedRenderable', options.modules.runtimeRenderableModule.createCuratedRenderable);
     const curatedRenderable = createCuratedRenderable({
       normalizeAudioLocale: corePrimitives.normalizeAudioLocale,
       getPreferredAudioLanguage: dependencies.getPreferredAudioLanguage,
@@ -189,10 +186,7 @@
     const dependencies = options.dependencies;
     const createCuratedPanelRuntime = requireFunction<
       (dependencies: Record<string, unknown>) => CuratedPanelFactoryRuntime
-    >(
-      'createCuratedPanelRuntime',
-      options.modules.runtimeCuratedPanelModule.createCuratedPanelRuntime,
-    );
+    >('createCuratedPanelRuntime', options.modules.runtimeCuratedPanelModule.createCuratedPanelRuntime);
     const curatedPanelRuntime = createCuratedPanelRuntime({
       state: options.state,
       documentRef: options.windowRef.document,
@@ -237,10 +231,7 @@
     const dependencies = options.dependencies;
     const createCuratedLoaderRuntime = requireFunction<
       (dependencies: Record<string, unknown>) => CuratedLoaderFactoryRuntime
-    >(
-      'createCuratedLoaderRuntime',
-      options.modules.runtimeCuratedLoaderModule.createCuratedLoaderRuntime,
-    );
+    >('createCuratedLoaderRuntime', options.modules.runtimeCuratedLoaderModule.createCuratedLoaderRuntime);
     const curatedLoaderRuntime = createCuratedLoaderRuntime({
       state: options.state,
       locationRef: options.windowRef.location,
@@ -283,10 +274,7 @@
     const dependencies = options.dependencies;
     const createNativeBridgeRuntime = requireFunction<
       (dependencies: Record<string, unknown>) => NativeBridgeFactoryRuntime
-    >(
-      'createNativeBridgeRuntime',
-      options.modules.runtimeNativeBridgeModule.createNativeBridgeRuntime,
-    );
+    >('createNativeBridgeRuntime', options.modules.runtimeNativeBridgeModule.createNativeBridgeRuntime);
     const nativeBridgeRuntime = createNativeBridgeRuntime({
       documentRef: options.windowRef.document,
       windowRef: options.windowRef,
@@ -391,10 +379,7 @@
   ): InterfaceRuntime {
     const createInterfaceShellRuntime = requireFunction<
       (dependencies: Record<string, unknown>) => InterfaceShellFactoryRuntime
-    >(
-      'createInterfaceShellRuntime',
-      options.modules.runtimeInterfaceShellModule.createInterfaceShellRuntime,
-    );
+    >('createInterfaceShellRuntime', options.modules.runtimeInterfaceShellModule.createInterfaceShellRuntime);
     const runtime = createInterfaceShellRuntime({
       state: options.state,
       documentRef: options.windowRef.document,
