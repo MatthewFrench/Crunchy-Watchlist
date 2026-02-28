@@ -5,6 +5,10 @@ import {
   type RequireFunction,
 } from './ContentRuntimeSetupDataInitializationPhases.js';
 
+let createContentRuntimeSetupDataInitializationRuntimeFactory:
+  | ((options?: LooseRecord) => DataInitializationRuntime)
+  | null = null;
+
 (() => {
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
     typeof globalThis & {
@@ -31,7 +35,17 @@ import {
     return createContentRuntimeSetupDataInitializationPhases(requireFn);
   }
 
+  createContentRuntimeSetupDataInitializationRuntimeFactory = createContentRuntimeSetupDataInitializationRuntime;
   moduleRegistry.runtimeContentRuntimeSetupDataInitialization = {
     createContentRuntimeSetupDataInitializationRuntime,
   };
 })();
+
+export function createContentRuntimeSetupDataInitializationRuntime(
+  options: LooseRecord = {},
+): DataInitializationRuntime {
+  if (typeof createContentRuntimeSetupDataInitializationRuntimeFactory !== 'function') {
+    throw new Error('[CW] Content runtime setup data-initialization factory was not initialized.');
+  }
+  return createContentRuntimeSetupDataInitializationRuntimeFactory(options);
+}

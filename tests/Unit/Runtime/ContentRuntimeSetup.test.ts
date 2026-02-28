@@ -86,12 +86,8 @@ describe('content-runtime-setup runtime', () => {
       state: {},
       runtimeConstants: {},
       assertRuntimeMethods: vi.fn(),
-      runtimeContentRuntimeSetupCompositionModule: {
-        createContentRuntimeSetupCompositionRuntime,
-      },
-      runtimeContentRuntimeSetupDataInitializationModule: {
-        createContentRuntimeSetupDataInitializationRuntime,
-      },
+      createContentRuntimeSetupCompositionRuntime,
+      createContentRuntimeSetupDataInitializationRuntime,
       isWatchlistPath: vi.fn(),
       debounceProcess: vi.fn(),
       createEmptyWatchHistoryCache: vi.fn(() => ({})),
@@ -138,14 +134,7 @@ describe('content-runtime-setup runtime', () => {
       state: {},
       runtimeConstants: {},
       assertRuntimeMethods: vi.fn(),
-      runtimeContentRuntimeSetupDataInitializationModule: {
-        createContentRuntimeSetupDataInitializationRuntime: vi.fn(() => ({
-          initializeTraceAndContracts: vi.fn(),
-          initializePreferredAudioAndStorage: vi.fn(),
-          initializeAuthImageAndRatings: vi.fn(),
-          initializeWatchlistHistoryAndPreview: vi.fn(),
-        })),
-      },
+      createContentRuntimeSetupCompositionRuntime: 'invalid-factory',
       isWatchlistPath: vi.fn(),
       debounceProcess: vi.fn(),
       createEmptyWatchHistoryCache: vi.fn(() => ({})),
@@ -158,7 +147,7 @@ describe('content-runtime-setup runtime', () => {
 
     expect(result.ok).toBe(false);
     expect(result.message).toContain(
-      'Missing content runtime setup dependency: runtimeContentRuntimeSetupCompositionModule.createContentRuntimeSetupCompositionRuntime',
+      'Missing content runtime setup dependency: createContentRuntimeSetupCompositionRuntime',
     );
   });
 
@@ -170,12 +159,7 @@ describe('content-runtime-setup runtime', () => {
       state: {},
       runtimeConstants: {},
       assertRuntimeMethods: vi.fn(),
-      runtimeContentRuntimeSetupCompositionModule: {
-        createContentRuntimeSetupCompositionRuntime: vi.fn(() => ({
-          initializeCompositionBinding: vi.fn(),
-          buildContentRuntimeSetupSuccess: vi.fn(() => ({ ok: true })),
-        })),
-      },
+      createContentRuntimeSetupDataInitializationRuntime: 'invalid-factory',
       isWatchlistPath: vi.fn(),
       debounceProcess: vi.fn(),
       createEmptyWatchHistoryCache: vi.fn(() => ({})),
@@ -188,7 +172,7 @@ describe('content-runtime-setup runtime', () => {
 
     expect(result.ok).toBe(false);
     expect(result.message).toContain(
-      'Missing content runtime setup dependency: runtimeContentRuntimeSetupDataInitializationModule.createContentRuntimeSetupDataInitializationRuntime',
+      'Missing content runtime setup dependency: createContentRuntimeSetupDataInitializationRuntime',
     );
   });
 });

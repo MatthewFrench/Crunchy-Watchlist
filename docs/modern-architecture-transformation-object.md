@@ -218,6 +218,14 @@ Progress notes:
 - 2026-02-28: Added Safari packaged-manifest validation in `scripts/build-safari-macos.sh` to fail builds when any `content_scripts[].js` path is missing from packaged `.appex` resources.
 - 2026-02-28: Added `guard-module-registry-growth` baseline gate to block growth and new-file spread of `__CW_WATCHLIST_CURATOR_MODULES__` usage during migration.
 - 2026-02-28: Reduced registry coupling in bootstrap flow by switching helper/session wiring to static module imports for owned dependencies (`ContentRuntimeBootstrapHelpers`, `ContentRuntimeBootstrapSession`, and `ContentRuntimeBootstrapDomLock`), while retaining registry registration compatibility at module boundaries.
+- 2026-02-28: Replaced registry-fallback wiring for composition/setup factories with static import wiring:
+  - `ContentComposition` now binds composition runtimes from direct factory imports (`ContentCompositionBindings`, `ContentCompositionRuntimeBindings`) instead of runtime registry lookups.
+  - `ContentRuntimeSetup` now binds setup-composition/data-initialization runtimes from direct factory imports (`ContentRuntimeSetupComposition`, `ContentRuntimeSetupDataInitialization`) with explicit optional override hooks for tests.
+  - `ContentRuntimeBootstrapSetupBindings` no longer injects registry fallback fields for setup-composition/data-initialization modules into runtime-setup options.
+- 2026-02-28: Removed setup-time dependency on `runtimeContentCompositionModule` registry wiring:
+  - `ContentRuntimeSetup` now binds `createContentComposition` directly from static imports with an explicit optional override hook.
+  - `ContentRuntimeSetupComposition` now calls `createContentComposition` via direct import wiring (or explicit override), not `context.runtimeContentCompositionModule.createContentComposition`.
+  - `ContentRuntimeBootstrapSetupBindings` no longer forwards `runtimeContentCompositionModule` into runtime-setup options.
 
 ## WS2: Boundary-Type Discipline Cleanup
 

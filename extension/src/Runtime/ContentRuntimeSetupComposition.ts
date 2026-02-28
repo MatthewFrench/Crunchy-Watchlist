@@ -1,3 +1,7 @@
+import { createContentComposition as createContentCompositionFactory } from './ContentComposition.js';
+
+let createContentRuntimeSetupCompositionRuntimeFactory: ((options?: LooseRecord) => LooseRecord) | null = null;
+
 (() => {
   type LooseRecord = Record<string, unknown>;
   type RequireFunction = <T>(name: string, value: unknown) => T;
@@ -95,11 +99,11 @@
     storageSet: (key: string, value: unknown) => unknown,
     requireFn: RequireFunction,
   ): LooseRecord {
-    return requireFn<(options: LooseRecord) => LooseRecord>(
+    const createContentComposition = requireFn<(options: LooseRecord) => LooseRecord>(
       'createContentComposition',
-      context.runtimeContentCompositionModule &&
-        (context.runtimeContentCompositionModule as LooseRecord).createContentComposition,
-    )({
+      context.createContentComposition || createContentCompositionFactory,
+    );
+    return createContentComposition({
       windowRef: context.windowRef,
       state: context.state,
       runtimeConstants: context.runtimeConstants,
@@ -231,7 +235,15 @@
     };
   }
 
+  createContentRuntimeSetupCompositionRuntimeFactory = createContentRuntimeSetupCompositionRuntime;
   moduleRegistry.runtimeContentRuntimeSetupComposition = {
     createContentRuntimeSetupCompositionRuntime,
   };
 })();
+
+export function createContentRuntimeSetupCompositionRuntime(options: LooseRecord = {}): LooseRecord {
+  if (typeof createContentRuntimeSetupCompositionRuntimeFactory !== 'function') {
+    throw new Error('[CW] Content runtime setup composition factory was not initialized.');
+  }
+  return createContentRuntimeSetupCompositionRuntimeFactory(options);
+}

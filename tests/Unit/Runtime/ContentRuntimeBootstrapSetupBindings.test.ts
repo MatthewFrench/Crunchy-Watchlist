@@ -48,7 +48,6 @@ describe('content-runtime-bootstrap-setup-bindings runtime', () => {
       runtimeBootstrapHelpersModule: { marker: 'helpers' },
       runtimeBootstrapGateModule: { marker: 'gate' },
       runtimeBootstrapFinalizeModule: { marker: 'finalize' },
-      runtimeContentCompositionModule: { marker: 'composition' },
       defaultSettings: { cardLayout: 'portrait' },
       defaultSortMode: 'recentActivity',
       validSortModes: ['recentActivity'],
@@ -74,7 +73,6 @@ describe('content-runtime-bootstrap-setup-bindings runtime', () => {
     expect(runtimeSetupOptions.runtimeDebugModule).toEqual({ marker: 'debug' });
     expect(runtimeSetupOptions.defaultSortMode).toBe('recentActivity');
     expect(runtimeSetupOptions.defaultSettings).toEqual({ cardLayout: 'portrait' });
-    expect(runtimeSetupOptions.runtimeContentCompositionModule).toEqual({ marker: 'composition' });
     expect(runtimeSetupOptions.createWatchlistCacheSnapshot).toBeTypeOf('function');
   });
 

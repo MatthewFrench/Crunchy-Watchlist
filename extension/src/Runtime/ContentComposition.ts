@@ -1,4 +1,8 @@
 import { type CuratedCardEntry, createCardShell } from '../Ui/CuratedCardShell.js';
+import { createContentCompositionBindingsRuntime as createContentCompositionBindingsRuntimeFactory } from './ContentCompositionBindings.js';
+import { createContentCompositionRuntimeBindingsRuntime as createContentCompositionRuntimeBindingsRuntimeFactory } from './ContentCompositionRuntimeBindings.js';
+
+let createContentCompositionFactory: ((options?: LooseRecord) => object) | null = null;
 
 (() => {
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
@@ -70,21 +74,11 @@ import { type CuratedCardEntry, createCardShell } from '../Ui/CuratedCardShell.j
   };
 
   function createContentCompositionBindingsRuntime(): ContentCompositionBindingsRuntime {
-    const bindingsModule = toFunctionRecord(moduleRegistry.runtimeContentCompositionBindings);
-    const createRuntime = requireFunction<AnyFn>(
-      'createContentCompositionBindingsRuntime',
-      bindingsModule.createContentCompositionBindingsRuntime,
-    );
-    return createRuntime() as ContentCompositionBindingsRuntime;
+    return createContentCompositionBindingsRuntimeFactory() as ContentCompositionBindingsRuntime;
   }
 
   function createContentCompositionRuntimeBindingsRuntime(): ContentCompositionRuntimeBindingsRuntime {
-    const runtimeBindingsModule = toFunctionRecord(moduleRegistry.runtimeContentCompositionRuntimeBindings);
-    const createRuntime = requireFunction<AnyFn>(
-      'createContentCompositionRuntimeBindingsRuntime',
-      runtimeBindingsModule.createContentCompositionRuntimeBindingsRuntime,
-    );
-    return createRuntime() as ContentCompositionRuntimeBindingsRuntime;
+    return createContentCompositionRuntimeBindingsRuntimeFactory() as ContentCompositionRuntimeBindingsRuntime;
   }
 
   function createSortRuntime(options: ContentCompositionOptions): SortRuntime {
@@ -427,6 +421,9 @@ import { type CuratedCardEntry, createCardShell } from '../Ui/CuratedCardShell.j
     };
   }
 
+  createContentCompositionFactory = (options?: LooseRecord) =>
+    createContentComposition((options || {}) as ContentCompositionOptions);
+
   let runtimeRegistry = moduleRegistry.runtimeContentComposition;
   if (!runtimeRegistry || typeof runtimeRegistry !== 'object') {
     runtimeRegistry = {};
@@ -435,3 +432,10 @@ import { type CuratedCardEntry, createCardShell } from '../Ui/CuratedCardShell.j
 
   (runtimeRegistry as LooseRecord).createContentComposition = createContentComposition;
 })();
+
+export function createContentComposition(options: LooseRecord = {}): object {
+  if (typeof createContentCompositionFactory !== 'function') {
+    throw new Error('[CW] Content composition factory was not initialized.');
+  }
+  return createContentCompositionFactory(options);
+}

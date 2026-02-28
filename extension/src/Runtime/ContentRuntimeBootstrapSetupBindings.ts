@@ -63,15 +63,6 @@ const runtimeSetupBindingKeys = [
   'setWatchlistCacheRows',
 ];
 
-const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
-  typeof globalThis & {
-    __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
-  };
-if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-  root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-}
-const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
-
 function toRecord(value: unknown): LooseRecord {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
@@ -120,9 +111,6 @@ function createRuntimeSetupOptions({
   runtimeBootstrapHelpersModule,
   runtimeBootstrapGateModule,
   runtimeBootstrapFinalizeModule,
-  runtimeContentCompositionModule,
-  runtimeContentRuntimeSetupCompositionModule,
-  runtimeContentRuntimeSetupDataInitializationModule,
   defaultSettings,
   defaultSortMode,
   validSortModes,
@@ -143,11 +131,6 @@ function createRuntimeSetupOptions({
     runtimeBootstrapHelpersModule,
     runtimeBootstrapGateModule,
     runtimeBootstrapFinalizeModule,
-    runtimeContentCompositionModule,
-    runtimeContentRuntimeSetupCompositionModule:
-      runtimeContentRuntimeSetupCompositionModule ?? moduleRegistry.runtimeContentRuntimeSetupComposition,
-    runtimeContentRuntimeSetupDataInitializationModule:
-      runtimeContentRuntimeSetupDataInitializationModule ?? moduleRegistry.runtimeContentRuntimeSetupDataInitialization,
     defaultSettings,
     defaultSortMode,
     validSortModes,
@@ -185,6 +168,15 @@ export function createContentRuntimeBootstrapSetupBindingsRuntime(): RuntimeSetu
 }
 
 function registerContentRuntimeBootstrapSetupBindingsRuntime(): void {
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
+    typeof globalThis & {
+      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
+    };
+  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
+  }
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
+
   let runtimeRegistry = moduleRegistry.runtimeContentRuntimeBootstrapSetupBindings;
   if (!runtimeRegistry || typeof runtimeRegistry !== 'object') {
     runtimeRegistry = {};

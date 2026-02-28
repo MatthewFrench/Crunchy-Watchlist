@@ -1,3 +1,5 @@
+let createContentCompositionRuntimeBindingsRuntimeFactory: (() => object) | null = null;
+
 (() => {
   type UnknownFn = (...args: unknown[]) => unknown;
   type LooseRecord = Record<string, unknown>;
@@ -434,7 +436,15 @@
     };
   }
 
+  createContentCompositionRuntimeBindingsRuntimeFactory = createContentCompositionRuntimeBindingsRuntime;
   moduleRegistry.runtimeContentCompositionRuntimeBindings = {
     createContentCompositionRuntimeBindingsRuntime,
   };
 })();
+
+export function createContentCompositionRuntimeBindingsRuntime(): object {
+  if (typeof createContentCompositionRuntimeBindingsRuntimeFactory !== 'function') {
+    throw new Error('[CW] Content composition runtime bindings factory was not initialized.');
+  }
+  return createContentCompositionRuntimeBindingsRuntimeFactory();
+}

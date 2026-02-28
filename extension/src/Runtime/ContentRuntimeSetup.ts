@@ -1,3 +1,7 @@
+import { createContentComposition as createContentCompositionFactory } from './ContentComposition.js';
+import { createContentRuntimeSetupCompositionRuntime as createContentRuntimeSetupCompositionRuntimeFactory } from './ContentRuntimeSetupComposition.js';
+import { createContentRuntimeSetupDataInitializationRuntime as createContentRuntimeSetupDataInitializationRuntimeFactory } from './ContentRuntimeSetupDataInitialization.js';
+
 (() => {
   type UnknownFn = (...args: unknown[]) => unknown;
   type RequireFunction = <T>(name: string, value: unknown) => T;
@@ -123,9 +127,9 @@
     runtimeCuratedInteractionsModule: Record<string, unknown>;
     runtimeInterfaceShellModule: Record<string, unknown>;
     runtimeDebugModule: Record<string, unknown>;
-    runtimeContentCompositionModule: Record<string, unknown>;
-    runtimeContentRuntimeSetupCompositionModule: Record<string, unknown>;
-    runtimeContentRuntimeSetupDataInitializationModule: Record<string, unknown>;
+    createContentComposition: UnknownFn;
+    createContentRuntimeSetupCompositionRuntime: UnknownFn;
+    createContentRuntimeSetupDataInitializationRuntime: UnknownFn;
     defaultSettings: Record<string, unknown>;
     defaultSortMode: unknown;
     validSortModes: unknown;
@@ -172,12 +176,6 @@
     ) => void;
   };
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
-
   function requireFunction<T>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
       throw new Error(`[CW] Missing content runtime setup dependency: ${name}`);
@@ -190,18 +188,6 @@
       return {};
     }
     return value as Record<string, unknown>;
-  }
-
-  function requireModuleWithFactory(
-    ownerName: string,
-    moduleValue: unknown,
-    factoryName: string,
-  ): Record<string, unknown> {
-    const moduleRecord = toRecord(moduleValue);
-    if (typeof moduleRecord[factoryName] !== 'function') {
-      throw new Error(`[CW] Missing content runtime setup dependency: ${ownerName}.${factoryName}`);
-    }
-    return moduleRecord;
   }
 
   function resolveContentRuntimeSetupContext(options: ContentRuntimeSetupOptions): ContentRuntimeSetupContext {
@@ -243,16 +229,18 @@
       runtimeCuratedInteractionsModule: toRecord(options.runtimeCuratedInteractionsModule),
       runtimeInterfaceShellModule: toRecord(options.runtimeInterfaceShellModule),
       runtimeDebugModule: toRecord(options.runtimeDebugModule),
-      runtimeContentCompositionModule: toRecord(options.runtimeContentCompositionModule),
-      runtimeContentRuntimeSetupCompositionModule: requireModuleWithFactory(
-        'runtimeContentRuntimeSetupCompositionModule',
-        options.runtimeContentRuntimeSetupCompositionModule,
-        'createContentRuntimeSetupCompositionRuntime',
+      createContentComposition: requireFunction<UnknownFn>(
+        'createContentComposition',
+        options.createContentComposition ?? createContentCompositionFactory,
       ),
-      runtimeContentRuntimeSetupDataInitializationModule: requireModuleWithFactory(
-        'runtimeContentRuntimeSetupDataInitializationModule',
-        options.runtimeContentRuntimeSetupDataInitializationModule,
+      createContentRuntimeSetupCompositionRuntime: requireFunction<UnknownFn>(
+        'createContentRuntimeSetupCompositionRuntime',
+        options.createContentRuntimeSetupCompositionRuntime ?? createContentRuntimeSetupCompositionRuntimeFactory,
+      ),
+      createContentRuntimeSetupDataInitializationRuntime: requireFunction<UnknownFn>(
         'createContentRuntimeSetupDataInitializationRuntime',
+        options.createContentRuntimeSetupDataInitializationRuntime ??
+          createContentRuntimeSetupDataInitializationRuntimeFactory,
       ),
       defaultSettings: toRecord(options.defaultSettings),
       defaultSortMode: options.defaultSortMode,
@@ -336,13 +324,13 @@
   }
 
   function createSetupCompositionRuntime(context: ContentRuntimeSetupContext): SetupCompositionRuntime {
-    const createSetupRuntime = requireFunction<(options?: Record<string, unknown>) => Record<string, unknown>>(
+    const createSetupRuntime = requireFunction<UnknownFn>(
       'createContentRuntimeSetupCompositionRuntime',
-      context.runtimeContentRuntimeSetupCompositionModule.createContentRuntimeSetupCompositionRuntime,
+      context.createContentRuntimeSetupCompositionRuntime,
     );
     const setupCompositionRuntime = createSetupRuntime({
       requireFunction: requireFunction as RequireFunction,
-    });
+    }) as Record<string, unknown>;
     context.assertRuntimeMethods('content runtime setup composition runtime', setupCompositionRuntime, [
       'initializeCompositionBinding',
       'buildContentRuntimeSetupSuccess',
@@ -351,15 +339,13 @@
   }
 
   function createDataInitializationRuntime(context: ContentRuntimeSetupContext): DataInitializationRuntime {
-    const createDataInitializationRuntimeFactory = requireFunction<
-      (options?: Record<string, unknown>) => Record<string, unknown>
-    >(
+    const createDataInitializationRuntimeFactory = requireFunction<UnknownFn>(
       'createContentRuntimeSetupDataInitializationRuntime',
-      context.runtimeContentRuntimeSetupDataInitializationModule.createContentRuntimeSetupDataInitializationRuntime,
+      context.createContentRuntimeSetupDataInitializationRuntime,
     );
     const dataInitializationRuntime = createDataInitializationRuntimeFactory({
       requireFunction: requireFunction as RequireFunction,
-    });
+    }) as Record<string, unknown>;
     context.assertRuntimeMethods('content runtime setup data initialization runtime', dataInitializationRuntime, [
       'initializeTraceAndContracts',
       'initializePreferredAudioAndStorage',
@@ -399,6 +385,12 @@
       };
     }
   }
+
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
+  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
+  }
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
   moduleRegistry.runtimeContentRuntimeSetup = {
     createContentRuntimeSetup,
