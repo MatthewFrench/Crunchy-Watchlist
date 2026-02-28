@@ -90,4 +90,31 @@ test.describe('Routing and Mounting', () => {
     await expect(page.locator('.cw-host')).toBeVisible();
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
   });
+
+  test('survives repeated sort/filter + route churn without duplicate hosts', async ({ page }) => {
+    await injectExtension(page);
+    await expect(page.locator('.cw-host')).toHaveCount(1);
+    await expect(page.locator('.cw-curated-card').first()).toBeVisible();
+
+    const sortModes = ['rating_desc', 'date_added_desc', 'date_updated_desc'];
+    const watchReadyModes = ['hide', 'dim', 'none'];
+
+    for (let cycle = 0; cycle < 6; cycle += 1) {
+      await page.selectOption('#cw-sort-mode', sortModes[cycle % sortModes.length] || 'rating_desc');
+      await page.selectOption('#cw-watch-ready-mode', watchReadyModes[cycle % watchReadyModes.length] || 'hide');
+      await expect(page.locator('.cw-host')).toHaveCount(1);
+      await expect(page.locator('.cw-curated-card').first()).toBeVisible();
+
+      await page.evaluate(() => {
+        history.pushState({}, '', '/browse');
+      });
+      await expect(page.locator('.cw-host')).toHaveCount(0);
+
+      await page.evaluate(() => {
+        history.pushState({}, '', '/watchlist');
+      });
+      await expect(page.locator('.cw-host')).toHaveCount(1);
+      await expect(page.locator('.cw-curated-card').first()).toBeVisible();
+    }
+  });
 });

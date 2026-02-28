@@ -129,4 +129,66 @@ describe('content-runtime-setup runtime', () => {
       'setup-composition-build-success',
     ]);
   });
+
+  it('fails fast when setup composition module dependency is missing', () => {
+    const result = getContentRuntimeSetupModule().createContentRuntimeSetup({
+      windowRef: {
+        document: {},
+      },
+      state: {},
+      runtimeConstants: {},
+      assertRuntimeMethods: vi.fn(),
+      runtimeContentRuntimeSetupDataInitializationModule: {
+        createContentRuntimeSetupDataInitializationRuntime: vi.fn(() => ({
+          initializeTraceAndContracts: vi.fn(),
+          initializePreferredAudioAndStorage: vi.fn(),
+          initializeAuthImageAndRatings: vi.fn(),
+          initializeWatchlistHistoryAndPreview: vi.fn(),
+        })),
+      },
+      isWatchlistPath: vi.fn(),
+      debounceProcess: vi.fn(),
+      createEmptyWatchHistoryCache: vi.fn(() => ({})),
+      createWatchlistCacheSnapshot: vi.fn(() => ({})),
+      defaultSettings: {},
+      defaultSortMode: 'recentActivity',
+      validSortModes: ['recentActivity'],
+      sortModeControlOptions: [],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain(
+      'Missing content runtime setup dependency: runtimeContentRuntimeSetupCompositionModule.createContentRuntimeSetupCompositionRuntime',
+    );
+  });
+
+  it('fails fast when data initialization module dependency is missing', () => {
+    const result = getContentRuntimeSetupModule().createContentRuntimeSetup({
+      windowRef: {
+        document: {},
+      },
+      state: {},
+      runtimeConstants: {},
+      assertRuntimeMethods: vi.fn(),
+      runtimeContentRuntimeSetupCompositionModule: {
+        createContentRuntimeSetupCompositionRuntime: vi.fn(() => ({
+          initializeCompositionBinding: vi.fn(),
+          buildContentRuntimeSetupSuccess: vi.fn(() => ({ ok: true })),
+        })),
+      },
+      isWatchlistPath: vi.fn(),
+      debounceProcess: vi.fn(),
+      createEmptyWatchHistoryCache: vi.fn(() => ({})),
+      createWatchlistCacheSnapshot: vi.fn(() => ({})),
+      defaultSettings: {},
+      defaultSortMode: 'recentActivity',
+      validSortModes: ['recentActivity'],
+      sortModeControlOptions: [],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain(
+      'Missing content runtime setup dependency: runtimeContentRuntimeSetupDataInitializationModule.createContentRuntimeSetupDataInitializationRuntime',
+    );
+  });
 });

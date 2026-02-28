@@ -122,6 +122,8 @@
     runtimeBootstrapGateModule,
     runtimeBootstrapFinalizeModule,
     runtimeContentCompositionModule,
+    runtimeContentRuntimeSetupCompositionModule,
+    runtimeContentRuntimeSetupDataInitializationModule,
     defaultSettings,
     defaultSortMode,
     validSortModes,
@@ -143,6 +145,11 @@
       runtimeBootstrapGateModule,
       runtimeBootstrapFinalizeModule,
       runtimeContentCompositionModule,
+      runtimeContentRuntimeSetupCompositionModule:
+        runtimeContentRuntimeSetupCompositionModule ?? moduleRegistry.runtimeContentRuntimeSetupComposition,
+      runtimeContentRuntimeSetupDataInitializationModule:
+        runtimeContentRuntimeSetupDataInitializationModule ??
+        moduleRegistry.runtimeContentRuntimeSetupDataInitialization,
       defaultSettings,
       defaultSortMode,
       validSortModes,

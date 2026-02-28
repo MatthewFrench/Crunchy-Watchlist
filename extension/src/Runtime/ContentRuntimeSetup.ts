@@ -192,6 +192,18 @@
     return value as Record<string, unknown>;
   }
 
+  function requireModuleWithFactory(
+    ownerName: string,
+    moduleValue: unknown,
+    factoryName: string,
+  ): Record<string, unknown> {
+    const moduleRecord = toRecord(moduleValue);
+    if (typeof moduleRecord[factoryName] !== 'function') {
+      throw new Error(`[CW] Missing content runtime setup dependency: ${ownerName}.${factoryName}`);
+    }
+    return moduleRecord;
+  }
+
   function resolveContentRuntimeSetupContext(options: ContentRuntimeSetupOptions): ContentRuntimeSetupContext {
     return {
       windowRef: ((options.windowRef as unknown) ?? window) as Window,
@@ -232,12 +244,15 @@
       runtimeInterfaceShellModule: toRecord(options.runtimeInterfaceShellModule),
       runtimeDebugModule: toRecord(options.runtimeDebugModule),
       runtimeContentCompositionModule: toRecord(options.runtimeContentCompositionModule),
-      runtimeContentRuntimeSetupCompositionModule: toRecord(
-        options.runtimeContentRuntimeSetupCompositionModule ?? moduleRegistry.runtimeContentRuntimeSetupComposition,
+      runtimeContentRuntimeSetupCompositionModule: requireModuleWithFactory(
+        'runtimeContentRuntimeSetupCompositionModule',
+        options.runtimeContentRuntimeSetupCompositionModule,
+        'createContentRuntimeSetupCompositionRuntime',
       ),
-      runtimeContentRuntimeSetupDataInitializationModule: toRecord(
-        options.runtimeContentRuntimeSetupDataInitializationModule ??
-          moduleRegistry.runtimeContentRuntimeSetupDataInitialization,
+      runtimeContentRuntimeSetupDataInitializationModule: requireModuleWithFactory(
+        'runtimeContentRuntimeSetupDataInitializationModule',
+        options.runtimeContentRuntimeSetupDataInitializationModule,
+        'createContentRuntimeSetupDataInitializationRuntime',
       ),
       defaultSettings: toRecord(options.defaultSettings),
       defaultSortMode: options.defaultSortMode,
@@ -355,10 +370,9 @@
   }
 
   function createContentRuntimeSetup(options: ContentRuntimeSetupOptions = {}): ContentRuntimeSetupResult {
-    const context = resolveContentRuntimeSetupContext(options);
-    const bindings = createContentRuntimeBindings(context.state, context.createWatchlistCacheSnapshot);
-
     try {
+      const context = resolveContentRuntimeSetupContext(options);
+      const bindings = createContentRuntimeBindings(context.state, context.createWatchlistCacheSnapshot);
       const setupCompositionRuntime = createSetupCompositionRuntime(context);
       const dataInitializationRuntime = createDataInitializationRuntime(context);
       const traceContractsRuntime = dataInitializationRuntime.initializeTraceAndContracts(context, bindings);

@@ -203,6 +203,34 @@ describe('curated-panel-grid-transitions runtime', () => {
     expect(rectReads.value).toBe(0);
   });
 
+  it('keeps element identity stable under repeated reorder churn', () => {
+    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const grid = createFakeElement('cw-curated-grid');
+    const cardA = createFakeElement('cw-curated-card');
+    const cardB = createFakeElement('cw-curated-card');
+    const cardC = createFakeElement('cw-curated-card');
+    cardA.dataset.cwSeriesId = 'series-a';
+    cardB.dataset.cwSeriesId = 'series-b';
+    cardC.dataset.cwSeriesId = 'series-c';
+
+    grid.appendChild(cardA);
+    grid.appendChild(cardB);
+    grid.appendChild(cardC);
+
+    for (let cycle = 0; cycle < 25; cycle += 1) {
+      const nextOrder = cycle % 2 === 0 ? [cardC, cardA, cardB] : [cardA, cardB, cardC];
+      runtime.reorderCuratedGridChildren(
+        grid as unknown as Element,
+        nextOrder.map((card) => card as unknown as Element),
+      );
+    }
+
+    expect(grid.children).toEqual([cardC, cardA, cardB]);
+    expect(grid.children[0]).toBe(cardC);
+    expect(grid.children[1]).toBe(cardA);
+    expect(grid.children[2]).toBe(cardB);
+  });
+
   it('reports removed cards through onCardRemoved while ignoring non-card overflow nodes', () => {
     const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
     const grid = createFakeElement('cw-curated-grid');
