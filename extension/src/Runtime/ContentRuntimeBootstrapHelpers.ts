@@ -27,7 +27,6 @@ type RuntimeLockLifecycleControl = {
 
 type BootstrapRuntimeSession = {
   runtimeBootstrapGateModule: LooseRecord;
-  runtimeBootstrapFinalizeModule: LooseRecord;
   runtimeStateLoaderModule: LooseRecord;
   runtimeLifecycleModule: LooseRecord;
   runtimeBootstrapHelpersModule: LooseRecord;

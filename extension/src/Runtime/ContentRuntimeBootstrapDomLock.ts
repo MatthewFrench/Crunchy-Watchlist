@@ -268,7 +268,6 @@ function resolveValidatedBootstrapContextForContext(context: RuntimeBootstrapHel
     setBootstrapIssue,
     runtimeBootstrapGateModule: toRecord(bootstrapPrelude.runtimeBootstrapGateModule),
     assertRuntimeMethods: bootstrapPrelude.assertRuntimeMethods as AnyFn,
-    runtimeBootstrapFinalizeModule: toRecord(bootstrapPrelude.runtimeBootstrapFinalizeModule),
     bootstrapModulesRuntime: toRecord(bootstrapPrelude.bootstrapModulesRuntime),
   };
 }

@@ -187,7 +187,6 @@ describe('content-runtime-bootstrap-session runtime', () => {
           getWatchlistHeader: vi.fn(() => null),
         },
         assertRuntimeMethods,
-        runtimeBootstrapFinalizeModule: {},
         bootstrapModulesRuntime: {
           runtimeStoreModule: {
             createRuntimeState,

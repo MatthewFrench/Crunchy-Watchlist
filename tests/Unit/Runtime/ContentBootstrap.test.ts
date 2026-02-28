@@ -7,7 +7,6 @@ type ContentBootstrapPrelude = {
   ok: boolean;
   runtimeBootstrapGateModule?: Record<string, unknown>;
   assertRuntimeMethods?: (...args: unknown[]) => unknown;
-  runtimeBootstrapFinalizeModule?: Record<string, unknown>;
   bootstrapModulesRuntime?: Record<string, unknown>;
 };
 
@@ -133,7 +132,6 @@ describe('content-bootstrap runtime module', () => {
     expect(prelude.ok).toBe(true);
     expect(prelude.runtimeBootstrapGateModule).toBe(gateModule);
     expect(prelude.assertRuntimeMethods).toBe(modulesModule.assertRuntimeMethods);
-    expect(prelude.runtimeBootstrapFinalizeModule).toBe(finalizeModule);
     expect(prelude.bootstrapModulesRuntime).toEqual({ runtimeStoreModule: {} });
     expect(setBootstrapIssue).not.toHaveBeenCalled();
   });

@@ -54,7 +54,6 @@ type BootstrapSessionAssembledRuntime = {
 type BootstrapSessionCoreModules = {
   runtimeBootstrapGateModule: LooseRecord;
   assertRuntimeMethods: AnyFn;
-  runtimeBootstrapFinalizeModule: LooseRecord;
   bootstrapModulesRuntime: LooseRecord;
 };
 
@@ -102,7 +101,6 @@ type RuntimeBootstrapSessionSupportRuntime = {
 
 type BootstrapRuntimeSession = {
   runtimeBootstrapGateModule: LooseRecord;
-  runtimeBootstrapFinalizeModule: LooseRecord;
   runtimeStateLoaderModule: LooseRecord;
   runtimeLifecycleModule: LooseRecord;
   runtimeBootstrapHelpersModule: LooseRecord;
@@ -158,7 +156,6 @@ function resolveBootstrapSessionCoreModules(bootstrapContext: LooseRecord): Boot
   return {
     runtimeBootstrapGateModule: toRecord(bootstrapContext.runtimeBootstrapGateModule),
     assertRuntimeMethods: bootstrapContext.assertRuntimeMethods as AnyFn,
-    runtimeBootstrapFinalizeModule: toRecord(bootstrapContext.runtimeBootstrapFinalizeModule),
     bootstrapModulesRuntime: toRecord(bootstrapContext.bootstrapModulesRuntime),
   };
 }
@@ -337,7 +334,6 @@ function createBootstrapRuntimeSessionForContext({
 }): BootstrapRuntimeSession {
   return {
     runtimeBootstrapGateModule: coreModules.runtimeBootstrapGateModule,
-    runtimeBootstrapFinalizeModule: coreModules.runtimeBootstrapFinalizeModule,
     runtimeStateLoaderModule: sessionDependencies.runtimeStateLoaderModule,
     runtimeLifecycleModule: sessionDependencies.runtimeLifecycleModule,
     runtimeBootstrapHelpersModule: sessionDependencies.runtimeBootstrapHelpersModule,

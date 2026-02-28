@@ -17,7 +17,6 @@ type ContentBootstrapPrelude = {
   setBootstrapIssue?: DiagnosticsRuntime['setBootstrapIssue'];
   runtimeBootstrapGateModule?: LooseRecord;
   assertRuntimeMethods?: RuntimeFn;
-  runtimeBootstrapFinalizeModule?: LooseRecord;
   bootstrapModulesRuntime?: LooseRecord;
 };
 
@@ -34,7 +33,6 @@ type ContentBootstrapOptions = {
 
 type BootstrapRuntimeModules = {
   assertRuntimeMethods: RuntimeFn;
-  runtimeBootstrapFinalizeModule: LooseRecord;
   bootstrapModulesRuntime: LooseRecord;
 };
 
@@ -192,7 +190,6 @@ function resolveBootstrapRuntimeModules(
 
   return {
     assertRuntimeMethods: runtimeBootstrapModulesModule.assertRuntimeMethods as RuntimeFn,
-    runtimeBootstrapFinalizeModule,
     bootstrapModulesRuntime,
   };
 }
@@ -227,7 +224,6 @@ export function createContentBootstrapPrelude(options: ContentBootstrapOptions =
     setBootstrapIssue: diagnosticsRuntime.setBootstrapIssue,
     runtimeBootstrapGateModule,
     assertRuntimeMethods: runtimeModules.assertRuntimeMethods,
-    runtimeBootstrapFinalizeModule: runtimeModules.runtimeBootstrapFinalizeModule,
     bootstrapModulesRuntime: runtimeModules.bootstrapModulesRuntime,
   };
 }

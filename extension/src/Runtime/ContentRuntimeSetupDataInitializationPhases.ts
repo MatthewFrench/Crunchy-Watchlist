@@ -1,4 +1,5 @@
 import { initializeWatchlistHistoryAndPreviewRuntime } from './ContentRuntimeSetupDataInitializationWatchlistHistory.js';
+import { createBootstrapFinalizeRuntimeModule } from './BootstrapFinalize.js';
 
 export type UnknownFn = (...args: unknown[]) => unknown;
 export type LooseRecord = Record<string, unknown>;
@@ -37,6 +38,17 @@ function toRecord(value: unknown): LooseRecord {
     return {};
   }
   return value as LooseRecord;
+}
+
+function resolveBootstrapFinalizeModule(context: LooseRecord): LooseRecord {
+  const overrideModule = toRecord(context.runtimeBootstrapFinalizeModule);
+  if (
+    typeof overrideModule.safeJsonParse === 'function' &&
+    typeof overrideModule.createStorageAccessors === 'function'
+  ) {
+    return overrideModule;
+  }
+  return toRecord(createBootstrapFinalizeRuntimeModule());
 }
 
 function requireRecordFunction<T extends UnknownFn>(owner: string, value: LooseRecord, name: string): T {
@@ -263,7 +275,7 @@ function initializePreferredAudioAndStorage(
   const corePrimitives = traceContractsRuntime.corePrimitives;
   const runtimeConstants = toRecord(context.runtimeConstants);
   const runtimePreferredAudioModule = toRecord(context.runtimePreferredAudioModule);
-  const runtimeBootstrapFinalizeModule = toRecord(context.runtimeBootstrapFinalizeModule);
+  const runtimeBootstrapFinalizeModule = resolveBootstrapFinalizeModule(context);
   const storageModule = toRecord(context.storageModule);
   const windowRef = context.windowRef as Window;
 

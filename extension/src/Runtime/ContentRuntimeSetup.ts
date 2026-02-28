@@ -103,7 +103,6 @@ let createContentRuntimeSetupFactory: ((options?: object) => object) | null = nu
     runtimePreferredAudioModule: Record<string, unknown>;
     runtimeBootstrapHelpersModule: Record<string, unknown>;
     runtimeBootstrapGateModule: Record<string, unknown>;
-    runtimeBootstrapFinalizeModule: Record<string, unknown>;
     storageModule: Record<string, unknown>;
     apiContractsModule: Record<string, unknown>;
     authClientModule: Record<string, unknown>;
@@ -205,7 +204,6 @@ let createContentRuntimeSetupFactory: ((options?: object) => object) | null = nu
       runtimePreferredAudioModule: toRecord(options.runtimePreferredAudioModule),
       runtimeBootstrapHelpersModule: toRecord(options.runtimeBootstrapHelpersModule),
       runtimeBootstrapGateModule: toRecord(options.runtimeBootstrapGateModule),
-      runtimeBootstrapFinalizeModule: toRecord(options.runtimeBootstrapFinalizeModule),
       storageModule: toRecord(options.storageModule),
       apiContractsModule: toRecord(options.apiContractsModule),
       authClientModule: toRecord(options.authClientModule),

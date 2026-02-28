@@ -47,7 +47,6 @@ describe('content-runtime-bootstrap-setup-bindings runtime', () => {
       assertRuntimeMethods: vi.fn(),
       runtimeBootstrapHelpersModule: { marker: 'helpers' },
       runtimeBootstrapGateModule: { marker: 'gate' },
-      runtimeBootstrapFinalizeModule: { marker: 'finalize' },
       defaultSettings: { cardLayout: 'portrait' },
       defaultSortMode: 'recentActivity',
       validSortModes: ['recentActivity'],

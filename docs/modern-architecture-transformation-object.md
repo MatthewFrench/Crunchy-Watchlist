@@ -249,6 +249,11 @@ Progress notes:
   - `ContentBootstrap` now returns `assertRuntimeMethods` directly in the bootstrap prelude instead of forwarding the full `runtimeBootstrapModulesModule`.
   - `ContentRuntimeBootstrapDomLock` validates `assertRuntimeMethods` and forwards it as a function contract.
   - `ContentRuntimeBootstrapSessionAssembly` now consumes `bootstrapContext.assertRuntimeMethods` directly when wiring session dependencies.
+- 2026-02-28: Removed `runtimeBootstrapFinalizeModule` plumbing from bootstrap-context/session/setup-option handoff:
+  - `ContentBootstrap` still validates finalize-runtime module shape but no longer forwards it through the bootstrap prelude payload.
+  - `ContentRuntimeBootstrapDomLock` and `ContentRuntimeBootstrapSessionAssembly` no longer carry `runtimeBootstrapFinalizeModule` in runtime bootstrap context/session objects.
+  - `ContentRuntimeBootstrapSetupBindings` and `ContentRuntimeSetup` no longer require `runtimeBootstrapFinalizeModule` option plumbing.
+  - `ContentRuntimeSetupDataInitializationPhases` now resolves finalize helpers via direct import wiring (`createBootstrapFinalizeRuntimeModule`) with an optional context override seam for deterministic tests.
 
 ## WS2: Boundary-Type Discipline Cleanup
 
