@@ -1,7 +1,6 @@
 (() => {
-  // biome-ignore lint/suspicious/noExplicitAny: Runtime composition wiring is intentionally dynamic.
-  type AnyFn = (...args: unknown[]) => any;
   type LooseRecord = Record<string, unknown>;
+  type RequireFunction = <T>(name: string, value: unknown) => T;
 
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
@@ -39,7 +38,7 @@
     context: LooseRecord,
     bindings: LooseRecord,
     storageSet: (key: string, value: unknown) => unknown,
-    requireFn: <T>(name: string, value: unknown) => T,
+    requireFn: RequireFunction,
   ): LooseRecord {
     return {
       extractCoverImagesFromApiImages: bindings.extractCoverImagesFromApiImages,
@@ -71,14 +70,15 @@
       isWatchlistPath: context.isWatchlistPath,
       withMutedObserver: bindings.withMutedObserver,
       applyCardLayoutUi: bindings.applyCardLayoutUi,
-      createEmptyWatchHistoryCache: () => (context.createEmptyWatchHistoryCache as AnyFn)(),
+      createEmptyWatchHistoryCache: () =>
+        requireFn<() => unknown>('createEmptyWatchHistoryCache', context.createEmptyWatchHistoryCache)(),
       getWatchlistRoot: (documentRef: Document) =>
-        requireFn<AnyFn>(
+        requireFn<(documentRef: Document) => unknown>(
           'getWatchlistRoot',
           context.runtimeBootstrapGateModule && (context.runtimeBootstrapGateModule as LooseRecord).getWatchlistRoot,
         )(documentRef),
       getWatchlistHeader: (documentRef: Document) =>
-        requireFn<AnyFn>(
+        requireFn<(documentRef: Document) => unknown>(
           'getWatchlistHeader',
           context.runtimeBootstrapGateModule && (context.runtimeBootstrapGateModule as LooseRecord).getWatchlistHeader,
         )(documentRef),
@@ -93,9 +93,9 @@
     bindings: LooseRecord,
     corePrimitives: LooseRecord,
     storageSet: (key: string, value: unknown) => unknown,
-    requireFn: <T>(name: string, value: unknown) => T,
+    requireFn: RequireFunction,
   ): LooseRecord {
-    return requireFn<AnyFn>(
+    return requireFn<(options: LooseRecord) => LooseRecord>(
       'createContentComposition',
       context.runtimeContentCompositionModule &&
         (context.runtimeContentCompositionModule as LooseRecord).createContentComposition,
@@ -114,7 +114,7 @@
   function bindCompositionRuntimeInternal(
     bindings: LooseRecord,
     compositionRuntime: LooseRecord,
-    requireFn: <T>(name: string, value: unknown) => T,
+    requireFn: RequireFunction,
   ): void {
     bindings.normalizeEntriesFromApiRows = requireFn(
       'normalizeEntriesFromApiRows',
@@ -137,7 +137,7 @@
     bindings: LooseRecord,
     corePrimitives: LooseRecord,
     storageSet: (key: string, value: unknown) => unknown,
-    requireFn: <T>(name: string, value: unknown) => T,
+    requireFn: RequireFunction,
   ): void {
     const compositionRuntime = createContentCompositionRuntimeInternal(
       context,
@@ -146,7 +146,9 @@
       storageSet,
       requireFn,
     );
-    const assertRuntimeMethods = requireFn<AnyFn>('assertRuntimeMethods', context.assertRuntimeMethods);
+    const assertRuntimeMethods = requireFn<
+      (ownerLabel: string, instance: unknown, methodNames: string[]) => void
+    >('assertRuntimeMethods', context.assertRuntimeMethods);
     assertRuntimeMethods('content composition runtime', compositionRuntime, [
       'normalizeEntriesFromApiRows',
       'ensureInterface',
@@ -215,8 +217,7 @@
   }
 
   function createContentRuntimeSetupCompositionRuntime(options: LooseRecord = {}): LooseRecord {
-    const requireFn =
-      (options.requireFunction as (<T>(name: string, value: unknown) => T) | undefined) ?? requireFunction;
+    const requireFn = (options.requireFunction as RequireFunction | undefined) ?? requireFunction;
     return {
       initializeCompositionBinding: (
         context: LooseRecord,

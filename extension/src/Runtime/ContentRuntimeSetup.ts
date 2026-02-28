@@ -1,6 +1,18 @@
 (() => {
-  // biome-ignore lint/suspicious/noExplicitAny: Dynamic composition-root wiring requires permissive factory return typing.
-  type AnyFn = (...args: unknown[]) => any;
+  type UnknownFn = (...args: unknown[]) => unknown;
+  type RequireFunction = <T>(name: string, value: unknown) => T;
+  type SetWatchlistCacheRowsFn = (
+    accountId?: string,
+    profileId?: string,
+    rows?: unknown[],
+    updatedAt?: number,
+  ) => unknown;
+  type WatchlistCacheSnapshotFactory = (
+    accountId: string,
+    profileId: string,
+    updatedAt: number,
+    rows: unknown[],
+  ) => unknown;
 
   type ContentRuntimeSetupResult =
     | ({
@@ -23,57 +35,57 @@
   };
 
   type RuntimeBindings = {
-    runtimeEvent: AnyFn;
-    pushApiTrace: AnyFn;
-    normalizeEntriesFromApiRows: AnyFn;
-    fetchWithResilience: AnyFn;
-    getAccessToken: AnyFn;
-    createAuthRefreshHandler: AnyFn;
-    fetchAllWatchlistRows: AnyFn;
-    normalizeStoredWatchlistCache: AnyFn;
-    isWatchlistCacheValid: AnyFn;
-    resetWatchlistCacheOnAccountMismatch: AnyFn;
-    fetchRatingsBatch: AnyFn;
-    fetchRating: AnyFn;
-    preloadRatingsForEntries: AnyFn;
-    fetchPreviewUrlForEntry: AnyFn;
-    normalizeStoredWatchHistoryCache: AnyFn;
-    isWatchHistoryCacheValid: AnyFn;
-    getCachedWatchHistory: AnyFn;
-    getCachedWatchHistoryProgress: AnyFn;
-    preloadWatchHistoryForEntries: AnyFn;
-    isLocalizedWatchHistoryDataMissingForEntries: AnyFn;
-    getCachedRating: AnyFn;
-    isLocalizedRatingDataMissingForEntries: AnyFn;
-    detectPreferredAudioLanguage: AnyFn;
-    ensureCuratedDataLoad: AnyFn;
-    renderCuratedPanel: AnyFn;
-    clearRootFrame: AnyFn;
-    setNativeVisibility: AnyFn;
-    applyTabUi: AnyFn;
-    ensureInterface: AnyFn;
-    listKnownSeries: AnyFn;
-    getCuratedDomStats: AnyFn;
-    dumpSeriesApiData: AnyFn;
-    resolveApiHref: AnyFn;
-    normalizeImageUrlCandidate: AnyFn;
-    extractCoverImagesFromApiImages: AnyFn;
-    extractThumbnailImageFromApiImages: AnyFn;
-    scheduleSaveRatings: AnyFn;
-    scheduleSaveWatchHistory: AnyFn;
-    scheduleSaveWatchlistCache: AnyFn;
-    getPreferredAudioLanguage: AnyFn;
-    preloadRatingsForSelectedAudioLocale: AnyFn;
-    preloadWatchHistoryForSelectedAudioLocale: AnyFn;
-    toggleCuratedFavorite: AnyFn;
-    removeCuratedSeries: AnyFn;
-    isLikelyVideoUrl: AnyFn;
-    isEntryWatchReady: AnyFn;
-    withMutedObserver: AnyFn;
-    applyCardLayoutUi: AnyFn;
-    persistSettings: AnyFn;
-    printSeriesApiData: AnyFn;
-    setWatchlistCacheRows: AnyFn;
+    runtimeEvent: UnknownFn;
+    pushApiTrace: UnknownFn;
+    normalizeEntriesFromApiRows: UnknownFn;
+    fetchWithResilience: UnknownFn;
+    getAccessToken: UnknownFn;
+    createAuthRefreshHandler: UnknownFn;
+    fetchAllWatchlistRows: UnknownFn;
+    normalizeStoredWatchlistCache: UnknownFn;
+    isWatchlistCacheValid: UnknownFn;
+    resetWatchlistCacheOnAccountMismatch: UnknownFn;
+    fetchRatingsBatch: UnknownFn;
+    fetchRating: UnknownFn;
+    preloadRatingsForEntries: UnknownFn;
+    fetchPreviewUrlForEntry: UnknownFn;
+    normalizeStoredWatchHistoryCache: UnknownFn;
+    isWatchHistoryCacheValid: UnknownFn;
+    getCachedWatchHistory: UnknownFn;
+    getCachedWatchHistoryProgress: UnknownFn;
+    preloadWatchHistoryForEntries: UnknownFn;
+    isLocalizedWatchHistoryDataMissingForEntries: UnknownFn;
+    getCachedRating: UnknownFn;
+    isLocalizedRatingDataMissingForEntries: UnknownFn;
+    detectPreferredAudioLanguage: UnknownFn;
+    ensureCuratedDataLoad: UnknownFn;
+    renderCuratedPanel: UnknownFn;
+    clearRootFrame: UnknownFn;
+    setNativeVisibility: UnknownFn;
+    applyTabUi: UnknownFn;
+    ensureInterface: UnknownFn;
+    listKnownSeries: UnknownFn;
+    getCuratedDomStats: UnknownFn;
+    dumpSeriesApiData: UnknownFn;
+    resolveApiHref: UnknownFn;
+    normalizeImageUrlCandidate: UnknownFn;
+    extractCoverImagesFromApiImages: UnknownFn;
+    extractThumbnailImageFromApiImages: UnknownFn;
+    scheduleSaveRatings: UnknownFn;
+    scheduleSaveWatchHistory: UnknownFn;
+    scheduleSaveWatchlistCache: UnknownFn;
+    getPreferredAudioLanguage: UnknownFn;
+    preloadRatingsForSelectedAudioLocale: UnknownFn;
+    preloadWatchHistoryForSelectedAudioLocale: UnknownFn;
+    toggleCuratedFavorite: UnknownFn;
+    removeCuratedSeries: UnknownFn;
+    isLikelyVideoUrl: UnknownFn;
+    isEntryWatchReady: UnknownFn;
+    withMutedObserver: UnknownFn;
+    applyCardLayoutUi: UnknownFn;
+    persistSettings: UnknownFn;
+    printSeriesApiData: UnknownFn;
+    setWatchlistCacheRows: SetWatchlistCacheRowsFn;
   };
 
   type ContentRuntimeSetupContext = {
@@ -120,42 +132,42 @@
     sortModeControlOptions: unknown[];
     storageLocalArea: unknown;
     isWatchlistPath: (pathname: string) => boolean;
-    debounceProcess: AnyFn;
-    createEmptyWatchHistoryCache: AnyFn;
-    createWatchlistCacheSnapshot: AnyFn;
+    debounceProcess: UnknownFn;
+    createEmptyWatchHistoryCache: () => unknown;
+    createWatchlistCacheSnapshot: WatchlistCacheSnapshotFactory;
   };
 
   type SetupCompositionRuntime = {
     initializeCompositionBinding: (
-      context: Record<string, unknown>,
-      bindings: Record<string, unknown>,
+      context: ContentRuntimeSetupContext,
+      bindings: RuntimeBindings,
       corePrimitives: Record<string, unknown>,
       storageSet: (key: string, value: unknown) => unknown,
     ) => void;
     buildContentRuntimeSetupSuccess: (
-      context: Record<string, unknown>,
-      bindings: Record<string, unknown>,
+      context: ContentRuntimeSetupContext,
+      bindings: RuntimeBindings,
     ) => ContentRuntimeSetupResult;
   };
 
   type DataInitializationRuntime = {
     initializeTraceAndContracts: (
-      context: Record<string, unknown>,
-      bindings: Record<string, unknown>,
+      context: ContentRuntimeSetupContext,
+      bindings: RuntimeBindings,
     ) => TraceContractsRuntime;
     initializePreferredAudioAndStorage: (
-      context: Record<string, unknown>,
-      bindings: Record<string, unknown>,
+      context: ContentRuntimeSetupContext,
+      bindings: RuntimeBindings,
       traceContractsRuntime: TraceContractsRuntime,
     ) => StorageRuntime;
     initializeAuthImageAndRatings: (
-      context: Record<string, unknown>,
-      bindings: Record<string, unknown>,
+      context: ContentRuntimeSetupContext,
+      bindings: RuntimeBindings,
       traceContractsRuntime: TraceContractsRuntime,
     ) => void;
     initializeWatchlistHistoryAndPreview: (
-      context: Record<string, unknown>,
-      bindings: Record<string, unknown>,
+      context: ContentRuntimeSetupContext,
+      bindings: RuntimeBindings,
       traceContractsRuntime: TraceContractsRuntime,
     ) => void;
   };
@@ -233,12 +245,12 @@
       sortModeControlOptions: Array.isArray(options.sortModeControlOptions) ? options.sortModeControlOptions : [],
       storageLocalArea: options.storageLocalArea,
       isWatchlistPath: requireFunction<(pathname: string) => boolean>('isWatchlistPath', options.isWatchlistPath),
-      debounceProcess: requireFunction<AnyFn>('debounceProcess', options.debounceProcess),
-      createEmptyWatchHistoryCache: requireFunction<AnyFn>(
+      debounceProcess: requireFunction<UnknownFn>('debounceProcess', options.debounceProcess),
+      createEmptyWatchHistoryCache: requireFunction<() => unknown>(
         'createEmptyWatchHistoryCache',
         options.createEmptyWatchHistoryCache,
       ),
-      createWatchlistCacheSnapshot: requireFunction<AnyFn>(
+      createWatchlistCacheSnapshot: requireFunction<WatchlistCacheSnapshotFactory>(
         'createWatchlistCacheSnapshot',
         options.createWatchlistCacheSnapshot,
       ),
@@ -247,9 +259,9 @@
 
   function createContentRuntimeBindings(
     state: Record<string, unknown>,
-    createWatchlistCacheSnapshot: AnyFn,
+    createWatchlistCacheSnapshot: WatchlistCacheSnapshotFactory,
   ): RuntimeBindings {
-    const noop: AnyFn = () => undefined;
+    const noop: UnknownFn = () => undefined;
     return {
       runtimeEvent: noop,
       pushApiTrace: noop,
@@ -301,41 +313,45 @@
       applyCardLayoutUi: noop,
       persistSettings: noop,
       printSeriesApiData: noop,
-      setWatchlistCacheRows: ((accountId = '', profileId = '', rows: unknown[] = [], updatedAt = Date.now()) => {
+      setWatchlistCacheRows: (accountId = '', profileId = '', rows: unknown[] = [], updatedAt = Date.now()) => {
         state.watchlistCache = createWatchlistCacheSnapshot(accountId, profileId, updatedAt, rows);
         return state.watchlistCache;
-      }) as AnyFn,
+      },
     };
   }
 
   function createSetupCompositionRuntime(context: ContentRuntimeSetupContext): SetupCompositionRuntime {
-    const setupCompositionRuntime = requireFunction<AnyFn>(
+    const createSetupRuntime = requireFunction<(options?: Record<string, unknown>) => Record<string, unknown>>(
       'createContentRuntimeSetupCompositionRuntime',
       context.runtimeContentRuntimeSetupCompositionModule.createContentRuntimeSetupCompositionRuntime,
-    )({
-      requireFunction,
-    }) as Record<string, unknown>;
+    );
+    const setupCompositionRuntime = createSetupRuntime({
+      requireFunction: requireFunction as RequireFunction,
+    });
     context.assertRuntimeMethods('content runtime setup composition runtime', setupCompositionRuntime, [
       'initializeCompositionBinding',
       'buildContentRuntimeSetupSuccess',
     ]);
-    return setupCompositionRuntime as unknown as SetupCompositionRuntime;
+    return setupCompositionRuntime as SetupCompositionRuntime;
   }
 
   function createDataInitializationRuntime(context: ContentRuntimeSetupContext): DataInitializationRuntime {
-    const dataInitializationRuntime = requireFunction<AnyFn>(
+    const createDataInitializationRuntimeFactory = requireFunction<
+      (options?: Record<string, unknown>) => Record<string, unknown>
+    >(
       'createContentRuntimeSetupDataInitializationRuntime',
       context.runtimeContentRuntimeSetupDataInitializationModule.createContentRuntimeSetupDataInitializationRuntime,
-    )({
-      requireFunction,
-    }) as Record<string, unknown>;
+    );
+    const dataInitializationRuntime = createDataInitializationRuntimeFactory({
+      requireFunction: requireFunction as RequireFunction,
+    });
     context.assertRuntimeMethods('content runtime setup data initialization runtime', dataInitializationRuntime, [
       'initializeTraceAndContracts',
       'initializePreferredAudioAndStorage',
       'initializeAuthImageAndRatings',
       'initializeWatchlistHistoryAndPreview',
     ]);
-    return dataInitializationRuntime as unknown as DataInitializationRuntime;
+    return dataInitializationRuntime as DataInitializationRuntime;
   }
 
   function createContentRuntimeSetup(options: ContentRuntimeSetupOptions = {}): ContentRuntimeSetupResult {
@@ -354,15 +370,12 @@
       dataInitializationRuntime.initializeAuthImageAndRatings(context, bindings, traceContractsRuntime);
       dataInitializationRuntime.initializeWatchlistHistoryAndPreview(context, bindings, traceContractsRuntime);
       setupCompositionRuntime.initializeCompositionBinding(
-        context as unknown as Record<string, unknown>,
-        bindings as unknown as Record<string, unknown>,
-        traceContractsRuntime.corePrimitives as Record<string, unknown>,
+        context,
+        bindings,
+        traceContractsRuntime.corePrimitives,
         storageRuntime.storageSet,
       );
-      return setupCompositionRuntime.buildContentRuntimeSetupSuccess(
-        context as unknown as Record<string, unknown>,
-        bindings as unknown as Record<string, unknown>,
-      ) as ContentRuntimeSetupResult;
+      return setupCompositionRuntime.buildContentRuntimeSetupSuccess(context, bindings);
     } catch (error) {
       return {
         ok: false,

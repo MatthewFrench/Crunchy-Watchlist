@@ -1,7 +1,34 @@
 (() => {
-  type AnyFn = (...args: unknown[]) => unknown;
+  type UnknownFn = (...args: unknown[]) => unknown;
   type LooseRecord = Record<string, unknown>;
-  type AnyFunctionRecord = Record<string, unknown>;
+  type CuratedRenderableBuildFn = (entries: unknown[], settings: Record<string, unknown>) => unknown;
+  type CuratedRenderableFactoryRuntime = {
+    buildRenderableEntries: CuratedRenderableBuildFn;
+  };
+  type CuratedPanelFactoryRuntime = {
+    renderCuratedPanel: CuratedRuntime['renderCuratedPanel'];
+    refreshCuratedLoadingIndicator: CuratedRuntime['refreshCuratedLoadingIndicator'];
+    requestCuratedPanelRender?: CuratedRuntime['renderCuratedPanel'];
+  };
+  type CuratedLoaderFactoryRuntime = {
+    loadCuratedEntries: UnknownFn;
+    ensureCuratedDataLoad: CuratedRuntime['ensureCuratedDataLoad'];
+  };
+  type NativeBridgeFactoryRuntime = {
+    triggerNativeCardAction: CuratedRuntime['triggerNativeCardAction'];
+    installCuratedCardPreview: CuratedRuntime['installCuratedCardPreview'];
+  };
+  type CuratedInteractionsFactoryRuntime = {
+    createCuratedCardActions: InteractionRuntime['createCuratedCardActions'];
+    bindCuratedInterfaceControls: InteractionRuntime['bindCuratedInterfaceControls'];
+  };
+  type InterfaceShellFactoryRuntime = {
+    clearRootFrame: InterfaceRuntime['clearRootFrame'];
+    setNativeVisibility: InterfaceRuntime['setNativeVisibility'];
+    applyTabUi: InterfaceRuntime['applyTabUi'];
+    resetCuratedCachesForRefresh: InterfaceRuntime['resetCuratedCachesForRefresh'];
+    ensureInterface: InterfaceRuntime['ensureInterface'];
+  };
 
   type ContentCompositionRuntimeBindingsRuntime = {
     createCuratedRuntime: (
@@ -32,11 +59,40 @@
   }
   const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
 
-  function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
+  function requireFunction<T>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
       throw new Error(`[CW] Missing content composition dependency: ${name}`);
     }
     return value as T;
+  }
+
+  function toSignatureToken(value: unknown, fallback: string): string {
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? String(value) : fallback;
+    }
+    if (typeof value === 'boolean' || typeof value === 'bigint') {
+      return String(value);
+    }
+    return fallback;
+  }
+
+  function buildRenderableMemoSignature(
+    settings: LooseRecord,
+    defaultSortMode: unknown,
+    preferredAudioLanguage: unknown,
+    ratingCacheRevision: number,
+    watchHistoryCacheUpdatedAt: number,
+  ): string {
+    const audioLocaleFilter = toSignatureToken(settings.audioLocaleFilter, 'any');
+    const genreFilter = toSignatureToken(settings.genreFilter, 'any');
+    const watchReadyFilterMode = toSignatureToken(settings.watchReadyFilterMode, 'hide');
+    const sortMode = toSignatureToken(settings.sortMode, toSignatureToken(defaultSortMode, 'none'));
+    const secondarySortMode = toSignatureToken(settings.secondarySortMode, 'none');
+    const preferredAudioToken = toSignatureToken(preferredAudioLanguage, '');
+    return `af:${audioLocaleFilter}|gf:${genreFilter}|wf:${watchReadyFilterMode}|sm:${sortMode}|ss:${secondarySortMode}|pal:${preferredAudioToken}|rr:${ratingCacheRevision}|wh:${watchHistoryCacheUpdatedAt}`;
   }
 
   function getSettingsRecord(state: LooseRecord): LooseRecord {
@@ -54,10 +110,13 @@
   ): CuratedRuntime['buildRenderableEntries'] {
     const corePrimitives = options.corePrimitives;
     const dependencies = options.dependencies;
-    const curatedRenderable = requireFunction<AnyFn>(
+    const createCuratedRenderable = requireFunction<
+      (dependencies: Record<string, unknown>) => CuratedRenderableFactoryRuntime
+    >(
       'createCuratedRenderable',
       options.modules.runtimeRenderableModule.createCuratedRenderable,
-    )({
+    );
+    const curatedRenderable = createCuratedRenderable({
       normalizeAudioLocale: corePrimitives.normalizeAudioLocale,
       getPreferredAudioLanguage: dependencies.getPreferredAudioLanguage,
       getCachedRating: dependencies.getCachedRating,
@@ -75,9 +134,9 @@
       isEntryWatchReady: dependencies.isEntryWatchReady,
       compareRenderableEntries: (left: unknown, right: unknown, sortMode = getSettingsRecord(options.state).sortMode) =>
         sortRuntime.compareRenderableEntries(left, right, sortMode),
-    }) as AnyFunctionRecord;
+    });
     options.assertRuntimeMethods('curated renderable', curatedRenderable, ['buildRenderableEntries']);
-    const buildRenderableEntries = requireFunction<AnyFn>(
+    const buildRenderableEntries = requireFunction<CuratedRenderableBuildFn>(
       'buildRenderableEntries',
       curatedRenderable.buildRenderableEntries,
     );
@@ -94,16 +153,15 @@
         Number.isFinite(Number((options.state.watchHistoryCache as LooseRecord).updatedAt))
           ? Math.max(0, Number((options.state.watchHistoryCache as LooseRecord).updatedAt))
           : 0;
-      const settingsSignature = JSON.stringify({
-        audioLocaleFilter: settings.audioLocaleFilter ?? 'any',
-        genreFilter: settings.genreFilter ?? 'any',
-        watchReadyFilterMode: settings.watchReadyFilterMode ?? 'hide',
-        sortMode: settings.sortMode ?? options.runtimeConstants.defaultSortMode ?? 'none',
-        secondarySortMode: settings.secondarySortMode ?? 'none',
-        preferredAudioLanguage: options.state.preferredAudioLanguage ?? '',
-        ratingCacheRevision: Number(options.state.ratingCacheRevision) || 0,
+      const ratingCacheRevision = Number(options.state.ratingCacheRevision) || 0;
+      const preferredAudioLanguage = options.state.preferredAudioLanguage ?? '';
+      const settingsSignature = buildRenderableMemoSignature(
+        settings,
+        options.runtimeConstants.defaultSortMode,
+        preferredAudioLanguage,
+        ratingCacheRevision,
         watchHistoryCacheUpdatedAt,
-      });
+      );
 
       if (memoizedEntriesRef === entries && memoizedSignature === settingsSignature && memoizedResult != null) {
         return memoizedResult;
@@ -111,8 +169,8 @@
 
       const renderSettings = {
         ...settings,
-        __cwPreferredAudioLanguage: options.state.preferredAudioLanguage ?? '',
-        __cwRatingCacheRevision: Number(options.state.ratingCacheRevision) || 0,
+        __cwPreferredAudioLanguage: preferredAudioLanguage,
+        __cwRatingCacheRevision: ratingCacheRevision,
         __cwWatchHistoryCacheUpdatedAt: watchHistoryCacheUpdatedAt,
       };
       const computed = buildRenderableEntries(entries, renderSettings);
@@ -129,10 +187,13 @@
     buildRenderableEntries: CuratedRuntime['buildRenderableEntries'],
   ): Pick<CuratedRuntime, 'renderCuratedPanel' | 'refreshCuratedLoadingIndicator'> {
     const dependencies = options.dependencies;
-    const curatedPanelRuntime = requireFunction<AnyFn>(
+    const createCuratedPanelRuntime = requireFunction<
+      (dependencies: Record<string, unknown>) => CuratedPanelFactoryRuntime
+    >(
       'createCuratedPanelRuntime',
       options.modules.runtimeCuratedPanelModule.createCuratedPanelRuntime,
-    )({
+    );
+    const curatedPanelRuntime = createCuratedPanelRuntime({
       state: options.state,
       documentRef: options.windowRef.document,
       locationRef: options.windowRef.location,
@@ -146,24 +207,24 @@
       preloadRatingsForSelectedAudioLocale: dependencies.preloadRatingsForSelectedAudioLocale,
       preloadWatchHistoryForSelectedAudioLocale: dependencies.preloadWatchHistoryForSelectedAudioLocale,
       isWatchlistPath: dependencies.isWatchlistPath,
-    }) as AnyFunctionRecord;
+    });
     options.assertRuntimeMethods('curated panel runtime', curatedPanelRuntime, [
       'renderCuratedPanel',
       'refreshCuratedLoadingIndicator',
     ]);
     const requestCuratedPanelRender =
       typeof curatedPanelRuntime.requestCuratedPanelRender === 'function'
-        ? (curatedPanelRuntime.requestCuratedPanelRender as AnyFn)
+        ? curatedPanelRuntime.requestCuratedPanelRender
         : null;
     return {
-      renderCuratedPanel: requireFunction<AnyFn>(
+      renderCuratedPanel: requireFunction<CuratedRuntime['renderCuratedPanel']>(
         requestCuratedPanelRender ? 'requestCuratedPanelRender' : 'renderCuratedPanel',
         requestCuratedPanelRender || curatedPanelRuntime.renderCuratedPanel,
-      ) as CuratedRuntime['renderCuratedPanel'],
-      refreshCuratedLoadingIndicator: requireFunction<AnyFn>(
+      ),
+      refreshCuratedLoadingIndicator: requireFunction<CuratedRuntime['refreshCuratedLoadingIndicator']>(
         'refreshCuratedLoadingIndicator',
         curatedPanelRuntime.refreshCuratedLoadingIndicator,
-      ) as CuratedRuntime['refreshCuratedLoadingIndicator'],
+      ),
     };
   }
 
@@ -174,10 +235,13 @@
   ): CuratedRuntime['ensureCuratedDataLoad'] {
     const corePrimitives = options.corePrimitives;
     const dependencies = options.dependencies;
-    const curatedLoaderRuntime = requireFunction<AnyFn>(
+    const createCuratedLoaderRuntime = requireFunction<
+      (dependencies: Record<string, unknown>) => CuratedLoaderFactoryRuntime
+    >(
       'createCuratedLoaderRuntime',
       options.modules.runtimeCuratedLoaderModule.createCuratedLoaderRuntime,
-    )({
+    );
+    const curatedLoaderRuntime = createCuratedLoaderRuntime({
       state: options.state,
       locationRef: options.windowRef.location,
       runtimeEvent: dependencies.runtimeEvent,
@@ -202,25 +266,28 @@
       metadataViewportPriorityCount: options.runtimeConstants.metadataViewportPriorityCount,
       windowRef: options.windowRef,
       documentRef: options.windowRef.document,
-    }) as AnyFunctionRecord;
+    });
     options.assertRuntimeMethods('curated loader runtime', curatedLoaderRuntime, [
       'loadCuratedEntries',
       'ensureCuratedDataLoad',
     ]);
-    return requireFunction<AnyFn>(
+    return requireFunction<CuratedRuntime['ensureCuratedDataLoad']>(
       'ensureCuratedDataLoad',
       curatedLoaderRuntime.ensureCuratedDataLoad,
-    ) as CuratedRuntime['ensureCuratedDataLoad'];
+    );
   }
 
   function createNativeBridgeBinding(
     options: ContentCompositionOptions,
   ): Pick<CuratedRuntime, 'triggerNativeCardAction' | 'installCuratedCardPreview'> {
     const dependencies = options.dependencies;
-    const nativeBridgeRuntime = requireFunction<AnyFn>(
+    const createNativeBridgeRuntime = requireFunction<
+      (dependencies: Record<string, unknown>) => NativeBridgeFactoryRuntime
+    >(
       'createNativeBridgeRuntime',
       options.modules.runtimeNativeBridgeModule.createNativeBridgeRuntime,
-    )({
+    );
+    const nativeBridgeRuntime = createNativeBridgeRuntime({
       documentRef: options.windowRef.document,
       windowRef: options.windowRef,
       runtimeEvent: dependencies.runtimeEvent,
@@ -232,20 +299,20 @@
       fetchPreviewUrlForEntry: dependencies.fetchPreviewUrlForEntry,
       isLikelyVideoUrl: dependencies.isLikelyVideoUrl,
       previewHoverDelayMs: options.runtimeConstants.previewHoverDelayMs,
-    }) as AnyFunctionRecord;
+    });
     options.assertRuntimeMethods('native bridge runtime', nativeBridgeRuntime, [
       'triggerNativeCardAction',
       'installCuratedCardPreview',
     ]);
     return {
-      triggerNativeCardAction: requireFunction<AnyFn>(
+      triggerNativeCardAction: requireFunction<CuratedRuntime['triggerNativeCardAction']>(
         'triggerNativeCardAction',
         nativeBridgeRuntime.triggerNativeCardAction,
-      ) as CuratedRuntime['triggerNativeCardAction'],
-      installCuratedCardPreview: requireFunction<AnyFn>(
+      ),
+      installCuratedCardPreview: requireFunction<CuratedRuntime['installCuratedCardPreview']>(
         'installCuratedCardPreview',
         nativeBridgeRuntime.installCuratedCardPreview,
-      ) as CuratedRuntime['installCuratedCardPreview'],
+      ),
     };
   }
 
@@ -274,10 +341,13 @@
     deferredCallbacks: DeferredCompositionCallbacks,
     curatedRuntime: CuratedRuntime,
   ): InteractionRuntime {
-    const runtime = requireFunction<AnyFn>(
+    const createCuratedInteractionsRuntime = requireFunction<
+      (dependencies: Record<string, unknown>) => CuratedInteractionsFactoryRuntime
+    >(
       'createCuratedInteractionsRuntime',
       options.modules.runtimeCuratedInteractionsModule.createCuratedInteractionsRuntime,
-    )({
+    );
+    const runtime = createCuratedInteractionsRuntime({
       documentRef: options.windowRef.document,
       alertRef: (message: unknown) => options.windowRef.alert(message as string),
       confirmRef: (message: unknown) => options.windowRef.confirm(message as string),
@@ -295,18 +365,21 @@
       resetCuratedCachesForRefresh: () => deferredCallbacks.resetCuratedCachesForRefresh(),
       ensureCuratedDataLoad: curatedRuntime.ensureCuratedDataLoad,
       debounceProcess: options.dependencies.debounceProcess,
-    }) as AnyFunctionRecord;
+    });
     options.assertRuntimeMethods('curated interactions runtime', runtime, [
       'createCuratedCardActions',
       'bindCuratedInterfaceControls',
     ]);
 
     return {
-      createCuratedCardActions: requireFunction<AnyFn>('createCuratedCardActions', runtime.createCuratedCardActions),
-      bindCuratedInterfaceControls: requireFunction<AnyFn>(
+      createCuratedCardActions: requireFunction<InteractionRuntime['createCuratedCardActions']>(
+        'createCuratedCardActions',
+        runtime.createCuratedCardActions,
+      ),
+      bindCuratedInterfaceControls: requireFunction<InteractionRuntime['bindCuratedInterfaceControls']>(
         'bindCuratedInterfaceControls',
         runtime.bindCuratedInterfaceControls,
-      ) as InteractionRuntime['bindCuratedInterfaceControls'],
+      ),
     };
   }
 
@@ -316,10 +389,13 @@
     curatedRuntime: CuratedRuntime,
     interactionsRuntime: InteractionRuntime,
   ): InterfaceRuntime {
-    const runtime = requireFunction<AnyFn>(
+    const createInterfaceShellRuntime = requireFunction<
+      (dependencies: Record<string, unknown>) => InterfaceShellFactoryRuntime
+    >(
       'createInterfaceShellRuntime',
       options.modules.runtimeInterfaceShellModule.createInterfaceShellRuntime,
-    )({
+    );
+    const runtime = createInterfaceShellRuntime({
       state: options.state,
       documentRef: options.windowRef.document,
       windowRef: options.windowRef,
@@ -338,7 +414,7 @@
       storageSet: options.dependencies.storageSet,
       ratingCacheKey: options.runtimeConstants.ratingCacheKey,
       watchHistoryCacheKey: options.runtimeConstants.watchHistoryCacheKey,
-    }) as AnyFunctionRecord;
+    });
     options.assertRuntimeMethods('interface shell runtime', runtime, [
       'clearRootFrame',
       'setNativeVisibility',
@@ -348,14 +424,17 @@
     ]);
 
     return {
-      clearRootFrame: requireFunction<AnyFn>('clearRootFrame', runtime.clearRootFrame),
-      setNativeVisibility: requireFunction<AnyFn>('setNativeVisibility', runtime.setNativeVisibility),
-      applyTabUi: requireFunction<AnyFn>('applyTabUi', runtime.applyTabUi),
-      resetCuratedCachesForRefresh: requireFunction<AnyFn>(
+      clearRootFrame: requireFunction<InterfaceRuntime['clearRootFrame']>('clearRootFrame', runtime.clearRootFrame),
+      setNativeVisibility: requireFunction<InterfaceRuntime['setNativeVisibility']>(
+        'setNativeVisibility',
+        runtime.setNativeVisibility,
+      ),
+      applyTabUi: requireFunction<InterfaceRuntime['applyTabUi']>('applyTabUi', runtime.applyTabUi),
+      resetCuratedCachesForRefresh: requireFunction<InterfaceRuntime['resetCuratedCachesForRefresh']>(
         'resetCuratedCachesForRefresh',
         runtime.resetCuratedCachesForRefresh,
       ),
-      ensureInterface: requireFunction<AnyFn>('ensureInterface', runtime.ensureInterface),
+      ensureInterface: requireFunction<InterfaceRuntime['ensureInterface']>('ensureInterface', runtime.ensureInterface),
     };
   }
 
