@@ -13,6 +13,7 @@ const buildScriptPath = path.join(repoRoot, 'scripts', 'build-extension-runtime.
 const playwrightCliPath = path.join(repoRoot, 'node_modules', '@playwright', 'test', 'cli.js');
 const keepRuntimeOutput = /^(1|true|yes)$/i.test(String(process.env.CW_KEEP_E2E_RUNTIME || '').trim());
 const bundleContentScripts = !/^(0|false|no)$/i.test(String(process.env.CW_BUNDLE_CONTENT_SCRIPTS ?? '1').trim());
+const ciEnvironment = /^(1|true|yes)$/i.test(String(process.env.CI || '').trim());
 
 type CommandResult = {
   code: number;
@@ -93,6 +94,10 @@ function allocateFixtureServerPort(): Promise<number> {
 }
 
 async function main(): Promise<void> {
+  if (ciEnvironment && !bundleContentScripts) {
+    throw new Error('CW_BUNDLE_CONTENT_SCRIPTS=0 is forbidden in CI; bundled content scripts are required.');
+  }
+
   const playwrightArgs = process.argv.slice(2);
   const runtimeDir = await createRuntimeOutputDir();
   const fixtureServerPort = await allocateFixtureServerPort();

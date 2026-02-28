@@ -26,6 +26,7 @@ const sourceManifestPath = path.join(repoRoot, 'extension', 'manifest.json');
 const buildScriptPath = path.join(repoRoot, 'scripts', 'build-extension-runtime.mts');
 const keepOutput = /^(1|true|yes)$/i.test(String(process.env.CW_KEEP_LIVE_SMOKE_RUNTIME || '').trim());
 const bundleContentScripts = !/^(0|false|no)$/i.test(String(process.env.CW_BUNDLE_CONTENT_SCRIPTS ?? '1').trim());
+const ciEnvironment = /^(1|true|yes)$/i.test(String(process.env.CI || '').trim());
 
 function runCommand(command: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -96,6 +97,10 @@ async function assertFilesExist(baseDir: string, relativePaths: string[]): Promi
 }
 
 async function main(): Promise<void> {
+  if (ciEnvironment && !bundleContentScripts) {
+    throw new Error('CW_BUNDLE_CONTENT_SCRIPTS=0 is forbidden in CI; bundled content scripts are required.');
+  }
+
   const tmpRoot = path.join(repoRoot, '.tmp');
   await fs.mkdir(tmpRoot, { recursive: true });
   const runtimeDir = await fs.mkdtemp(path.join(tmpRoot, 'extension-runtime-live-smoke-'));

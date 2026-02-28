@@ -82,6 +82,28 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate Safari signing configuration (scheduled confidence runs)
+        if: ${{ github.event_name == 'schedule' }}
+        env:
+          APPLE_DEVELOPER_ID_CERT_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERT_P12_BASE64 }}
+          APPLE_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_NOTARY_API_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_API_KEY_P8_BASE64 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: |
+          missing=()
+          [[ -z "$APPLE_DEVELOPER_ID_CERT_P12_BASE64" ]] && missing+=("APPLE_DEVELOPER_ID_CERT_P12_BASE64")
+          [[ -z "$APPLE_DEVELOPER_ID_CERT_PASSWORD" ]] && missing+=("APPLE_DEVELOPER_ID_CERT_PASSWORD")
+          [[ -z "$APPLE_TEAM_ID" ]] && missing+=("APPLE_TEAM_ID")
+          [[ -z "$APPLE_NOTARY_API_KEY_P8_BASE64" ]] && missing+=("APPLE_NOTARY_API_KEY_P8_BASE64")
+          [[ -z "$APPLE_NOTARY_KEY_ID" ]] && missing+=("APPLE_NOTARY_KEY_ID")
+          [[ -z "$APPLE_NOTARY_ISSUER_ID" ]] && missing+=("APPLE_NOTARY_ISSUER_ID")
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::Missing required Safari signing/notarization secrets for scheduled confidence run: ${missing[*]}"
+            exit 1
+          fi
+
       - name: Configure Apple signing keychain
         env:
           APPLE_DEVELOPER_ID_CERT_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERT_P12_BASE64 }}
