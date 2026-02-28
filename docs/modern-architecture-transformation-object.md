@@ -68,9 +68,9 @@ Audit date: 2026-02-28
 | Domain files with registry usage | 7/7 |
 | `unknown` token count in Runtime | 1533 |
 | `unknown` token count in UI | 178 |
-| `unknown` token count in Data | 539 |
+| `unknown` token count in Data | 517 |
 | `unknown` token count in Domain | 394 |
-| `AnyFn` occurrences (all `extension/src/**`) | 213 |
+| `AnyFn` occurrences (all `extension/src/**`) | 207 |
 | Selector-lookup callsites in Runtime/UI | 7 |
 | Selector-lookup files in Runtime/UI | 4 |
 | Dataset read/write callsites in Runtime/UI | 34 |
@@ -214,6 +214,7 @@ Policy status:
        - Continue rolling the same ingress-contract pattern through remaining bootstrap owner paths to reduce `AnyFn`/`unknown` spread without widening internal runtime signatures.
 
 3. WS5-first slice: API contract normalization boundary tightening.
+   - Status: In progress (2026-02-28)
    - Target files:
      - `extension/src/Data/ApiContracts.ts`
      - `extension/src/Data/WatchlistClient.ts`
@@ -221,6 +222,11 @@ Policy status:
    - Done criteria:
      - Normalize payload uncertainty once in Data boundary modules.
      - Runtime/UI consumers receive typed normalized models only.
+   - Progress:
+     - `ApiContracts` now normalizes `payload.data[]` to object-record rows at ingress and emits contract warnings for non-object rows.
+     - `WatchlistClient` and `WatchlistRepository` removed `AnyFn`-based function constraints in favor of explicit generic function contracts.
+   - Pending:
+     - Continue data-boundary normalization for additional repositories/clients so runtime/UI layers consume typed normalized payloads consistently.
 
 ## Workstreams and Plan
 

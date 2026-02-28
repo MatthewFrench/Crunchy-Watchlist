@@ -1,7 +1,7 @@
 (() => {
-  type AnyFn = (...args: unknown[]) => unknown;
+  type ApiObjectRecord = Record<string, unknown>;
 
-  type RuntimeEventFn = (eventName: string, payload: Record<string, unknown>) => void;
+  type RuntimeEventFn = (eventName: string, payload: ApiObjectRecord) => void;
 
   type ApiContractsDeps = {
     windowRef?: unknown;
@@ -19,8 +19,8 @@
     navigatorRef: Navigator;
     runtimeEvent: RuntimeEventFn;
     parseDateMs: (value: unknown) => number | null;
-    getWatchlistSeriesId: (entry: unknown) => string | null;
-    getWatchHistorySeriesId: (entry: unknown) => string | null;
+    getWatchlistSeriesId: (entry: ApiObjectRecord) => string | null;
+    getWatchHistorySeriesId: (entry: ApiObjectRecord) => string | null;
     fetchBackoffBaseMs: number;
     fetchBackoffJitterMs: number;
   };
@@ -31,7 +31,7 @@
   }
   const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
-  function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
+  function requireFunction<T>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
       throw new Error(`[CW] Missing API contract dependency: ${name}`);
     }
@@ -73,14 +73,14 @@
       navigatorRef: requireNavigatorRef(deps.navigatorRef),
       runtimeEvent: requireFunction('runtimeEvent', deps.runtimeEvent) as RuntimeEventFn,
       parseDateMs: requireFunction('parseDateMs', deps.parseDateMs) as ApiContractsContext['parseDateMs'],
-      getWatchlistSeriesId: requireFunction(
+      getWatchlistSeriesId: requireFunction<ApiContractsContext['getWatchlistSeriesId']>(
         'getWatchlistSeriesId',
         deps.getWatchlistSeriesId,
-      ) as ApiContractsContext['getWatchlistSeriesId'],
-      getWatchHistorySeriesId: requireFunction(
+      ),
+      getWatchHistorySeriesId: requireFunction<ApiContractsContext['getWatchHistorySeriesId']>(
         'getWatchHistorySeriesId',
         deps.getWatchHistorySeriesId,
-      ) as ApiContractsContext['getWatchHistorySeriesId'],
+      ),
       fetchBackoffBaseMs: toPositiveNumber(deps.fetchBackoffBaseMs, 400),
       fetchBackoffJitterMs: toPositiveNumber(deps.fetchBackoffJitterMs, 220),
     };
@@ -168,37 +168,49 @@
     context: ApiContractsContext,
     endpointName: string,
     payload: unknown,
-  ): unknown[] {
+  ): ApiObjectRecord[] {
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
       throw makeApiContractErrorInternal(context, endpointName, 'expected a JSON object with a data[] array');
     }
 
-    const data = (payload as Record<string, unknown>).data;
+    const data = (payload as ApiObjectRecord).data;
     if (!Array.isArray(data)) {
       throw makeApiContractErrorInternal(context, endpointName, 'expected a JSON object with a data[] array');
     }
 
-    return data;
+    const normalizedRows: ApiObjectRecord[] = [];
+    let nonObjectCount = 0;
+    for (const row of data) {
+      if (row && typeof row === 'object' && !Array.isArray(row)) {
+        normalizedRows.push(row as ApiObjectRecord);
+      } else {
+        normalizedRows.push({});
+        nonObjectCount += 1;
+      }
+    }
+
+    if (nonObjectCount > 0) {
+      emitApiContractWarningInternal(context, endpointName, 'payload data[] contained non-object rows', {
+        rowCount: data.length,
+        nonObjectCount,
+      });
+    }
+
+    return normalizedRows;
   }
 
-  function auditWatchlistRowsContractInternal(context: ApiContractsContext, rows: unknown[]): void {
+  function auditWatchlistRowsContractInternal(context: ApiContractsContext, rows: ApiObjectRecord[]): void {
     let missingPanelCount = 0;
     let missingSeriesCount = 0;
     let missingEpisodeMetaCount = 0;
 
     for (const row of rows) {
-      if (!row || typeof row !== 'object') {
+      if (!row.panel || typeof row.panel !== 'object' || Array.isArray(row.panel)) {
         missingPanelCount += 1;
         continue;
       }
 
-      const rowRecord = row as Record<string, unknown>;
-      if (!rowRecord.panel || typeof rowRecord.panel !== 'object') {
-        missingPanelCount += 1;
-        continue;
-      }
-
-      const panel = rowRecord.panel as Record<string, unknown>;
+      const panel = row.panel as ApiObjectRecord;
       if (!panel.episode_metadata || typeof panel.episode_metadata !== 'object') {
         missingEpisodeMetaCount += 1;
       }
@@ -218,16 +230,15 @@
     }
   }
 
-  function auditWatchHistoryRowsContractInternal(context: ApiContractsContext, rows: unknown[]): void {
+  function auditWatchHistoryRowsContractInternal(context: ApiContractsContext, rows: ApiObjectRecord[]): void {
     let missingSeriesCount = 0;
     let missingDatePlayedCount = 0;
 
     for (const row of rows) {
-      const record = row && typeof row === 'object' ? (row as Record<string, unknown>) : {};
       if (!context.getWatchHistorySeriesId(row)) {
         missingSeriesCount += 1;
       }
-      if (context.parseDateMs(record.date_played) == null) {
+      if (context.parseDateMs(row.date_played) == null) {
         missingDatePlayedCount += 1;
       }
     }
@@ -241,27 +252,19 @@
     }
   }
 
-  function auditCmsObjectContractInternal(context: ApiContractsContext, records: unknown[]): void {
+  function auditCmsObjectContractInternal(context: ApiContractsContext, records: ApiObjectRecord[]): void {
     let missingIdCount = 0;
     let missingSeriesMetadataCount = 0;
     let missingRatingCount = 0;
 
     for (const record of records) {
-      if (!record || typeof record !== 'object') {
-        missingIdCount += 1;
-        missingSeriesMetadataCount += 1;
-        missingRatingCount += 1;
-        continue;
-      }
-
-      const row = record as Record<string, unknown>;
-      if (typeof row.id !== 'string' || !row.id) {
+      if (typeof record.id !== 'string' || !record.id) {
         missingIdCount += 1;
       }
-      if (!row.series_metadata || typeof row.series_metadata !== 'object') {
+      if (!record.series_metadata || typeof record.series_metadata !== 'object') {
         missingSeriesMetadataCount += 1;
       }
-      if (!row.rating || typeof row.rating !== 'object') {
+      if (!record.rating || typeof record.rating !== 'object') {
         missingRatingCount += 1;
       }
     }
@@ -306,9 +309,9 @@
         emitApiContractWarningInternal(context, endpointName, message, extra),
       requirePayloadDataArray: (endpointName: string, payload: unknown) =>
         requirePayloadDataArrayInternal(context, endpointName, payload),
-      auditWatchlistRowsContract: (rows: unknown[]) => auditWatchlistRowsContractInternal(context, rows),
-      auditWatchHistoryRowsContract: (rows: unknown[]) => auditWatchHistoryRowsContractInternal(context, rows),
-      auditCmsObjectContract: (records: unknown[]) => auditCmsObjectContractInternal(context, records),
+      auditWatchlistRowsContract: (rows: ApiObjectRecord[]) => auditWatchlistRowsContractInternal(context, rows),
+      auditWatchHistoryRowsContract: (rows: ApiObjectRecord[]) => auditWatchHistoryRowsContractInternal(context, rows),
+      auditCmsObjectContract: (records: ApiObjectRecord[]) => auditCmsObjectContractInternal(context, records),
       resolveApiHref: (href: unknown) => resolveApiHrefInternal(context, href),
       getLocale: () => getLocaleInternal(context),
     };

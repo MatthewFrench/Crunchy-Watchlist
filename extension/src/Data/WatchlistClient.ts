@@ -1,6 +1,4 @@
 (() => {
-  type AnyFn = (...args: unknown[]) => unknown;
-
   type TokenEntry = {
     accountId?: string;
     accessToken?: string;
@@ -56,7 +54,7 @@
   }
   const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
-  function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
+  function requireFunction<T>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
       throw new Error(`[CW] Missing watchlist dependency: ${name}`);
     }
@@ -143,12 +141,7 @@
   }
 
   function getPanelId(row: WatchlistRow): string {
-    const panel = row.panel;
-    if (!panel || typeof panel !== 'object') {
-      return '';
-    }
-
-    const panelId = (panel as Record<string, unknown>).id;
+    const panelId = toRecord(row.panel).id;
     return typeof panelId === 'string' ? panelId : '';
   }
 
@@ -221,7 +214,7 @@
 
     let payload: unknown;
     try {
-      payload = (await response.json()) as unknown;
+      payload = await response.json();
     } catch (_) {
       context.runtimeEvent('watchlist-contract-warning', {
         reason: 'invalid-json-payload',

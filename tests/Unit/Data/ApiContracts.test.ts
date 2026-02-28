@@ -5,7 +5,7 @@ import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/Modu
 
 type ApiContractsRuntime = {
   computeFetchRetryDelayMs: (attemptNumber: unknown, response: unknown) => number;
-  requirePayloadDataArray: (endpointName: string, payload: unknown) => unknown[];
+  requirePayloadDataArray: (endpointName: string, payload: unknown) => Record<string, unknown>[];
   auditWatchlistRowsContract: (rows: unknown[]) => void;
   resolveApiHref: (href: unknown) => string;
   getLocale: () => string;
@@ -93,6 +93,25 @@ describe('api-contracts data module', () => {
       'api-contract-error',
       expect.objectContaining({
         endpoint: 'watchlist',
+      }),
+    );
+  });
+
+  it('normalizes non-object rows in payload data[] and emits a warning', () => {
+    const runtimeEvent = vi.fn();
+    const runtime = createApiContractsRuntime(runtimeEvent);
+
+    const rows = runtime.requirePayloadDataArray('watchlist', {
+      data: [{ id: 'row-1' }, null, 42, []],
+    });
+
+    expect(rows).toEqual([{ id: 'row-1' }, {}, {}, {}]);
+    expect(runtimeEvent).toHaveBeenCalledWith(
+      'api-contract-warning',
+      expect.objectContaining({
+        endpoint: 'watchlist',
+        message: 'payload data[] contained non-object rows',
+        nonObjectCount: 3,
       }),
     );
   });
