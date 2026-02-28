@@ -1,192 +1,193 @@
-;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
+(() => {
+  type AnyFn = (...args: unknown[]) => unknown;
 
   type RuntimeState = {
-    framedRootEl: Element | null
-    nativeHiddenNodes: Element[]
-    hostEl: Element | null
-    tabCrunchyrollEl: Element | null
-    tabCuratedEl: Element | null
-    curatedPanelEl: Element | null
-    controlsEl: Element | null
-    loadingIndicatorEl: Element | null
-    audioFilterSelectEl: Element | null
-    genreFilterSelectEl: Element | null
-    statsEl: Element | null
-    gridEl: Element | null
-    curatedGridRenderSignature: string
-    settings: Record<string, unknown>
-    ratingCache: Record<string, unknown>
-    ratingInflight: Map<string, Promise<unknown>>
-    ratingLocalePreloadInflight: Map<string, Promise<unknown>>
-    watchHistoryLocalePreloadInflight: Map<string, Promise<unknown>>
-    watchHistoryCache: unknown
-    watchHistoryStatus: string
-    watchHistoryInflight: Promise<unknown> | null
-    curatedEntries: unknown[]
-    curatedError: unknown
-    curatedPendingRequests: string[]
-    curatedPendingRequestStartedCount: number
-    curatedPendingRequestCompletedCount: number
-  }
+    framedRootEl: Element | null;
+    nativeHiddenNodes: Element[];
+    hostEl: Element | null;
+    tabCrunchyrollEl: Element | null;
+    tabCuratedEl: Element | null;
+    curatedPanelEl: Element | null;
+    controlsEl: Element | null;
+    loadingBoxEl: Element | null;
+    loadingIndicatorEl: Element | null;
+    audioFilterSelectEl: Element | null;
+    genreFilterSelectEl: Element | null;
+    statsEl: Element | null;
+    gridEl: Element | null;
+    curatedGridRenderSignature: string;
+    settings: Record<string, unknown>;
+    ratingCache: Record<string, unknown>;
+    ratingInflight: Map<string, Promise<unknown>>;
+    ratingLocalePreloadInflight: Map<string, Promise<unknown>>;
+    watchHistoryLocalePreloadInflight: Map<string, Promise<unknown>>;
+    watchHistoryCache: unknown;
+    watchHistoryStatus: string;
+    watchHistoryInflight: Promise<unknown> | null;
+    curatedEntries: unknown[];
+    curatedError: unknown;
+    curatedPendingRequests: string[];
+    curatedPendingRequestStartedCount: number;
+    curatedPendingRequestCompletedCount: number;
+  };
 
   type SelectControl = {
-    select: Element
-  }
+    select: Element;
+  };
 
   type ControlsContext = {
-    controls: Element
-    loadingIndicator: Element
-    audioFilterControl: SelectControl
-    genreFilterControl: SelectControl
-    stats: Element
-  }
+    controls: Element;
+    loadingIndicator: Element;
+    audioFilterControl: SelectControl;
+    genreFilterControl: SelectControl;
+    stats: Element;
+  };
 
   type InterfaceShellContext = {
-    state: RuntimeState
-    documentRef: Document
-    windowRef: Window
-    getWatchlistRoot: () => Element | null
-    getWatchlistHeader: () => Element | null
-    runtimeEvent: (event: string, data?: unknown) => void
-    withMutedObserver: (work: () => void) => void
-    persistSettings: () => Promise<unknown>
-    applyCardLayoutUi: () => void
-    createCuratedInterfaceControls: () => ControlsContext
-    bindCuratedInterfaceControls: (context: ControlsContext) => void
-    ensureCuratedDataLoad: (force: boolean) => Promise<unknown>
-    renderCuratedPanel: () => void
-    debounceProcess: () => void
-    createEmptyWatchHistoryCache: () => unknown
-    storageSet: (key: string, value: unknown) => Promise<unknown>
-    ratingCacheKey: string
-    watchHistoryCacheKey: string
-  }
+    state: RuntimeState;
+    documentRef: Document;
+    windowRef: Window;
+    getWatchlistRoot: () => Element | null;
+    getWatchlistHeader: () => Element | null;
+    runtimeEvent: (event: string, data?: unknown) => void;
+    withMutedObserver: (work: () => void) => void;
+    persistSettings: () => Promise<unknown>;
+    applyCardLayoutUi: () => void;
+    createCuratedInterfaceControls: () => ControlsContext;
+    bindCuratedInterfaceControls: (context: ControlsContext) => void;
+    ensureCuratedDataLoad: (force: boolean) => Promise<unknown>;
+    renderCuratedPanel: () => void;
+    debounceProcess: () => void;
+    createEmptyWatchHistoryCache: () => unknown;
+    storageSet: (key: string, value: unknown) => Promise<unknown>;
+    ratingCacheKey: string;
+    watchHistoryCacheKey: string;
+  };
 
   type InterfaceShellOptions = {
-    state?: unknown
-    documentRef?: unknown
-    windowRef?: unknown
-    getWatchlistRoot?: unknown
-    getWatchlistHeader?: unknown
-    runtimeEvent?: unknown
-    withMutedObserver?: unknown
-    persistSettings?: unknown
-    applyCardLayoutUi?: unknown
-    createCuratedInterfaceControls?: unknown
-    bindCuratedInterfaceControls?: unknown
-    ensureCuratedDataLoad?: unknown
-    renderCuratedPanel?: unknown
-    debounceProcess?: unknown
-    createEmptyWatchHistoryCache?: unknown
-    storageSet?: unknown
-    ratingCacheKey?: unknown
-    watchHistoryCacheKey?: unknown
-  }
+    state?: unknown;
+    documentRef?: unknown;
+    windowRef?: unknown;
+    getWatchlistRoot?: unknown;
+    getWatchlistHeader?: unknown;
+    runtimeEvent?: unknown;
+    withMutedObserver?: unknown;
+    persistSettings?: unknown;
+    applyCardLayoutUi?: unknown;
+    createCuratedInterfaceControls?: unknown;
+    bindCuratedInterfaceControls?: unknown;
+    ensureCuratedDataLoad?: unknown;
+    renderCuratedPanel?: unknown;
+    debounceProcess?: unknown;
+    createEmptyWatchHistoryCache?: unknown;
+    storageSet?: unknown;
+    ratingCacheKey?: unknown;
+    watchHistoryCacheKey?: unknown;
+  };
 
   type InterfaceShellRuntime = {
-    clearRootFrame: () => void
-    setNativeVisibility: (showNative: boolean) => void
-    applyTabUi: () => void
-    resetCuratedCachesForRefresh: () => Promise<void>
-    ensureInterface: () => void
-  }
+    clearRootFrame: () => void;
+    setNativeVisibility: (showNative: boolean) => void;
+    applyTabUi: () => void;
+    resetCuratedCachesForRefresh: () => Promise<void>;
+    ensureInterface: () => void;
+  };
 
   type InterfaceShellCoreDependencies = Pick<
     InterfaceShellContext,
     'state' | 'documentRef' | 'windowRef' | 'ratingCacheKey' | 'watchHistoryCacheKey'
-  >
+  >;
 
   type InterfaceShellFunctionDependencies = Omit<
     InterfaceShellContext,
     'state' | 'documentRef' | 'windowRef' | 'ratingCacheKey' | 'watchHistoryCacheKey'
-  >
+  >;
 
   type InterfaceShellHostLifecycleRuntime = {
-    isConnectedElement: (value: unknown) => value is Element
-    clearInterfaceReferences: (context: InterfaceShellContext) => void
-    resetInterfaceShell: (context: InterfaceShellContext, removeHost: boolean) => void
-    isInterfaceShellIntact: (context: InterfaceShellContext) => boolean
-    ensureRootFrame: (context: InterfaceShellContext, rootElement: Element | null) => void
-    clearRootFrame: (context: InterfaceShellContext) => void
-    setNativeVisibility: (context: InterfaceShellContext, showNative: boolean) => void
-    restoreActiveCuratedHostVisibility: (context: InterfaceShellContext) => void
-    removeOrphanCuratedHosts: (context: InterfaceShellContext, rootElement: Element) => void
-  }
+    isConnectedElement: (value: unknown) => value is Element;
+    clearInterfaceReferences: (context: InterfaceShellContext) => void;
+    resetInterfaceShell: (context: InterfaceShellContext, removeHost: boolean) => void;
+    isInterfaceShellIntact: (context: InterfaceShellContext) => boolean;
+    ensureRootFrame: (context: InterfaceShellContext, rootElement: Element | null) => void;
+    clearRootFrame: (context: InterfaceShellContext) => void;
+    setNativeVisibility: (context: InterfaceShellContext, showNative: boolean) => void;
+    restoreActiveCuratedHostVisibility: (context: InterfaceShellContext) => void;
+    removeOrphanCuratedHosts: (context: InterfaceShellContext, rootElement: Element) => void;
+  };
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
   function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing interface shell dependency: ${name}`)
+      throw new Error(`[CW] Missing interface shell dependency: ${name}`);
     }
-    return value as T
+    return value as T;
   }
 
   function asRecord(value: unknown): Record<string, unknown> {
     if (!value || typeof value !== 'object') {
-      return {}
+      return {};
     }
-    return value as Record<string, unknown>
+    return value as Record<string, unknown>;
   }
 
   function asRuntimeState(value: unknown): RuntimeState | null {
     if (!value || typeof value !== 'object') {
-      return null
+      return null;
     }
-    return value as RuntimeState
+    return value as RuntimeState;
   }
 
   function resolveDocumentRef(value: unknown): Document | null {
     if (!value || typeof value !== 'object') {
-      return null
+      return null;
     }
     if (typeof (value as Document).createElement !== 'function') {
-      return null
+      return null;
     }
-    return value as Document
+    return value as Document;
   }
 
   function resolveWindowRef(value: unknown): Window | null {
     if (!value || typeof value !== 'object') {
-      return null
+      return null;
     }
-    const record = value as Record<string, unknown>
+    const record = value as Record<string, unknown>;
     if (typeof record.requestAnimationFrame !== 'function') {
-      return null
+      return null;
     }
     if (typeof record.dispatchEvent !== 'function') {
-      return null
+      return null;
     }
-    return value as Window
+    return value as Window;
   }
 
   function requireStorageKey(options: InterfaceShellOptions, key: 'ratingCacheKey' | 'watchHistoryCacheKey'): string {
-    const value = typeof options[key] === 'string' ? options[key] : ''
+    const value = typeof options[key] === 'string' ? options[key] : '';
     if (!value) {
-      throw new Error(`[CW] Missing interface shell ${key}`)
+      throw new Error(`[CW] Missing interface shell ${key}`);
     }
-    return value
+    return value;
   }
 
   function resolveInterfaceShellCoreDependencies(options: InterfaceShellOptions): InterfaceShellCoreDependencies {
-    const state = asRuntimeState(options.state)
+    const state = asRuntimeState(options.state);
     if (!state) {
-      throw new Error('[CW] Missing interface shell state')
+      throw new Error('[CW] Missing interface shell state');
     }
 
-    const documentRef = resolveDocumentRef(options.documentRef)
+    const documentRef = resolveDocumentRef(options.documentRef);
     if (!documentRef) {
-      throw new Error('[CW] Missing interface shell documentRef')
+      throw new Error('[CW] Missing interface shell documentRef');
     }
 
-    const windowRef = resolveWindowRef(options.windowRef)
+    const windowRef = resolveWindowRef(options.windowRef);
     if (!windowRef) {
-      throw new Error('[CW] Missing interface shell windowRef')
+      throw new Error('[CW] Missing interface shell windowRef');
     }
 
     return {
@@ -195,7 +196,7 @@
       windowRef,
       ratingCacheKey: requireStorageKey(options, 'ratingCacheKey'),
       watchHistoryCacheKey: requireStorageKey(options, 'watchHistoryCacheKey'),
-    }
+    };
   }
 
   function resolveInterfaceShellFunctionDependencies(
@@ -248,36 +249,36 @@
         options.createEmptyWatchHistoryCache,
       ) as InterfaceShellContext['createEmptyWatchHistoryCache'],
       storageSet: requireFunction('storageSet', options.storageSet) as InterfaceShellContext['storageSet'],
-    }
+    };
   }
 
   function createInterfaceShellContext(options: InterfaceShellOptions = {}): InterfaceShellContext {
     return {
       ...resolveInterfaceShellCoreDependencies(options),
       ...resolveInterfaceShellFunctionDependencies(options),
-    }
+    };
   }
 
   function createInterfaceShellHostLifecycleRuntime(): InterfaceShellHostLifecycleRuntime {
-    const hostLifecycleModule = asRecord(moduleRegistry.runtimeInterfaceShellHostLifecycle)
+    const hostLifecycleModule = asRecord(moduleRegistry.runtimeInterfaceShellHostLifecycle);
     return requireFunction<() => InterfaceShellHostLifecycleRuntime>(
       'createInterfaceShellHostLifecycleRuntime',
       hostLifecycleModule.createInterfaceShellHostLifecycleRuntime,
-    )()
+    )();
   }
 
   function isElementWithDisplayState(value: unknown): value is HTMLElement {
     if (!value || typeof value !== 'object') {
-      return false
+      return false;
     }
-    const record = value as Record<string, unknown>
+    const record = value as Record<string, unknown>;
     return (
       typeof record.style === 'object' &&
       record.style != null &&
       typeof record.dataset === 'object' &&
       record.dataset != null &&
       typeof record.classList === 'object'
-    )
+    );
   }
 
   function setNativeVisibilityInternal(
@@ -285,44 +286,54 @@
     hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
     showNative: boolean,
   ): void {
-    hostLifecycleRuntime.setNativeVisibility(context, showNative)
+    hostLifecycleRuntime.setNativeVisibility(context, showNative);
   }
 
   function clearRootFrameInternal(
     context: InterfaceShellContext,
     hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
   ): void {
-    hostLifecycleRuntime.clearRootFrame(context)
+    hostLifecycleRuntime.clearRootFrame(context);
   }
 
   function applyTabUiInternal(
     context: InterfaceShellContext,
     hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
   ): void {
-    const tabCrunchyroll = context.state.tabCrunchyrollEl
-    const tabCurated = context.state.tabCuratedEl
-    const curatedPanel = context.state.curatedPanelEl
+    const tabCrunchyroll = context.state.tabCrunchyrollEl;
+    const tabCurated = context.state.tabCuratedEl;
+    const curatedPanel = context.state.curatedPanelEl;
 
     if (!tabCrunchyroll || !tabCurated || !curatedPanel) {
-      return
+      return;
     }
 
-    const curatedActive = context.state.settings.activeTab === 'curated'
+    const curatedActive = context.state.settings.activeTab === 'curated';
     if (curatedActive) {
-      hostLifecycleRuntime.restoreActiveCuratedHostVisibility(context)
+      hostLifecycleRuntime.restoreActiveCuratedHostVisibility(context);
     }
 
     context.withMutedObserver(() => {
-      tabCrunchyroll.setAttribute('aria-selected', curatedActive ? 'false' : 'true')
-      tabCurated.setAttribute('aria-selected', curatedActive ? 'true' : 'false')
-      tabCrunchyroll.classList.toggle('cw-tab--active', !curatedActive)
-      tabCurated.classList.toggle('cw-tab--active', curatedActive)
+      tabCrunchyroll.setAttribute('aria-selected', curatedActive ? 'false' : 'true');
+      tabCurated.setAttribute('aria-selected', curatedActive ? 'true' : 'false');
+      tabCrunchyroll.classList.toggle('cw-tab--active', !curatedActive);
+      tabCurated.classList.toggle('cw-tab--active', curatedActive);
       if (isElementWithDisplayState(curatedPanel)) {
-        curatedPanel.style.display = curatedActive ? 'block' : 'none'
+        curatedPanel.style.display = curatedActive ? 'block' : 'none';
       }
-    })
+    });
 
-    setNativeVisibilityInternal(context, hostLifecycleRuntime, !curatedActive)
+    setNativeVisibilityInternal(context, hostLifecycleRuntime, !curatedActive);
+  }
+
+  function getErrorMessage(error: unknown): string {
+    if (error instanceof Error && typeof error.message === 'string') {
+      return error.message;
+    }
+    if (typeof error === 'string') {
+      return error;
+    }
+    return 'unknown';
   }
 
   async function setActiveTabInternal(
@@ -331,97 +342,114 @@
     tabValue: string,
   ): Promise<void> {
     if (tabValue !== 'crunchyroll' && tabValue !== 'curated') {
-      return
+      return;
     }
 
     if (context.state.settings.activeTab === tabValue) {
-      applyTabUiInternal(context, hostLifecycleRuntime)
+      applyTabUiInternal(context, hostLifecycleRuntime);
       if (tabValue === 'curated') {
-        context.renderCuratedPanel()
+        context.renderCuratedPanel();
       }
-      return
+      return;
     }
 
-    context.state.settings.activeTab = tabValue
-    await context.persistSettings()
-    applyTabUiInternal(context, hostLifecycleRuntime)
+    context.state.settings.activeTab = tabValue;
+    await context.persistSettings();
+    applyTabUiInternal(context, hostLifecycleRuntime);
 
     if (tabValue === 'curated') {
-      void context.ensureCuratedDataLoad(false)
-      context.renderCuratedPanel()
+      void context.ensureCuratedDataLoad(false).catch((error: unknown) => {
+        context.runtimeEvent('ui-curated-prefetch-error', {
+          message: getErrorMessage(error),
+        });
+      });
+      context.renderCuratedPanel();
     }
 
-    context.debounceProcess()
+    context.debounceProcess();
+  }
+
+  function setActiveTabWithErrorGuardInternal(
+    context: InterfaceShellContext,
+    hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
+    tabValue: 'crunchyroll' | 'curated',
+  ): void {
+    void setActiveTabInternal(context, hostLifecycleRuntime, tabValue).catch((error: unknown) => {
+      context.runtimeEvent('ui-tab-change-error', {
+        tabValue,
+        message: getErrorMessage(error),
+      });
+    });
   }
 
   async function resetCuratedCachesForRefreshInternal(context: InterfaceShellContext): Promise<void> {
     // Manual refresh uses stale-while-revalidate semantics:
     // keep cached cards visible and only reset transient request diagnostics.
-    context.state.curatedError = null
-    context.state.curatedPendingRequests = []
-    context.state.curatedPendingRequestStartedCount = 0
-    context.state.curatedPendingRequestCompletedCount = 0
+    context.state.curatedError = null;
+    context.state.curatedPendingRequests = [];
+    context.state.curatedPendingRequestStartedCount = 0;
+    context.state.curatedPendingRequestCompletedCount = 0;
   }
 
   function createTabButtonInternal(context: InterfaceShellContext, label: string, tabValue: string): HTMLButtonElement {
-    const button = context.documentRef.createElement('button')
-    button.type = 'button'
-    button.className = 'cw-tab'
-    button.textContent = label
-    button.dataset.cwTab = tabValue
-    return button
+    const button = context.documentRef.createElement('button');
+    button.type = 'button';
+    button.className = 'cw-tab';
+    button.textContent = label;
+    button.dataset.cwTab = tabValue;
+    return button;
   }
 
   function createCuratedInterfaceTabsInternal(
     context: InterfaceShellContext,
     hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
   ) {
-    const tabs = context.documentRef.createElement('div')
-    tabs.className = 'cw-tabs'
+    const tabs = context.documentRef.createElement('div');
+    tabs.className = 'cw-tabs';
 
-    const tabCrunchyroll = createTabButtonInternal(context, 'Crunchyroll', 'crunchyroll')
-    const tabCurated = createTabButtonInternal(context, 'Curated', 'curated')
+    const tabCrunchyroll = createTabButtonInternal(context, 'Crunchyroll', 'crunchyroll');
+    const tabCurated = createTabButtonInternal(context, 'Curated', 'curated');
 
     tabCrunchyroll.addEventListener('click', () => {
-      void setActiveTabInternal(context, hostLifecycleRuntime, 'crunchyroll')
-    })
+      setActiveTabWithErrorGuardInternal(context, hostLifecycleRuntime, 'crunchyroll');
+    });
     tabCurated.addEventListener('click', () => {
-      void setActiveTabInternal(context, hostLifecycleRuntime, 'curated')
-    })
+      setActiveTabWithErrorGuardInternal(context, hostLifecycleRuntime, 'curated');
+    });
 
-    tabs.appendChild(tabCrunchyroll)
-    tabs.appendChild(tabCurated)
+    tabs.appendChild(tabCrunchyroll);
+    tabs.appendChild(tabCurated);
 
     return {
       tabs,
       tabCrunchyroll,
       tabCurated,
-    }
+    };
   }
 
   function ensureInterfaceInternal(
     context: InterfaceShellContext,
     hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
   ): void {
-    const rootElement = context.getWatchlistRoot()
-    const headerElement = context.getWatchlistHeader()
+    const rootElement = context.getWatchlistRoot();
+    const headerElement = context.getWatchlistHeader();
     if (!rootElement || !headerElement) {
       // During SPA churn Crunchyroll can temporarily replace watchlist nodes; fall back to native content
       // so users do not get stuck in an empty framed shell while structure reattaches.
-      setNativeVisibilityInternal(context, hostLifecycleRuntime, true)
-      clearRootFrameInternal(context, hostLifecycleRuntime)
+      setNativeVisibilityInternal(context, hostLifecycleRuntime, true);
+      clearRootFrameInternal(context, hostLifecycleRuntime);
       if (!hostLifecycleRuntime.isConnectedElement(context.state.hostEl)) {
-        hostLifecycleRuntime.clearInterfaceReferences(context)
+        hostLifecycleRuntime.clearInterfaceReferences(context);
       }
-      context.runtimeEvent('ui-missing-watchlist-structure')
-      return
+      context.runtimeEvent('ui-missing-watchlist-structure');
+      return;
     }
 
-    hostLifecycleRuntime.ensureRootFrame(context, rootElement)
-    hostLifecycleRuntime.removeOrphanCuratedHosts(context, rootElement)
+    hostLifecycleRuntime.ensureRootFrame(context, rootElement);
+    hostLifecycleRuntime.removeOrphanCuratedHosts(context, rootElement);
 
     if (hostLifecycleRuntime.isInterfaceShellIntact(context)) {
-      return
+      return;
     }
 
     if (context.state.hostEl) {
@@ -429,76 +457,77 @@
         reason: hostLifecycleRuntime.isConnectedElement(context.state.hostEl)
           ? 'invalid-structure'
           : 'disconnected-host',
-      })
-      hostLifecycleRuntime.resetInterfaceShell(context, true)
+      });
+      hostLifecycleRuntime.resetInterfaceShell(context, true);
     } else {
-      hostLifecycleRuntime.clearInterfaceReferences(context)
+      hostLifecycleRuntime.clearInterfaceReferences(context);
     }
 
-    const host = context.documentRef.createElement('section')
-    host.className = 'cw-host'
+    const host = context.documentRef.createElement('section');
+    host.className = 'cw-host';
 
-    const { tabs, tabCrunchyroll, tabCurated } = createCuratedInterfaceTabsInternal(context, hostLifecycleRuntime)
-    const panel = context.documentRef.createElement('div')
-    panel.className = 'cw-panel'
-    const controlsContext = context.createCuratedInterfaceControls()
-    context.bindCuratedInterfaceControls(controlsContext)
-    const loadingBox = context.documentRef.createElement('div')
-    loadingBox.className = 'cw-empty cw-loading-box'
+    const { tabs, tabCrunchyroll, tabCurated } = createCuratedInterfaceTabsInternal(context, hostLifecycleRuntime);
+    const panel = context.documentRef.createElement('div');
+    panel.className = 'cw-panel';
+    const controlsContext = context.createCuratedInterfaceControls();
+    context.bindCuratedInterfaceControls(controlsContext);
+    const loadingBox = context.documentRef.createElement('div');
+    loadingBox.className = 'cw-empty cw-loading-box';
     if (loadingBox.style) {
-      loadingBox.style.display = 'none'
+      loadingBox.style.display = 'none';
     }
 
-    const loadingBoxTitle = context.documentRef.createElement('div')
-    loadingBoxTitle.className = 'cw-loading-box__title'
-    loadingBoxTitle.textContent = 'Loading watchlist results...'
+    const loadingBoxTitle = context.documentRef.createElement('div');
+    loadingBoxTitle.className = 'cw-loading-box__title';
+    loadingBoxTitle.textContent = 'Loading watchlist results...';
 
-    loadingBox.appendChild(loadingBoxTitle)
-    loadingBox.appendChild(controlsContext.loadingIndicator)
+    loadingBox.appendChild(loadingBoxTitle);
+    loadingBox.appendChild(controlsContext.loadingIndicator);
 
-    const grid = context.documentRef.createElement('div')
-    grid.className = 'cw-curated-grid'
+    const grid = context.documentRef.createElement('div');
+    grid.className = 'cw-curated-grid';
 
-    panel.appendChild(controlsContext.controls)
-    panel.appendChild(loadingBox)
-    panel.appendChild(grid)
-    host.appendChild(tabs)
-    host.appendChild(panel)
-    headerElement.insertAdjacentElement('beforebegin', host)
+    panel.appendChild(controlsContext.controls);
+    panel.appendChild(loadingBox);
+    panel.appendChild(grid);
+    host.appendChild(tabs);
+    host.appendChild(panel);
+    headerElement.insertAdjacentElement('beforebegin', host);
 
-    context.state.hostEl = host
-    context.state.tabCrunchyrollEl = tabCrunchyroll
-    context.state.tabCuratedEl = tabCurated
-    context.state.curatedPanelEl = panel
-    context.state.controlsEl = controlsContext.controls
-    context.state.loadingIndicatorEl = controlsContext.loadingIndicator
-    context.state.audioFilterSelectEl = controlsContext.audioFilterControl.select
-    context.state.genreFilterSelectEl = controlsContext.genreFilterControl.select
-    context.state.statsEl = controlsContext.stats
-    context.state.gridEl = grid
-    context.state.curatedGridRenderSignature = ''
+    context.state.hostEl = host;
+    context.state.tabCrunchyrollEl = tabCrunchyroll;
+    context.state.tabCuratedEl = tabCurated;
+    context.state.curatedPanelEl = panel;
+    context.state.controlsEl = controlsContext.controls;
+    context.state.loadingBoxEl = loadingBox;
+    context.state.loadingIndicatorEl = controlsContext.loadingIndicator;
+    context.state.audioFilterSelectEl = controlsContext.audioFilterControl.select;
+    context.state.genreFilterSelectEl = controlsContext.genreFilterControl.select;
+    context.state.statsEl = controlsContext.stats;
+    context.state.gridEl = grid;
+    context.state.curatedGridRenderSignature = '';
 
     context.runtimeEvent('ui-mounted', {
       headerClass: String(headerElement.className || ''),
-    })
+    });
 
-    context.applyCardLayoutUi()
-    applyTabUiInternal(context, hostLifecycleRuntime)
+    context.applyCardLayoutUi();
+    applyTabUiInternal(context, hostLifecycleRuntime);
   }
 
   function createInterfaceShellRuntime(options: InterfaceShellOptions = {}): InterfaceShellRuntime {
-    const context = createInterfaceShellContext(options)
-    const hostLifecycleRuntime = createInterfaceShellHostLifecycleRuntime()
+    const context = createInterfaceShellContext(options);
+    const hostLifecycleRuntime = createInterfaceShellHostLifecycleRuntime();
     return {
       clearRootFrame: () => clearRootFrameInternal(context, hostLifecycleRuntime),
       setNativeVisibility: (showNative) => setNativeVisibilityInternal(context, hostLifecycleRuntime, showNative),
       applyTabUi: () => applyTabUiInternal(context, hostLifecycleRuntime),
       resetCuratedCachesForRefresh: () => resetCuratedCachesForRefreshInternal(context),
       ensureInterface: () => ensureInterfaceInternal(context, hostLifecycleRuntime),
-    }
+    };
   }
 
   moduleRegistry.runtimeInterfaceShell = {
     createInterfaceShellRuntime,
-  }
-})()
+  };
+})();

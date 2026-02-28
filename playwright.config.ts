@@ -1,7 +1,7 @@
-import { defineConfig } from '@playwright/test'
+import { defineConfig } from '@playwright/test';
 
-const fixtureServerPort = Math.max(1, Number.parseInt(process.env.PW_FIXTURE_SERVER_PORT || '4173', 10) || 4173)
-const fixtureServerUrl = `http://127.0.0.1:${fixtureServerPort}/watchlist`
+const fixtureServerPort = Math.max(1, Number.parseInt(process.env.PW_FIXTURE_SERVER_PORT || '4173', 10) || 4173);
+const fixtureServerUrl = `http://127.0.0.1:${fixtureServerPort}/watchlist`;
 
 export default defineConfig({
   testDir: './tests',
@@ -33,4 +33,4 @@ export default defineConfig({
     timeout: 20000,
     reuseExistingServer: !process.env.CI,
   },
-})
+});

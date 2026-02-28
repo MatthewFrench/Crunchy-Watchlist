@@ -1,92 +1,104 @@
-;(() => {
+(() => {
   type WatchHistoryCache = {
-    version: number
-    accountId: string
-    updatedAt: number
-    bySeriesId: Record<string, unknown>
-    bySeriesIdAudioLocale: Record<string, unknown>
-    bySeriesIdProgress: Record<string, unknown>
-    bySeriesIdAudioLocaleProgress: Record<string, unknown>
-  }
+    version: number;
+    accountId: string;
+    updatedAt: number;
+    bySeriesId: Record<string, unknown>;
+    bySeriesIdAudioLocale: Record<string, unknown>;
+    bySeriesIdProgress: Record<string, unknown>;
+    bySeriesIdAudioLocaleProgress: Record<string, unknown>;
+  };
 
   type WatchlistCacheSnapshot = {
-    accountId: string
-    profileId: string
-    updatedAt: number
-    rows: unknown[]
-  }
+    accountId: string;
+    profileId: string;
+    updatedAt: number;
+    rows: unknown[];
+  };
+
+  type CuratedDomLifecycleCounters = {
+    created: number;
+    patched: number;
+    parked: number;
+    unparked: number;
+    disposed: number;
+    renderPasses: number;
+  };
 
   type ApiTraceBuckets = {
-    authToken: unknown[]
-    watchlist: unknown[]
-    watchHistory: unknown[]
-    cmsObjects: unknown[]
-    legacyRating: unknown[]
-    preview: unknown[]
-  }
+    authToken: unknown[];
+    watchlist: unknown[];
+    watchHistory: unknown[];
+    cmsObjects: unknown[];
+    legacyRating: unknown[];
+    preview: unknown[];
+  };
 
   type RuntimeStateOptions = {
-    defaultSettings?: Record<string, unknown>
-    watchHistoryCacheVersion?: unknown
-  }
+    defaultSettings?: Record<string, unknown>;
+    watchHistoryCacheVersion?: unknown;
+  };
 
   type RuntimeState = {
-    mounted: boolean
-    observer: MutationObserver | null
-    routeWatcherStarted: boolean
-    routeSyncTimer: number | null
-    processTimer: number | null
-    saveRatingsTimer: number | null
-    saveWatchHistoryTimer: number | null
-    saveWatchlistCacheTimer: number | null
-    settings: Record<string, unknown>
-    ratingCache: Record<string, unknown>
-    ratingCacheRevision: number
-    ratingInflight: Map<string, Promise<unknown>>
-    ratingLocalePreloadInflight: Map<string, Promise<unknown>>
-    watchHistoryLocalePreloadInflight: Map<string, Promise<unknown>>
-    watchHistoryCache: WatchHistoryCache
-    watchHistoryStatus: string
-    watchlistCache: WatchlistCacheSnapshot
-    watchHistoryInflight: Promise<unknown> | null
-    preferredAudioLanguage: string | null
-    preferredAudioLanguageUpdatedAt: number
-    apiTrace: ApiTraceBuckets
-    previewCache: Record<string, unknown>
-    previewInflight: Map<string, Promise<unknown>>
-    authToken: unknown
-    authTokenInflight: Promise<unknown> | null
-    curatedEntries: unknown[]
-    curatedError: unknown
-    curatedSource: string
-    curatedInflight: Promise<unknown> | null
-    curatedInitialLoadDone: boolean
-    curatedPendingRequests: string[]
-    curatedPendingRequestStartedCount: number
-    curatedPendingRequestCompletedCount: number
-    curatedObservedPromise: Promise<unknown> | null
-    curatedLastRevalidateAt: number
-    mutationMuted: boolean
-    hostEl: Element | null
-    tabCrunchyrollEl: Element | null
-    tabCuratedEl: Element | null
-    curatedPanelEl: Element | null
-    controlsEl: Element | null
-    loadingIndicatorEl: Element | null
-    audioFilterSelectEl: Element | null
-    genreFilterSelectEl: Element | null
-    statsEl: Element | null
-    gridEl: Element | null
-    curatedGridRenderSignature: string
-    framedRootEl: Element | null
-    nativeHiddenNodes: Element[]
-  }
+    mounted: boolean;
+    observer: MutationObserver | null;
+    routeWatcherStarted: boolean;
+    routeSyncTimer: number | null;
+    processTimer: number | null;
+    saveRatingsTimer: number | null;
+    saveWatchHistoryTimer: number | null;
+    saveWatchlistCacheTimer: number | null;
+    settings: Record<string, unknown>;
+    ratingCache: Record<string, unknown>;
+    ratingCacheRevision: number;
+    ratingInflight: Map<string, Promise<unknown>>;
+    ratingLocalePreloadInflight: Map<string, Promise<unknown>>;
+    watchHistoryLocalePreloadInflight: Map<string, Promise<unknown>>;
+    watchHistoryCache: WatchHistoryCache;
+    watchHistoryStatus: string;
+    watchlistCache: WatchlistCacheSnapshot;
+    watchHistoryInflight: Promise<unknown> | null;
+    preferredAudioLanguage: string | null;
+    preferredAudioLanguageUpdatedAt: number;
+    apiTrace: ApiTraceBuckets;
+    previewCache: Record<string, unknown>;
+    previewInflight: Map<string, Promise<unknown>>;
+    authToken: unknown;
+    authTokenInflight: Promise<unknown> | null;
+    curatedEntries: unknown[];
+    curatedError: unknown;
+    curatedSource: string;
+    curatedInflight: Promise<unknown> | null;
+    curatedDeferredMetadataInFlight: boolean;
+    curatedInitialLoadDone: boolean;
+    curatedPendingRequests: string[];
+    curatedPendingRequestStartedCount: number;
+    curatedPendingRequestCompletedCount: number;
+    curatedObservedPromise: Promise<unknown> | null;
+    curatedLastRevalidateAt: number;
+    curatedDomLifecycleCounters: CuratedDomLifecycleCounters;
+    mutationMuted: boolean;
+    hostEl: Element | null;
+    tabCrunchyrollEl: Element | null;
+    tabCuratedEl: Element | null;
+    curatedPanelEl: Element | null;
+    controlsEl: Element | null;
+    loadingBoxEl: Element | null;
+    loadingIndicatorEl: Element | null;
+    audioFilterSelectEl: Element | null;
+    genreFilterSelectEl: Element | null;
+    statsEl: Element | null;
+    gridEl: Element | null;
+    curatedGridRenderSignature: string;
+    framedRootEl: Element | null;
+    nativeHiddenNodes: Element[];
+  };
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
   function createEmptyWatchHistoryCache(watchHistoryCacheVersion: unknown): WatchHistoryCache {
     return {
@@ -97,14 +109,14 @@
       bySeriesIdAudioLocale: {},
       bySeriesIdProgress: {},
       bySeriesIdAudioLocaleProgress: {},
-    }
+    };
   }
 
   type WatchlistCacheSnapshotArgs = {
-    profileId: string
-    updatedAt: number
-    rows: unknown[]
-  }
+    profileId: string;
+    updatedAt: number;
+    rows: unknown[];
+  };
 
   // Keep compatibility with legacy call-sites that still pass:
   // (accountId, updatedAt, rows). New call-sites pass:
@@ -119,14 +131,14 @@
         profileId: typeof profileIdOrUpdatedAt === 'string' ? profileIdOrUpdatedAt : '',
         updatedAt: typeof updatedAtOrRows === 'number' ? updatedAtOrRows : 0,
         rows: Array.isArray(rowsMaybe) ? rowsMaybe : [],
-      }
+      };
     }
 
     return {
       profileId: '',
       updatedAt: typeof profileIdOrUpdatedAt === 'number' ? profileIdOrUpdatedAt : 0,
       rows: Array.isArray(updatedAtOrRows) ? updatedAtOrRows : [],
-    }
+    };
   }
 
   function createWatchlistCacheSnapshot(
@@ -135,13 +147,13 @@
     updatedAtOrRows: unknown = 0,
     rowsMaybe?: unknown,
   ): WatchlistCacheSnapshot {
-    const normalizedArgs = resolveWatchlistCacheSnapshotArgs(profileIdOrUpdatedAt, updatedAtOrRows, rowsMaybe)
+    const normalizedArgs = resolveWatchlistCacheSnapshotArgs(profileIdOrUpdatedAt, updatedAtOrRows, rowsMaybe);
     return {
       accountId: typeof accountId === 'string' ? accountId : '',
       profileId: normalizedArgs.profileId,
       updatedAt: normalizedArgs.updatedAt,
       rows: normalizedArgs.rows,
-    }
+    };
   }
 
   function createApiTraceBuckets(): ApiTraceBuckets {
@@ -152,13 +164,24 @@
       cmsObjects: [],
       legacyRating: [],
       preview: [],
-    }
+    };
+  }
+
+  function createCuratedDomLifecycleCounters(): CuratedDomLifecycleCounters {
+    return {
+      created: 0,
+      patched: 0,
+      parked: 0,
+      unparked: 0,
+      disposed: 0,
+      renderPasses: 0,
+    };
   }
 
   function createRuntimeState(options: RuntimeStateOptions = {}): RuntimeState {
     const defaultSettings =
-      options.defaultSettings && typeof options.defaultSettings === 'object' ? options.defaultSettings : {}
-    const watchHistoryCacheVersion = options.watchHistoryCacheVersion
+      options.defaultSettings && typeof options.defaultSettings === 'object' ? options.defaultSettings : {};
+    const watchHistoryCacheVersion = options.watchHistoryCacheVersion;
 
     return {
       mounted: false,
@@ -190,18 +213,21 @@
       curatedError: null,
       curatedSource: 'none',
       curatedInflight: null,
+      curatedDeferredMetadataInFlight: false,
       curatedInitialLoadDone: false,
       curatedPendingRequests: [],
       curatedPendingRequestStartedCount: 0,
       curatedPendingRequestCompletedCount: 0,
       curatedObservedPromise: null,
       curatedLastRevalidateAt: 0,
+      curatedDomLifecycleCounters: createCuratedDomLifecycleCounters(),
       mutationMuted: false,
       hostEl: null,
       tabCrunchyrollEl: null,
       tabCuratedEl: null,
       curatedPanelEl: null,
       controlsEl: null,
+      loadingBoxEl: null,
       loadingIndicatorEl: null,
       audioFilterSelectEl: null,
       genreFilterSelectEl: null,
@@ -210,13 +236,14 @@
       curatedGridRenderSignature: '',
       framedRootEl: null,
       nativeHiddenNodes: [],
-    }
+    };
   }
 
   moduleRegistry.runtimeStore = {
     createEmptyWatchHistoryCache,
     createWatchlistCacheSnapshot,
     createApiTraceBuckets,
+    createCuratedDomLifecycleCounters,
     createRuntimeState,
-  }
-})()
+  };
+})();

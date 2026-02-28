@@ -1,71 +1,71 @@
-;(() => {
+(() => {
   type SortModeOption = {
-    optionValue: string
-    title: string
-  }
+    optionValue: string;
+    title: string;
+  };
 
   type RuntimeConstants = {
-    settingsKey: string
-    ratingCacheKey: string
-    watchHistoryCacheKey: string
-    watchlistCacheKey: string
-    watchHistoryCacheVersion: number
-    ratingCacheTtlMs: number
-    watchHistoryCacheTtlMs: number
-    watchlistCacheTtlMs: number
-    processDebounceMs: number
-    watchlistPageSize: number
-    watchlistMaxPages: number
-    watchlistParallelRequests: number
-    watchlistRevalidateCooldownMs: number
-    watchlistCacheSourceRevalidateCooldownMs: number
-    metadataPriorityEntryCount: number
-    metadataDeferredChunkSize: number
-    metadataDeferredIdleTimeoutMs: number
-    metadataDeferredHiddenDelayMs: number
-    metadataViewportPriorityCount: number
-    watchHistoryPageSize: number
-    watchHistoryMaxPages: number
-    watchHistoryNoMatchPageLimit: number
-    ratingBatchSize: number
-    ratingBatchParallelChunks: number
-    fetchTimeoutMs: number
-    fetchMaxAttempts: number
-    fetchBackoffBaseMs: number
-    fetchBackoffJitterMs: number
-    authClientBasic: string
-    authDeviceKey: string
-    authTokenSkewMs: number
-    previewHoverDelayMs: number
-    preferredAudioCacheTtlMs: number
-    preferredAudioStorageScanLimit: number
-    preferredAudioValueScanLimit: number
-    apiTraceLimitPerEndpoint: number
-  }
+    settingsKey: string;
+    ratingCacheKey: string;
+    watchHistoryCacheKey: string;
+    watchlistCacheKey: string;
+    watchHistoryCacheVersion: number;
+    ratingCacheTtlMs: number;
+    watchHistoryCacheTtlMs: number;
+    watchlistCacheTtlMs: number;
+    processDebounceMs: number;
+    watchlistPageSize: number;
+    watchlistMaxPages: number;
+    watchlistParallelRequests: number;
+    watchlistRevalidateCooldownMs: number;
+    watchlistCacheSourceRevalidateCooldownMs: number;
+    metadataPriorityEntryCount: number;
+    metadataDeferredChunkSize: number;
+    metadataDeferredIdleTimeoutMs: number;
+    metadataDeferredHiddenDelayMs: number;
+    metadataViewportPriorityCount: number;
+    watchHistoryPageSize: number;
+    watchHistoryMaxPages: number;
+    watchHistoryNoMatchPageLimit: number;
+    ratingBatchSize: number;
+    ratingBatchParallelChunks: number;
+    fetchTimeoutMs: number;
+    fetchMaxAttempts: number;
+    fetchBackoffBaseMs: number;
+    fetchBackoffJitterMs: number;
+    authClientBasic: string;
+    authDeviceKey: string;
+    authTokenSkewMs: number;
+    previewHoverDelayMs: number;
+    preferredAudioCacheTtlMs: number;
+    preferredAudioStorageScanLimit: number;
+    preferredAudioValueScanLimit: number;
+    apiTraceLimitPerEndpoint: number;
+  };
 
   type BootstrapConfig = {
-    defaultSortMode: string
-    validSortModes: Set<string>
-    sortModeControlOptions: SortModeOption[]
-    runtimeConstants: RuntimeConstants
+    defaultSortMode: string;
+    validSortModes: Set<string>;
+    sortModeControlOptions: SortModeOption[];
+    runtimeConstants: RuntimeConstants;
     defaultSettings: {
-      activeTab: string
-      watchReadyFilterMode: string
-      audioLocaleFilter: string
-      genreFilter: string
-      cardLayout: string
-      sortMode: string
-      secondarySortMode: string
-    }
-  }
+      activeTab: string;
+      watchReadyFilterMode: string;
+      audioLocaleFilter: string;
+      genreFilter: string;
+      cardLayout: string;
+      sortMode: string;
+      secondarySortMode: string;
+    };
+  };
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
-  const DEFAULT_SORT_MODE = 'consensus_quality_desc'
+  const DEFAULT_SORT_MODE = 'consensus_quality_desc';
   const VALID_SORT_MODE_VALUES = [
     'none',
     'rating_desc',
@@ -94,7 +94,7 @@
     'star_3_pct_desc',
     'star_2_pct_desc',
     'star_1_pct_desc',
-  ] as const
+  ] as const;
 
   const SORT_MODE_CONTROL_OPTIONS: SortModeOption[] = [
     { optionValue: 'consensus_quality_desc', title: 'Consensus quality (default)' },
@@ -123,7 +123,7 @@
     { optionValue: 'star_3_pct_desc', title: 'Most 3-star ratings (%)' },
     { optionValue: 'star_2_pct_desc', title: 'Most 2-star ratings (%)' },
     { optionValue: 'star_1_pct_desc', title: 'Most 1-star ratings (%)' },
-  ]
+  ];
 
   const DEFAULT_SETTINGS = {
     activeTab: 'curated',
@@ -133,7 +133,7 @@
     cardLayout: 'portrait',
     sortMode: DEFAULT_SORT_MODE,
     secondarySortMode: 'none',
-  } as const
+  } as const;
 
   const RUNTIME_CONSTANTS: RuntimeConstants = {
     settingsKey: 'cw_settings_v1',
@@ -172,17 +172,17 @@
     preferredAudioStorageScanLimit: 120,
     preferredAudioValueScanLimit: 1200,
     apiTraceLimitPerEndpoint: 30,
-  }
+  };
 
   function cloneSortModeControlOptions(): SortModeOption[] {
     return SORT_MODE_CONTROL_OPTIONS.map((option) => ({
       optionValue: option.optionValue,
       title: option.title,
-    }))
+    }));
   }
 
   function cloneRuntimeConstants(): RuntimeConstants {
-    return { ...RUNTIME_CONSTANTS }
+    return { ...RUNTIME_CONSTANTS };
   }
 
   function createBootstrapConfig(): BootstrapConfig {
@@ -200,10 +200,10 @@
         sortMode: DEFAULT_SETTINGS.sortMode,
         secondarySortMode: DEFAULT_SETTINGS.secondarySortMode,
       },
-    }
+    };
   }
 
   moduleRegistry.runtimeBootstrapConfig = {
     createBootstrapConfig,
-  }
-})()
+  };
+})();

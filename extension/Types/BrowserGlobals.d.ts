@@ -1,46 +1,46 @@
 declare const browser:
   | {
       runtime?: {
-        getManifest?: () => { version?: string }
-      }
+        getManifest?: () => { version?: string };
+      };
       storage?: {
         local?: {
-          get?: (...args: unknown[]) => unknown
-          set?: (...args: unknown[]) => unknown
-        }
-      }
+          get?: (...args: unknown[]) => unknown;
+          set?: (...args: unknown[]) => unknown;
+        };
+      };
     }
-  | undefined
+  | undefined;
 
 declare const chrome:
   | {
       runtime?: {
-        getManifest?: () => { version?: string }
-      }
+        getManifest?: () => { version?: string };
+      };
       storage?: {
         local?: {
-          get?: (...args: unknown[]) => unknown
-          set?: (...args: unknown[]) => unknown
-        }
-      }
+          get?: (...args: unknown[]) => unknown;
+          set?: (...args: unknown[]) => unknown;
+        };
+      };
     }
-  | undefined
+  | undefined;
 
 declare global {
   interface Window {
-    __CW_WATCHLIST_CURATOR_MODULES__?: Record<string, unknown>
+    __CW_WATCHLIST_CURATOR_MODULES__?: Record<string, unknown>;
     __CW_WATCHLIST_CURATOR_LOADED__?: {
-      version?: string
-    }
+      version?: string;
+    };
     __CW_WATCHLIST_CURATOR_RUNTIME__?: {
-      phase?: string
+      phase?: string;
       events?: Array<{
-        at: number
-        event: string
-        data: unknown
-      }>
-    }
+        at: number;
+        event: string;
+        data: unknown;
+      }>;
+    };
   }
 }
 
-export {}
+export {};

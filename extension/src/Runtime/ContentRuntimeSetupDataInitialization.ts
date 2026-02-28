@@ -1,58 +1,58 @@
-;(() => {
+(() => {
   // biome-ignore lint/suspicious/noExplicitAny: Composition-root runtime wiring relies on dynamic owner injection.
-  type AnyFn = (...args: unknown[]) => any
-  type LooseRecord = Record<string, unknown>
-  type RequireFunction = <T>(name: string, value: unknown) => T
+  type AnyFn = (...args: unknown[]) => any;
+  type LooseRecord = Record<string, unknown>;
+  type RequireFunction = <T>(name: string, value: unknown) => T;
 
   type TraceContractsRuntime = {
-    corePrimitives: LooseRecord
-    apiContracts: LooseRecord
-  }
+    corePrimitives: LooseRecord;
+    apiContracts: LooseRecord;
+  };
 
   type StorageRuntime = {
-    storageSet: (key: string, value: unknown) => unknown
-  }
+    storageSet: (key: string, value: unknown) => unknown;
+  };
 
   type DataInitializationRuntime = {
-    initializeTraceAndContracts: (context: LooseRecord, bindings: LooseRecord) => TraceContractsRuntime
+    initializeTraceAndContracts: (context: LooseRecord, bindings: LooseRecord) => TraceContractsRuntime;
     initializePreferredAudioAndStorage: (
       context: LooseRecord,
       bindings: LooseRecord,
       traceContractsRuntime: TraceContractsRuntime,
-    ) => StorageRuntime
+    ) => StorageRuntime;
     initializeAuthImageAndRatings: (
       context: LooseRecord,
       bindings: LooseRecord,
       traceContractsRuntime: TraceContractsRuntime,
-    ) => void
+    ) => void;
     initializeWatchlistHistoryAndPreview: (
       context: LooseRecord,
       bindings: LooseRecord,
       traceContractsRuntime: TraceContractsRuntime,
-    ) => void
-  }
+    ) => void;
+  };
 
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
     typeof globalThis & {
-      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord
-    }
+      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
+    };
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
 
   function requireFunction<T>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing content runtime setup data initialization dependency: ${name}`)
+      throw new Error(`[CW] Missing content runtime setup data initialization dependency: ${name}`);
     }
-    return value as T
+    return value as T;
   }
 
   function toRecord(value: unknown): LooseRecord {
     if (!value || typeof value !== 'object') {
-      return {}
+      return {};
     }
-    return value as LooseRecord
+    return value as LooseRecord;
   }
 
   function bindBootstrapHelpersRuntimeInternal(
@@ -62,9 +62,9 @@
     storageSet: (key: string, value: unknown) => unknown,
     requireFn: RequireFunction,
   ): void {
-    const corePrimitives = traceContractsRuntime.corePrimitives
-    const runtimeBootstrapHelpersModule = toRecord(context.runtimeBootstrapHelpersModule)
-    const runtimeConstants = toRecord(context.runtimeConstants)
+    const corePrimitives = traceContractsRuntime.corePrimitives;
+    const runtimeBootstrapHelpersModule = toRecord(context.runtimeBootstrapHelpersModule);
+    const runtimeConstants = toRecord(context.runtimeConstants);
     const bootstrapHelpersRuntime = requireFn<AnyFn>(
       'createBootstrapHelpersRuntime',
       runtimeBootstrapHelpersModule.createBootstrapHelpersRuntime,
@@ -93,9 +93,9 @@
         force: unknown,
         preferredAudioLanguage: unknown,
       ) => (bindings.preloadWatchHistoryForEntries as AnyFn)(entries, tokenEntry, force, preferredAudioLanguage),
-    }) as LooseRecord
+    }) as LooseRecord;
 
-    ;(context.assertRuntimeMethods as AnyFn)('bootstrap helpers runtime', bootstrapHelpersRuntime, [
+    (context.assertRuntimeMethods as AnyFn)('bootstrap helpers runtime', bootstrapHelpersRuntime, [
       'scheduleSaveRatings',
       'scheduleSaveWatchHistory',
       'scheduleSaveWatchlistCache',
@@ -109,22 +109,22 @@
       'withMutedObserver',
       'applyCardLayoutUi',
       'persistSettings',
-    ])
+    ]);
 
-    bindings.scheduleSaveRatings = bootstrapHelpersRuntime.scheduleSaveRatings
-    bindings.scheduleSaveWatchHistory = bootstrapHelpersRuntime.scheduleSaveWatchHistory
-    bindings.scheduleSaveWatchlistCache = bootstrapHelpersRuntime.scheduleSaveWatchlistCache
-    bindings.getPreferredAudioLanguage = bootstrapHelpersRuntime.getPreferredAudioLanguage
-    bindings.preloadRatingsForSelectedAudioLocale = bootstrapHelpersRuntime.preloadRatingsForSelectedAudioLocale
+    bindings.scheduleSaveRatings = bootstrapHelpersRuntime.scheduleSaveRatings;
+    bindings.scheduleSaveWatchHistory = bootstrapHelpersRuntime.scheduleSaveWatchHistory;
+    bindings.scheduleSaveWatchlistCache = bootstrapHelpersRuntime.scheduleSaveWatchlistCache;
+    bindings.getPreferredAudioLanguage = bootstrapHelpersRuntime.getPreferredAudioLanguage;
+    bindings.preloadRatingsForSelectedAudioLocale = bootstrapHelpersRuntime.preloadRatingsForSelectedAudioLocale;
     bindings.preloadWatchHistoryForSelectedAudioLocale =
-      bootstrapHelpersRuntime.preloadWatchHistoryForSelectedAudioLocale
-    bindings.toggleCuratedFavorite = bootstrapHelpersRuntime.toggleCuratedFavorite
-    bindings.removeCuratedSeries = bootstrapHelpersRuntime.removeCuratedSeries
-    bindings.isLikelyVideoUrl = bootstrapHelpersRuntime.isLikelyVideoUrl
-    bindings.isEntryWatchReady = bootstrapHelpersRuntime.isEntryWatchReady
-    bindings.withMutedObserver = bootstrapHelpersRuntime.withMutedObserver
-    bindings.applyCardLayoutUi = bootstrapHelpersRuntime.applyCardLayoutUi
-    bindings.persistSettings = bootstrapHelpersRuntime.persistSettings
+      bootstrapHelpersRuntime.preloadWatchHistoryForSelectedAudioLocale;
+    bindings.toggleCuratedFavorite = bootstrapHelpersRuntime.toggleCuratedFavorite;
+    bindings.removeCuratedSeries = bootstrapHelpersRuntime.removeCuratedSeries;
+    bindings.isLikelyVideoUrl = bootstrapHelpersRuntime.isLikelyVideoUrl;
+    bindings.isEntryWatchReady = bootstrapHelpersRuntime.isEntryWatchReady;
+    bindings.withMutedObserver = bootstrapHelpersRuntime.withMutedObserver;
+    bindings.applyCardLayoutUi = bootstrapHelpersRuntime.applyCardLayoutUi;
+    bindings.persistSettings = bootstrapHelpersRuntime.persistSettings;
   }
 
   function initializeTraceAndContractsInternal(
@@ -132,11 +132,11 @@
     bindings: LooseRecord,
     requireFn: RequireFunction,
   ): TraceContractsRuntime {
-    const runtimeTraceModule = toRecord(context.runtimeTraceModule)
-    const runtimeConstants = toRecord(context.runtimeConstants)
-    const corePrimitivesModule = toRecord(context.corePrimitivesModule)
-    const apiContractsModule = toRecord(context.apiContractsModule)
-    const windowRef = context.windowRef as Window
+    const runtimeTraceModule = toRecord(context.runtimeTraceModule);
+    const runtimeConstants = toRecord(context.runtimeConstants);
+    const corePrimitivesModule = toRecord(context.corePrimitivesModule);
+    const apiContractsModule = toRecord(context.apiContractsModule);
+    const windowRef = context.windowRef as Window;
 
     const runtimeTrace = requireFn<AnyFn>(
       'createRuntimeTrace',
@@ -145,22 +145,22 @@
       windowRef,
       state: context.state,
       apiTraceLimitPerEndpoint: runtimeConstants.apiTraceLimitPerEndpoint,
-    }) as LooseRecord
-    ;(context.assertRuntimeMethods as AnyFn)('runtime trace', runtimeTrace, ['runtimeEvent', 'pushApiTrace'])
-    bindings.runtimeEvent = runtimeTrace.runtimeEvent
-    bindings.pushApiTrace = runtimeTrace.pushApiTrace
+    }) as LooseRecord;
+    (context.assertRuntimeMethods as AnyFn)('runtime trace', runtimeTrace, ['runtimeEvent', 'pushApiTrace']);
+    bindings.runtimeEvent = runtimeTrace.runtimeEvent;
+    bindings.pushApiTrace = runtimeTrace.pushApiTrace;
 
     const corePrimitives = requireFn<AnyFn>(
       'createCorePrimitives',
       corePrimitivesModule.createCorePrimitives,
     )({
       extractCoverImagesFromApiImages: (images: unknown) => (bindings.extractCoverImagesFromApiImages as AnyFn)(images),
-    }) as LooseRecord
-    ;(context.assertRuntimeMethods as AnyFn)('core primitives', corePrimitives, [
+    }) as LooseRecord;
+    (context.assertRuntimeMethods as AnyFn)('core primitives', corePrimitives, [
       'sanitizeRating',
       'parseCmsObjectRecord',
       'deriveDisplayStatusBase',
-    ])
+    ]);
 
     const apiContracts = requireFn<AnyFn>(
       'createApiContracts',
@@ -174,15 +174,15 @@
       getWatchHistorySeriesId: (entry: unknown) => (corePrimitives.getWatchHistorySeriesId as AnyFn)(entry),
       fetchBackoffBaseMs: runtimeConstants.fetchBackoffBaseMs,
       fetchBackoffJitterMs: runtimeConstants.fetchBackoffJitterMs,
-    }) as LooseRecord
-    ;(context.assertRuntimeMethods as AnyFn)('api contracts', apiContracts, [
+    }) as LooseRecord;
+    (context.assertRuntimeMethods as AnyFn)('api contracts', apiContracts, [
       'shouldRetryStatus',
       'requirePayloadDataArray',
       'resolveApiHref',
-    ])
+    ]);
 
-    bindings.resolveApiHref = apiContracts.resolveApiHref
-    return { corePrimitives, apiContracts }
+    bindings.resolveApiHref = apiContracts.resolveApiHref;
+    return { corePrimitives, apiContracts };
   }
 
   function initializePreferredAudioAndStorageInternal(
@@ -191,15 +191,15 @@
     traceContractsRuntime: TraceContractsRuntime,
     requireFn: RequireFunction,
   ): StorageRuntime {
-    const corePrimitives = traceContractsRuntime.corePrimitives
-    const runtimeConstants = toRecord(context.runtimeConstants)
-    const runtimePreferredAudioModule = toRecord(context.runtimePreferredAudioModule)
-    const runtimeBootstrapFinalizeModule = toRecord(context.runtimeBootstrapFinalizeModule)
-    const storageModule = toRecord(context.storageModule)
-    const windowRef = context.windowRef as Window
+    const corePrimitives = traceContractsRuntime.corePrimitives;
+    const runtimeConstants = toRecord(context.runtimeConstants);
+    const runtimePreferredAudioModule = toRecord(context.runtimePreferredAudioModule);
+    const runtimeBootstrapFinalizeModule = toRecord(context.runtimeBootstrapFinalizeModule);
+    const storageModule = toRecord(context.storageModule);
+    const windowRef = context.windowRef as Window;
 
     const safeJsonParse = (value: unknown, fallback: unknown) =>
-      requireFn<AnyFn>('safeJsonParse', runtimeBootstrapFinalizeModule.safeJsonParse)(value, fallback)
+      requireFn<AnyFn>('safeJsonParse', runtimeBootstrapFinalizeModule.safeJsonParse)(value, fallback);
 
     const preferredAudioDetector = requireFn<AnyFn>(
       'createPreferredAudioDetector',
@@ -212,12 +212,12 @@
       documentRef: windowRef.document,
       storageScanLimit: runtimeConstants.preferredAudioStorageScanLimit,
       valueScanLimit: runtimeConstants.preferredAudioValueScanLimit,
-    }) as LooseRecord
-    ;(context.assertRuntimeMethods as AnyFn)('preferred audio detector', preferredAudioDetector, [
+    }) as LooseRecord;
+    (context.assertRuntimeMethods as AnyFn)('preferred audio detector', preferredAudioDetector, [
       'detectPreferredAudioLanguage',
-    ])
+    ]);
     bindings.detectPreferredAudioLanguage = () =>
-      (preferredAudioDetector.detectPreferredAudioLanguage as AnyFn)() as string
+      (preferredAudioDetector.detectPreferredAudioLanguage as AnyFn)() as string;
 
     const storageAdapter = requireFn<AnyFn>(
       'createStorageAdapter',
@@ -227,17 +227,17 @@
       parseJson: safeJsonParse,
       localStorageRef: windowRef.localStorage,
       timeoutMs: 1500,
-    })
+    });
     const storageAccessors = requireFn<AnyFn>(
       'createStorageAccessors',
       runtimeBootstrapFinalizeModule.createStorageAccessors,
     )({
       storageAdapter,
-    }) as LooseRecord
-    const storageSet = (key: string, value: unknown) => (storageAccessors.storageSet as AnyFn)(key, value)
+    }) as LooseRecord;
+    const storageSet = (key: string, value: unknown) => (storageAccessors.storageSet as AnyFn)(key, value);
 
-    bindBootstrapHelpersRuntimeInternal(context, bindings, traceContractsRuntime, storageSet, requireFn)
-    return { storageSet }
+    bindBootstrapHelpersRuntimeInternal(context, bindings, traceContractsRuntime, storageSet, requireFn);
+    return { storageSet };
   }
 
   function initializeAuthAndImageRuntimeInternal(
@@ -246,12 +246,12 @@
     traceContractsRuntime: TraceContractsRuntime,
     requireFn: RequireFunction,
   ): void {
-    const corePrimitives = traceContractsRuntime.corePrimitives
-    const apiContracts = traceContractsRuntime.apiContracts
-    const runtimeConstants = toRecord(context.runtimeConstants)
-    const authClientModule = toRecord(context.authClientModule)
-    const imageVariantsModule = toRecord(context.imageVariantsModule)
-    const windowRef = context.windowRef as Window
+    const corePrimitives = traceContractsRuntime.corePrimitives;
+    const apiContracts = traceContractsRuntime.apiContracts;
+    const runtimeConstants = toRecord(context.runtimeConstants);
+    const authClientModule = toRecord(context.authClientModule);
+    const imageVariantsModule = toRecord(context.imageVariantsModule);
+    const windowRef = context.windowRef as Window;
 
     const authClient = requireFn<AnyFn>(
       'createAuthClient',
@@ -274,15 +274,15 @@
       navigatorRef: windowRef.navigator,
       cryptoRef: windowRef.crypto,
       fetchImpl: windowRef.fetch.bind(windowRef),
-    }) as LooseRecord
-    ;(context.assertRuntimeMethods as AnyFn)('auth client', authClient, [
+    }) as LooseRecord;
+    (context.assertRuntimeMethods as AnyFn)('auth client', authClient, [
       'fetchWithResilience',
       'getAccessToken',
       'createAuthRefreshHandler',
-    ])
-    bindings.fetchWithResilience = authClient.fetchWithResilience
-    bindings.getAccessToken = authClient.getAccessToken
-    bindings.createAuthRefreshHandler = authClient.createAuthRefreshHandler
+    ]);
+    bindings.fetchWithResilience = authClient.fetchWithResilience;
+    bindings.getAccessToken = authClient.getAccessToken;
+    bindings.createAuthRefreshHandler = authClient.createAuthRefreshHandler;
 
     const imageVariants = requireFn<AnyFn>(
       'createImageVariants',
@@ -290,15 +290,15 @@
     )({
       sanitizePositiveInt: corePrimitives.sanitizePositiveInt as AnyFn,
       resolveApiHref: bindings.resolveApiHref,
-    }) as LooseRecord
-    ;(context.assertRuntimeMethods as AnyFn)('image variants', imageVariants, [
+    }) as LooseRecord;
+    (context.assertRuntimeMethods as AnyFn)('image variants', imageVariants, [
       'normalizeImageUrlCandidate',
       'extractCoverImagesFromApiImages',
       'extractThumbnailImageFromApiImages',
-    ])
-    bindings.normalizeImageUrlCandidate = imageVariants.normalizeImageUrlCandidate
-    bindings.extractCoverImagesFromApiImages = imageVariants.extractCoverImagesFromApiImages
-    bindings.extractThumbnailImageFromApiImages = imageVariants.extractThumbnailImageFromApiImages
+    ]);
+    bindings.normalizeImageUrlCandidate = imageVariants.normalizeImageUrlCandidate;
+    bindings.extractCoverImagesFromApiImages = imageVariants.extractCoverImagesFromApiImages;
+    bindings.extractThumbnailImageFromApiImages = imageVariants.extractThumbnailImageFromApiImages;
   }
 
   function initializeRatingsRuntimeInternal(
@@ -307,11 +307,11 @@
     traceContractsRuntime: TraceContractsRuntime,
     requireFn: RequireFunction,
   ): void {
-    const corePrimitives = traceContractsRuntime.corePrimitives
-    const apiContracts = traceContractsRuntime.apiContracts
-    const runtimeConstants = toRecord(context.runtimeConstants)
-    const ratingsClientModule = toRecord(context.ratingsClientModule)
-    const ratingsRepositoryModule = toRecord(context.ratingsRepositoryModule)
+    const corePrimitives = traceContractsRuntime.corePrimitives;
+    const apiContracts = traceContractsRuntime.apiContracts;
+    const runtimeConstants = toRecord(context.runtimeConstants);
+    const ratingsClientModule = toRecord(context.ratingsClientModule);
+    const ratingsRepositoryModule = toRecord(context.ratingsRepositoryModule);
 
     const ratingsClient = requireFn<AnyFn>(
       'createRatingsClient',
@@ -331,10 +331,10 @@
       sanitizeRating: corePrimitives.sanitizeRating as AnyFn,
       sanitizeVotes: corePrimitives.sanitizeVotes as AnyFn,
       pushApiTrace: bindings.pushApiTrace,
-    }) as LooseRecord
-    ;(context.assertRuntimeMethods as AnyFn)('ratings client', ratingsClient, ['fetchRatingsBatch', 'fetchRating'])
-    bindings.fetchRatingsBatch = ratingsClient.fetchRatingsBatch
-    bindings.fetchRating = ratingsClient.fetchRating
+    }) as LooseRecord;
+    (context.assertRuntimeMethods as AnyFn)('ratings client', ratingsClient, ['fetchRatingsBatch', 'fetchRating']);
+    bindings.fetchRatingsBatch = ratingsClient.fetchRatingsBatch;
+    bindings.fetchRating = ratingsClient.fetchRating;
 
     const ratingsRepository = requireFn<AnyFn>(
       'createRatingsRepository',
@@ -357,16 +357,16 @@
       ratingBatchSize: runtimeConstants.ratingBatchSize,
       ratingBatchParallelChunks: runtimeConstants.ratingBatchParallelChunks,
       ratingCacheTtlMs: runtimeConstants.ratingCacheTtlMs,
-    }) as LooseRecord
-    ;(context.assertRuntimeMethods as AnyFn)('ratings repository', ratingsRepository, [
+    }) as LooseRecord;
+    (context.assertRuntimeMethods as AnyFn)('ratings repository', ratingsRepository, [
       'getSeriesRating',
       'preloadRatingsForEntries',
       'getCachedRating',
       'isLocalizedRatingDataMissingForEntries',
-    ])
-    bindings.preloadRatingsForEntries = ratingsRepository.preloadRatingsForEntries
-    bindings.getCachedRating = ratingsRepository.getCachedRating
-    bindings.isLocalizedRatingDataMissingForEntries = ratingsRepository.isLocalizedRatingDataMissingForEntries
+    ]);
+    bindings.preloadRatingsForEntries = ratingsRepository.preloadRatingsForEntries;
+    bindings.getCachedRating = ratingsRepository.getCachedRating;
+    bindings.isLocalizedRatingDataMissingForEntries = ratingsRepository.isLocalizedRatingDataMissingForEntries;
   }
 
   function initializeAuthImageAndRatingsInternal(
@@ -375,8 +375,8 @@
     traceContractsRuntime: TraceContractsRuntime,
     requireFn: RequireFunction,
   ): void {
-    initializeAuthAndImageRuntimeInternal(context, bindings, traceContractsRuntime, requireFn)
-    initializeRatingsRuntimeInternal(context, bindings, traceContractsRuntime, requireFn)
+    initializeAuthAndImageRuntimeInternal(context, bindings, traceContractsRuntime, requireFn);
+    initializeRatingsRuntimeInternal(context, bindings, traceContractsRuntime, requireFn);
   }
 
   function initializeWatchlistRuntimeInternal(
@@ -385,11 +385,11 @@
     traceContractsRuntime: TraceContractsRuntime,
     requireFn: RequireFunction,
   ): void {
-    const corePrimitives = traceContractsRuntime.corePrimitives
-    const apiContracts = traceContractsRuntime.apiContracts
-    const watchlistClientModule = toRecord(context.watchlistClientModule)
-    const watchlistRepositoryModule = toRecord(context.watchlistRepositoryModule)
-    const runtimeConstants = toRecord(context.runtimeConstants)
+    const corePrimitives = traceContractsRuntime.corePrimitives;
+    const apiContracts = traceContractsRuntime.apiContracts;
+    const watchlistClientModule = toRecord(context.watchlistClientModule);
+    const watchlistRepositoryModule = toRecord(context.watchlistRepositoryModule);
+    const runtimeConstants = toRecord(context.runtimeConstants);
 
     const watchlistClient = requireFn<AnyFn>(
       'createWatchlistClient',
@@ -408,9 +408,9 @@
       watchlistPageSize: runtimeConstants.watchlistPageSize,
       watchlistMaxPages: runtimeConstants.watchlistMaxPages,
       watchlistParallelRequests: runtimeConstants.watchlistParallelRequests,
-    }) as LooseRecord
-    ;(context.assertRuntimeMethods as AnyFn)('watchlist client', watchlistClient, ['fetchAllWatchlistRows'])
-    bindings.fetchAllWatchlistRows = watchlistClient.fetchAllWatchlistRows
+    }) as LooseRecord;
+    (context.assertRuntimeMethods as AnyFn)('watchlist client', watchlistClient, ['fetchAllWatchlistRows']);
+    bindings.fetchAllWatchlistRows = watchlistClient.fetchAllWatchlistRows;
 
     const watchlistRepository = requireFn<AnyFn>(
       'createWatchlistRepository',
@@ -420,17 +420,17 @@
       createWatchlistCacheSnapshot: context.createWatchlistCacheSnapshot,
       scheduleSaveWatchlistCache: bindings.scheduleSaveWatchlistCache,
       watchlistCacheTtlMs: runtimeConstants.watchlistCacheTtlMs,
-    }) as LooseRecord
-    ;(context.assertRuntimeMethods as AnyFn)('watchlist repository', watchlistRepository, [
+    }) as LooseRecord;
+    (context.assertRuntimeMethods as AnyFn)('watchlist repository', watchlistRepository, [
       'normalizeStoredWatchlistCache',
       'isWatchlistCacheValid',
       'resetWatchlistCacheOnAccountMismatch',
       'setWatchlistCacheRows',
-    ])
-    bindings.normalizeStoredWatchlistCache = watchlistRepository.normalizeStoredWatchlistCache
-    bindings.isWatchlistCacheValid = watchlistRepository.isWatchlistCacheValid
-    bindings.resetWatchlistCacheOnAccountMismatch = watchlistRepository.resetWatchlistCacheOnAccountMismatch
-    bindings.setWatchlistCacheRows = watchlistRepository.setWatchlistCacheRows
+    ]);
+    bindings.normalizeStoredWatchlistCache = watchlistRepository.normalizeStoredWatchlistCache;
+    bindings.isWatchlistCacheValid = watchlistRepository.isWatchlistCacheValid;
+    bindings.resetWatchlistCacheOnAccountMismatch = watchlistRepository.resetWatchlistCacheOnAccountMismatch;
+    bindings.setWatchlistCacheRows = watchlistRepository.setWatchlistCacheRows;
   }
 
   function initializeHistoryAndPreviewRuntimeInternal(
@@ -439,11 +439,11 @@
     traceContractsRuntime: TraceContractsRuntime,
     requireFn: RequireFunction,
   ): void {
-    const corePrimitives = traceContractsRuntime.corePrimitives
-    const apiContracts = traceContractsRuntime.apiContracts
-    const runtimeConstants = toRecord(context.runtimeConstants)
-    const historyRepositoryModule = toRecord(context.historyRepositoryModule)
-    const previewRepositoryModule = toRecord(context.previewRepositoryModule)
+    const corePrimitives = traceContractsRuntime.corePrimitives;
+    const apiContracts = traceContractsRuntime.apiContracts;
+    const runtimeConstants = toRecord(context.runtimeConstants);
+    const historyRepositoryModule = toRecord(context.historyRepositoryModule);
+    const previewRepositoryModule = toRecord(context.previewRepositoryModule);
 
     const historyRepository = requireFn<AnyFn>(
       'createHistoryRepository',
@@ -473,22 +473,22 @@
       watchHistoryPageSize: runtimeConstants.watchHistoryPageSize,
       watchHistoryMaxPages: runtimeConstants.watchHistoryMaxPages,
       watchHistoryNoMatchPageLimit: runtimeConstants.watchHistoryNoMatchPageLimit,
-    }) as LooseRecord
-    ;(context.assertRuntimeMethods as AnyFn)('history repository', historyRepository, [
+    }) as LooseRecord;
+    (context.assertRuntimeMethods as AnyFn)('history repository', historyRepository, [
       'normalizeStoredWatchHistoryCache',
       'isWatchHistoryCacheValid',
       'getCachedWatchHistory',
       'getCachedWatchHistoryProgress',
       'preloadWatchHistoryForEntries',
       'isLocalizedWatchHistoryDataMissingForEntries',
-    ])
-    bindings.normalizeStoredWatchHistoryCache = historyRepository.normalizeStoredWatchHistoryCache
-    bindings.isWatchHistoryCacheValid = historyRepository.isWatchHistoryCacheValid
-    bindings.getCachedWatchHistory = historyRepository.getCachedWatchHistory
-    bindings.getCachedWatchHistoryProgress = historyRepository.getCachedWatchHistoryProgress
-    bindings.preloadWatchHistoryForEntries = historyRepository.preloadWatchHistoryForEntries
+    ]);
+    bindings.normalizeStoredWatchHistoryCache = historyRepository.normalizeStoredWatchHistoryCache;
+    bindings.isWatchHistoryCacheValid = historyRepository.isWatchHistoryCacheValid;
+    bindings.getCachedWatchHistory = historyRepository.getCachedWatchHistory;
+    bindings.getCachedWatchHistoryProgress = historyRepository.getCachedWatchHistoryProgress;
+    bindings.preloadWatchHistoryForEntries = historyRepository.preloadWatchHistoryForEntries;
     bindings.isLocalizedWatchHistoryDataMissingForEntries =
-      historyRepository.isLocalizedWatchHistoryDataMissingForEntries
+      historyRepository.isLocalizedWatchHistoryDataMissingForEntries;
 
     const previewRepository = requireFn<AnyFn>(
       'createPreviewRepository',
@@ -501,9 +501,9 @@
       createAuthRefreshHandler: bindings.createAuthRefreshHandler,
       pushApiTrace: bindings.pushApiTrace,
       runtimeEvent: bindings.runtimeEvent,
-    }) as LooseRecord
-    ;(context.assertRuntimeMethods as AnyFn)('preview repository', previewRepository, ['fetchPreviewUrlForEntry'])
-    bindings.fetchPreviewUrlForEntry = previewRepository.fetchPreviewUrlForEntry
+    }) as LooseRecord;
+    (context.assertRuntimeMethods as AnyFn)('preview repository', previewRepository, ['fetchPreviewUrlForEntry']);
+    bindings.fetchPreviewUrlForEntry = previewRepository.fetchPreviewUrlForEntry;
   }
 
   function initializeWatchlistHistoryAndPreviewInternal(
@@ -512,8 +512,8 @@
     traceContractsRuntime: TraceContractsRuntime,
     requireFn: RequireFunction,
   ): void {
-    initializeWatchlistRuntimeInternal(context, bindings, traceContractsRuntime, requireFn)
-    initializeHistoryAndPreviewRuntimeInternal(context, bindings, traceContractsRuntime, requireFn)
+    initializeWatchlistRuntimeInternal(context, bindings, traceContractsRuntime, requireFn);
+    initializeHistoryAndPreviewRuntimeInternal(context, bindings, traceContractsRuntime, requireFn);
   }
 
   /**
@@ -521,7 +521,7 @@
    * remains focused on sequencing while this module owns all auth/API/storage/repository bindings.
    */
   function createContentRuntimeSetupDataInitializationRuntime(options: LooseRecord = {}): DataInitializationRuntime {
-    const requireFn = (options.requireFunction as RequireFunction | undefined) ?? requireFunction
+    const requireFn = (options.requireFunction as RequireFunction | undefined) ?? requireFunction;
     return {
       initializeTraceAndContracts: (context: LooseRecord, bindings: LooseRecord) =>
         initializeTraceAndContractsInternal(context, bindings, requireFn),
@@ -540,10 +540,10 @@
         bindings: LooseRecord,
         traceContractsRuntime: TraceContractsRuntime,
       ) => initializeWatchlistHistoryAndPreviewInternal(context, bindings, traceContractsRuntime, requireFn),
-    }
+    };
   }
 
   moduleRegistry.runtimeContentRuntimeSetupDataInitialization = {
     createContentRuntimeSetupDataInitializationRuntime,
-  }
-})()
+  };
+})();

@@ -1,156 +1,156 @@
-;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
+(() => {
+  type AnyFn = (...args: unknown[]) => unknown;
 
   type RuntimeState = {
-    curatedEntries: unknown[]
-    ratingLocalePreloadInflight: Map<string, Promise<unknown>>
-    watchHistoryLocalePreloadInflight: Map<string, Promise<unknown>>
-    preferredAudioLanguage: string
-    preferredAudioLanguageUpdatedAt: number
-    settings: Record<string, unknown>
-    hostEl: Element | null
-    mutationMuted: boolean
-    ratingCache: unknown
-    watchHistoryCache: unknown
-    watchlistCache: unknown
-    saveRatingsTimer?: number
-    saveWatchHistoryTimer?: number
-    saveWatchlistCacheTimer?: number
-  }
+    curatedEntries: unknown[];
+    ratingLocalePreloadInflight: Map<string, Promise<unknown>>;
+    watchHistoryLocalePreloadInflight: Map<string, Promise<unknown>>;
+    preferredAudioLanguage: string;
+    preferredAudioLanguageUpdatedAt: number;
+    settings: Record<string, unknown>;
+    hostEl: Element | null;
+    mutationMuted: boolean;
+    ratingCache: unknown;
+    watchHistoryCache: unknown;
+    watchlistCache: unknown;
+    saveRatingsTimer?: number;
+    saveWatchHistoryTimer?: number;
+    saveWatchlistCacheTimer?: number;
+  };
 
   type TokenEntry = {
-    accessToken?: unknown
-    accountId?: unknown
-  }
+    accessToken?: unknown;
+    accountId?: unknown;
+  };
 
   type BootstrapHelpersContext = {
-    state: RuntimeState
-    windowRef: Window
-    runtimeEvent: (event: string, data?: unknown) => void
-    storageSet: (key: string, value: unknown) => Promise<unknown>
-    settingsKey: string
-    ratingCacheKey: string
-    watchHistoryCacheKey: string
-    watchlistCacheKey: string
-    preferredAudioCacheTtlMs: number
-    normalizeAudioLocale: (value: unknown) => string
-    detectPreferredAudioLanguage: () => string
-    isLocalizedRatingDataMissingForEntries: (entries: unknown[], audioLocale: unknown) => boolean
-    isLocalizedWatchHistoryDataMissingForEntries: (entries: unknown[], audioLocale: unknown) => boolean
-    getAccessToken: (forceRefresh?: boolean) => Promise<TokenEntry | null | undefined>
+    state: RuntimeState;
+    windowRef: Window;
+    runtimeEvent: (event: string, data?: unknown) => void;
+    storageSet: (key: string, value: unknown) => Promise<unknown>;
+    settingsKey: string;
+    ratingCacheKey: string;
+    watchHistoryCacheKey: string;
+    watchlistCacheKey: string;
+    preferredAudioCacheTtlMs: number;
+    normalizeAudioLocale: (value: unknown) => string;
+    detectPreferredAudioLanguage: () => string;
+    isLocalizedRatingDataMissingForEntries: (entries: unknown[], audioLocale: unknown) => boolean;
+    isLocalizedWatchHistoryDataMissingForEntries: (entries: unknown[], audioLocale: unknown) => boolean;
+    getAccessToken: (forceRefresh?: boolean) => Promise<TokenEntry | null | undefined>;
     preloadRatingsForEntries: (
       entries: unknown[],
       tokenEntry: TokenEntry,
       preferredAudioLanguage?: unknown,
-    ) => Promise<unknown>
+    ) => Promise<unknown>;
     preloadWatchHistoryForEntries: (
       entries: unknown[],
       tokenEntry: TokenEntry,
       force?: boolean,
       preferredAudioLanguage?: unknown,
-    ) => Promise<unknown>
-  }
+    ) => Promise<unknown>;
+  };
 
   type BootstrapHelpersOptions = {
-    state?: unknown
-    windowRef?: unknown
-    runtimeEvent?: unknown
-    storageSet?: unknown
-    settingsKey?: unknown
-    ratingCacheKey?: unknown
-    watchHistoryCacheKey?: unknown
-    watchlistCacheKey?: unknown
-    preferredAudioCacheTtlMs?: unknown
-    normalizeAudioLocale?: unknown
-    detectPreferredAudioLanguage?: unknown
-    isLocalizedRatingDataMissingForEntries?: unknown
-    isLocalizedWatchHistoryDataMissingForEntries?: unknown
-    getAccessToken?: unknown
-    preloadRatingsForEntries?: unknown
-    preloadWatchHistoryForEntries?: unknown
-  }
+    state?: unknown;
+    windowRef?: unknown;
+    runtimeEvent?: unknown;
+    storageSet?: unknown;
+    settingsKey?: unknown;
+    ratingCacheKey?: unknown;
+    watchHistoryCacheKey?: unknown;
+    watchlistCacheKey?: unknown;
+    preferredAudioCacheTtlMs?: unknown;
+    normalizeAudioLocale?: unknown;
+    detectPreferredAudioLanguage?: unknown;
+    isLocalizedRatingDataMissingForEntries?: unknown;
+    isLocalizedWatchHistoryDataMissingForEntries?: unknown;
+    getAccessToken?: unknown;
+    preloadRatingsForEntries?: unknown;
+    preloadWatchHistoryForEntries?: unknown;
+  };
 
   type BootstrapHelpersRuntime = {
-    scheduleSaveRatings: () => void
-    scheduleSaveWatchHistory: () => void
-    scheduleSaveWatchlistCache: () => void
-    getPreferredAudioLanguage: () => string
-    preloadRatingsForSelectedAudioLocale: (audioLocale: unknown) => Promise<unknown>
-    preloadWatchHistoryForSelectedAudioLocale: (audioLocale: unknown) => Promise<unknown>
-    toggleCuratedFavorite: (seriesId: unknown) => void
-    removeCuratedSeries: (seriesId: unknown) => void
-    isLikelyVideoUrl: (url: unknown) => boolean
-    isEntryWatchReady: (entry: unknown) => boolean
-    withMutedObserver: (work: () => void) => void
-    applyCardLayoutUi: () => void
-    persistSettings: () => Promise<unknown>
-  }
+    scheduleSaveRatings: () => void;
+    scheduleSaveWatchHistory: () => void;
+    scheduleSaveWatchlistCache: () => void;
+    getPreferredAudioLanguage: () => string;
+    preloadRatingsForSelectedAudioLocale: (audioLocale: unknown) => Promise<unknown>;
+    preloadWatchHistoryForSelectedAudioLocale: (audioLocale: unknown) => Promise<unknown>;
+    toggleCuratedFavorite: (seriesId: unknown) => void;
+    removeCuratedSeries: (seriesId: unknown) => void;
+    isLikelyVideoUrl: (url: unknown) => boolean;
+    isEntryWatchReady: (entry: unknown) => boolean;
+    withMutedObserver: (work: () => void) => void;
+    applyCardLayoutUi: () => void;
+    persistSettings: () => Promise<unknown>;
+  };
 
-  type MutableRecord = Record<string, unknown>
+  type MutableRecord = Record<string, unknown>;
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
   function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing bootstrap helpers dependency: ${name}`)
+      throw new Error(`[CW] Missing bootstrap helpers dependency: ${name}`);
     }
-    return value as T
+    return value as T;
   }
 
   function requireString(name: string, value: unknown): string {
     if (typeof value !== 'string' || !value) {
-      throw new Error(`[CW] Missing bootstrap helpers dependency: ${name}`)
+      throw new Error(`[CW] Missing bootstrap helpers dependency: ${name}`);
     }
-    return value
+    return value;
   }
 
   function normalizePositiveNumber(value: unknown, fallback: number): number {
-    const number = Number(value)
+    const number = Number(value);
     if (!Number.isFinite(number) || number <= 0) {
-      return fallback
+      return fallback;
     }
-    return Math.round(number)
+    return Math.round(number);
   }
 
   function asRuntimeState(value: unknown): RuntimeState | null {
     if (!value || typeof value !== 'object') {
-      return null
+      return null;
     }
-    return value as RuntimeState
+    return value as RuntimeState;
   }
 
   function resolveWindowRef(value: unknown): Window | null {
     if (!value || typeof value !== 'object') {
-      return null
+      return null;
     }
-    const record = value as MutableRecord
+    const record = value as MutableRecord;
     if (typeof record.setTimeout !== 'function' || typeof record.clearTimeout !== 'function') {
-      return null
+      return null;
     }
-    return value as Window
+    return value as Window;
   }
 
   function getString(value: unknown): string {
-    return typeof value === 'string' ? value.trim() : ''
+    return typeof value === 'string' ? value.trim() : '';
   }
 
   function getEntriesArray(value: unknown): unknown[] {
-    return Array.isArray(value) ? value : []
+    return Array.isArray(value) ? value : [];
   }
 
   function createBootstrapHelpersContext(options: BootstrapHelpersOptions = {}): BootstrapHelpersContext {
-    const state = asRuntimeState(options.state)
+    const state = asRuntimeState(options.state);
     if (!state) {
-      throw new Error('[CW] Missing bootstrap helpers state')
+      throw new Error('[CW] Missing bootstrap helpers state');
     }
 
-    const windowRef = resolveWindowRef(options.windowRef)
+    const windowRef = resolveWindowRef(options.windowRef);
     if (!windowRef) {
-      throw new Error('[CW] Missing bootstrap helpers windowRef')
+      throw new Error('[CW] Missing bootstrap helpers windowRef');
     }
 
     return {
@@ -191,7 +191,7 @@
         'preloadWatchHistoryForEntries',
         options.preloadWatchHistoryForEntries,
       ) as BootstrapHelpersContext['preloadWatchHistoryForEntries'],
-    }
+    };
   }
 
   function scheduleStateSaveInternal(
@@ -200,184 +200,203 @@
     storageKey: string,
     getValue: () => unknown,
   ): void {
-    context.windowRef.clearTimeout(context.state[timerKey])
+    context.windowRef.clearTimeout(context.state[timerKey]);
     context.state[timerKey] = context.windowRef.setTimeout(() => {
       context.storageSet(storageKey, getValue()).catch(() => {
         // no-op
-      })
-    }, 250)
+      });
+    }, 250);
   }
 
   function getPreferredAudioLanguageInternal(context: BootstrapHelpersContext): string {
-    const now = Date.now()
+    const now = Date.now();
     if (
       context.state.preferredAudioLanguage &&
       now - Number(context.state.preferredAudioLanguageUpdatedAt || 0) < context.preferredAudioCacheTtlMs
     ) {
-      return context.state.preferredAudioLanguage
+      return context.state.preferredAudioLanguage;
     }
 
-    const detectedPreferredAudioLanguage = context.detectPreferredAudioLanguage() || 'en-US'
-    const normalizedPreferredAudioLanguage = context.normalizeAudioLocale(detectedPreferredAudioLanguage) || 'en-US'
-    const previousPreferredAudioLanguage = context.state.preferredAudioLanguage
+    const detectedPreferredAudioLanguage = context.detectPreferredAudioLanguage() || 'en-US';
+    const normalizedPreferredAudioLanguage = context.normalizeAudioLocale(detectedPreferredAudioLanguage) || 'en-US';
+    const previousPreferredAudioLanguage = context.state.preferredAudioLanguage;
 
-    context.state.preferredAudioLanguage = normalizedPreferredAudioLanguage
-    context.state.preferredAudioLanguageUpdatedAt = now
+    context.state.preferredAudioLanguage = normalizedPreferredAudioLanguage;
+    context.state.preferredAudioLanguageUpdatedAt = now;
 
     if (previousPreferredAudioLanguage !== normalizedPreferredAudioLanguage) {
       context.runtimeEvent('preferred-audio-language-detected', {
         locale: normalizedPreferredAudioLanguage,
-      })
+      });
     }
 
-    return normalizedPreferredAudioLanguage
+    return normalizedPreferredAudioLanguage;
   }
 
   async function preloadRatingsForSelectedAudioLocaleInternal(
     context: BootstrapHelpersContext,
     audioLocale: unknown,
   ): Promise<unknown> {
-    const selectedAudioLocale = context.normalizeAudioLocale(audioLocale)
-    const entries = getEntriesArray(context.state.curatedEntries)
+    const selectedAudioLocale = context.normalizeAudioLocale(audioLocale);
+    const entries = getEntriesArray(context.state.curatedEntries);
     if (!selectedAudioLocale || !entries.length) {
-      return
+      return;
     }
 
     if (!context.isLocalizedRatingDataMissingForEntries(entries, selectedAudioLocale)) {
-      return
+      return;
     }
 
-    const localeKey = selectedAudioLocale.toLowerCase()
+    const localeKey = selectedAudioLocale.toLowerCase();
     if (context.state.ratingLocalePreloadInflight.has(localeKey)) {
-      return context.state.ratingLocalePreloadInflight.get(localeKey)
+      return context.state.ratingLocalePreloadInflight.get(localeKey);
     }
 
     const inflight = (async () => {
-      const tokenEntry = await context.getAccessToken(false)
+      const tokenEntry = await context.getAccessToken(false);
       if (!tokenEntry?.accessToken) {
-        return
+        return;
       }
 
-      await context.preloadRatingsForEntries(entries, tokenEntry, selectedAudioLocale)
+      await context.preloadRatingsForEntries(entries, tokenEntry, selectedAudioLocale);
     })().finally(() => {
       if (context.state.ratingLocalePreloadInflight.get(localeKey) === inflight) {
-        context.state.ratingLocalePreloadInflight.delete(localeKey)
+        context.state.ratingLocalePreloadInflight.delete(localeKey);
       }
-    })
+    });
 
-    context.state.ratingLocalePreloadInflight.set(localeKey, inflight)
-    return inflight
+    context.state.ratingLocalePreloadInflight.set(localeKey, inflight);
+    return inflight;
   }
 
   async function preloadWatchHistoryForSelectedAudioLocaleInternal(
     context: BootstrapHelpersContext,
     audioLocale: unknown,
   ): Promise<unknown> {
-    const selectedAudioLocale = context.normalizeAudioLocale(audioLocale)
-    const entries = getEntriesArray(context.state.curatedEntries)
+    const selectedAudioLocale = context.normalizeAudioLocale(audioLocale);
+    const entries = getEntriesArray(context.state.curatedEntries);
     if (!selectedAudioLocale || !entries.length) {
-      return
+      return;
     }
 
     if (!context.isLocalizedWatchHistoryDataMissingForEntries(entries, selectedAudioLocale)) {
-      return
+      return;
     }
 
-    const localeKey = selectedAudioLocale.toLowerCase()
+    const localeKey = selectedAudioLocale.toLowerCase();
     if (context.state.watchHistoryLocalePreloadInflight.has(localeKey)) {
-      return context.state.watchHistoryLocalePreloadInflight.get(localeKey)
+      return context.state.watchHistoryLocalePreloadInflight.get(localeKey);
     }
 
     const inflight = (async () => {
-      const tokenEntry = await context.getAccessToken(false)
+      const tokenEntry = await context.getAccessToken(false);
       if (!tokenEntry?.accessToken || !tokenEntry?.accountId) {
-        return
+        return;
       }
 
-      await context.preloadWatchHistoryForEntries(entries, tokenEntry, true, selectedAudioLocale)
+      await context.preloadWatchHistoryForEntries(entries, tokenEntry, true, selectedAudioLocale);
     })().finally(() => {
       if (context.state.watchHistoryLocalePreloadInflight.get(localeKey) === inflight) {
-        context.state.watchHistoryLocalePreloadInflight.delete(localeKey)
+        context.state.watchHistoryLocalePreloadInflight.delete(localeKey);
       }
-    })
+    });
 
-    context.state.watchHistoryLocalePreloadInflight.set(localeKey, inflight)
-    return inflight
+    context.state.watchHistoryLocalePreloadInflight.set(localeKey, inflight);
+    return inflight;
   }
 
   function toggleCuratedFavoriteInternal(context: BootstrapHelpersContext, seriesIdValue: unknown): void {
-    const seriesId = getString(seriesIdValue)
+    const seriesId = getString(seriesIdValue);
     if (!seriesId) {
-      return
+      return;
     }
 
-    context.state.curatedEntries = getEntriesArray(context.state.curatedEntries).map((entry) => {
+    let changed = false;
+    const nextEntries = getEntriesArray(context.state.curatedEntries).map((entry) => {
       if (!entry || typeof entry !== 'object') {
-        return entry
+        return entry;
       }
-      const record = entry as MutableRecord
+      const record = entry as MutableRecord;
       if (record.seriesId !== seriesId) {
-        return entry
+        return entry;
       }
+      changed = true;
       return {
         ...record,
         isFavorite: !record.isFavorite,
-      }
-    })
+      };
+    });
+    if (!changed) {
+      return;
+    }
+    context.state.curatedEntries = nextEntries;
   }
 
   function removeCuratedSeriesInternal(context: BootstrapHelpersContext, seriesIdValue: unknown): void {
-    const seriesId = getString(seriesIdValue)
+    const seriesId = getString(seriesIdValue);
     if (!seriesId) {
-      return
+      return;
     }
 
-    context.state.curatedEntries = getEntriesArray(context.state.curatedEntries).filter((entry) => {
+    let changed = false;
+    const nextEntries = getEntriesArray(context.state.curatedEntries).filter((entry) => {
       if (!entry || typeof entry !== 'object') {
-        return true
+        return true;
       }
-      return (entry as MutableRecord).seriesId !== seriesId
-    })
+      const shouldKeep = (entry as MutableRecord).seriesId !== seriesId;
+      if (!shouldKeep) {
+        changed = true;
+      }
+      return shouldKeep;
+    });
+    if (!changed) {
+      return;
+    }
+    context.state.curatedEntries = nextEntries;
   }
 
   function withMutedObserverInternal(context: BootstrapHelpersContext, work: () => void): void {
-    context.state.mutationMuted = true
+    context.state.mutationMuted = true;
     try {
-      work()
+      work();
     } finally {
       context.windowRef.setTimeout(() => {
-        context.state.mutationMuted = false
-      }, 0)
+        context.state.mutationMuted = false;
+      }, 0);
     }
   }
 
   function applyCardLayoutUiInternal(context: BootstrapHelpersContext): void {
     if (!context.state.hostEl || typeof context.state.hostEl !== 'object') {
-      return
+      return;
     }
-    const hostRecord = context.state.hostEl as unknown as MutableRecord
+    const hostRecord = context.state.hostEl as unknown as MutableRecord;
     if (!hostRecord.dataset || typeof hostRecord.dataset !== 'object') {
-      return
+      return;
     }
 
-    const layout = context.state.settings.cardLayout === 'landscape' ? 'landscape' : 'portrait'
-    ;(hostRecord.dataset as MutableRecord).cwCardLayout = layout
+    const layout = context.state.settings.cardLayout === 'landscape' ? 'landscape' : 'portrait';
+    const dataset = hostRecord.dataset as MutableRecord;
+    if (dataset.cwCardLayout === layout) {
+      return;
+    }
+    dataset.cwCardLayout = layout;
   }
 
   async function persistSettingsInternal(context: BootstrapHelpersContext): Promise<unknown> {
-    return context.storageSet(context.settingsKey, context.state.settings)
+    return context.storageSet(context.settingsKey, context.state.settings);
   }
 
   function isLikelyVideoUrlInternal(url: unknown): boolean {
-    return typeof url === 'string' && /\.(m3u8|mp4|webm|m4v|mpd)(\?|$)/i.test(url)
+    return typeof url === 'string' && /\.(m3u8|mp4|webm|m4v|mpd)(\?|$)/i.test(url);
   }
 
   function isEntryWatchReadyInternal(entry: unknown): boolean {
-    return Boolean((entry as MutableRecord | null | undefined)?.watchReadyBase)
+    return Boolean((entry as MutableRecord | null | undefined)?.watchReadyBase);
   }
 
   function createBootstrapHelpersRuntime(options: BootstrapHelpersOptions = {}): BootstrapHelpersRuntime {
-    const context = createBootstrapHelpersContext(options)
+    const context = createBootstrapHelpersContext(options);
 
     return {
       scheduleSaveRatings: () =>
@@ -408,10 +427,10 @@
       withMutedObserver: (work) => withMutedObserverInternal(context, work),
       applyCardLayoutUi: () => applyCardLayoutUiInternal(context),
       persistSettings: () => persistSettingsInternal(context),
-    }
+    };
   }
 
   moduleRegistry.runtimeBootstrapHelpers = {
     createBootstrapHelpersRuntime,
-  }
-})()
+  };
+})();

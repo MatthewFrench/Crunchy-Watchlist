@@ -1,116 +1,116 @@
-import { expect, test } from '@playwright/test'
-import { gotoFixture, injectExtension, loadExtensionAssets } from './Helpers/ExtensionFixture'
+import { expect, test } from '@playwright/test';
+import { gotoFixture, injectExtension, loadExtensionAssets } from './Helpers/ExtensionFixture';
 
 test.describe('UI Behavior', () => {
   test.beforeEach(async ({ page }) => {
-    await gotoFixture(page)
-  })
+    await gotoFixture(page);
+  });
 
   test('hides not watch-ready cards by default and can toggle visibility', async ({ page }) => {
-    await injectExtension(page)
-    const watchAgainItem = page.locator('.cw-curated-card[data-cw-curated-title="Watch Again Show"]')
+    await injectExtension(page);
+    const watchAgainItem = page.locator('.cw-curated-card[data-cw-curated-title="Watch Again Show"]');
 
-    await expect(watchAgainItem).toHaveCount(0)
-    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4')
+    await expect(watchAgainItem).toHaveCount(0);
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
 
-    await page.selectOption('#cw-watch-ready-mode', 'dim')
-    await expect(watchAgainItem).toHaveCount(1)
-    await expect(watchAgainItem).toHaveClass(/cw-curated-card--not-watch-ready/)
-    await expect(page.locator('.cw-controls__stats')).toContainText('4 shows')
+    await page.selectOption('#cw-watch-ready-mode', 'dim');
+    await expect(watchAgainItem).toHaveCount(1);
+    await expect(watchAgainItem).toHaveClass(/cw-curated-card--not-watch-ready/);
+    await expect(page.locator('.cw-controls__stats')).toContainText('4 shows');
 
-    await page.selectOption('#cw-watch-ready-mode', 'none')
-    await expect(watchAgainItem).toHaveCount(1)
-    await expect(watchAgainItem).not.toHaveClass(/cw-curated-card--not-watch-ready/)
-    await expect(page.locator('.cw-controls__stats')).toContainText('4 shows')
-  })
+    await page.selectOption('#cw-watch-ready-mode', 'none');
+    await expect(watchAgainItem).toHaveCount(1);
+    await expect(watchAgainItem).not.toHaveClass(/cw-curated-card--not-watch-ready/);
+    await expect(page.locator('.cw-controls__stats')).toContainText('4 shows');
+  });
 
   test('renders refresh action as a button and toggles card layout mode', async ({ page }) => {
-    await injectExtension(page)
+    await injectExtension(page);
 
-    const refreshButton = page.getByRole('button', { name: 'Refresh ratings' })
-    await expect(refreshButton).toHaveClass(/cw-button/)
-    await expect(refreshButton).toHaveClass(/cw-button--primary/)
+    const refreshButton = page.getByRole('button', { name: 'Refresh ratings' });
+    await expect(refreshButton).toHaveClass(/cw-button/);
+    await expect(refreshButton).toHaveClass(/cw-button--primary/);
 
-    await expect(page.locator('.cw-host')).toHaveAttribute('data-cw-card-layout', 'portrait')
+    await expect(page.locator('.cw-host')).toHaveAttribute('data-cw-card-layout', 'portrait');
     await expect(
       page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__thumb img'),
-    ).toHaveAttribute('src', /GHIGH456-portrait\.jpg$/)
+    ).toHaveAttribute('src', /GHIGH456-portrait\.jpg$/);
 
-    await page.locator('#cw-landscape-cards').check()
-    await expect(page.locator('.cw-host')).toHaveAttribute('data-cw-card-layout', 'landscape')
+    await page.locator('#cw-landscape-cards').check();
+    await expect(page.locator('.cw-host')).toHaveAttribute('data-cw-card-layout', 'landscape');
     await expect(
       page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__thumb img'),
-    ).toHaveAttribute('src', /GHIGH456-landscape\.jpg$/)
+    ).toHaveAttribute('src', /GHIGH456-landscape\.jpg$/);
 
-    await page.locator('#cw-landscape-cards').uncheck()
-    await expect(page.locator('.cw-host')).toHaveAttribute('data-cw-card-layout', 'portrait')
-  })
+    await page.locator('#cw-landscape-cards').uncheck();
+    await expect(page.locator('.cw-host')).toHaveAttribute('data-cw-card-layout', 'portrait');
+  });
 
   test('sends favorite and remove actions through watchlist api actions', async ({ page }) => {
     const actionRequests: Array<{
-      method: string
-      seriesId: string
-      isFavorite?: boolean
-    }> = []
+      method: string;
+      seriesId: string;
+      isFavorite?: boolean;
+    }> = [];
     await page.route('**/content/v2/**', async (route) => {
-      const request = route.request()
-      const url = new URL(request.url())
+      const request = route.request();
+      const url = new URL(request.url());
       if (!url.pathname.match(/^\/content\/v2\/[^/]+\/watchlist\/[^/]+$/)) {
-        await route.continue()
-        return
+        await route.continue();
+        return;
       }
 
-      const method = request.method().toUpperCase()
+      const method = request.method().toUpperCase();
       if (method === 'PATCH') {
-        let isFavorite: boolean | undefined
+        let isFavorite: boolean | undefined;
         try {
-          const body = request.postDataJSON() as { is_favorite?: unknown }
+          const body = request.postDataJSON() as { is_favorite?: unknown };
           if (typeof body?.is_favorite === 'boolean') {
-            isFavorite = body.is_favorite
+            isFavorite = body.is_favorite;
           }
         } catch {
-          isFavorite = undefined
+          isFavorite = undefined;
         }
         const patchRequest: {
-          method: string
-          seriesId: string
-          isFavorite?: boolean
+          method: string;
+          seriesId: string;
+          isFavorite?: boolean;
         } = {
           method,
           seriesId: decodeURIComponent(url.pathname.split('/').pop() || ''),
-        }
+        };
         if (typeof isFavorite === 'boolean') {
-          patchRequest.isFavorite = isFavorite
+          patchRequest.isFavorite = isFavorite;
         }
-        actionRequests.push(patchRequest)
+        actionRequests.push(patchRequest);
       } else if (method === 'DELETE') {
         actionRequests.push({
           method,
           seriesId: decodeURIComponent(url.pathname.split('/').pop() || ''),
-        })
+        });
       }
 
-      await route.continue()
-    })
+      await route.continue();
+    });
 
-    await injectExtension(page)
+    await injectExtension(page);
 
-    const highRatedCard = page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"]')
-    const highFavoriteButton = highRatedCard.locator('button[data-cw-action="favorite"]')
+    const highRatedCard = page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"]');
+    const highFavoriteButton = highRatedCard.locator('button[data-cw-action="favorite"]');
 
-    await expect(highFavoriteButton).toHaveAttribute('aria-pressed', 'true')
-    await highFavoriteButton.click()
-    await expect(highFavoriteButton).toHaveAttribute('aria-pressed', 'false')
+    await expect(highFavoriteButton).toHaveAttribute('aria-pressed', 'true');
+    await highFavoriteButton.click();
+    await expect(highFavoriteButton).toHaveAttribute('aria-pressed', 'false');
 
-    await highRatedCard.locator('.cw-curated-card__thumb').hover()
+    await highRatedCard.locator('.cw-curated-card__thumb').hover();
 
-    page.once('dialog', (dialog) => dialog.accept())
+    page.once('dialog', (dialog) => dialog.accept());
     await page
       .locator('.cw-curated-card[data-cw-curated-title="Low Rated Show"] button[data-cw-action="remove"]')
-      .click()
-    await expect(page.locator('.cw-curated-card[data-cw-curated-title="Low Rated Show"]')).toHaveCount(0)
+      .click();
+    await expect(page.locator('.cw-curated-card[data-cw-curated-title="Low Rated Show"]')).toHaveCount(0);
 
-    await expect.poll(() => actionRequests.length).toBeGreaterThanOrEqual(2)
+    await expect.poll(() => actionRequests.length).toBeGreaterThanOrEqual(2);
     expect(actionRequests).toEqual(
       expect.arrayContaining([
         {
@@ -123,226 +123,226 @@ test.describe('UI Behavior', () => {
           seriesId: 'GLOW123',
         },
       ]),
-    )
-  })
+    );
+  });
 
   test('navigates to series page when clicking non-interactive card body area', async ({ page }) => {
-    await injectExtension(page)
+    await injectExtension(page);
 
     await page
       .locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__description')
-      .click()
+      .click();
 
-    await expect(page).toHaveURL(/\/series\/GHIGH456\/high-rated-show$/)
-  })
+    await expect(page).toHaveURL(/\/series\/GHIGH456\/high-rated-show$/);
+  });
 
   test('navigates to episode page when clicking card thumbnail image link', async ({ page }) => {
-    await injectExtension(page)
+    await injectExtension(page);
 
-    await page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__thumb').click()
+    await page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__thumb').click();
 
-    await expect(page).toHaveURL(/\/watch\/GHIGH456-episode-5\/high-rated-show-e5$/)
-  })
+    await expect(page).toHaveURL(/\/watch\/GHIGH456-episode-5\/high-rated-show-e5$/);
+  });
 
   test('restores native watchlist visibility when switching back to Crunchyroll tab', async ({ page }) => {
-    await injectExtension(page)
-    await expect(page.locator('.cw-curated-grid')).toBeVisible()
-    await page.getByRole('button', { name: 'Crunchyroll' }).click()
+    await injectExtension(page);
+    await expect(page.locator('.cw-curated-grid')).toBeVisible();
+    await page.getByRole('button', { name: 'Crunchyroll' }).click();
 
-    await expect(page.locator('[data-t="watch-list-card"]').first()).toBeVisible()
-    await expect(page.locator('.cw-panel')).toBeHidden()
-  })
+    await expect(page.locator('[data-t="watch-list-card"]').first()).toBeVisible();
+    await expect(page.locator('.cw-panel')).toBeHidden();
+  });
 
   test('shows loading indicator while curated data is loading', async ({ page }) => {
     await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
-      await page.waitForTimeout(700)
-      await route.continue()
-    })
+      await page.waitForTimeout(700);
+      await route.continue();
+    });
 
-    await injectExtension(page, { activeTab: 'curated' }, { waitForLoaded: false })
-    await expect(page.locator('.cw-controls .cw-loading-indicator')).toHaveCount(0)
-    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeVisible()
+    await injectExtension(page, { activeTab: 'curated' }, { waitForLoaded: false });
+    await expect(page.locator('.cw-controls .cw-loading-indicator')).toHaveCount(0);
+    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeVisible();
     await expect(page.locator('.cw-panel > .cw-loading-box .cw-loading-box__title')).toHaveText(
       'Loading watchlist results...',
-    )
+    );
     await expect(page.locator('.cw-panel > .cw-loading-box .cw-loading-indicator .cw-loading__label')).toHaveText(
       'Loading',
-    )
-    await expect(page.locator('.cw-controls__stats')).toHaveText('')
-    await expect(page.locator('.cw-controls__stats')).not.toContainText('Loading...')
-    await expect(page.locator('.cw-panel > .cw-loading-box .cw-loading')).toHaveCount(1)
+    );
+    await expect(page.locator('.cw-controls__stats')).toHaveText('');
+    await expect(page.locator('.cw-controls__stats')).not.toContainText('Loading...');
+    await expect(page.locator('.cw-panel > .cw-loading-box .cw-loading')).toHaveCount(1);
     await expect(page.locator('.cw-panel > .cw-loading-box .cw-loading-indicator .cw-loading__request')).toHaveText(
       'Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)',
-    )
+    );
     await expect(
       page.locator('.cw-panel > .cw-loading-box .cw-loading-indicator .cw-loading__details-title'),
-    ).toHaveText('Request progress')
+    ).toHaveText('Request progress');
     await expect(page.locator('.cw-panel > .cw-loading-box .cw-loading-indicator .cw-loading__progress')).toHaveText(
       'Completed 1 of 2 • In progress 1',
-    )
+    );
 
-    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4')
-    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeHidden()
-  })
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
+    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeHidden();
+  });
 
   test('renders watchlist cards before metadata requests finish and updates details in place', async ({ page }) => {
     await page.route('**/content-reviews/v3/rating/series/**', async (route) => {
-      await page.waitForTimeout(650)
-      await route.continue()
-    })
+      await page.waitForTimeout(650);
+      await route.continue();
+    });
     await page.route('**/content/v2/**/watch-history*', async (route) => {
-      await page.waitForTimeout(650)
-      await route.continue()
-    })
+      await page.waitForTimeout(650);
+      await route.continue();
+    });
 
-    await injectExtension(page, { activeTab: 'curated' }, { waitForLoaded: false })
+    await injectExtension(page, { activeTab: 'curated' }, { waitForLoaded: false });
 
-    await expect(page.locator('.cw-curated-card').first()).toBeVisible()
-    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeVisible()
-    await expect(page.locator('.cw-curated-grid > .cw-empty')).toHaveCount(0)
-    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4')
-    await expect(page.locator('.cw-controls__stats')).toContainText('(refreshing...)')
-    await expect(page.locator('.cw-curated-card[data-cw-loading-details="true"]')).toHaveCount(3)
+    await expect(page.locator('.cw-curated-card').first()).toBeVisible();
+    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeVisible();
+    await expect(page.locator('.cw-curated-grid > .cw-empty')).toHaveCount(0);
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
+    await expect(page.locator('.cw-controls__stats')).toContainText('(refreshing...)');
+    await expect(page.locator('.cw-curated-card[data-cw-loading-details="true"]')).toHaveCount(3);
 
-    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeHidden()
-    await expect(page.locator('.cw-curated-card[data-cw-loading-details="true"]')).toHaveCount(0)
-  })
+    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeHidden();
+    await expect(page.locator('.cw-curated-card[data-cw-loading-details="true"]')).toHaveCount(0);
+  });
 
   test('keeps existing cards visible while manual refresh is in flight', async ({ page }) => {
-    await injectExtension(page)
-    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+    await injectExtension(page);
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3);
 
-    let refreshWatchlistCalls = 0
+    let refreshWatchlistCalls = 0;
     await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
-      refreshWatchlistCalls += 1
-      await page.waitForTimeout(700)
-      await route.continue()
-    })
+      refreshWatchlistCalls += 1;
+      await page.waitForTimeout(700);
+      await route.continue();
+    });
 
-    await page.getByRole('button', { name: 'Refresh ratings' }).click()
+    await page.getByRole('button', { name: 'Refresh ratings' }).click();
 
-    await expect.poll(() => refreshWatchlistCalls).toBeGreaterThanOrEqual(1)
-    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
-    await expect(page.locator('.cw-curated-grid > .cw-empty')).toHaveCount(0)
-    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4')
-    await expect(page.locator('.cw-controls__stats')).toContainText('(refreshing...)')
-    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeHidden()
+    await expect.poll(() => refreshWatchlistCalls).toBeGreaterThanOrEqual(1);
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3);
+    await expect(page.locator('.cw-curated-grid > .cw-empty')).toHaveCount(0);
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
+    await expect(page.locator('.cw-controls__stats')).toContainText('(refreshing...)');
+    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeHidden();
 
-    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4')
-    await expect(page.locator('.cw-controls__stats')).not.toContainText('(refreshing...)')
-  })
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
+    await expect(page.locator('.cw-controls__stats')).not.toContainText('(refreshing...)');
+  });
 
   test('disables refresh button while manual refresh is running', async ({ page }) => {
-    await injectExtension(page)
+    await injectExtension(page);
 
     await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
-      await page.waitForTimeout(700)
-      await route.continue()
-    })
+      await page.waitForTimeout(700);
+      await route.continue();
+    });
 
-    const refreshButton = page.getByRole('button', { name: 'Refresh ratings' })
-    await refreshButton.click()
+    const refreshButton = page.getByRole('button', { name: 'Refresh ratings' });
+    await refreshButton.click();
 
-    await expect(refreshButton).toBeDisabled()
-    await expect(refreshButton).toHaveAttribute('aria-busy', 'true')
+    await expect(refreshButton).toBeDisabled();
+    await expect(refreshButton).toHaveAttribute('aria-busy', 'true');
 
-    await expect(refreshButton).toBeEnabled()
-    await expect(refreshButton).toHaveAttribute('aria-busy', 'false')
-  })
+    await expect(refreshButton).toBeEnabled();
+    await expect(refreshButton).toHaveAttribute('aria-busy', 'false');
+  });
 
   test('recovers curated cards after host-page DOM churn clears the curated grid', async ({ page }) => {
-    await injectExtension(page)
-    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+    await injectExtension(page);
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3);
 
     await page.evaluate(() => {
-      const grid = document.querySelector('.cw-curated-grid')
+      const grid = document.querySelector('.cw-curated-grid');
       if (grid) {
-        grid.textContent = ''
+        grid.textContent = '';
       }
-    })
+    });
 
-    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
-  })
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3);
+  });
 
   test('rebootstraps cleanly when same-version runtime is injected again', async ({ page }) => {
-    await injectExtension(page)
-    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+    await injectExtension(page);
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3);
     const previousRuntimeOwner = await page.evaluate(() => {
-      return document.documentElement.getAttribute('data-cw-runtime-owner')
-    })
+      return document.documentElement.getAttribute('data-cw-runtime-owner');
+    });
 
-    await loadExtensionAssets(page)
+    await loadExtensionAssets(page);
 
-    await expect(page.locator('.cw-host')).toHaveCount(1)
-    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+    await expect(page.locator('.cw-host')).toHaveCount(1);
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3);
     await expect
       .poll(async () => {
         return page.evaluate(() => {
-          return document.documentElement.getAttribute('data-cw-runtime-owner')
-        })
+          return document.documentElement.getAttribute('data-cw-runtime-owner');
+        });
       })
-      .not.toBe(previousRuntimeOwner)
-  })
+      .not.toBe(previousRuntimeOwner);
+  });
 
   test('recovers when duplicate curated hosts are present and hidden', async ({ page }) => {
-    await injectExtension(page)
-    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
+    await injectExtension(page);
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3);
 
     await page.evaluate(() => {
-      const root = document.querySelector('.erc-watchlist')
-      const activeHost = root?.querySelector('.cw-host')
+      const root = document.querySelector('.erc-watchlist');
+      const activeHost = root?.querySelector('.cw-host');
       if (!root || !activeHost) {
-        return
+        return;
       }
 
-      const duplicateHost = activeHost.cloneNode(true) as HTMLElement
-      duplicateHost.style.display = 'none'
-      duplicateHost.setAttribute('data-cw-prev-display', '')
-      root.appendChild(duplicateHost)
+      const duplicateHost = activeHost.cloneNode(true) as HTMLElement;
+      duplicateHost.style.display = 'none';
+      duplicateHost.setAttribute('data-cw-prev-display', '');
+      root.appendChild(duplicateHost);
 
-      const activeHostElement = activeHost as HTMLElement
-      activeHostElement.style.display = 'none'
-      activeHostElement.setAttribute('data-cw-prev-display', '')
+      const activeHostElement = activeHost as HTMLElement;
+      activeHostElement.style.display = 'none';
+      activeHostElement.setAttribute('data-cw-prev-display', '');
 
-      const nativeNodes = root.querySelectorAll('.watchlist-header, .watchlist-body')
+      const nativeNodes = root.querySelectorAll('.watchlist-header, .watchlist-body');
       nativeNodes.forEach((node) => {
-        const element = node as HTMLElement
-        element.style.display = 'none'
-        element.setAttribute('data-cw-prev-display', '')
-      })
-    })
+        const element = node as HTMLElement;
+        element.style.display = 'none';
+        element.setAttribute('data-cw-prev-display', '');
+      });
+    });
 
-    await expect(page.locator('.erc-watchlist > .cw-host')).toHaveCount(1)
-    await expect(page.locator('.erc-watchlist > .cw-host')).toBeVisible()
-    await expect(page.locator('.cw-curated-card')).toHaveCount(3)
-  })
+    await expect(page.locator('.erc-watchlist > .cw-host')).toHaveCount(1);
+    await expect(page.locator('.erc-watchlist > .cw-host')).toBeVisible();
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3);
+  });
 
   test('preloads curated data while Crunchyroll tab is active', async ({ page }) => {
-    await injectExtension(page, { activeTab: 'crunchyroll' }, { waitForLoaded: false, expectCuratedVisible: false })
+    await injectExtension(page, { activeTab: 'crunchyroll' }, { waitForLoaded: false, expectCuratedVisible: false });
 
-    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4')
-    await page.getByRole('button', { name: 'Curated' }).click()
-    await expect(page.locator('.cw-curated-card').first()).toBeVisible({ timeout: 500 })
-  })
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
+    await page.getByRole('button', { name: 'Curated' }).click();
+    await expect(page.locator('.cw-curated-card').first()).toBeVisible({ timeout: 500 });
+  });
 
   test('persists selected dropdown filters across reload', async ({ page }) => {
-    await injectExtension(page)
+    await injectExtension(page);
 
-    await page.selectOption('#cw-watch-ready-mode', 'dim')
-    await page.selectOption('#cw-audio-filter', 'en-US')
-    await page.selectOption('#cw-genre-filter', 'action')
-    await page.selectOption('#cw-sort-mode', 'date_updated_desc')
-    await page.locator('#cw-landscape-cards').check()
+    await page.selectOption('#cw-watch-ready-mode', 'dim');
+    await page.selectOption('#cw-audio-filter', 'en-US');
+    await page.selectOption('#cw-genre-filter', 'action');
+    await page.selectOption('#cw-sort-mode', 'date_updated_desc');
+    await page.locator('#cw-landscape-cards').check();
 
-    await page.reload({ waitUntil: 'domcontentloaded' })
-    await loadExtensionAssets(page)
-    await expect(page.locator('.cw-host')).toBeVisible()
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await loadExtensionAssets(page);
+    await expect(page.locator('.cw-host')).toBeVisible();
 
-    await expect(page.locator('#cw-watch-ready-mode')).toHaveValue('dim')
-    await expect(page.locator('#cw-audio-filter')).toHaveValue('en-US')
-    await expect(page.locator('#cw-genre-filter')).toHaveValue('action')
-    await expect(page.locator('#cw-sort-mode')).toHaveValue('date_updated_desc')
-    await expect(page.locator('#cw-landscape-cards')).toBeChecked()
-    await expect(page.locator('.cw-host')).toHaveAttribute('data-cw-card-layout', 'landscape')
-  })
-})
+    await expect(page.locator('#cw-watch-ready-mode')).toHaveValue('dim');
+    await expect(page.locator('#cw-audio-filter')).toHaveValue('en-US');
+    await expect(page.locator('#cw-genre-filter')).toHaveValue('action');
+    await expect(page.locator('#cw-sort-mode')).toHaveValue('date_updated_desc');
+    await expect(page.locator('#cw-landscape-cards')).toBeChecked();
+    await expect(page.locator('.cw-host')).toHaveAttribute('data-cw-card-layout', 'landscape');
+  });
+});

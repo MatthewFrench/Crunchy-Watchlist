@@ -1,90 +1,90 @@
-;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
+(() => {
+  type AnyFn = (...args: unknown[]) => unknown;
 
   type TokenEntry = {
-    accessToken?: string
-  } & Record<string, unknown>
+    accessToken?: string;
+  } & Record<string, unknown>;
 
   type PreviewEntry = {
-    seriesId?: unknown
-    streamsLink?: unknown
-    panelId?: unknown
-    canonicalEpisodeKey?: unknown
-  } & Record<string, unknown>
+    seriesId?: unknown;
+    streamsLink?: unknown;
+    panelId?: unknown;
+    canonicalEpisodeKey?: unknown;
+  } & Record<string, unknown>;
 
   type PreviewState = {
-    previewCache: Record<string, string | null>
-    previewInflight: Map<string, Promise<string | null>>
-  }
+    previewCache: Record<string, string | null>;
+    previewInflight: Map<string, Promise<string | null>>;
+  };
 
   type PreviewContext = {
-    state: PreviewState
-    resolveApiHref: (value: unknown) => string
-    getAccessToken: (forceRefresh?: boolean) => Promise<TokenEntry | null>
+    state: PreviewState;
+    resolveApiHref: (value: unknown) => string;
+    getAccessToken: (forceRefresh?: boolean) => Promise<TokenEntry | null>;
     fetchWithResilience: (
       url: string,
       requestInit: RequestInit,
       options: {
-        label: string
-        bearerToken?: string
-        refreshBearerToken?: unknown
+        label: string;
+        bearerToken?: string;
+        refreshBearerToken?: unknown;
       },
-    ) => Promise<Response>
-    createAuthRefreshHandler: (tokenEntry: TokenEntry | null) => unknown
-    pushApiTrace: (endpoint: string, payload: unknown) => void
-    runtimeEvent: (event: string, payload?: unknown) => void
-  }
+    ) => Promise<Response>;
+    createAuthRefreshHandler: (tokenEntry: TokenEntry | null) => unknown;
+    pushApiTrace: (endpoint: string, payload: unknown) => void;
+    runtimeEvent: (event: string, payload?: unknown) => void;
+  };
 
   type PreviewOptions = {
-    state?: unknown
-    resolveApiHref?: unknown
-    getAccessToken?: unknown
-    fetchWithResilience?: unknown
-    createAuthRefreshHandler?: unknown
-    pushApiTrace?: unknown
-    runtimeEvent?: unknown
-  }
+    state?: unknown;
+    resolveApiHref?: unknown;
+    getAccessToken?: unknown;
+    fetchWithResilience?: unknown;
+    createAuthRefreshHandler?: unknown;
+    pushApiTrace?: unknown;
+    runtimeEvent?: unknown;
+  };
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
   function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing preview dependency: ${name}`)
+      throw new Error(`[CW] Missing preview dependency: ${name}`);
     }
-    return value as T
+    return value as T;
   }
 
   function toRecord(value: unknown): Record<string, unknown> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return {}
+      return {};
     }
 
-    return value as Record<string, unknown>
+    return value as Record<string, unknown>;
   }
 
   function toTokenEntry(value: unknown): TokenEntry | null {
     if (!value || typeof value !== 'object') {
-      return null
+      return null;
     }
 
-    return value as TokenEntry
+    return value as TokenEntry;
   }
 
   function createPreviewContext(options: PreviewOptions = {}): PreviewContext {
-    const state = options.state && typeof options.state === 'object' ? (options.state as PreviewState) : null
+    const state = options.state && typeof options.state === 'object' ? (options.state as PreviewState) : null;
     if (!state) {
-      throw new Error('[CW] Missing preview state')
+      throw new Error('[CW] Missing preview state');
     }
 
     if (!state.previewCache || typeof state.previewCache !== 'object') {
-      state.previewCache = {}
+      state.previewCache = {};
     }
     if (!(state.previewInflight instanceof Map)) {
-      state.previewInflight = new Map()
+      state.previewInflight = new Map();
     }
 
     return {
@@ -107,7 +107,7 @@
         typeof options.runtimeEvent === 'function'
           ? (options.runtimeEvent as PreviewContext['runtimeEvent'])
           : () => {},
-    }
+    };
   }
 
   function findFirstMediaUrlInternal(
@@ -116,61 +116,61 @@
     visited: Set<object> = new Set(),
   ): string | null {
     if (typeof value === 'string') {
-      const text = value.trim()
+      const text = value.trim();
       if (!text) {
-        return null
+        return null;
       }
 
       if (!/^https?:\/\//i.test(text) && !text.startsWith('/')) {
-        return null
+        return null;
       }
 
       const looksLikeMedia =
         /\.(m3u8|mp4|webm|m4v|mpd|jpg|jpeg|png|webp|avif)(\?|$)/i.test(text) ||
-        /(?:playlist|manifest|stream|preview|video|thumbnail|poster|image)/i.test(text)
+        /(?:playlist|manifest|stream|preview|video|thumbnail|poster|image)/i.test(text);
 
       if (!looksLikeMedia) {
-        return null
+        return null;
       }
 
-      return context.resolveApiHref(text) || text
+      return context.resolveApiHref(text) || text;
     }
 
     if (!value || typeof value !== 'object') {
-      return null
+      return null;
     }
 
     if (visited.has(value)) {
-      return null
+      return null;
     }
-    visited.add(value)
+    visited.add(value);
 
     if (Array.isArray(value)) {
       for (const item of value) {
-        const found = findFirstMediaUrlInternal(context, item, visited)
+        const found = findFirstMediaUrlInternal(context, item, visited);
         if (found) {
-          return found
+          return found;
         }
       }
-      return null
+      return null;
     }
 
     for (const key of Object.keys(value)) {
-      const found = findFirstMediaUrlInternal(context, toRecord(value)[key], visited)
+      const found = findFirstMediaUrlInternal(context, toRecord(value)[key], visited);
       if (found) {
-        return found
+        return found;
       }
     }
 
-    return null
+    return null;
   }
 
   function parsePreviewUrlFromPayloadInternal(context: PreviewContext, payload: unknown): string | null {
-    const payloadRecord = toRecord(payload)
-    const previewRecord = toRecord(payloadRecord.preview)
-    const streamsRecord = toRecord(payloadRecord.streams)
-    const adaptiveHlsRecord = toRecord(streamsRecord.adaptive_hls)
-    const hlsRecord = toRecord(streamsRecord.hls)
+    const payloadRecord = toRecord(payload);
+    const previewRecord = toRecord(payloadRecord.preview);
+    const streamsRecord = toRecord(payloadRecord.streams);
+    const adaptiveHlsRecord = toRecord(streamsRecord.adaptive_hls);
+    const hlsRecord = toRecord(streamsRecord.hls);
 
     const directCandidates: unknown[] = [
       payloadRecord.preview_url,
@@ -184,75 +184,75 @@
       adaptiveHlsRecord[''],
       hlsRecord.url,
       hlsRecord[''],
-    ]
+    ];
 
     for (const candidate of directCandidates) {
-      const resolved = context.resolveApiHref(candidate)
+      const resolved = context.resolveApiHref(candidate);
       if (resolved) {
-        return resolved
+        return resolved;
       }
     }
 
-    const nestedCandidates = [adaptiveHlsRecord, hlsRecord, streamsRecord]
+    const nestedCandidates = [adaptiveHlsRecord, hlsRecord, streamsRecord];
 
     for (const candidate of nestedCandidates) {
-      const found = findFirstMediaUrlInternal(context, candidate)
+      const found = findFirstMediaUrlInternal(context, candidate);
       if (found) {
-        return found
+        return found;
       }
     }
 
-    return null
+    return null;
   }
 
   function getPreviewCacheKeyInternal(context: PreviewContext, inputEntry: unknown): string {
-    const entry = toRecord(inputEntry) as PreviewEntry
+    const entry = toRecord(inputEntry) as PreviewEntry;
 
-    const streamsUrl = context.resolveApiHref(entry.streamsLink)
+    const streamsUrl = context.resolveApiHref(entry.streamsLink);
     if (streamsUrl) {
-      return `streams:${streamsUrl}`
+      return `streams:${streamsUrl}`;
     }
 
-    const panelId = typeof entry.panelId === 'string' ? entry.panelId.trim() : ''
+    const panelId = typeof entry.panelId === 'string' ? entry.panelId.trim() : '';
     if (panelId) {
-      return `episode:${panelId}`
+      return `episode:${panelId}`;
     }
 
-    const canonicalEpisodeKey = typeof entry.canonicalEpisodeKey === 'string' ? entry.canonicalEpisodeKey.trim() : ''
+    const canonicalEpisodeKey = typeof entry.canonicalEpisodeKey === 'string' ? entry.canonicalEpisodeKey.trim() : '';
     if (canonicalEpisodeKey) {
-      return `canonical:${canonicalEpisodeKey}`
+      return `canonical:${canonicalEpisodeKey}`;
     }
 
-    const seriesId = typeof entry.seriesId === 'string' ? entry.seriesId.trim() : ''
+    const seriesId = typeof entry.seriesId === 'string' ? entry.seriesId.trim() : '';
     if (seriesId) {
-      return `series:${seriesId}`
+      return `series:${seriesId}`;
     }
 
-    return ''
+    return '';
   }
 
   function createPreviewRequestOptionsInternal(
     context: PreviewContext,
     tokenEntry: TokenEntry | null,
   ): {
-    label: string
-    bearerToken?: string
-    refreshBearerToken?: unknown
+    label: string;
+    bearerToken?: string;
+    refreshBearerToken?: unknown;
   } {
     const requestOptions: {
-      label: string
-      bearerToken?: string
-      refreshBearerToken?: unknown
+      label: string;
+      bearerToken?: string;
+      refreshBearerToken?: unknown;
     } = {
       label: 'preview request',
       refreshBearerToken: context.createAuthRefreshHandler(tokenEntry),
-    }
+    };
 
     if (typeof tokenEntry?.accessToken === 'string') {
-      requestOptions.bearerToken = tokenEntry.accessToken
+      requestOptions.bearerToken = tokenEntry.accessToken;
     }
 
-    return requestOptions
+    return requestOptions;
   }
 
   async function parsePreviewPayloadFromResponseInternal(
@@ -262,15 +262,15 @@
     seriesId: string,
     previewCacheKey: string,
   ): Promise<unknown> {
-    let payload: unknown = null
+    let payload: unknown = null;
     try {
-      payload = await response.json()
+      payload = await response.json();
     } catch (_) {
       context.runtimeEvent('preview-contract-warning', {
         reason: 'invalid-json-payload',
         seriesId,
         cacheKey: previewCacheKey,
-      })
+      });
     }
 
     context.pushApiTrace('preview', {
@@ -281,17 +281,17 @@
         cacheKey: previewCacheKey,
       },
       response: payload,
-    })
+    });
 
     if (payload && (typeof payload !== 'object' || Array.isArray(payload))) {
       context.runtimeEvent('preview-contract-warning', {
         reason: 'invalid-payload-root',
         seriesId,
         cacheKey: previewCacheKey,
-      })
+      });
     }
 
-    return payload
+    return payload;
   }
 
   async function fetchPreviewFromStreamsInternal(
@@ -300,18 +300,18 @@
     seriesId: string,
     previewCacheKey: string,
   ): Promise<string | null> {
-    const tokenEntry = toTokenEntry(await context.getAccessToken(false))
-    const requestOptions = createPreviewRequestOptionsInternal(context, tokenEntry)
+    const tokenEntry = toTokenEntry(await context.getAccessToken(false));
+    const requestOptions = createPreviewRequestOptionsInternal(context, tokenEntry);
     const response = await context.fetchWithResilience(
       streamsUrl,
       {
         credentials: 'include',
       },
       requestOptions,
-    )
+    );
 
     if (!response.ok) {
-      return null
+      return null;
     }
 
     const payload = await parsePreviewPayloadFromResponseInternal(
@@ -320,59 +320,59 @@
       streamsUrl,
       seriesId,
       previewCacheKey,
-    )
-    return parsePreviewUrlFromPayloadInternal(context, payload)
+    );
+    return parsePreviewUrlFromPayloadInternal(context, payload);
   }
 
   async function fetchPreviewUrlForEntryInternal(context: PreviewContext, inputEntry: unknown): Promise<string | null> {
-    const entry = toRecord(inputEntry) as PreviewEntry
-    const seriesId = typeof entry.seriesId === 'string' ? entry.seriesId : ''
+    const entry = toRecord(inputEntry) as PreviewEntry;
+    const seriesId = typeof entry.seriesId === 'string' ? entry.seriesId : '';
     if (!seriesId) {
-      return null
+      return null;
     }
 
-    const previewCacheKey = getPreviewCacheKeyInternal(context, entry)
+    const previewCacheKey = getPreviewCacheKeyInternal(context, entry);
     if (!previewCacheKey) {
-      return null
+      return null;
     }
 
     if (Object.hasOwn(context.state.previewCache, previewCacheKey)) {
-      return context.state.previewCache[previewCacheKey] || null
+      return context.state.previewCache[previewCacheKey] || null;
     }
 
-    const inflightEntry = context.state.previewInflight.get(previewCacheKey)
+    const inflightEntry = context.state.previewInflight.get(previewCacheKey);
     if (inflightEntry) {
-      return inflightEntry
+      return inflightEntry;
     }
 
-    const streamsUrl = context.resolveApiHref(entry.streamsLink)
+    const streamsUrl = context.resolveApiHref(entry.streamsLink);
     if (!streamsUrl) {
-      context.state.previewCache[previewCacheKey] = null
-      return null
+      context.state.previewCache[previewCacheKey] = null;
+      return null;
     }
 
     const inflight = fetchPreviewFromStreamsInternal(context, streamsUrl, seriesId, previewCacheKey)
       .catch(() => null)
       .then((previewUrl) => {
-        context.state.previewCache[previewCacheKey] = previewUrl || null
-        return previewUrl || null
+        context.state.previewCache[previewCacheKey] = previewUrl || null;
+        return previewUrl || null;
       })
       .finally(() => {
-        context.state.previewInflight.delete(previewCacheKey)
-      })
+        context.state.previewInflight.delete(previewCacheKey);
+      });
 
-    context.state.previewInflight.set(previewCacheKey, inflight)
-    return inflight
+    context.state.previewInflight.set(previewCacheKey, inflight);
+    return inflight;
   }
 
   function createPreviewRepository(options: PreviewOptions = {}) {
-    const context = createPreviewContext(options)
+    const context = createPreviewContext(options);
     return {
       fetchPreviewUrlForEntry: (entry: unknown) => fetchPreviewUrlForEntryInternal(context, entry),
-    }
+    };
   }
 
   moduleRegistry.previewRepository = {
     createPreviewRepository,
-  }
-})()
+  };
+})();

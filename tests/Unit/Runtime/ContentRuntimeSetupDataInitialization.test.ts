@@ -1,92 +1,94 @@
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type TraceContractsRuntime = {
-  corePrimitives: Record<string, unknown>
-  apiContracts: Record<string, unknown>
-}
+  corePrimitives: Record<string, unknown>;
+  apiContracts: Record<string, unknown>;
+};
 
 type StorageRuntime = {
-  storageSet: (key: string, value: unknown) => unknown
-}
+  storageSet: (key: string, value: unknown) => unknown;
+};
 
 type DataInitializationRuntime = {
   initializeTraceAndContracts: (
     context: Record<string, unknown>,
     bindings: Record<string, unknown>,
-  ) => TraceContractsRuntime
+  ) => TraceContractsRuntime;
   initializePreferredAudioAndStorage: (
     context: Record<string, unknown>,
     bindings: Record<string, unknown>,
     traceContractsRuntime: TraceContractsRuntime,
-  ) => StorageRuntime
+  ) => StorageRuntime;
   initializeAuthImageAndRatings: (
     context: Record<string, unknown>,
     bindings: Record<string, unknown>,
     traceContractsRuntime: TraceContractsRuntime,
-  ) => void
+  ) => void;
   initializeWatchlistHistoryAndPreview: (
     context: Record<string, unknown>,
     bindings: Record<string, unknown>,
     traceContractsRuntime: TraceContractsRuntime,
-  ) => void
-}
+  ) => void;
+};
 
 type DataInitializationModule = {
   runtimeContentRuntimeSetupDataInitialization: {
-    createContentRuntimeSetupDataInitializationRuntime: (options?: Record<string, unknown>) => DataInitializationRuntime
-  }
-}
+    createContentRuntimeSetupDataInitializationRuntime: (
+      options?: Record<string, unknown>,
+    ) => DataInitializationRuntime;
+  };
+};
 
 const dataInitializationModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentRuntimeSetupDataInitialization.ts'),
-).href
+).href;
 
 function getDataInitializationRuntime(): DataInitializationRuntime {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as DataInitializationModule
-  return registry.runtimeContentRuntimeSetupDataInitialization.createContentRuntimeSetupDataInitializationRuntime()
+  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as DataInitializationModule;
+  return registry.runtimeContentRuntimeSetupDataInitialization.createContentRuntimeSetupDataInitializationRuntime();
 }
 
 describe('content-runtime-setup-data-initialization runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([dataInitializationModuleUrl])
-  })
+    await loadRuntimeModules([dataInitializationModuleUrl]);
+  });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry()
-    vi.restoreAllMocks()
-  })
+    clearRuntimeModulesRegistry();
+    vi.restoreAllMocks();
+  });
 
   it('initializes trace/contracts and preferred-audio/storage owners and binds bootstrap helpers', () => {
-    const storageSet = vi.fn()
-    const runtime = getDataInitializationRuntime()
-    const runtimeEvent = vi.fn()
-    const pushApiTrace = vi.fn()
-    const detectPreferredAudioLanguage = vi.fn(() => 'en-US')
+    const storageSet = vi.fn();
+    const runtime = getDataInitializationRuntime();
+    const runtimeEvent = vi.fn();
+    const pushApiTrace = vi.fn();
+    const detectPreferredAudioLanguage = vi.fn(() => 'en-US');
     const createRuntimeTrace = vi.fn(() => ({
       runtimeEvent,
       pushApiTrace,
-    }))
+    }));
     const createCorePrimitives = vi.fn(() => ({
       parseDateMs: vi.fn(),
       getWatchlistSeriesId: vi.fn(),
       getWatchHistorySeriesId: vi.fn(),
       normalizeAudioLocale: vi.fn((value: unknown) => value),
-    }))
+    }));
     const createApiContracts = vi.fn(() => ({
       shouldRetryStatus: vi.fn(),
       requirePayloadDataArray: vi.fn(),
       resolveApiHref: vi.fn((pathWithQuery: string) => `https://api.crunchyroll.test${pathWithQuery}`),
-    }))
+    }));
     const createPreferredAudioDetector = vi.fn(() => ({
       detectPreferredAudioLanguage,
-    }))
-    const createStorageAdapter = vi.fn(() => ({}))
+    }));
+    const createStorageAdapter = vi.fn(() => ({}));
     const createStorageAccessors = vi.fn(() => ({
       storageSet,
-    }))
+    }));
     const createBootstrapHelpersRuntime = vi.fn(() => ({
       scheduleSaveRatings: vi.fn(),
       scheduleSaveWatchHistory: vi.fn(),
@@ -101,7 +103,7 @@ describe('content-runtime-setup-data-initialization runtime', () => {
       withMutedObserver: vi.fn((callback: () => unknown) => callback()),
       applyCardLayoutUi: vi.fn(),
       persistSettings: vi.fn(),
-    }))
+    }));
 
     const context = {
       windowRef: {
@@ -139,12 +141,12 @@ describe('content-runtime-setup-data-initialization runtime', () => {
       runtimeBootstrapFinalizeModule: {
         safeJsonParse: vi.fn((value: unknown, fallback: unknown) => {
           if (typeof value !== 'string') {
-            return fallback
+            return fallback;
           }
           try {
-            return JSON.parse(value)
+            return JSON.parse(value);
           } catch {
-            return fallback
+            return fallback;
           }
         }),
         createStorageAccessors,
@@ -155,7 +157,7 @@ describe('content-runtime-setup-data-initialization runtime', () => {
       runtimeBootstrapHelpersModule: {
         createBootstrapHelpersRuntime,
       },
-    }
+    };
     const bindings: Record<string, unknown> = {
       extractCoverImagesFromApiImages: vi.fn(),
       isLocalizedRatingDataMissingForEntries: vi.fn(() => false),
@@ -163,59 +165,59 @@ describe('content-runtime-setup-data-initialization runtime', () => {
       getAccessToken: vi.fn(async () => ({ accessToken: 'token' })),
       preloadRatingsForEntries: vi.fn(async () => null),
       preloadWatchHistoryForEntries: vi.fn(async () => null),
-    }
+    };
 
-    const traceContractsRuntime = runtime.initializeTraceAndContracts(context, bindings)
-    const storageRuntime = runtime.initializePreferredAudioAndStorage(context, bindings, traceContractsRuntime)
-    storageRuntime.storageSet('settings', { cardLayout: 'portrait' })
+    const traceContractsRuntime = runtime.initializeTraceAndContracts(context, bindings);
+    const storageRuntime = runtime.initializePreferredAudioAndStorage(context, bindings, traceContractsRuntime);
+    storageRuntime.storageSet('settings', { cardLayout: 'portrait' });
 
-    expect(createRuntimeTrace).toHaveBeenCalledTimes(1)
-    expect(createCorePrimitives).toHaveBeenCalledTimes(1)
-    expect(createApiContracts).toHaveBeenCalledTimes(1)
-    expect(bindings.runtimeEvent).toBe(runtimeEvent)
-    expect(bindings.pushApiTrace).toBe(pushApiTrace)
-    expect(bindings.resolveApiHref).toBeTypeOf('function')
-    expect(createPreferredAudioDetector).toHaveBeenCalledTimes(1)
-    expect(createStorageAdapter).toHaveBeenCalledTimes(1)
-    expect(createStorageAccessors).toHaveBeenCalledTimes(1)
-    expect(createBootstrapHelpersRuntime).toHaveBeenCalledTimes(1)
-    expect(storageSet).toHaveBeenCalledWith('settings', { cardLayout: 'portrait' })
-    expect(bindings.getPreferredAudioLanguage).toBeTypeOf('function')
-    expect(bindings.scheduleSaveWatchlistCache).toBeTypeOf('function')
-    expect((bindings.detectPreferredAudioLanguage as () => string)()).toBe('en-US')
-  })
+    expect(createRuntimeTrace).toHaveBeenCalledTimes(1);
+    expect(createCorePrimitives).toHaveBeenCalledTimes(1);
+    expect(createApiContracts).toHaveBeenCalledTimes(1);
+    expect(bindings.runtimeEvent).toBe(runtimeEvent);
+    expect(bindings.pushApiTrace).toBe(pushApiTrace);
+    expect(bindings.resolveApiHref).toBeTypeOf('function');
+    expect(createPreferredAudioDetector).toHaveBeenCalledTimes(1);
+    expect(createStorageAdapter).toHaveBeenCalledTimes(1);
+    expect(createStorageAccessors).toHaveBeenCalledTimes(1);
+    expect(createBootstrapHelpersRuntime).toHaveBeenCalledTimes(1);
+    expect(storageSet).toHaveBeenCalledWith('settings', { cardLayout: 'portrait' });
+    expect(bindings.getPreferredAudioLanguage).toBeTypeOf('function');
+    expect(bindings.scheduleSaveWatchlistCache).toBeTypeOf('function');
+    expect((bindings.detectPreferredAudioLanguage as () => string)()).toBe('en-US');
+  });
 
   it('initializes auth/image/ratings and watchlist/history/preview owners', () => {
-    const runtime = getDataInitializationRuntime()
+    const runtime = getDataInitializationRuntime();
     const createAuthClient = vi.fn(() => ({
       fetchWithResilience: vi.fn(),
       getAccessToken: vi.fn(async () => ({ accountId: 'account-1', accessToken: 'token' })),
       createAuthRefreshHandler: vi.fn(() => 'refresh-handler'),
-    }))
+    }));
     const createImageVariants = vi.fn(() => ({
       normalizeImageUrlCandidate: vi.fn((value: unknown) => String(value ?? '')),
       extractCoverImagesFromApiImages: vi.fn(() => []),
       extractThumbnailImageFromApiImages: vi.fn(() => null),
-    }))
+    }));
     const createRatingsClient = vi.fn(() => ({
       fetchRatingsBatch: vi.fn(async () => []),
       fetchRating: vi.fn(async () => null),
-    }))
+    }));
     const createRatingsRepository = vi.fn(() => ({
       getSeriesRating: vi.fn(() => null),
       preloadRatingsForEntries: vi.fn(async () => null),
       getCachedRating: vi.fn(() => null),
       isLocalizedRatingDataMissingForEntries: vi.fn(() => false),
-    }))
+    }));
     const createWatchlistClient = vi.fn(() => ({
       fetchAllWatchlistRows: vi.fn(async () => []),
-    }))
+    }));
     const createWatchlistRepository = vi.fn(() => ({
       normalizeStoredWatchlistCache: vi.fn((value: unknown) => value),
       isWatchlistCacheValid: vi.fn(() => true),
       resetWatchlistCacheOnAccountMismatch: vi.fn(),
       setWatchlistCacheRows: vi.fn(),
-    }))
+    }));
     const createHistoryRepository = vi.fn(() => ({
       normalizeStoredWatchHistoryCache: vi.fn((value: unknown) => value),
       isWatchHistoryCacheValid: vi.fn(() => true),
@@ -223,10 +225,10 @@ describe('content-runtime-setup-data-initialization runtime', () => {
       getCachedWatchHistoryProgress: vi.fn(() => null),
       preloadWatchHistoryForEntries: vi.fn(async () => null),
       isLocalizedWatchHistoryDataMissingForEntries: vi.fn(() => false),
-    }))
+    }));
     const createPreviewRepository = vi.fn(() => ({
       fetchPreviewUrlForEntry: vi.fn(async () => null),
-    }))
+    }));
 
     const context = {
       windowRef: {
@@ -283,7 +285,7 @@ describe('content-runtime-setup-data-initialization runtime', () => {
       previewRepositoryModule: {
         createPreviewRepository,
       },
-    }
+    };
     const bindings: Record<string, unknown> = {
       runtimeEvent: vi.fn(),
       pushApiTrace: vi.fn(),
@@ -296,7 +298,7 @@ describe('content-runtime-setup-data-initialization runtime', () => {
       getAccessToken: vi.fn(),
       createAuthRefreshHandler: vi.fn(() => 'refresh-handler'),
       normalizeImageUrlCandidate: vi.fn((value: unknown) => String(value ?? '')),
-    }
+    };
     const traceContractsRuntime: TraceContractsRuntime = {
       corePrimitives: {
         sanitizePositiveInt: vi.fn((value: unknown) => Number(value) || 0),
@@ -326,24 +328,24 @@ describe('content-runtime-setup-data-initialization runtime', () => {
         auditWatchlistRowsContract: vi.fn(),
         auditWatchHistoryRowsContract: vi.fn(),
       },
-    }
+    };
 
-    runtime.initializeAuthImageAndRatings(context, bindings, traceContractsRuntime)
-    runtime.initializeWatchlistHistoryAndPreview(context, bindings, traceContractsRuntime)
+    runtime.initializeAuthImageAndRatings(context, bindings, traceContractsRuntime);
+    runtime.initializeWatchlistHistoryAndPreview(context, bindings, traceContractsRuntime);
 
-    expect(createAuthClient).toHaveBeenCalledTimes(1)
-    expect(createImageVariants).toHaveBeenCalledTimes(1)
-    expect(createRatingsClient).toHaveBeenCalledTimes(1)
-    expect(createRatingsRepository).toHaveBeenCalledTimes(1)
-    expect(bindings.getAccessToken).toBeTypeOf('function')
-    expect(bindings.fetchRatingsBatch).toBeTypeOf('function')
-    expect(bindings.preloadRatingsForEntries).toBeTypeOf('function')
-    expect(createWatchlistClient).toHaveBeenCalledTimes(1)
-    expect(createWatchlistRepository).toHaveBeenCalledTimes(1)
-    expect(createHistoryRepository).toHaveBeenCalledTimes(1)
-    expect(createPreviewRepository).toHaveBeenCalledTimes(1)
-    expect(bindings.fetchAllWatchlistRows).toBeTypeOf('function')
-    expect(bindings.preloadWatchHistoryForEntries).toBeTypeOf('function')
-    expect(bindings.fetchPreviewUrlForEntry).toBeTypeOf('function')
-  })
-})
+    expect(createAuthClient).toHaveBeenCalledTimes(1);
+    expect(createImageVariants).toHaveBeenCalledTimes(1);
+    expect(createRatingsClient).toHaveBeenCalledTimes(1);
+    expect(createRatingsRepository).toHaveBeenCalledTimes(1);
+    expect(bindings.getAccessToken).toBeTypeOf('function');
+    expect(bindings.fetchRatingsBatch).toBeTypeOf('function');
+    expect(bindings.preloadRatingsForEntries).toBeTypeOf('function');
+    expect(createWatchlistClient).toHaveBeenCalledTimes(1);
+    expect(createWatchlistRepository).toHaveBeenCalledTimes(1);
+    expect(createHistoryRepository).toHaveBeenCalledTimes(1);
+    expect(createPreviewRepository).toHaveBeenCalledTimes(1);
+    expect(bindings.fetchAllWatchlistRows).toBeTypeOf('function');
+    expect(bindings.preloadWatchHistoryForEntries).toBeTypeOf('function');
+    expect(bindings.fetchPreviewUrlForEntry).toBeTypeOf('function');
+  });
+});

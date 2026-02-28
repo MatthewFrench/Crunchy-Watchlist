@@ -1,94 +1,94 @@
-;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
+(() => {
+  type AnyFn = (...args: unknown[]) => unknown;
 
   type NativeActionBridgeContext = {
-    documentRef: Document
-    runtimeEvent: (event: string, data?: unknown) => void
-  }
+    documentRef: Document;
+    runtimeEvent: (event: string, data?: unknown) => void;
+  };
 
   type NativeActionBridgeOptions = {
-    documentRef?: unknown
-    runtimeEvent?: unknown
-  }
+    documentRef?: unknown;
+    runtimeEvent?: unknown;
+  };
 
   type NativeActionBridgeRuntime = {
-    triggerNativeCardAction: (seriesId: unknown, actionType: unknown) => boolean
-    findNativeCardBySeriesId: (seriesId: unknown) => HTMLElement | null
-  }
+    triggerNativeCardAction: (seriesId: unknown, actionType: unknown) => boolean;
+    findNativeCardBySeriesId: (seriesId: unknown) => HTMLElement | null;
+  };
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
   function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing native action bridge dependency: ${name}`)
+      throw new Error(`[CW] Missing native action bridge dependency: ${name}`);
     }
-    return value as T
+    return value as T;
   }
 
   function resolveDocumentRef(value: unknown): Document {
     if (!value || typeof value !== 'object') {
-      throw new Error('[CW] Missing native action bridge documentRef')
+      throw new Error('[CW] Missing native action bridge documentRef');
     }
-    return value as Document
+    return value as Document;
   }
 
   function getString(value: unknown): string {
-    return typeof value === 'string' ? value.trim() : ''
+    return typeof value === 'string' ? value.trim() : '';
   }
 
   function createNativeActionBridgeContext(options: NativeActionBridgeOptions = {}): NativeActionBridgeContext {
     return {
       documentRef: resolveDocumentRef(options.documentRef),
       runtimeEvent: requireFunction('runtimeEvent', options.runtimeEvent) as NativeActionBridgeContext['runtimeEvent'],
-    }
+    };
   }
 
   function extractSeriesIdFromHref(href: string): string | null {
-    const match = href.match(/\/series\/([^/?#]+)/i)
+    const match = href.match(/\/series\/([^/?#]+)/i);
     if (!match || !match[1]) {
-      return null
+      return null;
     }
 
     try {
-      return decodeURIComponent(match[1])
+      return decodeURIComponent(match[1]);
     } catch {
-      return match[1]
+      return match[1];
     }
   }
 
   function getNativeCardSeriesId(card: HTMLElement): string | null {
-    const links = Array.from(card.querySelectorAll('a[href*="/series/"]'))
+    const links = Array.from(card.querySelectorAll('a[href*="/series/"]'));
     for (const link of links) {
-      const seriesId = extractSeriesIdFromHref(link.getAttribute('href') || '')
+      const seriesId = extractSeriesIdFromHref(link.getAttribute('href') || '');
       if (seriesId) {
-        return seriesId
+        return seriesId;
       }
     }
 
-    return null
+    return null;
   }
 
   function findNativeCardBySeriesIdInternal(documentRef: Document, seriesId: string): HTMLElement | null {
     if (!seriesId) {
-      return null
+      return null;
     }
 
-    const nativeCards = Array.from(documentRef.querySelectorAll('[data-t="watch-list-card"]'))
+    const nativeCards = Array.from(documentRef.querySelectorAll('[data-t="watch-list-card"]'));
     for (const card of nativeCards) {
       if (!(card instanceof HTMLElement)) {
-        continue
+        continue;
       }
 
       if (getNativeCardSeriesId(card) === seriesId) {
-        return card
+        return card;
       }
     }
 
-    return null
+    return null;
   }
 
   function findNativeActionButton(card: HTMLElement, actionType: string): HTMLElement | null {
@@ -114,16 +114,16 @@
             'button[class*="remove" i]',
             'button[class*="trash" i]',
             'button[class*="delete" i]',
-          ]
+          ];
 
     for (const selector of selectors) {
-      const button = card.querySelector(selector)
+      const button = card.querySelector(selector);
       if (button instanceof HTMLElement) {
-        return button
+        return button;
       }
     }
 
-    return null
+    return null;
   }
 
   function triggerNativeCardActionInternal(
@@ -131,43 +131,43 @@
     seriesIdValue: unknown,
     actionTypeValue: unknown,
   ): boolean {
-    const seriesId = getString(seriesIdValue)
-    const actionType = getString(actionTypeValue).toLowerCase()
+    const seriesId = getString(seriesIdValue);
+    const actionType = getString(actionTypeValue).toLowerCase();
     if (!seriesId || (actionType !== 'favorite' && actionType !== 'remove')) {
-      return false
+      return false;
     }
 
-    const nativeCard = findNativeCardBySeriesIdInternal(context.documentRef, seriesId)
+    const nativeCard = findNativeCardBySeriesIdInternal(context.documentRef, seriesId);
     if (!nativeCard) {
-      return false
+      return false;
     }
 
-    const nativeButton = findNativeActionButton(nativeCard, actionType)
+    const nativeButton = findNativeActionButton(nativeCard, actionType);
     if (!nativeButton) {
-      return false
+      return false;
     }
 
-    nativeButton.click()
+    nativeButton.click();
     context.runtimeEvent('native-action-forwarded', {
       seriesId,
       actionType,
-    })
-    return true
+    });
+    return true;
   }
 
   function createNativeActionBridgeRuntime(options: NativeActionBridgeOptions = {}): NativeActionBridgeRuntime {
-    const context = createNativeActionBridgeContext(options)
+    const context = createNativeActionBridgeContext(options);
 
     return {
       triggerNativeCardAction: (seriesId, actionType) => triggerNativeCardActionInternal(context, seriesId, actionType),
       findNativeCardBySeriesId: (seriesId) => {
-        const resolvedSeriesId = getString(seriesId)
-        return resolvedSeriesId ? findNativeCardBySeriesIdInternal(context.documentRef, resolvedSeriesId) : null
+        const resolvedSeriesId = getString(seriesId);
+        return resolvedSeriesId ? findNativeCardBySeriesIdInternal(context.documentRef, resolvedSeriesId) : null;
       },
-    }
+    };
   }
 
   moduleRegistry.runtimeNativeActionBridge = {
     createNativeActionBridgeRuntime,
-  }
-})()
+  };
+})();

@@ -281,6 +281,10 @@
   transform: none;
 }
 
+.cw-curated-card--parked {
+  display: none;
+}
+
 .cw-host[data-cw-card-layout="landscape"] .cw-curated-grid {
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 }

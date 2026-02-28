@@ -1,84 +1,84 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type CuratedLoaderLoadCycleRuntime = {
   runCuratedLoadCycle: (options: {
-    context: Record<string, unknown>
+    context: Record<string, unknown>;
     deferredMetadataRuntime: {
       splitMetadataPreloadEntries: (
         context: Record<string, unknown>,
         entries: unknown[],
-      ) => { priorityEntries: unknown[]; deferredEntries: unknown[] }
+      ) => { priorityEntries: unknown[]; deferredEntries: unknown[] };
       queueDeferredMetadataPreload: (options: {
-        context: Record<string, unknown>
-        deferredEntries: unknown[]
-        tokenEntry: Record<string, unknown>
-        preloadMetadataForEntries: (entries: unknown[], tokenEntry: Record<string, unknown>) => Promise<void>
-      }) => void
-    }
+        context: Record<string, unknown>;
+        deferredEntries: unknown[];
+        tokenEntry: Record<string, unknown>;
+        preloadMetadataForEntries: (entries: unknown[], tokenEntry: Record<string, unknown>) => Promise<void>;
+      }) => void;
+    };
     pendingRequestsRuntime: {
       syncPendingRequestDiagnostics: (
         context: Record<string, unknown>,
         activeRequests: string[],
         progress: { started: number; completed: number },
-      ) => void
+      ) => void;
       withTrackedPendingRequest: <T>(
         context: Record<string, unknown>,
         activeRequests: string[],
         progress: { started: number; completed: number },
         label: string,
         work: () => Promise<T>,
-      ) => Promise<T>
-    }
-    activeRequests: string[]
-    pendingProgress: { started: number; completed: number }
-    force: boolean
-  }) => Promise<unknown[]>
-  handleCuratedLoadFailure: (context: Record<string, unknown>, error: unknown) => unknown[]
-}
+      ) => Promise<T>;
+    };
+    activeRequests: string[];
+    pendingProgress: { started: number; completed: number };
+    force: boolean;
+  }) => Promise<unknown[]>;
+  handleCuratedLoadFailure: (context: Record<string, unknown>, error: unknown) => unknown[];
+};
 
 type CuratedLoaderLoadCycleModule = {
   runtimeCuratedLoaderLoadCycle: {
-    createCuratedLoaderLoadCycleRuntime: () => CuratedLoaderLoadCycleRuntime
-  }
-}
+    createCuratedLoaderLoadCycleRuntime: () => CuratedLoaderLoadCycleRuntime;
+  };
+};
 
 const curatedLoaderLoadCycleModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedLoaderLoadCycle.ts'),
-).href
+).href;
 
 function getCuratedLoaderLoadCycleModule() {
   const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as CuratedLoaderLoadCycleModule
-  return registry.runtimeCuratedLoaderLoadCycle
+    .__CW_WATCHLIST_CURATOR_MODULES__ as CuratedLoaderLoadCycleModule;
+  return registry.runtimeCuratedLoaderLoadCycle;
 }
 
 describe('curated-loader-load-cycle runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([curatedLoaderLoadCycleModuleUrl])
-  })
+    await loadRuntimeModules([curatedLoaderLoadCycleModuleUrl]);
+  });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry()
-  })
+    clearRuntimeModulesRegistry();
+  });
 
   it('runs the full load cycle and commits partial/final states with timing telemetry', async () => {
-    const runtime = getCuratedLoaderLoadCycleModule().createCuratedLoaderLoadCycleRuntime()
-    const runtimeEvents: Array<{ event: string; data?: unknown }> = []
-    const preloadRatingsForEntries = vi.fn(async () => null)
-    const preloadWatchHistoryForEntries = vi.fn(async () => null)
-    const setWatchlistCacheRows = vi.fn()
-    const queueDeferredMetadataPreload = vi.fn()
-    const syncPendingRequestDiagnostics = vi.fn()
+    const runtime = getCuratedLoaderLoadCycleModule().createCuratedLoaderLoadCycleRuntime();
+    const runtimeEvents: Array<{ event: string; data?: unknown }> = [];
+    const preloadRatingsForEntries = vi.fn(async () => null);
+    const preloadWatchHistoryForEntries = vi.fn(async () => null);
+    const setWatchlistCacheRows = vi.fn();
+    const queueDeferredMetadataPreload = vi.fn();
+    const syncPendingRequestDiagnostics = vi.fn();
     const withTrackedPendingRequest = async <T>(
       _context: Record<string, unknown>,
       _activeRequests: string[],
       _progress: { started: number; completed: number },
       _label: string,
       work: () => Promise<T>,
-    ): Promise<T> => work()
+    ): Promise<T> => work();
 
     const context = {
       state: {
@@ -96,7 +96,7 @@ describe('curated-loader-load-cycle runtime', () => {
         pathname: '/watchlist',
       },
       runtimeEvent: (event: string, data?: unknown) => {
-        runtimeEvents.push({ event, data })
+        runtimeEvents.push({ event, data });
       },
       getAccessToken: vi.fn(async () => ({
         accessToken: 'token-1',
@@ -120,20 +120,20 @@ describe('curated-loader-load-cycle runtime', () => {
       renderCuratedPanel: vi.fn(),
       refreshCuratedLoadingIndicator: vi.fn(),
       deferredMetadataRunId: 0,
-    }
+    };
     const pendingRequestsRuntime = {
       syncPendingRequestDiagnostics,
       withTrackedPendingRequest,
-    }
+    };
     const deferredMetadataRuntime = {
       splitMetadataPreloadEntries: vi.fn((_context: Record<string, unknown>, entries: unknown[]) => ({
         priorityEntries: entries.slice(0, 1),
         deferredEntries: entries.slice(1),
       })),
       queueDeferredMetadataPreload,
-    }
-    const activeRequests: string[] = []
-    const pendingProgress = { started: 0, completed: 0 }
+    };
+    const activeRequests: string[] = [];
+    const pendingProgress = { started: 0, completed: 0 };
 
     const entries = await runtime.runCuratedLoadCycle({
       context,
@@ -142,17 +142,17 @@ describe('curated-loader-load-cycle runtime', () => {
       activeRequests,
       pendingProgress,
       force: false,
-    })
+    });
 
-    expect(entries).toHaveLength(1)
-    expect(context.state.curatedError).toBeNull()
-    expect(context.state.curatedSource).toBe('api')
-    expect(context.deferredMetadataRunId).toBe(1)
-    expect(setWatchlistCacheRows).toHaveBeenCalledTimes(2)
-    expect(preloadRatingsForEntries).toHaveBeenCalledTimes(2)
-    expect(preloadWatchHistoryForEntries).toHaveBeenCalledTimes(2)
-    expect(queueDeferredMetadataPreload).toHaveBeenCalledTimes(1)
-    expect(syncPendingRequestDiagnostics).toHaveBeenCalled()
+    expect(entries).toHaveLength(1);
+    expect(context.state.curatedError).toBeNull();
+    expect(context.state.curatedSource).toBe('api');
+    expect(context.deferredMetadataRunId).toBe(1);
+    expect(setWatchlistCacheRows).toHaveBeenCalledTimes(2);
+    expect(preloadRatingsForEntries).toHaveBeenCalledTimes(2);
+    expect(preloadWatchHistoryForEntries).toHaveBeenCalledTimes(2);
+    expect(queueDeferredMetadataPreload).toHaveBeenCalledTimes(1);
+    expect(syncPendingRequestDiagnostics).toHaveBeenCalled();
     expect(runtimeEvents.map((entry) => entry.event)).toEqual(
       expect.arrayContaining([
         'curated-load-start',
@@ -160,12 +160,12 @@ describe('curated-loader-load-cycle runtime', () => {
         'curated-load-done',
         'curated-load-timing',
       ]),
-    )
-  })
+    );
+  });
 
   it('returns existing entries and exposes fallback error state when load fails', () => {
-    const runtime = getCuratedLoaderLoadCycleModule().createCuratedLoaderLoadCycleRuntime()
-    const runtimeEvent = vi.fn()
+    const runtime = getCuratedLoaderLoadCycleModule().createCuratedLoaderLoadCycleRuntime();
+    const runtimeEvent = vi.fn();
     const context = {
       state: {
         curatedEntries: [{ seriesId: 'cached-1' }],
@@ -173,15 +173,15 @@ describe('curated-loader-load-cycle runtime', () => {
         curatedError: null as unknown,
       },
       runtimeEvent,
-    }
+    };
 
-    const result = runtime.handleCuratedLoadFailure(context, new Error('auth missing'))
+    const result = runtime.handleCuratedLoadFailure(context, new Error('auth missing'));
 
-    expect(result).toEqual([{ seriesId: 'cached-1' }])
-    expect(context.state.curatedSource).toBe('cache')
-    expect(context.state.curatedError).toBe('Showing cached data; latest refresh failed.')
+    expect(result).toEqual([{ seriesId: 'cached-1' }]);
+    expect(context.state.curatedSource).toBe('cache');
+    expect(context.state.curatedError).toBe('Showing cached data; latest refresh failed.');
     expect(runtimeEvent).toHaveBeenCalledWith('curated-load-failed', {
       message: 'auth missing',
-    })
-  })
-})
+    });
+  });
+});

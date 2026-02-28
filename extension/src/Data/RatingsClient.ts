@@ -1,90 +1,90 @@
-;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
+(() => {
+  type AnyFn = (...args: unknown[]) => unknown;
 
   type TokenEntry = {
-    accessToken?: string
-  } & Record<string, unknown>
+    accessToken?: string;
+  } & Record<string, unknown>;
 
   type ParsedRatingRecord = {
-    seriesId?: string
-    rating?: number | null
-    votes?: number | null
-    distribution?: unknown
-    description?: string
-    audioLocales?: string[]
-    episodeCount?: number | null
-    seasonCount?: number | null
-    genreTags?: string[]
-    portraitImageUrl?: string
-    landscapeImageUrl?: string
-  }
+    seriesId?: string;
+    rating?: number | null;
+    votes?: number | null;
+    distribution?: unknown;
+    description?: string;
+    audioLocales?: string[];
+    episodeCount?: number | null;
+    seasonCount?: number | null;
+    genreTags?: string[];
+    portraitImageUrl?: string;
+    landscapeImageUrl?: string;
+  };
 
   type RatingResult = {
-    rating: number | null
-    votes: number | null
-    distribution: unknown
-    description: string
-    audioLocales: string[]
-    episodeCount: number | null
-    seasonCount: number | null
-    genreTags: string[]
-    preferredAudioLocale?: string
-  }
+    rating: number | null;
+    votes: number | null;
+    distribution: unknown;
+    description: string;
+    audioLocales: string[];
+    episodeCount: number | null;
+    seasonCount: number | null;
+    genreTags: string[];
+    preferredAudioLocale?: string;
+  };
 
   type RatingsContext = {
     fetchWithResilience: (
       url: string,
       requestInit: RequestInit,
       options: {
-        label: string
-        bearerToken?: string
-        refreshBearerToken?: unknown
-        maxAttempts?: number
+        label: string;
+        bearerToken?: string;
+        refreshBearerToken?: unknown;
+        maxAttempts?: number;
       },
-    ) => Promise<Response>
-    getAccessToken: (forceRefresh?: boolean) => Promise<TokenEntry | null>
-    createAuthRefreshHandler: (tokenEntry: TokenEntry | null) => unknown
-    resolveApiHref: (pathWithQuery: string) => string
-    normalizeAudioLocale: (value: unknown) => string
-    getPreferredAudioLanguage: () => string
-    getLocale: () => string
-    requirePayloadDataArray: (endpoint: string, payload: unknown) => unknown[]
-    auditCmsObjectContract: (rows: unknown[]) => void
-    parseCmsObjectRecord: (row: unknown) => ParsedRatingRecord | null
-    parseRatingPayload: (payload: unknown) => { rating: number | null; votes: number | null }
-    sanitizeRating: (value: unknown) => number | null
-    sanitizeVotes: (value: unknown) => number | null
-    pushApiTrace: (endpoint: string, payload: unknown) => void
-  }
+    ) => Promise<Response>;
+    getAccessToken: (forceRefresh?: boolean) => Promise<TokenEntry | null>;
+    createAuthRefreshHandler: (tokenEntry: TokenEntry | null) => unknown;
+    resolveApiHref: (pathWithQuery: string) => string;
+    normalizeAudioLocale: (value: unknown) => string;
+    getPreferredAudioLanguage: () => string;
+    getLocale: () => string;
+    requirePayloadDataArray: (endpoint: string, payload: unknown) => unknown[];
+    auditCmsObjectContract: (rows: unknown[]) => void;
+    parseCmsObjectRecord: (row: unknown) => ParsedRatingRecord | null;
+    parseRatingPayload: (payload: unknown) => { rating: number | null; votes: number | null };
+    sanitizeRating: (value: unknown) => number | null;
+    sanitizeVotes: (value: unknown) => number | null;
+    pushApiTrace: (endpoint: string, payload: unknown) => void;
+  };
 
   type RatingsOptions = {
-    fetchWithResilience?: unknown
-    getAccessToken?: unknown
-    createAuthRefreshHandler?: unknown
-    resolveApiHref?: unknown
-    normalizeAudioLocale?: unknown
-    getPreferredAudioLanguage?: unknown
-    getLocale?: unknown
-    requirePayloadDataArray?: unknown
-    auditCmsObjectContract?: unknown
-    parseCmsObjectRecord?: unknown
-    parseRatingPayload?: unknown
-    sanitizeRating?: unknown
-    sanitizeVotes?: unknown
-    pushApiTrace?: unknown
-  }
+    fetchWithResilience?: unknown;
+    getAccessToken?: unknown;
+    createAuthRefreshHandler?: unknown;
+    resolveApiHref?: unknown;
+    normalizeAudioLocale?: unknown;
+    getPreferredAudioLanguage?: unknown;
+    getLocale?: unknown;
+    requirePayloadDataArray?: unknown;
+    auditCmsObjectContract?: unknown;
+    parseCmsObjectRecord?: unknown;
+    parseRatingPayload?: unknown;
+    sanitizeRating?: unknown;
+    sanitizeVotes?: unknown;
+    pushApiTrace?: unknown;
+  };
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
   function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing ratings dependency: ${name}`)
+      throw new Error(`[CW] Missing ratings dependency: ${name}`);
     }
-    return value as T
+    return value as T;
   }
 
   function createEmptyRatingResult(preferredAudioLocale = ''): RatingResult {
@@ -97,13 +97,13 @@
       episodeCount: null,
       seasonCount: null,
       genreTags: [],
-    }
+    };
 
     if (preferredAudioLocale) {
-      result.preferredAudioLocale = preferredAudioLocale
+      result.preferredAudioLocale = preferredAudioLocale;
     }
 
-    return result
+    return result;
   }
 
   function createRatingResultFromCmsRecord(
@@ -120,26 +120,26 @@
       episodeCount: parsedRecord?.episodeCount ?? null,
       seasonCount: parsedRecord?.seasonCount ?? null,
       genreTags: Array.isArray(parsedRecord?.genreTags) ? parsedRecord.genreTags : [],
-    }
+    };
   }
 
   function findCmsRecordForSeries(records: unknown[], seriesId: string): unknown | null {
     if (!Array.isArray(records) || !records.length) {
-      return null
+      return null;
     }
 
     return (
       records.find((row) => {
         if (!row || typeof row !== 'object') {
-          return false
+          return false;
         }
 
-        const recordId = (row as Record<string, unknown>).id
-        return recordId === seriesId
+        const recordId = (row as Record<string, unknown>).id;
+        return recordId === seriesId;
       }) ||
       records[0] ||
       null
-    )
+    );
   }
 
   function createRatingsContext(options: RatingsOptions = {}): RatingsContext {
@@ -185,20 +185,20 @@
         typeof options.pushApiTrace === 'function'
           ? (options.pushApiTrace as RatingsContext['pushApiTrace'])
           : () => {},
-    }
+    };
   }
 
   function resolvePreferredAudioLanguage(context: RatingsContext, preferredAudioLanguage: unknown): string {
-    const explicit = context.normalizeAudioLocale(preferredAudioLanguage)
-    return explicit || context.getPreferredAudioLanguage()
+    const explicit = context.normalizeAudioLocale(preferredAudioLanguage);
+    return explicit || context.getPreferredAudioLanguage();
   }
 
   function toPayloadTotal(payload: unknown, fallback: number): number {
     if (!payload || typeof payload !== 'object') {
-      return fallback
+      return fallback;
     }
 
-    return Number((payload as Record<string, unknown>).total || fallback)
+    return Number((payload as Record<string, unknown>).total || fallback);
   }
 
   function traceCmsResponse(
@@ -223,7 +223,7 @@
         rowCount: records.length,
       },
       data: records,
-    })
+    });
   }
 
   async function requestCmsRatings(
@@ -233,16 +233,16 @@
     label: string,
   ): Promise<{ payload: unknown; records: unknown[] }> {
     const requestOptions: {
-      label: string
-      bearerToken?: string
-      refreshBearerToken?: unknown
+      label: string;
+      bearerToken?: string;
+      refreshBearerToken?: unknown;
     } = {
       label,
       refreshBearerToken: context.createAuthRefreshHandler(tokenEntry),
-    }
+    };
 
     if (typeof tokenEntry?.accessToken === 'string') {
-      requestOptions.bearerToken = tokenEntry.accessToken
+      requestOptions.bearerToken = tokenEntry.accessToken;
     }
 
     const response = await context.fetchWithResilience(
@@ -251,19 +251,19 @@
         credentials: 'include',
       },
       requestOptions,
-    )
+    );
 
     if (!response.ok) {
-      throw new Error(`${label} failed: ${response.status}`)
+      throw new Error(`${label} failed: ${response.status}`);
     }
 
-    const payload = await response.json()
-    const records = context.requirePayloadDataArray('cms-objects', payload)
-    context.auditCmsObjectContract(records)
+    const payload = await response.json();
+    const records = context.requirePayloadDataArray('cms-objects', payload);
+    context.auditCmsObjectContract(records);
     return {
       payload,
       records,
-    }
+    };
   }
 
   async function fetchRatingsBatchInternal(
@@ -273,29 +273,29 @@
     preferredAudioLanguage: unknown = context.getPreferredAudioLanguage(),
   ): Promise<ParsedRatingRecord[]> {
     if (!Array.isArray(seriesIds) || !seriesIds.length) {
-      return []
+      return [];
     }
 
     const normalizedSeriesIds = seriesIds.filter(
       (seriesId): seriesId is string => typeof seriesId === 'string' && !!seriesId,
-    )
+    );
     if (!normalizedSeriesIds.length) {
-      return []
+      return [];
     }
 
-    const effectivePreferredAudioLanguage = resolvePreferredAudioLanguage(context, preferredAudioLanguage)
+    const effectivePreferredAudioLanguage = resolvePreferredAudioLanguage(context, preferredAudioLanguage);
     const cmsUrl = context.resolveApiHref(
       `/content/v2/cms/objects/${normalizedSeriesIds.map((id) => encodeURIComponent(id)).join(',')}` +
         `?ratings=true&preferred_audio_language=${encodeURIComponent(effectivePreferredAudioLanguage)}` +
         `&locale=${encodeURIComponent(context.getLocale())}`,
-    )
+    );
 
-    const { payload, records } = await requestCmsRatings(context, cmsUrl, tokenEntry, 'rating batch request')
-    traceCmsResponse(context, cmsUrl, 'batch', effectivePreferredAudioLanguage, normalizedSeriesIds, payload, records)
+    const { payload, records } = await requestCmsRatings(context, cmsUrl, tokenEntry, 'rating batch request');
+    traceCmsResponse(context, cmsUrl, 'batch', effectivePreferredAudioLanguage, normalizedSeriesIds, payload, records);
 
     return records
       .map((record) => context.parseCmsObjectRecord(record))
-      .filter((record): record is ParsedRatingRecord => Boolean(record?.seriesId))
+      .filter((record): record is ParsedRatingRecord => Boolean(record?.seriesId));
   }
 
   function parseCmsSingleRatingPayload(
@@ -305,20 +305,20 @@
     records: unknown[],
     preferredAudioLocale: string,
   ): RatingResult {
-    const record = findCmsRecordForSeries(records, seriesId)
+    const record = findCmsRecordForSeries(records, seriesId);
     if (record) {
-      const parsedRecord = context.parseCmsObjectRecord(record)
+      const parsedRecord = context.parseCmsObjectRecord(record);
       if (parsedRecord) {
-        return createRatingResultFromCmsRecord(parsedRecord, preferredAudioLocale)
+        return createRatingResultFromCmsRecord(parsedRecord, preferredAudioLocale);
       }
     }
 
-    const fallback = context.parseRatingPayload(payload)
+    const fallback = context.parseRatingPayload(payload);
     return {
       ...createEmptyRatingResult(preferredAudioLocale),
       rating: fallback.rating,
       votes: fallback.votes,
-    }
+    };
   }
 
   async function fetchRatingFromCmsObjectsInternal(
@@ -326,24 +326,24 @@
     seriesId: string,
     preferredAudioLanguage: unknown = context.getPreferredAudioLanguage(),
   ): Promise<RatingResult> {
-    const effectivePreferredAudioLanguage = resolvePreferredAudioLanguage(context, preferredAudioLanguage)
+    const effectivePreferredAudioLanguage = resolvePreferredAudioLanguage(context, preferredAudioLanguage);
     const cmsUrl = context.resolveApiHref(
       `/content/v2/cms/objects/${encodeURIComponent(seriesId)}` +
         `?ratings=true&preferred_audio_language=${encodeURIComponent(effectivePreferredAudioLanguage)}` +
         `&locale=${encodeURIComponent(context.getLocale())}`,
-    )
+    );
 
-    const tokenEntry = await context.getAccessToken(false)
+    const tokenEntry = await context.getAccessToken(false);
     if (!tokenEntry?.accessToken) {
-      return createEmptyRatingResult(effectivePreferredAudioLanguage)
+      return createEmptyRatingResult(effectivePreferredAudioLanguage);
     }
 
     try {
-      const { payload, records } = await requestCmsRatings(context, cmsUrl, tokenEntry, 'cms ratings request')
-      traceCmsResponse(context, cmsUrl, 'single', effectivePreferredAudioLanguage, [seriesId], payload, records)
-      return parseCmsSingleRatingPayload(context, seriesId, payload, records, effectivePreferredAudioLanguage)
+      const { payload, records } = await requestCmsRatings(context, cmsUrl, tokenEntry, 'cms ratings request');
+      traceCmsResponse(context, cmsUrl, 'single', effectivePreferredAudioLanguage, [seriesId], payload, records);
+      return parseCmsSingleRatingPayload(context, seriesId, payload, records, effectivePreferredAudioLanguage);
     } catch (_) {
-      return createEmptyRatingResult(effectivePreferredAudioLanguage)
+      return createEmptyRatingResult(effectivePreferredAudioLanguage);
     }
   }
 
@@ -357,60 +357,60 @@
     const ratingMatch =
       html.match(/"ratingValue"\s*:\s*"?([0-5](?:\\?\.\d+)?)"?/i) ||
       html.match(/"averageRating"\s*:\s*([0-5](?:\\?\.\d+)?)/i) ||
-      html.match(/"average"\s*:\s*([0-5](?:\\?\.\d+)?)/i)
+      html.match(/"average"\s*:\s*([0-5](?:\\?\.\d+)?)/i);
 
     const votesMatch =
       html.match(/"ratingCount"\s*:\s*"?(\d{1,10})"?/i) ||
       html.match(/"votes"\s*:\s*(\d{1,10})/i) ||
-      html.match(/"count"\s*:\s*(\d{1,10})/i)
+      html.match(/"count"\s*:\s*(\d{1,10})/i);
 
-    const ratingValue = ratingMatch?.[1]?.replace('\\.', '.') || null
+    const ratingValue = ratingMatch?.[1]?.replace('\\.', '.') || null;
 
     return {
       rating: ratingValue ? context.sanitizeRating(ratingValue) : null,
       votes: votesMatch ? context.sanitizeVotes(votesMatch[1]) : null,
-    }
+    };
   }
 
   async function fetchRatingFromSeriesPageInternal(context: RatingsContext, seriesHref: string): Promise<RatingResult> {
-    const seriesUrl = context.resolveApiHref(seriesHref)
+    const seriesUrl = context.resolveApiHref(seriesHref);
     if (!seriesUrl) {
-      throw new Error('series page url missing')
+      throw new Error('series page url missing');
     }
 
     const response = await context.fetchWithResilience(
       seriesUrl,
       { credentials: 'include' },
       { label: 'series page fetch', maxAttempts: 2 },
-    )
+    );
     if (!response.ok) {
-      throw new Error(`series page fetch failed: ${response.status}`)
+      throw new Error(`series page fetch failed: ${response.status}`);
     }
 
-    const html = await response.text()
-    const parsed = parseSeriesPageRatingPayload(context, html)
+    const html = await response.text();
+    const parsed = parseSeriesPageRatingPayload(context, html);
 
     return {
       ...createEmptyRatingResult(),
       rating: parsed.rating,
       votes: parsed.votes,
-    }
+    };
   }
 
   async function fetchLegacyRatingInternal(context: RatingsContext, seriesId: string): Promise<RatingResult | null> {
-    const ratingUrl = context.resolveApiHref(`/content-reviews/v3/rating/series/${encodeURIComponent(seriesId)}`)
+    const ratingUrl = context.resolveApiHref(`/content-reviews/v3/rating/series/${encodeURIComponent(seriesId)}`);
 
     try {
       const response = await context.fetchWithResilience(
         ratingUrl,
         { credentials: 'include' },
         { label: 'legacy rating request', maxAttempts: 2 },
-      )
+      );
       if (!response.ok) {
-        return null
+        return null;
       }
 
-      const payload = await response.json()
+      const payload = await response.json();
       context.pushApiTrace('legacyRating', {
         at: Date.now(),
         request: {
@@ -418,19 +418,19 @@
           seriesId,
         },
         response: payload,
-      })
-      const parsed = context.parseRatingPayload(payload)
+      });
+      const parsed = context.parseRatingPayload(payload);
       if (parsed.rating == null) {
-        return null
+        return null;
       }
 
       return {
         ...createEmptyRatingResult(),
         rating: parsed.rating,
         votes: parsed.votes,
-      }
+      };
     } catch (_) {
-      return null
+      return null;
     }
   }
 
@@ -440,36 +440,36 @@
     seriesHref: unknown,
     preferredAudioLanguage: unknown = context.getPreferredAudioLanguage(),
   ): Promise<RatingResult> {
-    const normalizedSeriesId = typeof seriesId === 'string' ? seriesId : ''
+    const normalizedSeriesId = typeof seriesId === 'string' ? seriesId : '';
     if (normalizedSeriesId) {
       try {
-        const cmsRating = await fetchRatingFromCmsObjectsInternal(context, normalizedSeriesId, preferredAudioLanguage)
+        const cmsRating = await fetchRatingFromCmsObjectsInternal(context, normalizedSeriesId, preferredAudioLanguage);
         if (cmsRating.rating != null) {
-          return cmsRating
+          return cmsRating;
         }
       } catch (_) {
         // no-op
       }
 
-      const legacyRating = await fetchLegacyRatingInternal(context, normalizedSeriesId)
+      const legacyRating = await fetchLegacyRatingInternal(context, normalizedSeriesId);
       if (legacyRating) {
-        return legacyRating
+        return legacyRating;
       }
     }
 
     if (typeof seriesHref !== 'string' || !seriesHref) {
-      return createEmptyRatingResult()
+      return createEmptyRatingResult();
     }
 
     try {
-      return await fetchRatingFromSeriesPageInternal(context, seriesHref)
+      return await fetchRatingFromSeriesPageInternal(context, seriesHref);
     } catch (_) {
-      return createEmptyRatingResult()
+      return createEmptyRatingResult();
     }
   }
 
   function createRatingsClient(options: RatingsOptions = {}) {
-    const context = createRatingsContext(options)
+    const context = createRatingsContext(options);
 
     return {
       createEmptyRatingResult,
@@ -477,10 +477,10 @@
         fetchRatingInternal(context, seriesId, seriesHref, preferredAudioLanguage),
       fetchRatingsBatch: (tokenEntry: TokenEntry | null, seriesIds: unknown, preferredAudioLanguage: unknown) =>
         fetchRatingsBatchInternal(context, tokenEntry, seriesIds, preferredAudioLanguage),
-    }
+    };
   }
 
   moduleRegistry.ratingsClient = {
     createRatingsClient,
-  }
-})()
+  };
+})();

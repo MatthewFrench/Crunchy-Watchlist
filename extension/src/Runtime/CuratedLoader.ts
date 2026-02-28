@@ -1,113 +1,114 @@
-;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
+(() => {
+  type AnyFn = (...args: unknown[]) => unknown;
 
   type RuntimeState = {
-    mounted: boolean
-    curatedError: unknown
-    curatedEntries: unknown[]
-    curatedInflight: Promise<unknown[]> | null
-    curatedPendingRequests: string[]
-    curatedPendingRequestStartedCount: number
-    curatedPendingRequestCompletedCount: number
-    curatedSource: string
-    curatedLastRevalidateAt: number
-    curatedObservedPromise: Promise<unknown[]> | null
-    curatedInitialLoadDone?: boolean
-    settings: Record<string, unknown>
-  }
+    mounted: boolean;
+    curatedError: unknown;
+    curatedEntries: unknown[];
+    curatedInflight: Promise<unknown[]> | null;
+    curatedDeferredMetadataInFlight?: boolean;
+    curatedPendingRequests: string[];
+    curatedPendingRequestStartedCount: number;
+    curatedPendingRequestCompletedCount: number;
+    curatedSource: string;
+    curatedLastRevalidateAt: number;
+    curatedObservedPromise: Promise<unknown[]> | null;
+    curatedInitialLoadDone?: boolean;
+    settings: Record<string, unknown>;
+  };
 
   type PendingRequestProgress = {
-    started: number
-    completed: number
-  }
+    started: number;
+    completed: number;
+  };
 
   type TokenEntry = {
-    accessToken?: unknown
-    accountId?: unknown
-    profileId?: unknown
-  }
+    accessToken?: unknown;
+    accountId?: unknown;
+    profileId?: unknown;
+  };
 
   type CuratedLoaderContext = {
-    state: RuntimeState
-    windowRef: Window
-    documentRef: Document | null
-    locationRef: Location
-    runtimeEvent: (event: string, data?: unknown) => void
-    getAccessToken: (forceRefresh: boolean) => Promise<TokenEntry | null>
-    resetWatchlistCacheOnAccountMismatch: (accountId: string, profileId: string) => unknown
-    fetchAllWatchlistRows: (tokenEntry: TokenEntry) => Promise<unknown[]>
-    normalizeEntriesFromApiRows: (rows: unknown[]) => unknown[]
+    state: RuntimeState;
+    windowRef: Window;
+    documentRef: Document | null;
+    locationRef: Location;
+    runtimeEvent: (event: string, data?: unknown) => void;
+    getAccessToken: (forceRefresh: boolean) => Promise<TokenEntry | null>;
+    resetWatchlistCacheOnAccountMismatch: (accountId: string, profileId: string) => unknown;
+    fetchAllWatchlistRows: (tokenEntry: TokenEntry) => Promise<unknown[]>;
+    normalizeEntriesFromApiRows: (rows: unknown[]) => unknown[];
     preloadRatingsForEntries: (
       entries: unknown[],
       tokenEntry: TokenEntry,
       preferredAudioLanguage?: string,
-    ) => Promise<unknown>
+    ) => Promise<unknown>;
     preloadWatchHistoryForEntries: (
       entries: unknown[],
       tokenEntry: TokenEntry,
       force?: boolean,
       preferredAudioLanguage?: string,
-    ) => Promise<unknown>
-    normalizeAudioLocale: (locale: unknown) => string | null
-    getPreferredAudioLanguage: () => string
-    setWatchlistCacheRows: (accountId: string, profileId: string, rows: unknown[], updatedAt?: number) => unknown
-    isWatchlistPath: (pathname: string) => boolean
-    renderCuratedPanel: () => void
-    refreshCuratedLoadingIndicator: () => void
-    watchlistRevalidateCooldownMs: number
-    watchlistCacheSourceRevalidateCooldownMs: number
-    metadataPriorityEntryCount: number
-    metadataDeferredChunkSize: number
-    metadataDeferredIdleTimeoutMs: number
-    metadataDeferredHiddenDelayMs: number
-    metadataViewportPriorityCount: number
-    deferredMetadataRunId: number
-  }
+    ) => Promise<unknown>;
+    normalizeAudioLocale: (locale: unknown) => string | null;
+    getPreferredAudioLanguage: () => string;
+    setWatchlistCacheRows: (accountId: string, profileId: string, rows: unknown[], updatedAt?: number) => unknown;
+    isWatchlistPath: (pathname: string) => boolean;
+    renderCuratedPanel: () => void;
+    refreshCuratedLoadingIndicator: () => void;
+    watchlistRevalidateCooldownMs: number;
+    watchlistCacheSourceRevalidateCooldownMs: number;
+    metadataPriorityEntryCount: number;
+    metadataDeferredChunkSize: number;
+    metadataDeferredIdleTimeoutMs: number;
+    metadataDeferredHiddenDelayMs: number;
+    metadataViewportPriorityCount: number;
+    deferredMetadataRunId: number;
+  };
 
   type CuratedLoaderOptions = {
-    state?: unknown
-    windowRef?: unknown
-    documentRef?: unknown
-    locationRef?: unknown
-    runtimeEvent?: unknown
-    getAccessToken?: unknown
-    resetWatchlistCacheOnAccountMismatch?: unknown
-    fetchAllWatchlistRows?: unknown
-    normalizeEntriesFromApiRows?: unknown
-    preloadRatingsForEntries?: unknown
-    preloadWatchHistoryForEntries?: unknown
-    normalizeAudioLocale?: unknown
-    getPreferredAudioLanguage?: unknown
-    setWatchlistCacheRows?: unknown
-    isWatchlistPath?: unknown
-    renderCuratedPanel?: unknown
-    refreshCuratedLoadingIndicator?: unknown
-    watchlistRevalidateCooldownMs?: unknown
-    watchlistCacheSourceRevalidateCooldownMs?: unknown
-    metadataPriorityEntryCount?: unknown
-    metadataDeferredChunkSize?: unknown
-    metadataDeferredIdleTimeoutMs?: unknown
-    metadataDeferredHiddenDelayMs?: unknown
-    metadataViewportPriorityCount?: unknown
-  }
+    state?: unknown;
+    windowRef?: unknown;
+    documentRef?: unknown;
+    locationRef?: unknown;
+    runtimeEvent?: unknown;
+    getAccessToken?: unknown;
+    resetWatchlistCacheOnAccountMismatch?: unknown;
+    fetchAllWatchlistRows?: unknown;
+    normalizeEntriesFromApiRows?: unknown;
+    preloadRatingsForEntries?: unknown;
+    preloadWatchHistoryForEntries?: unknown;
+    normalizeAudioLocale?: unknown;
+    getPreferredAudioLanguage?: unknown;
+    setWatchlistCacheRows?: unknown;
+    isWatchlistPath?: unknown;
+    renderCuratedPanel?: unknown;
+    refreshCuratedLoadingIndicator?: unknown;
+    watchlistRevalidateCooldownMs?: unknown;
+    watchlistCacheSourceRevalidateCooldownMs?: unknown;
+    metadataPriorityEntryCount?: unknown;
+    metadataDeferredChunkSize?: unknown;
+    metadataDeferredIdleTimeoutMs?: unknown;
+    metadataDeferredHiddenDelayMs?: unknown;
+    metadataViewportPriorityCount?: unknown;
+  };
 
   type CuratedLoaderRuntime = {
-    loadCuratedEntries: (force?: boolean) => Promise<unknown[]>
-    ensureCuratedDataLoad: (force?: boolean) => Promise<unknown[]>
-  }
+    loadCuratedEntries: (force?: boolean) => Promise<unknown[]>;
+    ensureCuratedDataLoad: (force?: boolean) => Promise<unknown[]>;
+  };
 
   type CuratedLoaderDeferredMetadataRuntime = {
     splitMetadataPreloadEntries: (
       context: CuratedLoaderContext,
       entries: unknown[],
-    ) => { priorityEntries: unknown[]; deferredEntries: unknown[] }
+    ) => { priorityEntries: unknown[]; deferredEntries: unknown[] };
     queueDeferredMetadataPreload: (options: {
-      context: CuratedLoaderContext
-      deferredEntries: unknown[]
-      tokenEntry: TokenEntry
-      preloadMetadataForEntries: (entries: unknown[], tokenEntry: TokenEntry) => Promise<void>
-    }) => void
-  }
+      context: CuratedLoaderContext;
+      deferredEntries: unknown[];
+      tokenEntry: TokenEntry;
+      preloadMetadataForEntries: (entries: unknown[], tokenEntry: TokenEntry) => Promise<void>;
+    }) => void;
+  };
 
   type CuratedLoaderPendingRequestsRuntime = {
     syncPendingRequestDiagnostics: (
@@ -117,7 +118,7 @@
       >,
       activeRequests: string[],
       progress: PendingRequestProgress,
-    ) => void
+    ) => void;
     withTrackedPendingRequest: <T>(
       context: Pick<
         CuratedLoaderContext,
@@ -127,70 +128,70 @@
       progress: PendingRequestProgress,
       label: string,
       work: () => Promise<T>,
-    ) => Promise<T>
-  }
+    ) => Promise<T>;
+  };
 
   type CuratedLoaderLoadCycleRuntime = {
     runCuratedLoadCycle: (options: {
-      context: CuratedLoaderContext
-      deferredMetadataRuntime: CuratedLoaderDeferredMetadataRuntime
-      pendingRequestsRuntime: CuratedLoaderPendingRequestsRuntime
-      activeRequests: string[]
-      pendingProgress: PendingRequestProgress
-      force: boolean
-    }) => Promise<unknown[]>
-    handleCuratedLoadFailure: (context: CuratedLoaderContext, error: unknown) => unknown[]
-  }
+      context: CuratedLoaderContext;
+      deferredMetadataRuntime: CuratedLoaderDeferredMetadataRuntime;
+      pendingRequestsRuntime: CuratedLoaderPendingRequestsRuntime;
+      activeRequests: string[];
+      pendingProgress: PendingRequestProgress;
+      force: boolean;
+    }) => Promise<unknown[]>;
+    handleCuratedLoadFailure: (context: CuratedLoaderContext, error: unknown) => unknown[];
+  };
 
   type CuratedLoaderResolvedDependencies = Omit<
     CuratedLoaderContext,
     'state' | 'windowRef' | 'documentRef' | 'locationRef'
-  >
+  >;
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
   function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing curated loader dependency: ${name}`)
+      throw new Error(`[CW] Missing curated loader dependency: ${name}`);
     }
 
-    return value as T
+    return value as T;
   }
 
   function normalizePositiveNumber(value: unknown, fallback: number): number {
-    const number = Number(value)
+    const number = Number(value);
     if (!Number.isFinite(number) || number < 0) {
-      return fallback
+      return fallback;
     }
-    return Math.round(number)
+    return Math.round(number);
   }
 
   function resolveCuratedLoaderState(value: unknown): RuntimeState {
-    const state = value && typeof value === 'object' ? (value as RuntimeState) : null
+    const state = value && typeof value === 'object' ? (value as RuntimeState) : null;
     if (!state) {
-      throw new Error('[CW] Missing curated loader state')
+      throw new Error('[CW] Missing curated loader state');
     }
-    return state
+    return state;
   }
 
   function resolveCuratedLoaderLocationRef(value: unknown): Location {
-    const locationRef = value && typeof value === 'object' ? (value as Location) : null
+    const locationRef = value && typeof value === 'object' ? (value as Location) : null;
     if (!locationRef) {
-      throw new Error('[CW] Missing curated loader locationRef')
+      throw new Error('[CW] Missing curated loader locationRef');
     }
-    return locationRef
+    return locationRef;
   }
 
   function resolveCuratedLoaderWindowRef(value: unknown): Window {
-    return value && typeof value === 'object' ? (value as Window) : (root as Window)
+    return value && typeof value === 'object' ? (value as Window) : (root as Window);
   }
 
   function resolveCuratedLoaderDocumentRef(value: unknown): Document | null {
-    return value && typeof value === 'object' ? (value as Document) : null
+    return value && typeof value === 'object' ? (value as Document) : null;
   }
 
   function resolveCuratedLoaderRenderers(
@@ -199,16 +200,16 @@
     const renderCuratedPanel = requireFunction(
       'renderCuratedPanel',
       options.renderCuratedPanel,
-    ) as CuratedLoaderContext['renderCuratedPanel']
+    ) as CuratedLoaderContext['renderCuratedPanel'];
     const refreshCuratedLoadingIndicator =
       typeof options.refreshCuratedLoadingIndicator === 'function'
         ? (options.refreshCuratedLoadingIndicator as CuratedLoaderContext['refreshCuratedLoadingIndicator'])
-        : () => renderCuratedPanel()
+        : () => renderCuratedPanel();
 
     return {
       renderCuratedPanel,
       refreshCuratedLoadingIndicator,
-    }
+    };
   }
 
   function resolveCuratedLoaderDependencies(
@@ -269,53 +270,53 @@
       metadataDeferredHiddenDelayMs: Math.max(1, normalizePositiveNumber(options.metadataDeferredHiddenDelayMs, 900)),
       metadataViewportPriorityCount: Math.max(1, normalizePositiveNumber(options.metadataViewportPriorityCount, 24)),
       deferredMetadataRunId: 0,
-    }
+    };
   }
 
   function createCuratedLoaderContext(options: CuratedLoaderOptions = {}): CuratedLoaderContext {
-    const state = resolveCuratedLoaderState(options.state)
-    const locationRef = resolveCuratedLoaderLocationRef(options.locationRef)
-    const windowRef = resolveCuratedLoaderWindowRef(options.windowRef)
-    const documentRef = resolveCuratedLoaderDocumentRef(options.documentRef)
-    const renderers = resolveCuratedLoaderRenderers(options)
+    const state = resolveCuratedLoaderState(options.state);
+    const locationRef = resolveCuratedLoaderLocationRef(options.locationRef);
+    const windowRef = resolveCuratedLoaderWindowRef(options.windowRef);
+    const documentRef = resolveCuratedLoaderDocumentRef(options.documentRef);
+    const renderers = resolveCuratedLoaderRenderers(options);
     return {
       state,
       windowRef,
       documentRef,
       locationRef,
       ...resolveCuratedLoaderDependencies(options, renderers),
-    }
+    };
   }
 
   function createCuratedLoaderDeferredMetadataRuntime(): CuratedLoaderDeferredMetadataRuntime {
     const deferredMetadataModule = (moduleRegistry.runtimeCuratedLoaderDeferredMetadata || {}) as Record<
       string,
       unknown
-    >
+    >;
     return requireFunction<AnyFn>(
       'createCuratedLoaderDeferredMetadataRuntime',
       deferredMetadataModule.createCuratedLoaderDeferredMetadataRuntime,
-    )() as CuratedLoaderDeferredMetadataRuntime
+    )() as CuratedLoaderDeferredMetadataRuntime;
   }
 
   function createCuratedLoaderPendingRequestsRuntime(): CuratedLoaderPendingRequestsRuntime {
-    const pendingRequestsModule = (moduleRegistry.runtimeCuratedLoaderPendingRequests || {}) as Record<string, unknown>
+    const pendingRequestsModule = (moduleRegistry.runtimeCuratedLoaderPendingRequests || {}) as Record<string, unknown>;
     return requireFunction<AnyFn>(
       'createCuratedLoaderPendingRequestsRuntime',
       pendingRequestsModule.createCuratedLoaderPendingRequestsRuntime,
-    )() as CuratedLoaderPendingRequestsRuntime
+    )() as CuratedLoaderPendingRequestsRuntime;
   }
 
   function createCuratedLoaderLoadCycleRuntime(): CuratedLoaderLoadCycleRuntime {
-    const loadCycleModule = (moduleRegistry.runtimeCuratedLoaderLoadCycle || {}) as Record<string, unknown>
+    const loadCycleModule = (moduleRegistry.runtimeCuratedLoaderLoadCycle || {}) as Record<string, unknown>;
     return requireFunction<AnyFn>(
       'createCuratedLoaderLoadCycleRuntime',
       loadCycleModule.createCuratedLoaderLoadCycleRuntime,
-    )() as CuratedLoaderLoadCycleRuntime
+    )() as CuratedLoaderLoadCycleRuntime;
   }
 
   function hasPromiseFinally(value: unknown): value is Promise<unknown> {
-    return Boolean(value) && typeof (value as Promise<unknown>).finally === 'function'
+    return Boolean(value) && typeof (value as Promise<unknown>).finally === 'function';
   }
 
   function clearPendingRequestDiagnosticsInternal(
@@ -324,15 +325,15 @@
     activeRequests: string[],
     pendingProgress: PendingRequestProgress,
   ): void {
-    activeRequests.length = 0
-    pendingRequestsRuntime.syncPendingRequestDiagnostics(context, activeRequests, pendingProgress)
+    activeRequests.length = 0;
+    pendingRequestsRuntime.syncPendingRequestDiagnostics(context, activeRequests, pendingProgress);
   }
 
   function shouldMarkCuratedInitialLoadDone(context: CuratedLoaderContext): boolean {
-    const hasCuratedEntries = Array.isArray(context.state.curatedEntries) && context.state.curatedEntries.length > 0
-    const hasApiSource = context.state.curatedSource === 'api'
-    const hasLoadError = Boolean(context.state.curatedError)
-    return hasApiSource || hasCuratedEntries || !hasLoadError
+    const hasCuratedEntries = Array.isArray(context.state.curatedEntries) && context.state.curatedEntries.length > 0;
+    const hasApiSource = context.state.curatedSource === 'api';
+    const hasLoadError = Boolean(context.state.curatedError);
+    return hasApiSource || hasCuratedEntries || !hasLoadError;
   }
 
   function finalizeCuratedLoadInflightInternal(
@@ -341,10 +342,10 @@
     activeRequests: string[],
     pendingProgress: PendingRequestProgress,
   ): void {
-    context.state.curatedInflight = null
-    clearPendingRequestDiagnosticsInternal(context, pendingRequestsRuntime, activeRequests, pendingProgress)
+    context.state.curatedInflight = null;
+    clearPendingRequestDiagnosticsInternal(context, pendingRequestsRuntime, activeRequests, pendingProgress);
     if (context.state.curatedInitialLoadDone !== true && shouldMarkCuratedInitialLoadDone(context)) {
-      context.state.curatedInitialLoadDone = true
+      context.state.curatedInitialLoadDone = true;
     }
   }
 
@@ -356,8 +357,8 @@
     pendingProgress: PendingRequestProgress,
   ): Promise<unknown[]> {
     return inflight.finally(() => {
-      finalizeCuratedLoadInflightInternal(context, pendingRequestsRuntime, activeRequests, pendingProgress)
-    })
+      finalizeCuratedLoadInflightInternal(context, pendingRequestsRuntime, activeRequests, pendingProgress);
+    });
   }
 
   function loadCuratedEntriesInternal(
@@ -368,14 +369,14 @@
     force = false,
   ): Promise<unknown[]> {
     if (context.state.curatedInflight) {
-      return context.state.curatedInflight
+      return context.state.curatedInflight;
     }
 
-    const activeRequests: string[] = []
+    const activeRequests: string[] = [];
     const pendingProgress: PendingRequestProgress = {
       started: 0,
       completed: 0,
-    }
+    };
     const inflight = loadCycleRuntime
       .runCuratedLoadCycle({
         context,
@@ -385,52 +386,52 @@
         pendingProgress,
         force,
       })
-      .catch((error: unknown) => loadCycleRuntime.handleCuratedLoadFailure(context, error))
+      .catch((error: unknown) => loadCycleRuntime.handleCuratedLoadFailure(context, error));
     const trackedInflight = ensureCuratedPromiseLoadedStateInternal(
       context,
       pendingRequestsRuntime,
       inflight,
       activeRequests,
       pendingProgress,
-    )
+    );
 
-    context.state.curatedInflight = trackedInflight
-    return trackedInflight
+    context.state.curatedInflight = trackedInflight;
+    return trackedInflight;
   }
 
   function shouldBackgroundRevalidateCuratedInternal(context: CuratedLoaderContext): boolean {
     if (context.state.curatedInflight || !context.state.curatedEntries.length) {
-      return false
+      return false;
     }
 
-    const now = Date.now()
+    const now = Date.now();
     if (context.state.curatedSource === 'cache') {
-      return now - context.state.curatedLastRevalidateAt > context.watchlistCacheSourceRevalidateCooldownMs
+      return now - context.state.curatedLastRevalidateAt > context.watchlistCacheSourceRevalidateCooldownMs;
     }
 
-    return now - context.state.curatedLastRevalidateAt > context.watchlistRevalidateCooldownMs
+    return now - context.state.curatedLastRevalidateAt > context.watchlistRevalidateCooldownMs;
   }
 
   function observeCuratedLoadPromiseInternal(context: CuratedLoaderContext, promise: unknown): void {
     if (!hasPromiseFinally(promise)) {
-      return
+      return;
     }
 
     if (context.state.curatedObservedPromise === promise) {
-      return
+      return;
     }
 
-    context.state.curatedObservedPromise = promise as Promise<unknown[]>
+    context.state.curatedObservedPromise = promise as Promise<unknown[]>;
     promise.finally(() => {
       if (context.state.curatedObservedPromise === promise) {
-        context.state.curatedObservedPromise = null
+        context.state.curatedObservedPromise = null;
       }
 
       if (!context.state.mounted || !context.isWatchlistPath(context.locationRef.pathname)) {
-        return
+        return;
       }
-      context.renderCuratedPanel()
-    })
+      context.renderCuratedPanel();
+    });
   }
 
   function ensureCuratedDataLoadInternal(
@@ -448,10 +449,10 @@
           pendingRequestsRuntime,
           loadCycleRuntime,
           false,
-        )
-        observeCuratedLoadPromiseInternal(context, backgroundPromise)
+        );
+        observeCuratedLoadPromiseInternal(context, backgroundPromise);
       }
-      return Promise.resolve(context.state.curatedEntries)
+      return Promise.resolve(context.state.curatedEntries);
     }
 
     const promise = loadCuratedEntriesInternal(
@@ -460,16 +461,16 @@
       pendingRequestsRuntime,
       loadCycleRuntime,
       force,
-    )
-    observeCuratedLoadPromiseInternal(context, promise)
-    return promise
+    );
+    observeCuratedLoadPromiseInternal(context, promise);
+    return promise;
   }
 
   function createCuratedLoaderRuntime(options: CuratedLoaderOptions = {}): CuratedLoaderRuntime {
-    const context = createCuratedLoaderContext(options)
-    const deferredMetadataRuntime = createCuratedLoaderDeferredMetadataRuntime()
-    const pendingRequestsRuntime = createCuratedLoaderPendingRequestsRuntime()
-    const loadCycleRuntime = createCuratedLoaderLoadCycleRuntime()
+    const context = createCuratedLoaderContext(options);
+    const deferredMetadataRuntime = createCuratedLoaderDeferredMetadataRuntime();
+    const pendingRequestsRuntime = createCuratedLoaderPendingRequestsRuntime();
+    const loadCycleRuntime = createCuratedLoaderLoadCycleRuntime();
     return {
       loadCuratedEntries: (force = false) =>
         loadCuratedEntriesInternal(context, deferredMetadataRuntime, pendingRequestsRuntime, loadCycleRuntime, force),
@@ -481,10 +482,10 @@
           loadCycleRuntime,
           force,
         ),
-    }
+    };
   }
 
   moduleRegistry.runtimeCuratedLoader = {
     createCuratedLoaderRuntime,
-  }
-})()
+  };
+})();

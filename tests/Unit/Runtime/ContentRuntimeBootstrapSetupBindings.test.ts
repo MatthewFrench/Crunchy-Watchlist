@@ -1,45 +1,45 @@
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type RuntimeSetupBindingsRuntime = {
-  createRuntimeSetupOptions: (options: Record<string, unknown>) => Record<string, unknown>
+  createRuntimeSetupOptions: (options: Record<string, unknown>) => Record<string, unknown>;
   applyRuntimeSetupBindings: (options: {
-    runtimeSetupResult: Record<string, unknown>
-    setRuntimeEvent: (nextRuntimeEvent: (...args: unknown[]) => unknown) => void
-    setRuntimeSetupBindings: (runtimeSetupBindings: Record<string, unknown>) => void
-  }) => void
-}
+    runtimeSetupResult: Record<string, unknown>;
+    setRuntimeEvent: (nextRuntimeEvent: (...args: unknown[]) => unknown) => void;
+    setRuntimeSetupBindings: (runtimeSetupBindings: Record<string, unknown>) => void;
+  }) => void;
+};
 
 type RuntimeSetupBindingsModule = {
   runtimeContentRuntimeBootstrapSetupBindings: {
-    createContentRuntimeBootstrapSetupBindingsRuntime: () => RuntimeSetupBindingsRuntime
-  }
-}
+    createContentRuntimeBootstrapSetupBindingsRuntime: () => RuntimeSetupBindingsRuntime;
+  };
+};
 
 const setupBindingsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentRuntimeBootstrapSetupBindings.ts'),
-).href
+).href;
 
 function getRuntimeSetupBindingsRuntime(): RuntimeSetupBindingsRuntime {
   const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as RuntimeSetupBindingsModule
-  return registry.runtimeContentRuntimeBootstrapSetupBindings.createContentRuntimeBootstrapSetupBindingsRuntime()
+    .__CW_WATCHLIST_CURATOR_MODULES__ as RuntimeSetupBindingsModule;
+  return registry.runtimeContentRuntimeBootstrapSetupBindings.createContentRuntimeBootstrapSetupBindingsRuntime();
 }
 
 describe('content-runtime-bootstrap-setup-bindings runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([setupBindingsModuleUrl])
-  })
+    await loadRuntimeModules([setupBindingsModuleUrl]);
+  });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry()
-    vi.restoreAllMocks()
-  })
+    clearRuntimeModulesRegistry();
+    vi.restoreAllMocks();
+  });
 
   it('builds runtime setup options with module bindings and runtime dependencies', () => {
-    const runtime = getRuntimeSetupBindingsRuntime()
+    const runtime = getRuntimeSetupBindingsRuntime();
     const runtimeSetupOptions = runtime.createRuntimeSetupOptions({
       windowRef: { document: {} },
       state: { mounted: false },
@@ -65,24 +65,24 @@ describe('content-runtime-bootstrap-setup-bindings runtime', () => {
         runtimeCuratedLoaderModule: { marker: 'loader' },
         runtimeDebugModule: { marker: 'debug' },
       },
-    })
+    });
 
-    expect(runtimeSetupOptions.runtimeTraceModule).toEqual({ marker: 'trace' })
-    expect(runtimeSetupOptions.runtimePreferredAudioModule).toEqual({ marker: 'preferred-audio' })
-    expect(runtimeSetupOptions.storageModule).toEqual({ marker: 'storage' })
-    expect(runtimeSetupOptions.runtimeCuratedLoaderModule).toEqual({ marker: 'loader' })
-    expect(runtimeSetupOptions.runtimeDebugModule).toEqual({ marker: 'debug' })
-    expect(runtimeSetupOptions.defaultSortMode).toBe('recentActivity')
-    expect(runtimeSetupOptions.defaultSettings).toEqual({ cardLayout: 'portrait' })
-    expect(runtimeSetupOptions.runtimeContentCompositionModule).toEqual({ marker: 'composition' })
-    expect(runtimeSetupOptions.createWatchlistCacheSnapshot).toBeTypeOf('function')
-  })
+    expect(runtimeSetupOptions.runtimeTraceModule).toEqual({ marker: 'trace' });
+    expect(runtimeSetupOptions.runtimePreferredAudioModule).toEqual({ marker: 'preferred-audio' });
+    expect(runtimeSetupOptions.storageModule).toEqual({ marker: 'storage' });
+    expect(runtimeSetupOptions.runtimeCuratedLoaderModule).toEqual({ marker: 'loader' });
+    expect(runtimeSetupOptions.runtimeDebugModule).toEqual({ marker: 'debug' });
+    expect(runtimeSetupOptions.defaultSortMode).toBe('recentActivity');
+    expect(runtimeSetupOptions.defaultSettings).toEqual({ cardLayout: 'portrait' });
+    expect(runtimeSetupOptions.runtimeContentCompositionModule).toEqual({ marker: 'composition' });
+    expect(runtimeSetupOptions.createWatchlistCacheSnapshot).toBeTypeOf('function');
+  });
 
   it('applies runtime setup bindings using known keys and ignores unexpected fields', () => {
-    const runtime = getRuntimeSetupBindingsRuntime()
-    const runtimeEvent = vi.fn()
-    const setRuntimeEvent = vi.fn()
-    const setRuntimeSetupBindings = vi.fn()
+    const runtime = getRuntimeSetupBindingsRuntime();
+    const runtimeEvent = vi.fn();
+    const setRuntimeEvent = vi.fn();
+    const setRuntimeSetupBindings = vi.fn();
 
     runtime.applyRuntimeSetupBindings({
       runtimeSetupResult: {
@@ -94,16 +94,16 @@ describe('content-runtime-bootstrap-setup-bindings runtime', () => {
       },
       setRuntimeEvent,
       setRuntimeSetupBindings,
-    })
+    });
 
-    expect(setRuntimeEvent).toHaveBeenCalledWith(runtimeEvent)
-    expect(setRuntimeSetupBindings).toHaveBeenCalledTimes(1)
+    expect(setRuntimeEvent).toHaveBeenCalledWith(runtimeEvent);
+    expect(setRuntimeSetupBindings).toHaveBeenCalledTimes(1);
 
-    const runtimeSetupBindings = setRuntimeSetupBindings.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(runtimeSetupBindings.runtimeEvent).toBe(runtimeEvent)
-    expect(runtimeSetupBindings.getAccessToken).toBeTypeOf('function')
-    expect(runtimeSetupBindings.ensureCuratedDataLoad).toBeTypeOf('function')
-    expect(runtimeSetupBindings.setWatchlistCacheRows).toBeTypeOf('function')
-    expect(runtimeSetupBindings.extraField).toBeUndefined()
-  })
-})
+    const runtimeSetupBindings = setRuntimeSetupBindings.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(runtimeSetupBindings.runtimeEvent).toBe(runtimeEvent);
+    expect(runtimeSetupBindings.getAccessToken).toBeTypeOf('function');
+    expect(runtimeSetupBindings.ensureCuratedDataLoad).toBeTypeOf('function');
+    expect(runtimeSetupBindings.setWatchlistCacheRows).toBeTypeOf('function');
+    expect(runtimeSetupBindings.extraField).toBeUndefined();
+  });
+});

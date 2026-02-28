@@ -1,45 +1,45 @@
-;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
+(() => {
+  type AnyFn = (...args: unknown[]) => unknown;
 
   type NativeBridgeContext = {
-    documentRef: Document
-    windowRef: Window
-    runtimeEvent: (event: string, data?: unknown) => void
-    nativeActionBridgeRuntime: NativeActionBridgeRuntime
-    getAccessToken: (forceRefresh?: boolean) => Promise<TokenEntry | null>
-    fetchWithResilience: FetchWithResilience
-    createAuthRefreshHandler: (tokenEntry: TokenEntry | null) => unknown
-    resolveApiHref: (pathWithQuery: string) => string
-    normalizeImageUrlCandidate: (value: unknown) => string
-    fetchPreviewUrlForEntry: (entry: unknown) => Promise<unknown>
-    isLikelyVideoUrl: (url: unknown) => boolean
-    previewHoverDelayMs: number
-  }
+    documentRef: Document;
+    windowRef: Window;
+    runtimeEvent: (event: string, data?: unknown) => void;
+    nativeActionBridgeRuntime: NativeActionBridgeRuntime;
+    getAccessToken: (forceRefresh?: boolean) => Promise<TokenEntry | null>;
+    fetchWithResilience: FetchWithResilience;
+    createAuthRefreshHandler: (tokenEntry: TokenEntry | null) => unknown;
+    resolveApiHref: (pathWithQuery: string) => string;
+    normalizeImageUrlCandidate: (value: unknown) => string;
+    fetchPreviewUrlForEntry: (entry: unknown) => Promise<unknown>;
+    isLikelyVideoUrl: (url: unknown) => boolean;
+    previewHoverDelayMs: number;
+  };
 
   type NativeBridgeOptions = {
-    documentRef?: unknown
-    windowRef?: unknown
-    runtimeEvent?: unknown
-    getAccessToken?: unknown
-    fetchWithResilience?: unknown
-    createAuthRefreshHandler?: unknown
-    resolveApiHref?: unknown
-    normalizeImageUrlCandidate?: unknown
-    fetchPreviewUrlForEntry?: unknown
-    isLikelyVideoUrl?: unknown
-    previewHoverDelayMs?: unknown
-  }
+    documentRef?: unknown;
+    windowRef?: unknown;
+    runtimeEvent?: unknown;
+    getAccessToken?: unknown;
+    fetchWithResilience?: unknown;
+    createAuthRefreshHandler?: unknown;
+    resolveApiHref?: unknown;
+    normalizeImageUrlCandidate?: unknown;
+    fetchPreviewUrlForEntry?: unknown;
+    isLikelyVideoUrl?: unknown;
+    previewHoverDelayMs?: unknown;
+  };
 
   type NativeBridgeRuntime = {
-    triggerNativeCardAction: (seriesId: unknown, actionType: unknown, favoriteValue?: unknown) => Promise<boolean>
+    triggerNativeCardAction: (seriesId: unknown, actionType: unknown, favoriteValue?: unknown) => Promise<boolean>;
     installCuratedCardPreview: (
       thumbLink: unknown,
       entry: unknown,
       coverImageUrl: unknown,
       hoverPreviewImageUrl: unknown,
       thumbImage: unknown,
-    ) => void
-  }
+    ) => void;
+  };
 
   type NativeBridgePreviewRuntime = {
     installCuratedCardPreview: (
@@ -48,113 +48,113 @@
       coverImageUrl: unknown,
       hoverPreviewImageUrl: unknown,
       thumbImage: unknown,
-    ) => void
-  }
+    ) => void;
+  };
 
   type NativeBridgePreviewModule = {
-    createNativeBridgePreviewRuntime: (options: Record<string, unknown>) => NativeBridgePreviewRuntime
-  }
+    createNativeBridgePreviewRuntime: (options: Record<string, unknown>) => NativeBridgePreviewRuntime;
+  };
 
   type TokenEntry = {
-    accountId?: unknown
-    accessToken?: unknown
-  } & Record<string, unknown>
+    accountId?: unknown;
+    accessToken?: unknown;
+  } & Record<string, unknown>;
 
   type FetchWithResilience = (
     url: string,
     requestInit: RequestInit,
     options: {
-      label: string
-      bearerToken?: string
-      refreshBearerToken?: unknown
+      label: string;
+      bearerToken?: string;
+      refreshBearerToken?: unknown;
     },
-  ) => Promise<Response>
+  ) => Promise<Response>;
 
-  type NativeActionType = 'favorite' | 'remove'
+  type NativeActionType = 'favorite' | 'remove';
 
   type NativeActionBridgeRuntime = {
-    findNativeCardBySeriesId: (seriesId: unknown) => HTMLElement | null
-  }
+    findNativeCardBySeriesId: (seriesId: unknown) => HTMLElement | null;
+  };
 
   type NativeActionBridgeModule = {
-    createNativeActionBridgeRuntime: (options: Record<string, unknown>) => NativeActionBridgeRuntime
-  }
+    createNativeActionBridgeRuntime: (options: Record<string, unknown>) => NativeActionBridgeRuntime;
+  };
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
   function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing native bridge dependency: ${name}`)
+      throw new Error(`[CW] Missing native bridge dependency: ${name}`);
     }
-    return value as T
+    return value as T;
   }
 
   function resolveDocumentRef(value: unknown): Document {
     if (!value || typeof value !== 'object') {
-      throw new Error('[CW] Missing native bridge documentRef')
+      throw new Error('[CW] Missing native bridge documentRef');
     }
-    return value as Document
+    return value as Document;
   }
 
   function resolveWindowRef(value: unknown): Window {
     if (!value || typeof value !== 'object') {
-      throw new Error('[CW] Missing native bridge windowRef')
+      throw new Error('[CW] Missing native bridge windowRef');
     }
-    return value as Window
+    return value as Window;
   }
 
   function normalizePositiveNumber(value: unknown, fallback: number): number {
-    const number = Number(value)
+    const number = Number(value);
     if (!Number.isFinite(number) || number <= 0) {
-      return fallback
+      return fallback;
     }
-    return Math.round(number)
+    return Math.round(number);
   }
 
   function getString(value: unknown): string {
-    return typeof value === 'string' ? value.trim() : ''
+    return typeof value === 'string' ? value.trim() : '';
   }
 
   function resolveNativeActionBridgeRuntime(
     documentRef: Document,
     runtimeEvent: NativeBridgeContext['runtimeEvent'],
   ): NativeActionBridgeRuntime {
-    const nativeActionBridgeModule = moduleRegistry.runtimeNativeActionBridge
+    const nativeActionBridgeModule = moduleRegistry.runtimeNativeActionBridge;
     if (!nativeActionBridgeModule || typeof nativeActionBridgeModule !== 'object') {
-      throw new Error('[CW] Missing native action bridge module')
+      throw new Error('[CW] Missing native action bridge module');
     }
 
     const createNativeActionBridgeRuntime = requireFunction(
       'createNativeActionBridgeRuntime',
       (nativeActionBridgeModule as NativeActionBridgeModule).createNativeActionBridgeRuntime,
-    ) as NativeActionBridgeModule['createNativeActionBridgeRuntime']
+    ) as NativeActionBridgeModule['createNativeActionBridgeRuntime'];
     const nativeActionBridgeRuntime = createNativeActionBridgeRuntime({
       documentRef,
       runtimeEvent,
-    })
+    });
 
     return {
       findNativeCardBySeriesId: requireFunction(
         'runtimeNativeActionBridge.findNativeCardBySeriesId',
         nativeActionBridgeRuntime.findNativeCardBySeriesId,
       ) as NativeActionBridgeRuntime['findNativeCardBySeriesId'],
-    }
+    };
   }
 
   function resolveNativeBridgePreviewRuntime(context: NativeBridgeContext): NativeBridgePreviewRuntime {
-    const nativeBridgePreviewModule = moduleRegistry.runtimeNativeBridgePreview
+    const nativeBridgePreviewModule = moduleRegistry.runtimeNativeBridgePreview;
     if (!nativeBridgePreviewModule || typeof nativeBridgePreviewModule !== 'object') {
-      throw new Error('[CW] Missing native bridge preview module')
+      throw new Error('[CW] Missing native bridge preview module');
     }
 
     const createNativeBridgePreviewRuntime = requireFunction(
       'createNativeBridgePreviewRuntime',
       (nativeBridgePreviewModule as NativeBridgePreviewModule).createNativeBridgePreviewRuntime,
-    ) as NativeBridgePreviewModule['createNativeBridgePreviewRuntime']
+    ) as NativeBridgePreviewModule['createNativeBridgePreviewRuntime'];
     const nativeBridgePreviewRuntime = createNativeBridgePreviewRuntime({
       windowRef: context.windowRef,
       nativeActionBridgeRuntime: context.nativeActionBridgeRuntime,
@@ -162,19 +162,19 @@
       fetchPreviewUrlForEntry: context.fetchPreviewUrlForEntry,
       isLikelyVideoUrl: context.isLikelyVideoUrl,
       previewHoverDelayMs: context.previewHoverDelayMs,
-    })
+    });
 
     return {
       installCuratedCardPreview: requireFunction(
         'runtimeNativeBridgePreview.installCuratedCardPreview',
         nativeBridgePreviewRuntime.installCuratedCardPreview,
       ) as NativeBridgePreviewRuntime['installCuratedCardPreview'],
-    }
+    };
   }
 
   function createNativeBridgeContext(options: NativeBridgeOptions = {}): NativeBridgeContext {
-    const documentRef = resolveDocumentRef(options.documentRef)
-    const runtimeEvent = requireFunction('runtimeEvent', options.runtimeEvent) as NativeBridgeContext['runtimeEvent']
+    const documentRef = resolveDocumentRef(options.documentRef);
+    const runtimeEvent = requireFunction('runtimeEvent', options.runtimeEvent) as NativeBridgeContext['runtimeEvent'];
 
     return {
       documentRef,
@@ -210,28 +210,28 @@
         options.isLikelyVideoUrl,
       ) as NativeBridgeContext['isLikelyVideoUrl'],
       previewHoverDelayMs: normalizePositiveNumber(options.previewHoverDelayMs, 220),
-    }
+    };
   }
 
   function toTokenEntry(value: unknown): TokenEntry | null {
     if (!value || typeof value !== 'object') {
-      return null
+      return null;
     }
-    return value as TokenEntry
+    return value as TokenEntry;
   }
 
   function toActionType(value: unknown): NativeActionType | null {
-    const actionType = getString(value).toLowerCase()
+    const actionType = getString(value).toLowerCase();
     if (actionType === 'favorite' || actionType === 'remove') {
-      return actionType
+      return actionType;
     }
-    return null
+    return null;
   }
 
   function createWatchlistActionUrl(context: NativeBridgeContext, accountId: string, seriesId: string): string {
     return context.resolveApiHref(
       `/content/v2/${encodeURIComponent(accountId)}/watchlist/${encodeURIComponent(seriesId)}`,
-    )
+    );
   }
 
   function createWatchlistActionRequestOptions(
@@ -239,30 +239,30 @@
     tokenEntry: TokenEntry | null,
     actionType: NativeActionType,
   ): {
-    label: string
-    bearerToken?: string
-    refreshBearerToken?: unknown
+    label: string;
+    bearerToken?: string;
+    refreshBearerToken?: unknown;
   } {
     const requestOptions: {
-      label: string
-      bearerToken?: string
-      refreshBearerToken?: unknown
+      label: string;
+      bearerToken?: string;
+      refreshBearerToken?: unknown;
     } = {
       label: actionType === 'favorite' ? 'watchlist favorite request' : 'watchlist remove request',
       refreshBearerToken: context.createAuthRefreshHandler(tokenEntry),
-    }
+    };
 
     if (typeof tokenEntry?.accessToken === 'string' && tokenEntry.accessToken) {
-      requestOptions.bearerToken = tokenEntry.accessToken
+      requestOptions.bearerToken = tokenEntry.accessToken;
     }
 
-    return requestOptions
+    return requestOptions;
   }
 
   function createWatchlistActionRequestInit(actionType: NativeActionType, favoriteValue: unknown): RequestInit | null {
     if (actionType === 'favorite') {
       if (typeof favoriteValue !== 'boolean') {
-        return null
+        return null;
       }
 
       return {
@@ -274,13 +274,13 @@
         body: JSON.stringify({
           is_favorite: favoriteValue,
         }),
-      }
+      };
     }
 
     return {
       method: 'DELETE',
       credentials: 'include',
-    }
+    };
   }
 
   async function triggerNativeCardActionInternal(
@@ -289,63 +289,63 @@
     actionTypeValue: unknown,
     favoriteValue: unknown,
   ): Promise<boolean> {
-    const seriesId = getString(seriesIdValue)
-    const actionType = toActionType(actionTypeValue)
+    const seriesId = getString(seriesIdValue);
+    const actionType = toActionType(actionTypeValue);
     if (!seriesId || !actionType) {
-      return false
+      return false;
     }
 
-    const requestInit = createWatchlistActionRequestInit(actionType, favoriteValue)
+    const requestInit = createWatchlistActionRequestInit(actionType, favoriteValue);
     if (!requestInit) {
       context.runtimeEvent('watchlist-action-invalid-request', {
         seriesId,
         actionType,
-      })
-      return false
+      });
+      return false;
     }
 
-    const tokenEntry = toTokenEntry(await context.getAccessToken(false))
-    const accountId = getString(tokenEntry?.accountId)
+    const tokenEntry = toTokenEntry(await context.getAccessToken(false));
+    const accountId = getString(tokenEntry?.accountId);
     if (!accountId) {
       context.runtimeEvent('watchlist-action-missing-account-id', {
         seriesId,
         actionType,
-      })
-      return false
+      });
+      return false;
     }
 
-    const requestUrl = createWatchlistActionUrl(context, accountId, seriesId)
-    const requestOptions = createWatchlistActionRequestOptions(context, tokenEntry, actionType)
+    const requestUrl = createWatchlistActionUrl(context, accountId, seriesId);
+    const requestOptions = createWatchlistActionRequestOptions(context, tokenEntry, actionType);
 
     try {
-      const response = await context.fetchWithResilience(requestUrl, requestInit, requestOptions)
+      const response = await context.fetchWithResilience(requestUrl, requestInit, requestOptions);
       if (!response.ok) {
         context.runtimeEvent('watchlist-action-failed', {
           seriesId,
           actionType,
           status: response.status,
-        })
-        return false
+        });
+        return false;
       }
 
       context.runtimeEvent('watchlist-action-complete', {
         seriesId,
         actionType,
-      })
-      return true
+      });
+      return true;
     } catch (error) {
       context.runtimeEvent('watchlist-action-failed', {
         seriesId,
         actionType,
         message: error instanceof Error ? error.message : 'unknown',
-      })
-      return false
+      });
+      return false;
     }
   }
 
   function createNativeBridgeRuntime(options: NativeBridgeOptions = {}): NativeBridgeRuntime {
-    const context = createNativeBridgeContext(options)
-    const nativeBridgePreviewRuntime = resolveNativeBridgePreviewRuntime(context)
+    const context = createNativeBridgeContext(options);
+    const nativeBridgePreviewRuntime = resolveNativeBridgePreviewRuntime(context);
 
     return {
       triggerNativeCardAction: (seriesId, actionType, favoriteValue) =>
@@ -357,12 +357,12 @@
           coverImageUrl,
           hoverPreviewImageUrl,
           thumbImage,
-        )
+        );
       },
-    }
+    };
   }
 
   moduleRegistry.runtimeNativeBridge = {
     createNativeBridgeRuntime,
-  }
-})()
+  };
+})();

@@ -1,42 +1,42 @@
-;(() => {
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+(() => {
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
 
   function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing history preload dependency: ${name}`)
+      throw new Error(`[CW] Missing history preload dependency: ${name}`);
     }
-    return value as T
+    return value as T;
   }
 
   function toWatchHistoryState(value: unknown): WatchHistoryState | null {
-    return value && typeof value === 'object' ? (value as WatchHistoryState) : null
+    return value && typeof value === 'object' ? (value as WatchHistoryState) : null;
   }
 
   function toTokenEntry(value: unknown): TokenEntry {
-    return value && typeof value === 'object' ? (value as TokenEntry) : {}
+    return value && typeof value === 'object' ? (value as TokenEntry) : {};
   }
 
   function toRecord(value: unknown): LooseRecord {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return {}
+      return {};
     }
-    return value as LooseRecord
+    return value as LooseRecord;
   }
 
   function toHistoryPreloadEntries(value: unknown): HistoryPreloadEntry[] {
     return Array.isArray(value)
       ? value.filter((entry): entry is HistoryPreloadEntry => !!entry && typeof entry === 'object')
-      : []
+      : [];
   }
 
   function requireContextFunction<
     K extends keyof HistoryRepositoryPreloadContext & keyof HistoryRepositoryPreloadOptions,
   >(options: HistoryRepositoryPreloadOptions, name: K): HistoryRepositoryPreloadContext[K] {
-    return requireFunction(String(name), options[name]) as HistoryRepositoryPreloadContext[K]
+    return requireFunction(String(name), options[name]) as HistoryRepositoryPreloadContext[K];
   }
 
   function resolveRequiredHistoryRepositoryPreloadDependencies(
@@ -83,19 +83,19 @@
       shouldReplaceWatchHistoryProgress: requireContextFunction(options, 'shouldReplaceWatchHistoryProgress'),
       getCachedWatchHistory: requireContextFunction(options, 'getCachedWatchHistory'),
       scheduleSaveWatchHistory: requireContextFunction(options, 'scheduleSaveWatchHistory'),
-    }
+    };
   }
 
   function createHistoryRepositoryPreloadContext(
     options: HistoryRepositoryPreloadOptions = {},
   ): HistoryRepositoryPreloadContext {
-    const state = toWatchHistoryState(options.state)
+    const state = toWatchHistoryState(options.state);
     if (!state) {
-      throw new Error('[CW] Missing history repository state')
+      throw new Error('[CW] Missing history repository state');
     }
 
-    const planningModule = toRecord(moduleRegistry.historyRepositoryPreloadPlanning)
-    const collectorModule = toRecord(moduleRegistry.historyRepositoryPreloadCollector)
+    const planningModule = toRecord(moduleRegistry.historyRepositoryPreloadPlanning);
+    const collectorModule = toRecord(moduleRegistry.historyRepositoryPreloadCollector);
 
     return {
       state,
@@ -124,7 +124,7 @@
       watchHistoryPageSize: Math.max(1, Number(options.watchHistoryPageSize) || 1),
       watchHistoryMaxPages: Math.max(1, Number(options.watchHistoryMaxPages) || 1),
       watchHistoryNoMatchPageLimit: Math.max(1, Number(options.watchHistoryNoMatchPageLimit) || 1),
-    }
+    };
   }
 
   function requireHistoryAccountId(
@@ -132,16 +132,16 @@
     tokenEntry: TokenEntry,
     pageNumber: number,
   ): string {
-    const accountId = typeof tokenEntry?.accountId === 'string' ? tokenEntry.accountId : ''
+    const accountId = typeof tokenEntry?.accountId === 'string' ? tokenEntry.accountId : '';
     if (accountId) {
-      return accountId
+      return accountId;
     }
 
     context.runtimeEvent('watch-history-contract-warning', {
       reason: 'missing-account-id',
       page: Math.max(1, Number(pageNumber) || 1),
-    })
-    throw new Error('watch history request missing account id')
+    });
+    throw new Error('watch history request missing account id');
   }
 
   function createWatchHistoryRequestParams(
@@ -150,16 +150,16 @@
     preferredAudioLanguage: unknown,
   ): URLSearchParams {
     const effectivePreferredAudioLanguage =
-      context.normalizeAudioLocale(preferredAudioLanguage) || context.getPreferredAudioLanguage()
+      context.normalizeAudioLocale(preferredAudioLanguage) || context.getPreferredAudioLanguage();
     const params = new root.URLSearchParams({
       page_size: String(context.watchHistoryPageSize),
       preferred_audio_language: effectivePreferredAudioLanguage,
       locale: context.getLocale(),
-    })
+    });
     if (pageNumber > 1) {
-      params.set('page', String(pageNumber))
+      params.set('page', String(pageNumber));
     }
-    return params
+    return params;
   }
 
   async function parseWatchHistoryPayload(
@@ -169,14 +169,14 @@
     requestUrl: string,
   ): Promise<unknown> {
     try {
-      return await response.json()
+      return await response.json();
     } catch (_) {
       context.runtimeEvent('watch-history-contract-warning', {
         reason: 'invalid-json-payload',
         page: Math.max(1, Number(pageNumber) || 1),
         requestUrl,
-      })
-      throw new Error('watch history page payload parse failed')
+      });
+      throw new Error('watch history page payload parse failed');
     }
   }
 
@@ -186,13 +186,13 @@
     pageNumber: number,
     preferredAudioLanguage: unknown = context.getPreferredAudioLanguage(),
   ): Promise<{ rows: LooseRecord[]; total: number }> {
-    const accountId = requireHistoryAccountId(context, tokenEntry, pageNumber)
-    const resolvedPageNumber = Math.max(1, Number(pageNumber) || 1)
-    const params = createWatchHistoryRequestParams(context, pageNumber, preferredAudioLanguage)
+    const accountId = requireHistoryAccountId(context, tokenEntry, pageNumber);
+    const resolvedPageNumber = Math.max(1, Number(pageNumber) || 1);
+    const params = createWatchHistoryRequestParams(context, pageNumber, preferredAudioLanguage);
 
     const url = context.resolveApiHref(
       `/content/v2/${encodeURIComponent(accountId)}/watch-history?${params.toString()}`,
-    )
+    );
     const response = await context.fetchWithResilience(
       url,
       {
@@ -203,22 +203,22 @@
         bearerToken: tokenEntry?.accessToken,
         refreshBearerToken: context.createAuthRefreshHandler(tokenEntry),
       },
-    )
+    );
 
     if (!response.ok) {
-      throw new Error(`watch history page request failed: ${response.status}`)
+      throw new Error(`watch history page request failed: ${response.status}`);
     }
 
-    const payload = await parseWatchHistoryPayload(context, response, pageNumber, url)
-    const rows = context.requirePayloadDataArray('watch-history', payload)
-    context.auditWatchHistoryRowsContract(rows)
+    const payload = await parseWatchHistoryPayload(context, response, pageNumber, url);
+    const rows = context.requirePayloadDataArray('watch-history', payload);
+    context.auditWatchHistoryRowsContract(rows);
     const total = context.getHistoryPayloadTotal({
       payload,
       fallback: rows.length,
       pageNumber,
       requestUrl: url,
       runtimeEvent: context.runtimeEvent,
-    })
+    });
 
     context.pushApiTrace('watchHistory', {
       at: Date.now(),
@@ -234,12 +234,12 @@
         rowCount: rows.length,
       },
       data: rows,
-    })
+    });
 
     return {
       rows,
       total,
-    }
+    };
   }
 
   function mergeWatchHistoryCacheWithBucketsInternal(
@@ -248,71 +248,71 @@
     buckets: HistoryUpdateBuckets,
     isDefaultPreferredAudio: boolean,
   ): {
-    bySeriesId: Record<string, WatchHistoryEntry>
-    bySeriesIdAudioLocale: Record<string, WatchHistoryLocaleMap>
-    bySeriesIdProgress: Record<string, WatchHistoryEntry>
-    bySeriesIdAudioLocaleProgress: Record<string, WatchHistoryLocaleMap>
-    mappedSeries: number
-    mappedSeriesByAudioLocale: number
-    mappedProgressSeries: number
-    mappedProgressSeriesByAudioLocale: number
+    bySeriesId: Record<string, WatchHistoryEntry>;
+    bySeriesIdAudioLocale: Record<string, WatchHistoryLocaleMap>;
+    bySeriesIdProgress: Record<string, WatchHistoryEntry>;
+    bySeriesIdAudioLocaleProgress: Record<string, WatchHistoryLocaleMap>;
+    mappedSeries: number;
+    mappedSeriesByAudioLocale: number;
+    mappedProgressSeries: number;
+    mappedProgressSeriesByAudioLocale: number;
   } {
-    const nextBySeriesId = isDefaultPreferredAudio ? { ...latestCache.bySeriesId } : latestCache.bySeriesId
+    const nextBySeriesId = isDefaultPreferredAudio ? { ...latestCache.bySeriesId } : latestCache.bySeriesId;
     const nextBySeriesIdProgress = isDefaultPreferredAudio
       ? { ...latestCache.bySeriesIdProgress }
-      : latestCache.bySeriesIdProgress
+      : latestCache.bySeriesIdProgress;
     const nextBySeriesIdAudioLocale = context.normalizeStoredWatchHistoryBySeriesAudioLocale(
       latestCache.bySeriesIdAudioLocale,
-    )
+    );
     const nextBySeriesIdAudioLocaleProgress = context.normalizeStoredWatchHistoryBySeriesAudioLocale(
       latestCache.bySeriesIdAudioLocaleProgress,
-    )
+    );
 
     if (isDefaultPreferredAudio) {
       Object.entries(buckets.seriesUpdates).forEach(([seriesId, updateEntry]) => {
-        const previous = context.normalizeWatchHistoryEntry(nextBySeriesId[seriesId])
+        const previous = context.normalizeWatchHistoryEntry(nextBySeriesId[seriesId]);
         if (!previous || updateEntry.datePlayedMs > previous.datePlayedMs) {
-          nextBySeriesId[seriesId] = updateEntry
+          nextBySeriesId[seriesId] = updateEntry;
         }
-      })
+      });
 
       Object.entries(buckets.seriesProgressUpdates).forEach(([seriesId, updateEntry]) => {
-        const previous = context.normalizeWatchHistoryEntry(nextBySeriesIdProgress[seriesId])
+        const previous = context.normalizeWatchHistoryEntry(nextBySeriesIdProgress[seriesId]);
         if (context.shouldReplaceWatchHistoryProgress(previous, updateEntry)) {
-          nextBySeriesIdProgress[seriesId] = updateEntry
+          nextBySeriesIdProgress[seriesId] = updateEntry;
         }
-      })
+      });
     }
 
     Object.entries(buckets.localeUpdates).forEach(([seriesId, localeMapUpdates]) => {
-      const nextLocaleMap: WatchHistoryLocaleMap = { ...(nextBySeriesIdAudioLocale[seriesId] || {}) }
+      const nextLocaleMap: WatchHistoryLocaleMap = { ...(nextBySeriesIdAudioLocale[seriesId] || {}) };
 
       Object.entries(localeMapUpdates).forEach(([localeStorageKey, updateEntry]) => {
-        const previous = context.normalizeWatchHistoryEntry(nextLocaleMap[localeStorageKey])
+        const previous = context.normalizeWatchHistoryEntry(nextLocaleMap[localeStorageKey]);
         if (!previous || updateEntry.datePlayedMs > previous.datePlayedMs) {
-          nextLocaleMap[localeStorageKey] = updateEntry
+          nextLocaleMap[localeStorageKey] = updateEntry;
         }
-      })
+      });
 
       if (Object.keys(nextLocaleMap).length) {
-        nextBySeriesIdAudioLocale[seriesId] = nextLocaleMap
+        nextBySeriesIdAudioLocale[seriesId] = nextLocaleMap;
       }
-    })
+    });
 
     Object.entries(buckets.localeProgressUpdates).forEach(([seriesId, localeMapUpdates]) => {
-      const nextLocaleProgressMap: WatchHistoryLocaleMap = { ...(nextBySeriesIdAudioLocaleProgress[seriesId] || {}) }
+      const nextLocaleProgressMap: WatchHistoryLocaleMap = { ...(nextBySeriesIdAudioLocaleProgress[seriesId] || {}) };
 
       Object.entries(localeMapUpdates).forEach(([localeStorageKey, updateEntry]) => {
-        const previous = context.normalizeWatchHistoryEntry(nextLocaleProgressMap[localeStorageKey])
+        const previous = context.normalizeWatchHistoryEntry(nextLocaleProgressMap[localeStorageKey]);
         if (context.shouldReplaceWatchHistoryProgress(previous, updateEntry)) {
-          nextLocaleProgressMap[localeStorageKey] = updateEntry
+          nextLocaleProgressMap[localeStorageKey] = updateEntry;
         }
-      })
+      });
 
       if (Object.keys(nextLocaleProgressMap).length) {
-        nextBySeriesIdAudioLocaleProgress[seriesId] = nextLocaleProgressMap
+        nextBySeriesIdAudioLocaleProgress[seriesId] = nextLocaleProgressMap;
       }
-    })
+    });
 
     return {
       bySeriesId: nextBySeriesId,
@@ -323,7 +323,7 @@
       mappedSeriesByAudioLocale: Object.keys(nextBySeriesIdAudioLocale).length,
       mappedProgressSeries: Object.keys(nextBySeriesIdProgress).length,
       mappedProgressSeriesByAudioLocale: Object.keys(nextBySeriesIdAudioLocaleProgress).length,
-    }
+    };
   }
 
   function applyWatchHistoryBucketsToState(
@@ -332,13 +332,13 @@
     preloadPlan: WatchHistoryPreloadPlan,
     tokenAccountId: string,
   ): void {
-    const latestCache = context.normalizeStoredWatchHistoryCache(context.state.watchHistoryCache)
+    const latestCache = context.normalizeStoredWatchHistoryCache(context.state.watchHistoryCache);
     const mergedCache = mergeWatchHistoryCacheWithBucketsInternal(
       context,
       latestCache,
       buckets,
       preloadPlan.isDefaultPreferredAudio,
-    )
+    );
 
     context.state.watchHistoryCache = {
       version: context.watchHistoryCacheVersion,
@@ -348,9 +348,9 @@
       bySeriesIdAudioLocale: mergedCache.bySeriesIdAudioLocale,
       bySeriesIdProgress: mergedCache.bySeriesIdProgress,
       bySeriesIdAudioLocaleProgress: mergedCache.bySeriesIdAudioLocaleProgress,
-    }
-    context.state.watchHistoryStatus = 'ready'
-    context.scheduleSaveWatchHistory()
+    };
+    context.state.watchHistoryStatus = 'ready';
+    context.scheduleSaveWatchHistory();
 
     context.runtimeEvent('watch-history-preload', {
       preferredAudioLanguage: preloadPlan.effectivePreferredAudioLanguage,
@@ -363,7 +363,7 @@
       matchedCandidates: preloadPlan.candidateSeriesIds.length - buckets.remainingSeriesIds.size,
       candidates: preloadPlan.candidateSeriesIds.length,
       noMatchPageStreak: buckets.noMatchPageStreak,
-    })
+    });
   }
 
   function handleWatchHistoryPreloadFailure(
@@ -376,11 +376,11 @@
       preloadPlan.isDefaultPreferredAudio ||
       !context.isWatchHistoryCacheValid(context.state.watchHistoryCache, tokenAccountId)
         ? 'failed'
-        : 'ready'
+        : 'ready';
     context.runtimeEvent('watch-history-preload-failed', {
       preferredAudioLanguage: preloadPlan.effectivePreferredAudioLanguage,
       message: error instanceof Error ? error.message : 'unknown',
-    })
+    });
   }
 
   async function preloadWatchHistoryForEntriesInternal(
@@ -390,10 +390,10 @@
     force = false,
     preferredAudioLanguage: unknown = context.getPreferredAudioLanguage(),
   ): Promise<unknown> {
-    const tokenAccountId = typeof tokenEntry?.accountId === 'string' ? tokenEntry.accountId : ''
+    const tokenAccountId = typeof tokenEntry?.accountId === 'string' ? tokenEntry.accountId : '';
     if (!tokenEntry?.accessToken || !tokenAccountId) {
-      context.state.watchHistoryStatus = 'unavailable'
-      return
+      context.state.watchHistoryStatus = 'unavailable';
+      return;
     }
 
     const preloadPlan = context.resolveHistoryPreloadPlan({
@@ -401,19 +401,19 @@
       preferredAudioLanguage,
       getPreferredAudioLanguage: context.getPreferredAudioLanguage,
       normalizeAudioLocale: context.normalizeAudioLocale,
-    })
+    });
 
     if (!force && context.isWatchHistoryCacheValid(context.state.watchHistoryCache, tokenAccountId)) {
-      context.state.watchHistoryStatus = 'ready'
-      return
+      context.state.watchHistoryStatus = 'ready';
+      return;
     }
 
     if (!force && context.state.watchHistoryInflight) {
-      return context.state.watchHistoryInflight
+      return context.state.watchHistoryInflight;
     }
 
     const inflight = (async () => {
-      context.state.watchHistoryStatus = 'loading'
+      context.state.watchHistoryStatus = 'loading';
       const buckets = await context.collectWatchHistoryUpdateBuckets({
         tokenEntry,
         effectivePreferredAudioLanguage: preloadPlan.effectivePreferredAudioLanguage,
@@ -433,20 +433,20 @@
         deriveCanonicalEpisodeKeyFromEpisodeMetadata: context.deriveCanonicalEpisodeKeyFromEpisodeMetadata,
         getAbsoluteEpisodeNumberFromEpisodeMetadata: context.getAbsoluteEpisodeNumberFromEpisodeMetadata,
         shouldReplaceWatchHistoryProgress: context.shouldReplaceWatchHistoryProgress,
-      })
-      applyWatchHistoryBucketsToState(context, buckets, preloadPlan, tokenAccountId)
+      });
+      applyWatchHistoryBucketsToState(context, buckets, preloadPlan, tokenAccountId);
     })()
       .catch((error: unknown) => {
-        handleWatchHistoryPreloadFailure(context, error, preloadPlan, tokenAccountId)
+        handleWatchHistoryPreloadFailure(context, error, preloadPlan, tokenAccountId);
       })
       .finally(() => {
         if (context.state.watchHistoryInflight === inflight) {
-          context.state.watchHistoryInflight = null
+          context.state.watchHistoryInflight = null;
         }
-      })
+      });
 
-    context.state.watchHistoryInflight = inflight
-    return inflight
+    context.state.watchHistoryInflight = inflight;
+    return inflight;
   }
 
   function isLocalizedWatchHistoryDataMissingForEntriesInternal(
@@ -454,39 +454,39 @@
     entries: HistoryPreloadEntry[],
     audioLocale: unknown,
   ): boolean {
-    const selectedAudioLocale = context.normalizeAudioLocale(audioLocale)
+    const selectedAudioLocale = context.normalizeAudioLocale(audioLocale);
     if (!selectedAudioLocale || !entries.length) {
-      return false
+      return false;
     }
 
     const isDefaultPreferredAudio =
-      selectedAudioLocale.toLowerCase() === context.getPreferredAudioLanguage().toLowerCase()
+      selectedAudioLocale.toLowerCase() === context.getPreferredAudioLanguage().toLowerCase();
 
     return entries.some((entry) => {
-      const seriesId = entry?.seriesId
+      const seriesId = entry?.seriesId;
       if (!seriesId) {
-        return false
+        return false;
       }
 
       if (entry.neverWatched && Number(entry.playheadMs || 0) <= 0) {
-        return false
+        return false;
       }
 
-      const localizedEntry = context.getCachedWatchHistory(seriesId, selectedAudioLocale, false)
+      const localizedEntry = context.getCachedWatchHistory(seriesId, selectedAudioLocale, false);
       if (localizedEntry) {
-        return false
+        return false;
       }
 
       if (isDefaultPreferredAudio) {
-        return !context.getCachedWatchHistory(seriesId)
+        return !context.getCachedWatchHistory(seriesId);
       }
 
-      return true
-    })
+      return true;
+    });
   }
 
   function createHistoryRepositoryPreload(options: HistoryRepositoryPreloadOptions = {}): HistoryRepositoryPreload {
-    const context = createHistoryRepositoryPreloadContext(options)
+    const context = createHistoryRepositoryPreloadContext(options);
 
     return {
       preloadWatchHistoryForEntries: (
@@ -504,10 +504,10 @@
         ),
       isLocalizedWatchHistoryDataMissingForEntries: (entries: unknown, audioLocale: unknown) =>
         isLocalizedWatchHistoryDataMissingForEntriesInternal(context, toHistoryPreloadEntries(entries), audioLocale),
-    }
+    };
   }
 
   moduleRegistry.historyRepositoryPreload = {
     createHistoryRepositoryPreload,
-  }
-})()
+  };
+})();

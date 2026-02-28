@@ -1,132 +1,132 @@
-;(() => {
+(() => {
   type BootstrapConfig = {
-    defaultSortMode: string
-    validSortModes: Set<string>
-    sortModeControlOptions: unknown[]
-    runtimeConstants: Record<string, unknown>
-    defaultSettings: Record<string, unknown>
-  }
+    defaultSortMode: string;
+    validSortModes: Set<string>;
+    sortModeControlOptions: unknown[];
+    runtimeConstants: Record<string, unknown>;
+    defaultSettings: Record<string, unknown>;
+  };
 
   type BootstrapModulesRuntime = {
-    runtimeStoreModule: unknown
-    runtimeTraceModule: unknown
-    runtimeStateLoaderModule: unknown
-    runtimeLifecycleModule: unknown
-    runtimePreferredAudioModule: unknown
-    runtimeRenderableModule: unknown
-    runtimeCuratedPanelModule: unknown
-    runtimeCuratedLoaderModule: unknown
-    runtimeNativeBridgeModule: unknown
-    runtimeCuratedInteractionsModule: unknown
-    runtimeInterfaceShellModule: unknown
-    runtimeDebugModule: unknown
-    runtimeBootstrapHelpersModule: unknown
-    storageModule: unknown
-    apiContractsModule: unknown
-    authClientModule: unknown
-    watchlistClientModule: unknown
-    watchlistRepositoryModule: unknown
-    historyRepositoryModule: unknown
-    ratingsClientModule: unknown
-    ratingsRepositoryModule: unknown
-    previewRepositoryModule: unknown
-    corePrimitivesModule: unknown
-    imageVariantsModule: unknown
-    entryNormalizerModule: unknown
-    sortMetricsModule: unknown
-    entrySortingModule: unknown
-    cardMetadataModule: unknown
-    controlsViewModule: unknown
-    cardViewModule: unknown
-    cardShellModule: unknown
-    defaultSortMode: string
-    validSortModes: Set<string>
-    sortModeControlOptions: unknown[]
-    runtimeConstants: Record<string, unknown>
-    defaultSettings: Record<string, unknown>
-  }
+    runtimeStoreModule: unknown;
+    runtimeTraceModule: unknown;
+    runtimeStateLoaderModule: unknown;
+    runtimeLifecycleModule: unknown;
+    runtimePreferredAudioModule: unknown;
+    runtimeRenderableModule: unknown;
+    runtimeCuratedPanelModule: unknown;
+    runtimeCuratedLoaderModule: unknown;
+    runtimeNativeBridgeModule: unknown;
+    runtimeCuratedInteractionsModule: unknown;
+    runtimeInterfaceShellModule: unknown;
+    runtimeDebugModule: unknown;
+    runtimeBootstrapHelpersModule: unknown;
+    storageModule: unknown;
+    apiContractsModule: unknown;
+    authClientModule: unknown;
+    watchlistClientModule: unknown;
+    watchlistRepositoryModule: unknown;
+    historyRepositoryModule: unknown;
+    ratingsClientModule: unknown;
+    ratingsRepositoryModule: unknown;
+    previewRepositoryModule: unknown;
+    corePrimitivesModule: unknown;
+    imageVariantsModule: unknown;
+    entryNormalizerModule: unknown;
+    sortMetricsModule: unknown;
+    entrySortingModule: unknown;
+    cardMetadataModule: unknown;
+    controlsViewModule: unknown;
+    cardViewModule: unknown;
+    cardShellModule: unknown;
+    defaultSortMode: string;
+    validSortModes: Set<string>;
+    sortModeControlOptions: unknown[];
+    runtimeConstants: Record<string, unknown>;
+    defaultSettings: Record<string, unknown>;
+  };
 
   type BootstrapModulesOptions = {
-    windowRef?: unknown
-  }
+    windowRef?: unknown;
+  };
 
   type RuntimeModuleReferences = {
-    runtimeStoreModule: unknown
-    runtimeTraceModule: unknown
-    runtimeStateLoaderModule: unknown
-    runtimeLifecycleModule: unknown
-    runtimePreferredAudioModule: unknown
-    runtimeRenderableModule: unknown
-    runtimeCuratedPanelModule: unknown
-    runtimeCuratedLoaderModule: unknown
-    runtimeNativeBridgeModule: unknown
-    runtimeCuratedInteractionsModule: unknown
-    runtimeInterfaceShellModule: unknown
-    runtimeDebugModule: unknown
-    runtimeBootstrapHelpersModule: unknown
-  }
+    runtimeStoreModule: unknown;
+    runtimeTraceModule: unknown;
+    runtimeStateLoaderModule: unknown;
+    runtimeLifecycleModule: unknown;
+    runtimePreferredAudioModule: unknown;
+    runtimeRenderableModule: unknown;
+    runtimeCuratedPanelModule: unknown;
+    runtimeCuratedLoaderModule: unknown;
+    runtimeNativeBridgeModule: unknown;
+    runtimeCuratedInteractionsModule: unknown;
+    runtimeInterfaceShellModule: unknown;
+    runtimeDebugModule: unknown;
+    runtimeBootstrapHelpersModule: unknown;
+  };
 
   type DataModuleReferences = {
-    storageModule: unknown
-    apiContractsModule: unknown
-    authClientModule: unknown
-    watchlistClientModule: unknown
-    watchlistRepositoryModule: unknown
-    historyRepositoryModule: unknown
-    ratingsClientModule: unknown
-    ratingsRepositoryModule: unknown
-    previewRepositoryModule: unknown
-  }
+    storageModule: unknown;
+    apiContractsModule: unknown;
+    authClientModule: unknown;
+    watchlistClientModule: unknown;
+    watchlistRepositoryModule: unknown;
+    historyRepositoryModule: unknown;
+    ratingsClientModule: unknown;
+    ratingsRepositoryModule: unknown;
+    previewRepositoryModule: unknown;
+  };
 
   type DomainUiModuleReferences = {
-    corePrimitivesModule: unknown
-    imageVariantsModule: unknown
-    entryNormalizerModule: unknown
-    sortMetricsModule: unknown
-    entrySortingModule: unknown
-    cardMetadataModule: unknown
-    controlsViewModule: unknown
-    cardViewModule: unknown
-    cardShellModule: unknown
-  }
+    corePrimitivesModule: unknown;
+    imageVariantsModule: unknown;
+    entryNormalizerModule: unknown;
+    sortMetricsModule: unknown;
+    entrySortingModule: unknown;
+    cardMetadataModule: unknown;
+    controlsViewModule: unknown;
+    cardViewModule: unknown;
+    cardShellModule: unknown;
+  };
 
   type WindowWithRegistry = Window &
     typeof globalThis & {
-      __CW_WATCHLIST_CURATOR_MODULES__?: Record<string, unknown>
-    }
+      __CW_WATCHLIST_CURATOR_MODULES__?: Record<string, unknown>;
+    };
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as WindowWithRegistry
+  const root = (typeof window !== 'undefined' ? window : globalThis) as WindowWithRegistry;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
   function resolveWindowRef(value: unknown): WindowWithRegistry {
     if (!value || typeof value !== 'object') {
-      throw new Error('[CW] Missing bootstrap modules windowRef')
+      throw new Error('[CW] Missing bootstrap modules windowRef');
     }
 
-    const record = value as Record<string, unknown>
+    const record = value as Record<string, unknown>;
     if (!record.__CW_WATCHLIST_CURATOR_MODULES__ || typeof record.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-      record.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+      record.__CW_WATCHLIST_CURATOR_MODULES__ = {};
     }
 
-    return value as WindowWithRegistry
+    return value as WindowWithRegistry;
   }
 
   function toRecord(value: unknown): Record<string, unknown> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return {}
+      return {};
     }
-    return value as Record<string, unknown>
+    return value as Record<string, unknown>;
   }
 
   function isBootstrapConfig(value: unknown): value is BootstrapConfig {
     if (!value || typeof value !== 'object') {
-      return false
+      return false;
     }
 
-    const record = value as Record<string, unknown>
+    const record = value as Record<string, unknown>;
     return (
       typeof record.defaultSortMode === 'string' &&
       record.validSortModes instanceof Set &&
@@ -135,22 +135,22 @@
       typeof record.runtimeConstants === 'object' &&
       Boolean(record.defaultSettings) &&
       typeof record.defaultSettings === 'object'
-    )
+    );
   }
 
   function assertRuntimeMethods(ownerLabel: string, instance: unknown, methodNames: string[]): void {
     if (!instance || typeof instance !== 'object') {
-      throw new Error(`[CW] Missing ${ownerLabel}`)
+      throw new Error(`[CW] Missing ${ownerLabel}`);
     }
     for (const methodName of methodNames) {
       if (typeof (instance as Record<string, unknown>)[methodName] !== 'function') {
-        throw new Error(`[CW] Missing ${methodName} ${ownerLabel}`)
+        throw new Error(`[CW] Missing ${methodName} ${ownerLabel}`);
       }
     }
   }
 
   function areModulesDefined(values: unknown[]): boolean {
-    return values.every((value) => Boolean(value))
+    return values.every((value) => Boolean(value));
   }
 
   function resolveRuntimeModuleReferences(registry: Record<string, unknown>): RuntimeModuleReferences | null {
@@ -168,9 +168,9 @@
       runtimeInterfaceShellModule: registry.runtimeInterfaceShell,
       runtimeDebugModule: registry.runtimeDebug,
       runtimeBootstrapHelpersModule: registry.runtimeBootstrapHelpers,
-    }
+    };
 
-    return areModulesDefined(Object.values(moduleReferences)) ? moduleReferences : null
+    return areModulesDefined(Object.values(moduleReferences)) ? moduleReferences : null;
   }
 
   function resolveDataModuleReferences(registry: Record<string, unknown>): DataModuleReferences | null {
@@ -184,14 +184,14 @@
       ratingsClientModule: registry.ratingsClient,
       ratingsRepositoryModule: registry.ratingsRepository,
       previewRepositoryModule: registry.previewRepository,
-    }
+    };
 
-    return areModulesDefined(Object.values(moduleReferences)) ? moduleReferences : null
+    return areModulesDefined(Object.values(moduleReferences)) ? moduleReferences : null;
   }
 
   function resolveDomainUiModuleReferences(registry: Record<string, unknown>): DomainUiModuleReferences | null {
-    const domainModule = toRecord(registry.domain)
-    const uiModule = toRecord(registry.ui)
+    const domainModule = toRecord(registry.domain);
+    const uiModule = toRecord(registry.ui);
     const moduleReferences: DomainUiModuleReferences = {
       corePrimitivesModule: domainModule.corePrimitives,
       imageVariantsModule: domainModule.imageVariants,
@@ -202,34 +202,34 @@
       controlsViewModule: uiModule.controlsView,
       cardViewModule: uiModule.cardView,
       cardShellModule: uiModule.cardShell,
-    }
+    };
 
-    return areModulesDefined(Object.values(moduleReferences)) ? moduleReferences : null
+    return areModulesDefined(Object.values(moduleReferences)) ? moduleReferences : null;
   }
 
   function resolveBootstrapConfig(registry: Record<string, unknown>): BootstrapConfig | null {
     const bootstrapConfigFactory = (
       registry.runtimeBootstrapConfig as {
-        createBootstrapConfig?: () => unknown
+        createBootstrapConfig?: () => unknown;
       }
-    )?.createBootstrapConfig
+    )?.createBootstrapConfig;
     if (typeof bootstrapConfigFactory !== 'function') {
-      return null
+      return null;
     }
 
-    const bootstrapConfig = bootstrapConfigFactory()
-    return isBootstrapConfig(bootstrapConfig) ? bootstrapConfig : null
+    const bootstrapConfig = bootstrapConfigFactory();
+    return isBootstrapConfig(bootstrapConfig) ? bootstrapConfig : null;
   }
 
   function createBootstrapModules(options: BootstrapModulesOptions = {}): BootstrapModulesRuntime | null {
-    const windowRef = resolveWindowRef(options.windowRef)
-    const registry = windowRef.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
-    const runtimeModuleReferences = resolveRuntimeModuleReferences(registry)
-    const dataModuleReferences = resolveDataModuleReferences(registry)
-    const domainUiModuleReferences = resolveDomainUiModuleReferences(registry)
-    const bootstrapConfig = resolveBootstrapConfig(registry)
+    const windowRef = resolveWindowRef(options.windowRef);
+    const registry = windowRef.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
+    const runtimeModuleReferences = resolveRuntimeModuleReferences(registry);
+    const dataModuleReferences = resolveDataModuleReferences(registry);
+    const domainUiModuleReferences = resolveDomainUiModuleReferences(registry);
+    const bootstrapConfig = resolveBootstrapConfig(registry);
     if (!runtimeModuleReferences || !dataModuleReferences || !domainUiModuleReferences || !bootstrapConfig) {
-      return null
+      return null;
     }
 
     return {
@@ -241,11 +241,11 @@
       sortModeControlOptions: bootstrapConfig.sortModeControlOptions,
       runtimeConstants: bootstrapConfig.runtimeConstants,
       defaultSettings: bootstrapConfig.defaultSettings,
-    }
+    };
   }
 
   moduleRegistry.runtimeBootstrapModules = {
     createBootstrapModules,
     assertRuntimeMethods,
-  }
-})()
+  };
+})();

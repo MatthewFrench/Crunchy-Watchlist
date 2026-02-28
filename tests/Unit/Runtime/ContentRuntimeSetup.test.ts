@@ -1,82 +1,83 @@
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type ContentRuntimeSetupResult = {
-  ok: boolean
-  [key: string]: unknown
-}
+  ok: boolean;
+  [key: string]: unknown;
+};
 
 type ContentRuntimeSetupModule = {
   runtimeContentRuntimeSetup: {
-    createContentRuntimeSetup: (options?: Record<string, unknown>) => ContentRuntimeSetupResult
-  }
-}
+    createContentRuntimeSetup: (options?: Record<string, unknown>) => ContentRuntimeSetupResult;
+  };
+};
 
 const contentRuntimeSetupModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentRuntimeSetup.ts'),
-).href
+).href;
 
 function getContentRuntimeSetupModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as ContentRuntimeSetupModule
-  return registry.runtimeContentRuntimeSetup
+  const registry = (globalThis as Record<string, unknown>)
+    .__CW_WATCHLIST_CURATOR_MODULES__ as ContentRuntimeSetupModule;
+  return registry.runtimeContentRuntimeSetup;
 }
 
 describe('content-runtime-setup runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([contentRuntimeSetupModuleUrl])
-  })
+    await loadRuntimeModules([contentRuntimeSetupModuleUrl]);
+  });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry()
-    vi.restoreAllMocks()
-  })
+    clearRuntimeModulesRegistry();
+    vi.restoreAllMocks();
+  });
 
   it('uses extracted data-initialization runtime and setup-composition runtime in the expected sequence', () => {
-    const executionOrder: string[] = []
-    const storageSet = vi.fn()
+    const executionOrder: string[] = [];
+    const storageSet = vi.fn();
     const initializeCompositionBinding = vi.fn(() => {
-      executionOrder.push('setup-composition-initialize-binding')
-    })
+      executionOrder.push('setup-composition-initialize-binding');
+    });
     const buildContentRuntimeSetupSuccess = vi.fn(() => {
-      executionOrder.push('setup-composition-build-success')
+      executionOrder.push('setup-composition-build-success');
       return {
         ok: true,
         marker: 'setup-success',
-      }
-    })
+      };
+    });
     const initializeTraceAndContracts = vi.fn(() => {
-      executionOrder.push('data-initialize-trace-and-contracts')
+      executionOrder.push('data-initialize-trace-and-contracts');
       return {
         corePrimitives: {
           parseDateMs: vi.fn(),
         },
         apiContracts: {},
-      }
-    })
+      };
+    });
     const initializePreferredAudioAndStorage = vi.fn(() => {
-      executionOrder.push('data-initialize-preferred-audio-storage')
+      executionOrder.push('data-initialize-preferred-audio-storage');
       return {
         storageSet,
-      }
-    })
+      };
+    });
     const initializeAuthImageAndRatings = vi.fn(() => {
-      executionOrder.push('data-initialize-auth-image-ratings')
-    })
+      executionOrder.push('data-initialize-auth-image-ratings');
+    });
     const initializeWatchlistHistoryAndPreview = vi.fn(() => {
-      executionOrder.push('data-initialize-watchlist-history-preview')
-    })
+      executionOrder.push('data-initialize-watchlist-history-preview');
+    });
     const createContentRuntimeSetupCompositionRuntime = vi.fn(() => ({
       initializeCompositionBinding,
       buildContentRuntimeSetupSuccess,
-    }))
+    }));
     const createContentRuntimeSetupDataInitializationRuntime = vi.fn(() => ({
       initializeTraceAndContracts,
       initializePreferredAudioAndStorage,
       initializeAuthImageAndRatings,
       initializeWatchlistHistoryAndPreview,
-    }))
+    }));
 
     const result = getContentRuntimeSetupModule().createContentRuntimeSetup({
       windowRef: {
@@ -99,14 +100,14 @@ describe('content-runtime-setup runtime', () => {
       defaultSortMode: 'recentActivity',
       validSortModes: ['recentActivity'],
       sortModeControlOptions: [],
-    })
+    });
 
     expect(result).toEqual({
       ok: true,
       marker: 'setup-success',
-    })
-    expect(createContentRuntimeSetupCompositionRuntime).toHaveBeenCalledTimes(1)
-    expect(createContentRuntimeSetupDataInitializationRuntime).toHaveBeenCalledTimes(1)
+    });
+    expect(createContentRuntimeSetupCompositionRuntime).toHaveBeenCalledTimes(1);
+    expect(createContentRuntimeSetupDataInitializationRuntime).toHaveBeenCalledTimes(1);
     expect(initializeCompositionBinding).toHaveBeenCalledWith(
       expect.any(Object),
       expect.any(Object),
@@ -114,11 +115,11 @@ describe('content-runtime-setup runtime', () => {
         parseDateMs: expect.any(Function),
       }),
       storageSet,
-    )
-    expect(initializeTraceAndContracts).toHaveBeenCalledTimes(1)
-    expect(initializePreferredAudioAndStorage).toHaveBeenCalledTimes(1)
-    expect(initializeAuthImageAndRatings).toHaveBeenCalledTimes(1)
-    expect(initializeWatchlistHistoryAndPreview).toHaveBeenCalledTimes(1)
+    );
+    expect(initializeTraceAndContracts).toHaveBeenCalledTimes(1);
+    expect(initializePreferredAudioAndStorage).toHaveBeenCalledTimes(1);
+    expect(initializeAuthImageAndRatings).toHaveBeenCalledTimes(1);
+    expect(initializeWatchlistHistoryAndPreview).toHaveBeenCalledTimes(1);
     expect(executionOrder).toEqual([
       'data-initialize-trace-and-contracts',
       'data-initialize-preferred-audio-storage',
@@ -126,6 +127,6 @@ describe('content-runtime-setup runtime', () => {
       'data-initialize-watchlist-history-preview',
       'setup-composition-initialize-binding',
       'setup-composition-build-success',
-    ])
-  })
-})
+    ]);
+  });
+});

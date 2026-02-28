@@ -1,59 +1,59 @@
-;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
+(() => {
+  type AnyFn = (...args: unknown[]) => unknown;
 
   type EntrySortingDeps = {
-    sanitizeVotes?: unknown
-    sanitizePositiveInt?: unknown
-    parseDateMs?: unknown
-    getStarCountFromDistribution?: unknown
-    getStarPercentageFromDistribution?: unknown
-    getTotalStarPoints?: unknown
-    getConsensusQualityScore?: unknown
-    getControversyScore?: unknown
-    getQualityFloorScore?: unknown
-    getQuickWinScore?: unknown
-    getDormantBacklogScore?: unknown
-    getRewatchMemoryScore?: unknown
-    getWatchedEpisodeEstimate?: unknown
-    getRewatchActivityTimestamp?: unknown
-    getMostRecentActivityTimestamp?: unknown
-    getPlausiblePastTimestamp?: unknown
-  }
+    sanitizeVotes?: unknown;
+    sanitizePositiveInt?: unknown;
+    parseDateMs?: unknown;
+    getStarCountFromDistribution?: unknown;
+    getStarPercentageFromDistribution?: unknown;
+    getTotalStarPoints?: unknown;
+    getConsensusQualityScore?: unknown;
+    getControversyScore?: unknown;
+    getQualityFloorScore?: unknown;
+    getQuickWinScore?: unknown;
+    getDormantBacklogScore?: unknown;
+    getRewatchMemoryScore?: unknown;
+    getWatchedEpisodeEstimate?: unknown;
+    getRewatchActivityTimestamp?: unknown;
+    getMostRecentActivityTimestamp?: unknown;
+    getPlausiblePastTimestamp?: unknown;
+  };
 
   type EntrySortingContext = {
-    sanitizeVotes: (value: unknown) => number | null
-    sanitizePositiveInt: (value: unknown) => number | null
-    parseDateMs: (value: unknown) => number | null
-    getStarCountFromDistribution: (votes: unknown, distribution: unknown, starLevel: unknown) => number | null
-    getStarPercentageFromDistribution: (distribution: unknown, starLevel: unknown) => number | null
-    getTotalStarPoints: (votes: unknown, distribution: unknown) => number | null
-    getConsensusQualityScore: (distribution: unknown) => number | null
-    getControversyScore: (distribution: unknown) => number | null
-    getQualityFloorScore: (distribution: unknown) => number | null
-    getQuickWinScore: (entry: unknown) => number | null
-    getDormantBacklogScore: (entry: unknown) => number | null
-    getRewatchMemoryScore: (entry: unknown) => number | null
-    getWatchedEpisodeEstimate: (entry: unknown) => number | null
-    getRewatchActivityTimestamp: (entry: unknown) => number | null
-    getMostRecentActivityTimestamp: (entry: unknown) => number | null
-    getPlausiblePastTimestamp: (value: unknown) => number | null
-  }
+    sanitizeVotes: (value: unknown) => number | null;
+    sanitizePositiveInt: (value: unknown) => number | null;
+    parseDateMs: (value: unknown) => number | null;
+    getStarCountFromDistribution: (votes: unknown, distribution: unknown, starLevel: unknown) => number | null;
+    getStarPercentageFromDistribution: (distribution: unknown, starLevel: unknown) => number | null;
+    getTotalStarPoints: (votes: unknown, distribution: unknown) => number | null;
+    getConsensusQualityScore: (distribution: unknown) => number | null;
+    getControversyScore: (distribution: unknown) => number | null;
+    getQualityFloorScore: (distribution: unknown) => number | null;
+    getQuickWinScore: (entry: unknown) => number | null;
+    getDormantBacklogScore: (entry: unknown) => number | null;
+    getRewatchMemoryScore: (entry: unknown) => number | null;
+    getWatchedEpisodeEstimate: (entry: unknown) => number | null;
+    getRewatchActivityTimestamp: (entry: unknown) => number | null;
+    getMostRecentActivityTimestamp: (entry: unknown) => number | null;
+    getPlausiblePastTimestamp: (value: unknown) => number | null;
+  };
 
   type EntrySortingRuntime = {
-    compareRenderableEntries: (left: unknown, right: unknown, sortMode: unknown) => number
-  }
+    compareRenderableEntries: (left: unknown, right: unknown, sortMode: unknown) => number;
+  };
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
   function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing entry sorting dependency: ${name}`)
+      throw new Error(`[CW] Missing entry sorting dependency: ${name}`);
     }
-    return value as T
+    return value as T;
   }
 
   function createEntrySortingContext(deps: EntrySortingDeps = {}): EntrySortingContext {
@@ -116,20 +116,20 @@
         'getPlausiblePastTimestamp',
         deps.getPlausiblePastTimestamp,
       ) as EntrySortingContext['getPlausiblePastTimestamp'],
-    }
+    };
   }
 
   function asRecord(value: unknown): Record<string, unknown> {
     if (!value || typeof value !== 'object') {
-      return {}
+      return {};
     }
-    return value as Record<string, unknown>
+    return value as Record<string, unknown>;
   }
 
   function compareByOriginalIndex(left: unknown, right: unknown): number {
-    const leftIndex = Number(asRecord(left).originalIndex ?? 0)
-    const rightIndex = Number(asRecord(right).originalIndex ?? 0)
-    return leftIndex - rightIndex
+    const leftIndex = Number(asRecord(left).originalIndex ?? 0);
+    const rightIndex = Number(asRecord(right).originalIndex ?? 0);
+    return leftIndex - rightIndex;
   }
 
   function compareOptionalNumbers(
@@ -137,13 +137,13 @@
     rightValue: number | null,
     { ascending = false, missingSentinel }: { ascending?: boolean; missingSentinel?: number } = {},
   ): number {
-    const sentinel = missingSentinel ?? (ascending ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY)
-    const normalizedLeft = leftValue == null ? sentinel : leftValue
-    const normalizedRight = rightValue == null ? sentinel : rightValue
+    const sentinel = missingSentinel ?? (ascending ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY);
+    const normalizedLeft = leftValue == null ? sentinel : leftValue;
+    const normalizedRight = rightValue == null ? sentinel : rightValue;
     if (normalizedLeft === normalizedRight) {
-      return 0
+      return 0;
     }
-    return ascending ? normalizedLeft - normalizedRight : normalizedRight - normalizedLeft
+    return ascending ? normalizedLeft - normalizedRight : normalizedRight - normalizedLeft;
   }
 
   function compareRatingSortMode(
@@ -153,11 +153,11 @@
     rightRating: number | null,
     ascending: boolean,
   ): number {
-    const diff = compareOptionalNumbers(leftRating, rightRating, { ascending })
+    const diff = compareOptionalNumbers(leftRating, rightRating, { ascending });
     if (diff !== 0) {
-      return diff
+      return diff;
     }
-    return compareByOriginalIndex(left, right)
+    return compareByOriginalIndex(left, right);
   }
 
   function compareHiddenGemsSortMode(
@@ -167,17 +167,17 @@
     leftRating: number | null,
     rightRating: number | null,
   ): number {
-    const ratingDiff = compareOptionalNumbers(leftRating, rightRating, { ascending: false })
+    const ratingDiff = compareOptionalNumbers(leftRating, rightRating, { ascending: false });
     if (ratingDiff !== 0) {
-      return ratingDiff
+      return ratingDiff;
     }
-    const leftVotes = context.sanitizeVotes(asRecord(left).votes)
-    const rightVotes = context.sanitizeVotes(asRecord(right).votes)
-    const votesDiff = compareOptionalNumbers(leftVotes, rightVotes, { ascending: true })
+    const leftVotes = context.sanitizeVotes(asRecord(left).votes);
+    const rightVotes = context.sanitizeVotes(asRecord(right).votes);
+    const votesDiff = compareOptionalNumbers(leftVotes, rightVotes, { ascending: true });
     if (votesDiff !== 0) {
-      return votesDiff
+      return votesDiff;
     }
-    return compareByOriginalIndex(left, right)
+    return compareByOriginalIndex(left, right);
   }
 
   function compareRewatchMemorySortMode(context: EntrySortingContext, left: unknown, right: unknown): number {
@@ -187,92 +187,92 @@
       {
         ascending: false,
       },
-    )
+    );
     if (scoreDiff !== 0) {
-      return scoreDiff
+      return scoreDiff;
     }
 
     const watchedDiff = compareOptionalNumbers(
       context.getWatchedEpisodeEstimate(left),
       context.getWatchedEpisodeEstimate(right),
       { ascending: false },
-    )
+    );
     if (watchedDiff !== 0) {
-      return watchedDiff
+      return watchedDiff;
     }
 
-    const leftEpisodeCount = context.sanitizePositiveInt(asRecord(left).episodeCount)
-    const rightEpisodeCount = context.sanitizePositiveInt(asRecord(right).episodeCount)
-    const episodesDiff = compareOptionalNumbers(leftEpisodeCount, rightEpisodeCount, { ascending: false })
+    const leftEpisodeCount = context.sanitizePositiveInt(asRecord(left).episodeCount);
+    const rightEpisodeCount = context.sanitizePositiveInt(asRecord(right).episodeCount);
+    const episodesDiff = compareOptionalNumbers(leftEpisodeCount, rightEpisodeCount, { ascending: false });
     if (episodesDiff !== 0) {
-      return episodesDiff
+      return episodesDiff;
     }
 
-    const leftRecord = asRecord(left)
-    const rightRecord = asRecord(right)
+    const leftRecord = asRecord(left);
+    const rightRecord = asRecord(right);
     const leftActivityMs =
       context.getRewatchActivityTimestamp(leftRecord) ??
       context.getPlausiblePastTimestamp(leftRecord.dateUpdatedMs) ??
-      context.getPlausiblePastTimestamp(leftRecord.dateAddedMs)
+      context.getPlausiblePastTimestamp(leftRecord.dateAddedMs);
     const rightActivityMs =
       context.getRewatchActivityTimestamp(rightRecord) ??
       context.getPlausiblePastTimestamp(rightRecord.dateUpdatedMs) ??
-      context.getPlausiblePastTimestamp(rightRecord.dateAddedMs)
-    const activityDiff = compareOptionalNumbers(leftActivityMs, rightActivityMs, { ascending: true })
+      context.getPlausiblePastTimestamp(rightRecord.dateAddedMs);
+    const activityDiff = compareOptionalNumbers(leftActivityMs, rightActivityMs, { ascending: true });
     if (activityDiff !== 0) {
-      return activityDiff
+      return activityDiff;
     }
 
-    return compareByOriginalIndex(left, right)
+    return compareByOriginalIndex(left, right);
   }
 
   function getNumericSortValue(context: EntrySortingContext, entry: unknown, sortMode: string): number | null {
-    const record = asRecord(entry)
+    const record = asRecord(entry);
     switch (sortMode) {
       case 'votes_desc':
-        return context.sanitizeVotes(record.votes)
+        return context.sanitizeVotes(record.votes);
       case 'star_points_desc':
-        return context.getTotalStarPoints(record.votes, record.distribution)
+        return context.getTotalStarPoints(record.votes, record.distribution);
       case 'star_5_desc':
-        return context.getStarCountFromDistribution(record.votes, record.distribution, 5)
+        return context.getStarCountFromDistribution(record.votes, record.distribution, 5);
       case 'star_4_desc':
-        return context.getStarCountFromDistribution(record.votes, record.distribution, 4)
+        return context.getStarCountFromDistribution(record.votes, record.distribution, 4);
       case 'star_3_desc':
-        return context.getStarCountFromDistribution(record.votes, record.distribution, 3)
+        return context.getStarCountFromDistribution(record.votes, record.distribution, 3);
       case 'star_2_desc':
-        return context.getStarCountFromDistribution(record.votes, record.distribution, 2)
+        return context.getStarCountFromDistribution(record.votes, record.distribution, 2);
       case 'star_1_desc':
-        return context.getStarCountFromDistribution(record.votes, record.distribution, 1)
+        return context.getStarCountFromDistribution(record.votes, record.distribution, 1);
       case 'star_5_pct_desc':
-        return context.getStarPercentageFromDistribution(record.distribution, 5)
+        return context.getStarPercentageFromDistribution(record.distribution, 5);
       case 'star_4_pct_desc':
-        return context.getStarPercentageFromDistribution(record.distribution, 4)
+        return context.getStarPercentageFromDistribution(record.distribution, 4);
       case 'star_3_pct_desc':
-        return context.getStarPercentageFromDistribution(record.distribution, 3)
+        return context.getStarPercentageFromDistribution(record.distribution, 3);
       case 'star_2_pct_desc':
-        return context.getStarPercentageFromDistribution(record.distribution, 2)
+        return context.getStarPercentageFromDistribution(record.distribution, 2);
       case 'star_1_pct_desc':
-        return context.getStarPercentageFromDistribution(record.distribution, 1)
+        return context.getStarPercentageFromDistribution(record.distribution, 1);
       case 'consensus_quality_desc':
-        return context.getConsensusQualityScore(record.distribution)
+        return context.getConsensusQualityScore(record.distribution);
       case 'controversial_desc':
-        return context.getControversyScore(record.distribution)
+        return context.getControversyScore(record.distribution);
       case 'quality_floor_asc':
-        return context.getQualityFloorScore(record.distribution)
+        return context.getQualityFloorScore(record.distribution);
       case 'quick_wins_asc':
-        return context.getQuickWinScore(record)
+        return context.getQuickWinScore(record);
       case 'dormant_backlog_asc':
-        return context.getDormantBacklogScore(record)
+        return context.getDormantBacklogScore(record);
       case 'recent_activity_desc':
-        return context.getMostRecentActivityTimestamp(record)
+        return context.getMostRecentActivityTimestamp(record);
       case 'date_added_desc':
       case 'date_added_asc':
-        return context.parseDateMs(record.dateAddedMs)
+        return context.parseDateMs(record.dateAddedMs);
       case 'date_updated_desc':
       case 'date_updated_asc':
-        return context.parseDateMs(record.dateUpdatedMs)
+        return context.parseDateMs(record.dateUpdatedMs);
       default:
-        return null
+        return null;
     }
   }
 
@@ -282,17 +282,17 @@
     right: unknown,
     sortMode: string,
   ): number | null {
-    const leftValue = getNumericSortValue(context, left, sortMode)
-    const rightValue = getNumericSortValue(context, right, sortMode)
+    const leftValue = getNumericSortValue(context, left, sortMode);
+    const rightValue = getNumericSortValue(context, right, sortMode);
     if (leftValue == null && rightValue == null) {
-      return null
+      return null;
     }
-    const isAscending = sortMode.endsWith('_asc')
-    const diff = compareOptionalNumbers(leftValue, rightValue, { ascending: isAscending })
+    const isAscending = sortMode.endsWith('_asc');
+    const diff = compareOptionalNumbers(leftValue, rightValue, { ascending: isAscending });
     if (diff !== 0) {
-      return diff
+      return diff;
     }
-    return compareByOriginalIndex(left, right)
+    return compareByOriginalIndex(left, right);
   }
 
   function compareRenderableEntriesInternal(
@@ -301,47 +301,47 @@
     right: unknown,
     sortModeValue: unknown,
   ): number {
-    const sortMode = typeof sortModeValue === 'string' ? sortModeValue : 'none'
-    const leftRatingRecord = asRecord(left)
-    const rightRatingRecord = asRecord(right)
-    const leftRating = leftRatingRecord.rating == null ? null : Number(leftRatingRecord.rating)
-    const rightRating = rightRatingRecord.rating == null ? null : Number(rightRatingRecord.rating)
+    const sortMode = typeof sortModeValue === 'string' ? sortModeValue : 'none';
+    const leftRatingRecord = asRecord(left);
+    const rightRatingRecord = asRecord(right);
+    const leftRating = leftRatingRecord.rating == null ? null : Number(leftRatingRecord.rating);
+    const rightRating = rightRatingRecord.rating == null ? null : Number(rightRatingRecord.rating);
 
     if (sortMode === 'rating_desc') {
-      return compareRatingSortMode(left, right, leftRating, rightRating, false)
+      return compareRatingSortMode(left, right, leftRating, rightRating, false);
     }
     if (sortMode === 'rating_asc') {
-      return compareRatingSortMode(left, right, leftRating, rightRating, true)
+      return compareRatingSortMode(left, right, leftRating, rightRating, true);
     }
     if (sortMode === 'hidden_gems_desc') {
-      return compareHiddenGemsSortMode(context, left, right, leftRating, rightRating)
+      return compareHiddenGemsSortMode(context, left, right, leftRating, rightRating);
     }
     if (sortMode === 'rewatch_memory_desc') {
-      return compareRewatchMemorySortMode(context, left, right)
+      return compareRewatchMemorySortMode(context, left, right);
     }
 
-    const numericSortResult = compareNumericSortMode(context, left, right, sortMode)
+    const numericSortResult = compareNumericSortMode(context, left, right, sortMode);
     if (numericSortResult != null) {
-      return numericSortResult
+      return numericSortResult;
     }
-    return compareByOriginalIndex(left, right)
+    return compareByOriginalIndex(left, right);
   }
 
   function createEntrySorting(deps: EntrySortingDeps = {}): EntrySortingRuntime {
-    const context = createEntrySortingContext(deps)
+    const context = createEntrySortingContext(deps);
     return {
       compareRenderableEntries: (left, right, sortMode) =>
         compareRenderableEntriesInternal(context, left, right, sortMode),
-    }
+    };
   }
 
-  let domainRegistry = moduleRegistry.domain
+  let domainRegistry = moduleRegistry.domain;
   if (!domainRegistry || typeof domainRegistry !== 'object') {
-    domainRegistry = {}
-    moduleRegistry.domain = domainRegistry
+    domainRegistry = {};
+    moduleRegistry.domain = domainRegistry;
   }
 
-  ;(domainRegistry as Record<string, unknown>).entrySorting = {
+  (domainRegistry as Record<string, unknown>).entrySorting = {
     createEntrySorting,
-  }
-})()
+  };
+})();

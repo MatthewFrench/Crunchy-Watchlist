@@ -1,58 +1,59 @@
-;(() => {
-  type LooseRecord = Record<string, unknown>
+(() => {
+  type LooseRecord = Record<string, unknown>;
 
   type CuratedLoaderDeferredMetadataContext = {
     state: {
-      mounted: boolean
-      settings: LooseRecord
-      deferredMetadataRunId: number
-    } & LooseRecord
-    windowRef: Window
-    documentRef: Document | null
-    locationRef: Location
-    runtimeEvent: (event: string, data?: unknown) => void
-    isWatchlistPath: (pathname: string) => boolean
-    renderCuratedPanel: () => void
-    metadataPriorityEntryCount: number
-    metadataDeferredChunkSize: number
-    metadataDeferredIdleTimeoutMs: number
-    metadataDeferredHiddenDelayMs: number
-    metadataViewportPriorityCount: number
-    deferredMetadataRunId: number
-  }
+      mounted: boolean;
+      settings: LooseRecord;
+      deferredMetadataRunId: number;
+      curatedDeferredMetadataInFlight?: boolean;
+    } & LooseRecord;
+    windowRef: Window;
+    documentRef: Document | null;
+    locationRef: Location;
+    runtimeEvent: (event: string, data?: unknown) => void;
+    isWatchlistPath: (pathname: string) => boolean;
+    renderCuratedPanel: () => void;
+    metadataPriorityEntryCount: number;
+    metadataDeferredChunkSize: number;
+    metadataDeferredIdleTimeoutMs: number;
+    metadataDeferredHiddenDelayMs: number;
+    metadataViewportPriorityCount: number;
+    deferredMetadataRunId: number;
+  };
 
   type QueueDeferredMetadataPreloadOptions = {
-    context: CuratedLoaderDeferredMetadataContext
-    deferredEntries: unknown[]
-    tokenEntry: unknown
-    preloadMetadataForEntries: (entries: unknown[], tokenEntry: unknown) => Promise<void>
-  }
+    context: CuratedLoaderDeferredMetadataContext;
+    deferredEntries: unknown[];
+    tokenEntry: unknown;
+    preloadMetadataForEntries: (entries: unknown[], tokenEntry: unknown) => Promise<void>;
+  };
 
   type CuratedLoaderDeferredMetadataRuntime = {
     splitMetadataPreloadEntries: (
       context: CuratedLoaderDeferredMetadataContext,
       entries: unknown[],
-    ) => { priorityEntries: unknown[]; deferredEntries: unknown[] }
-    queueDeferredMetadataPreload: (options: QueueDeferredMetadataPreloadOptions) => void
-  }
+    ) => { priorityEntries: unknown[]; deferredEntries: unknown[] };
+    queueDeferredMetadataPreload: (options: QueueDeferredMetadataPreloadOptions) => void;
+  };
 
-  type DeferredMetadataProgressRenderer = (force?: boolean) => void
+  type DeferredMetadataProgressRenderer = (force?: boolean) => void;
 
   type DeferredMetadataChunkProgress = {
-    completedChunks: number
-  }
+    completedChunks: number;
+  };
 
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
     typeof globalThis & {
-      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord
-    }
+      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
+    };
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
 
   function getString(value: unknown): string {
-    return typeof value === 'string' ? value.trim() : ''
+    return typeof value === 'string' ? value.trim() : '';
   }
 
   /**
@@ -67,111 +68,113 @@
       return {
         priorityEntries: entries,
         deferredEntries: [],
-      }
+      };
     }
 
     return {
       priorityEntries: entries.slice(0, context.metadataPriorityEntryCount),
       deferredEntries: entries.slice(context.metadataPriorityEntryCount),
-    }
+    };
   }
 
   function getSeriesIdFromEntryInternal(entry: unknown): string {
     if (!entry || typeof entry !== 'object') {
-      return ''
+      return '';
     }
-    return getString((entry as LooseRecord).seriesId)
+    return getString((entry as LooseRecord).seriesId);
   }
 
   function reorderDeferredEntriesByViewportInternal(
     context: CuratedLoaderDeferredMetadataContext,
     deferredEntries: unknown[],
   ): unknown[] {
-    if (!context.documentRef || !deferredEntries.length) {
-      return deferredEntries
+    if (!deferredEntries.length) {
+      return deferredEntries;
     }
 
-    const queryHost = context.documentRef as Document & {
-      querySelectorAll?: (selectors: string) => NodeListOf<Element>
-      visibilityState?: string
-    }
-    if (typeof queryHost.querySelectorAll !== 'function') {
-      return deferredEntries
+    const gridElement = context.state.gridEl as
+      | (Element & {
+          children?: ArrayLike<Element>;
+        })
+      | null;
+    if (!gridElement || !gridElement.children) {
+      return deferredEntries;
     }
 
-    const cards = Array.from(queryHost.querySelectorAll('.cw-curated-card'))
+    const cards = Array.from(gridElement.children);
     if (!cards.length) {
-      return deferredEntries
+      return deferredEntries;
     }
 
-    const viewportHeight = Math.max(0, Number(context.windowRef.innerHeight) || 0)
-    const viewportSeriesIds: string[] = []
+    const viewportHeight = Math.max(0, Number(context.windowRef.innerHeight) || 0);
+    const viewportSeriesIds: string[] = [];
     for (const card of cards) {
       const cardElement = card as Element & {
-        dataset?: Record<string, string>
-        getBoundingClientRect?: () => { top?: number; bottom?: number }
-      }
-      const seriesId = getString(cardElement.dataset?.cwSeriesId)
+        dataset?: Record<string, string>;
+        getAttribute?: (name: string) => string | null;
+        getBoundingClientRect?: () => { top?: number; bottom?: number };
+      };
+      const seriesId = getString(cardElement.dataset?.cwSeriesId || cardElement.getAttribute?.('data-cw-series-id'));
       if (!seriesId) {
-        continue
+        continue;
       }
 
       const cardRect =
-        typeof cardElement.getBoundingClientRect === 'function' ? cardElement.getBoundingClientRect() : null
+        typeof cardElement.getBoundingClientRect === 'function' ? cardElement.getBoundingClientRect() : null;
       const isLikelyVisible =
         !cardRect ||
         viewportHeight <= 0 ||
-        ((Number(cardRect.bottom) || 0) > -120 && (Number(cardRect.top) || 0) < viewportHeight + 240)
+        ((Number(cardRect.bottom) || 0) > -120 && (Number(cardRect.top) || 0) < viewportHeight + 240);
       if (!isLikelyVisible) {
-        continue
+        continue;
       }
       if (viewportSeriesIds.includes(seriesId)) {
-        continue
+        continue;
       }
-      viewportSeriesIds.push(seriesId)
+      viewportSeriesIds.push(seriesId);
       if (viewportSeriesIds.length >= context.metadataViewportPriorityCount) {
-        break
+        break;
       }
     }
 
     if (!viewportSeriesIds.length) {
-      return deferredEntries
+      return deferredEntries;
     }
 
-    const seriesIdRank = new Map<string, number>()
+    const seriesIdRank = new Map<string, number>();
     viewportSeriesIds.forEach((seriesId, index) => {
-      seriesIdRank.set(seriesId, index)
-    })
+      seriesIdRank.set(seriesId, index);
+    });
 
-    const prioritized: unknown[] = []
-    const remainder: unknown[] = []
+    const prioritized: unknown[] = [];
+    const remainder: unknown[] = [];
     deferredEntries.forEach((entry) => {
-      const seriesId = getSeriesIdFromEntryInternal(entry)
+      const seriesId = getSeriesIdFromEntryInternal(entry);
       if (seriesId && seriesIdRank.has(seriesId)) {
-        prioritized.push(entry)
-        return
+        prioritized.push(entry);
+        return;
       }
-      remainder.push(entry)
-    })
+      remainder.push(entry);
+    });
 
     prioritized.sort((left, right) => {
-      const leftRank = seriesIdRank.get(getSeriesIdFromEntryInternal(left)) ?? Number.MAX_SAFE_INTEGER
-      const rightRank = seriesIdRank.get(getSeriesIdFromEntryInternal(right)) ?? Number.MAX_SAFE_INTEGER
-      return leftRank - rightRank
-    })
+      const leftRank = seriesIdRank.get(getSeriesIdFromEntryInternal(left)) ?? Number.MAX_SAFE_INTEGER;
+      const rightRank = seriesIdRank.get(getSeriesIdFromEntryInternal(right)) ?? Number.MAX_SAFE_INTEGER;
+      return leftRank - rightRank;
+    });
 
-    return [...prioritized, ...remainder]
+    return [...prioritized, ...remainder];
   }
 
   function splitDeferredMetadataChunksInternal(
     context: CuratedLoaderDeferredMetadataContext,
     deferredEntries: unknown[],
   ): unknown[][] {
-    const chunks: unknown[][] = []
+    const chunks: unknown[][] = [];
     for (let index = 0; index < deferredEntries.length; index += context.metadataDeferredChunkSize) {
-      chunks.push(deferredEntries.slice(index, index + context.metadataDeferredChunkSize))
+      chunks.push(deferredEntries.slice(index, index + context.metadataDeferredChunkSize));
     }
-    return chunks
+    return chunks;
   }
 
   function scheduleDeferredMetadataStepInternal(
@@ -180,61 +183,65 @@
     isFirstStep: boolean,
   ): void {
     const runStep = () => {
-      step()
-    }
+      step();
+    };
 
     const documentVisibilityState =
       context.documentRef &&
       typeof (context.documentRef as Document & { visibilityState?: string }).visibilityState === 'string'
         ? (context.documentRef as Document & { visibilityState?: string }).visibilityState
-        : 'visible'
+        : 'visible';
     if (documentVisibilityState === 'hidden') {
-      context.windowRef.setTimeout(runStep, context.metadataDeferredHiddenDelayMs)
-      return
+      context.windowRef.setTimeout(runStep, context.metadataDeferredHiddenDelayMs);
+      return;
     }
 
     if (isFirstStep) {
-      runStep()
-      return
+      runStep();
+      return;
     }
 
     const idleWindow = context.windowRef as Window & {
       requestIdleCallback?: (
         callback: (deadline: { didTimeout: boolean; timeRemaining: () => number }) => void,
         options?: { timeout?: number },
-      ) => number
-    }
+      ) => number;
+    };
     if (typeof idleWindow.requestIdleCallback === 'function') {
       idleWindow.requestIdleCallback(
         () => {
-          runStep()
+          runStep();
         },
         {
           timeout: context.metadataDeferredIdleTimeoutMs,
         },
-      )
-      return
+      );
+      return;
     }
 
-    context.windowRef.setTimeout(runStep, 0)
+    context.windowRef.setTimeout(runStep, 0);
   }
 
   function createDeferredMetadataProgressRendererInternal(
     context: CuratedLoaderDeferredMetadataContext,
   ): DeferredMetadataProgressRenderer {
-    let lastProgressRenderAt = 0
+    let lastProgressRenderAt = 0;
     return (force = false) => {
       if (!context.state.mounted || !context.isWatchlistPath(context.locationRef.pathname)) {
-        return
+        return;
       }
 
-      const now = Date.now()
+      const now = Date.now();
       if (!force && now - lastProgressRenderAt < 180) {
-        return
+        return;
       }
-      lastProgressRenderAt = now
-      context.renderCuratedPanel()
-    }
+      lastProgressRenderAt = now;
+      context.renderCuratedPanel();
+    };
+  }
+
+  function setDeferredMetadataInFlightInternal(context: CuratedLoaderDeferredMetadataContext, inFlight: boolean): void {
+    context.state.curatedDeferredMetadataInFlight = inFlight;
   }
 
   function shouldSkipDeferredMetadataChunkInternal(
@@ -243,12 +250,12 @@
     chunk: unknown[] | undefined,
   ): boolean {
     if (runId !== context.deferredMetadataRunId) {
-      return true
+      return true;
     }
     if (!chunk || !chunk.length) {
-      return true
+      return true;
     }
-    return !context.state.mounted || !context.isWatchlistPath(context.locationRef.pathname)
+    return !context.state.mounted || !context.isWatchlistPath(context.locationRef.pathname);
   }
 
   function emitDeferredMetadataFailureEventInternal(
@@ -265,7 +272,7 @@
       chunkCount,
       durationMs: Date.now() - startedAt,
       message: (error as { message?: unknown })?.message || 'unknown',
-    })
+    });
   }
 
   function emitDeferredMetadataDoneEventInternal(
@@ -280,7 +287,7 @@
       chunkCount,
       completedChunks,
       durationMs: Date.now() - startedAt,
-    })
+    });
   }
 
   function runDeferredMetadataChunkInternal({
@@ -295,28 +302,36 @@
     progress,
     renderProgress,
   }: {
-    context: CuratedLoaderDeferredMetadataContext
-    runId: number
-    chunks: unknown[][]
-    chunkIndex: number
-    tokenEntry: unknown
-    preloadMetadataForEntries: (entries: unknown[], tokenEntry: unknown) => Promise<void>
-    deferredEntryCount: number
-    startedAt: number
-    progress: DeferredMetadataChunkProgress
-    renderProgress: DeferredMetadataProgressRenderer
+    context: CuratedLoaderDeferredMetadataContext;
+    runId: number;
+    chunks: unknown[][];
+    chunkIndex: number;
+    tokenEntry: unknown;
+    preloadMetadataForEntries: (entries: unknown[], tokenEntry: unknown) => Promise<void>;
+    deferredEntryCount: number;
+    startedAt: number;
+    progress: DeferredMetadataChunkProgress;
+    renderProgress: DeferredMetadataProgressRenderer;
   }): void {
-    const chunk = chunks[chunkIndex]
+    const chunk = chunks[chunkIndex];
     if (shouldSkipDeferredMetadataChunkInternal(context, runId, chunk)) {
-      return
+      if (runId === context.deferredMetadataRunId) {
+        setDeferredMetadataInFlightInternal(context, false);
+      }
+      return;
     }
     if (!chunk || !chunk.length) {
-      return
+      if (runId === context.deferredMetadataRunId) {
+        setDeferredMetadataInFlightInternal(context, false);
+      }
+      return;
     }
 
     void preloadMetadataForEntries(chunk, tokenEntry)
       .then(() => {
-        renderProgress(chunkIndex + 1 >= chunks.length)
+        if (chunkIndex + 1 < chunks.length) {
+          renderProgress();
+        }
       })
       .catch((error: unknown) => {
         emitDeferredMetadataFailureEventInternal(
@@ -326,14 +341,14 @@
           chunkIndex,
           chunks.length,
           startedAt,
-        )
+        );
       })
       .finally(() => {
         if (runId !== context.deferredMetadataRunId) {
-          return
+          return;
         }
 
-        progress.completedChunks += 1
+        progress.completedChunks += 1;
         if (chunkIndex + 1 < chunks.length) {
           scheduleDeferredMetadataStepInternal(
             context,
@@ -351,18 +366,20 @@
                 renderProgress,
               }),
             false,
-          )
-          return
+          );
+          return;
         }
 
+        setDeferredMetadataInFlightInternal(context, false);
+        renderProgress(true);
         emitDeferredMetadataDoneEventInternal(
           context,
           deferredEntryCount,
           chunks.length,
           progress.completedChunks,
           startedAt,
-        )
-      })
+        );
+      });
   }
 
   function queueDeferredMetadataPreloadInternal({
@@ -372,21 +389,23 @@
     preloadMetadataForEntries,
   }: QueueDeferredMetadataPreloadOptions): void {
     if (!deferredEntries.length) {
-      return
+      setDeferredMetadataInFlightInternal(context, false);
+      return;
     }
 
-    const runId = context.deferredMetadataRunId
-    const startedAt = Date.now()
-    const orderedEntries = reorderDeferredEntriesByViewportInternal(context, deferredEntries)
-    const chunks = splitDeferredMetadataChunksInternal(context, orderedEntries)
+    const runId = context.deferredMetadataRunId;
+    const startedAt = Date.now();
+    const orderedEntries = reorderDeferredEntriesByViewportInternal(context, deferredEntries);
+    const chunks = splitDeferredMetadataChunksInternal(context, orderedEntries);
     const progress: DeferredMetadataChunkProgress = {
       completedChunks: 0,
-    }
-    const renderProgress = createDeferredMetadataProgressRendererInternal(context)
+    };
+    const renderProgress = createDeferredMetadataProgressRendererInternal(context);
+    setDeferredMetadataInFlightInternal(context, true);
     context.runtimeEvent('curated-load-background-metadata-start', {
       deferredEntryCount: deferredEntries.length,
       chunkCount: chunks.length,
-    })
+    });
 
     scheduleDeferredMetadataStepInternal(
       context,
@@ -404,17 +423,17 @@
           renderProgress,
         }),
       true,
-    )
+    );
   }
 
   function createCuratedLoaderDeferredMetadataRuntime(): CuratedLoaderDeferredMetadataRuntime {
     return {
       splitMetadataPreloadEntries: splitMetadataPreloadEntriesInternal,
       queueDeferredMetadataPreload: queueDeferredMetadataPreloadInternal,
-    }
+    };
   }
 
   moduleRegistry.runtimeCuratedLoaderDeferredMetadata = {
     createCuratedLoaderDeferredMetadataRuntime,
-  }
-})()
+  };
+})();

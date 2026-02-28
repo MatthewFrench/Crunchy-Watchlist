@@ -1,70 +1,70 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type EpisodePrimitivesRuntime = {
   parseCanonicalEpisodeIdentifier: (
     value: unknown,
-  ) => { seriesId: string; seasonCore: number; episodeNumber: number; canonicalEpisodeKey: string } | null
-  deriveCanonicalEpisodeKeyFromEpisodeMetadata: (meta: unknown, fallbackSeriesId?: unknown) => string | null
-  getAbsoluteEpisodeNumberFromEpisodeMetadata: (meta: unknown) => number | null
-  getEpisodeAvailabilityByAudioLocale: (meta: unknown) => Record<string, number>
-  mergeEpisodeAvailabilityByAudioLocale: (previousMap: unknown, nextMap: unknown) => Record<string, number>
-}
+  ) => { seriesId: string; seasonCore: number; episodeNumber: number; canonicalEpisodeKey: string } | null;
+  deriveCanonicalEpisodeKeyFromEpisodeMetadata: (meta: unknown, fallbackSeriesId?: unknown) => string | null;
+  getAbsoluteEpisodeNumberFromEpisodeMetadata: (meta: unknown) => number | null;
+  getEpisodeAvailabilityByAudioLocale: (meta: unknown) => Record<string, number>;
+  mergeEpisodeAvailabilityByAudioLocale: (previousMap: unknown, nextMap: unknown) => Record<string, number>;
+};
 
 type EpisodePrimitivesModule = {
-  createEpisodePrimitives: (deps: Record<string, unknown>) => EpisodePrimitivesRuntime
-}
+  createEpisodePrimitives: (deps: Record<string, unknown>) => EpisodePrimitivesRuntime;
+};
 
-const moduleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Domain', 'EpisodePrimitives.ts')).href
+const moduleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Domain', 'EpisodePrimitives.ts')).href;
 
 function sanitizePositiveInt(value: unknown): number | null {
-  const numeric = Number(value)
+  const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) {
-    return null
+    return null;
   }
-  return Math.round(numeric)
+  return Math.round(numeric);
 }
 
 function pickFirstPositiveInt(values: unknown[]): number | null {
   for (const value of values) {
-    const parsed = sanitizePositiveInt(value)
+    const parsed = sanitizePositiveInt(value);
     if (parsed != null) {
-      return parsed
+      return parsed;
     }
   }
-  return null
+  return null;
 }
 
 function normalizeAudioLocale(locale: unknown): string | null {
-  const text = String(locale || '').trim()
-  return text ? text : null
+  const text = String(locale || '').trim();
+  return text ? text : null;
 }
 
 function normalizeAudioLocaleCountMap(value: unknown): Record<string, number> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return {}
+    return {};
   }
 
-  const normalized: Record<string, number> = {}
+  const normalized: Record<string, number> = {};
   for (const [localeKey, count] of Object.entries(value as Record<string, unknown>)) {
-    const locale = normalizeAudioLocale(localeKey)
-    const parsedCount = sanitizePositiveInt(count)
+    const locale = normalizeAudioLocale(localeKey);
+    const parsedCount = sanitizePositiveInt(count);
     if (!locale || parsedCount == null) {
-      continue
+      continue;
     }
-    normalized[locale.toLowerCase()] = parsedCount
+    normalized[locale.toLowerCase()] = parsedCount;
   }
-  return normalized
+  return normalized;
 }
 
 function getEpisodePrimitivesModule(): EpisodePrimitivesModule {
   const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    domain?: Record<string, unknown>
-  }
-  const domainRegistry = registry.domain ?? {}
-  return domainRegistry.episodePrimitives as EpisodePrimitivesModule
+    domain?: Record<string, unknown>;
+  };
+  const domainRegistry = registry.domain ?? {};
+  return domainRegistry.episodePrimitives as EpisodePrimitivesModule;
 }
 
 function createEpisodePrimitivesRuntime(): EpisodePrimitivesRuntime {
@@ -73,26 +73,26 @@ function createEpisodePrimitivesRuntime(): EpisodePrimitivesRuntime {
     pickFirstPositiveInt,
     normalizeAudioLocale,
     normalizeAudioLocaleCountMap,
-  })
+  });
 }
 
 describe('episode-primitives domain module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([moduleUrl])
-  })
+    await loadRuntimeModules([moduleUrl]);
+  });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry()
-  })
+    clearRuntimeModulesRegistry();
+  });
 
   it('parses canonical identifiers and derives fallback keys', () => {
-    const runtime = createEpisodePrimitivesRuntime()
+    const runtime = createEpisodePrimitivesRuntime();
     expect(runtime.parseCanonicalEpisodeIdentifier('GR5P2X4Y|S1|E7')).toEqual({
       seriesId: 'GR5P2X4Y',
       seasonCore: 1,
       episodeNumber: 7,
       canonicalEpisodeKey: 'GR5P2X4Y|S1|E7',
-    })
+    });
 
     expect(
       runtime.deriveCanonicalEpisodeKeyFromEpisodeMetadata({
@@ -100,28 +100,28 @@ describe('episode-primitives domain module', () => {
         season_id: 'GS012345',
         episode_number: 13,
       }),
-    ).toBe('GR75N4Q2Y|S12345|E13')
-  })
+    ).toBe('GR75N4Q2Y|S12345|E13');
+  });
 
   it('prefers robust absolute episode metadata fields', () => {
-    const runtime = createEpisodePrimitivesRuntime()
+    const runtime = createEpisodePrimitivesRuntime();
     expect(
       runtime.getAbsoluteEpisodeNumberFromEpisodeMetadata({
         sequence_number: 44,
         episode_sequence_number: 11,
         global_episode_num: 3,
       }),
-    ).toBe(44)
+    ).toBe(44);
     expect(
       runtime.getAbsoluteEpisodeNumberFromEpisodeMetadata({
         season_number: 1,
         episode_number: 9,
       }),
-    ).toBe(9)
-  })
+    ).toBe(9);
+  });
 
   it('builds and merges audio-locale availability maps with max episode tracking', () => {
-    const runtime = createEpisodePrimitivesRuntime()
+    const runtime = createEpisodePrimitivesRuntime();
     expect(
       runtime.getEpisodeAvailabilityByAudioLocale({
         audio_locale: 'ja-JP',
@@ -133,7 +133,7 @@ describe('episode-primitives domain module', () => {
       'ja-jp': 14,
       'en-us': 14,
       'pt-br': 14,
-    })
+    });
 
     expect(
       runtime.mergeEpisodeAvailabilityByAudioLocale(
@@ -144,6 +144,6 @@ describe('episode-primitives domain module', () => {
       'ja-jp': 12,
       'en-us': 8,
       'es-es': 9,
-    })
-  })
-})
+    });
+  });
+});

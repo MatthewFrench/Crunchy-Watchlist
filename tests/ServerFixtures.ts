@@ -1,53 +1,53 @@
-type RatingDistribution = Record<number, number>
+type RatingDistribution = Record<number, number>;
 
 export type FixtureRating = {
-  average: number | null
-  count: number | null
-  distribution: RatingDistribution | null
-  audioLocales: string[]
-  description: string
-  seasonCount: number | null
-  seasonCountByAudioLocale?: Record<string, number>
-  episodeCount: number | null
-  episodeCountByAudioLocale?: Record<string, number>
-  tenantCategories: string[]
-}
+  average: number | null;
+  count: number | null;
+  distribution: RatingDistribution | null;
+  audioLocales: string[];
+  description: string;
+  seasonCount: number | null;
+  seasonCountByAudioLocale?: Record<string, number>;
+  episodeCount: number | null;
+  episodeCountByAudioLocale?: Record<string, number>;
+  tenantCategories: string[];
+};
 
 type WatchlistRowOptions = {
-  seriesId: string
-  title: string
-  slug: string
-  seasonNumber?: number
-  episodeNumber: number
-  sequenceNumber: number
-  playhead: number
-  dateAdded: string
-  dateUpdated: string
-  fullyWatched?: boolean
-  neverWatched?: boolean
-  isFavorite?: boolean
-  isNew?: boolean
-  isDubbed?: boolean
-  isSubbed?: boolean
-  audioLocale?: string
-  availabilityStatus?: string
-}
+  seriesId: string;
+  title: string;
+  slug: string;
+  seasonNumber?: number;
+  episodeNumber: number;
+  sequenceNumber: number;
+  playhead: number;
+  dateAdded: string;
+  dateUpdated: string;
+  fullyWatched?: boolean;
+  neverWatched?: boolean;
+  isFavorite?: boolean;
+  isNew?: boolean;
+  isDubbed?: boolean;
+  isSubbed?: boolean;
+  audioLocale?: string;
+  availabilityStatus?: string;
+};
 
 type WatchHistoryRowOptions = {
-  seriesId: string
-  title: string
-  slug: string
-  seasonNumber?: number
-  episodeNumber: number
-  sequenceNumber: number
-  playhead?: number
-  datePlayed: string
-  fullyWatched?: boolean
-  audioLocale?: string
-}
+  seriesId: string;
+  title: string;
+  slug: string;
+  seasonNumber?: number;
+  episodeNumber: number;
+  sequenceNumber: number;
+  playhead?: number;
+  datePlayed: string;
+  fullyWatched?: boolean;
+  audioLocale?: string;
+};
 
-export const ACCOUNT_ID = 'fixture-account'
-export const ACCESS_TOKEN = 'fixture-access-token'
+export const ACCOUNT_ID = 'fixture-account';
+export const ACCESS_TOKEN = 'fixture-access-token';
 
 export const ratingMap: Record<string, FixtureRating> = {
   GHIGH456: {
@@ -94,18 +94,18 @@ export const ratingMap: Record<string, FixtureRating> = {
     episodeCount: 20,
     tenantCategories: ['romance'],
   },
-}
+};
 
 export function pickLocalizedValue<T>(valuesByLocale: unknown, preferredAudioLanguage: unknown, fallbackValue: T): T {
   if (!valuesByLocale || typeof valuesByLocale !== 'object' || Array.isArray(valuesByLocale)) {
-    return fallbackValue
+    return fallbackValue;
   }
 
   const normalizedPreferred = String(preferredAudioLanguage || '')
     .trim()
-    .toLowerCase()
+    .toLowerCase();
   if (!normalizedPreferred) {
-    return fallbackValue
+    return fallbackValue;
   }
 
   for (const [locale, value] of Object.entries(valuesByLocale as Record<string, T>)) {
@@ -114,11 +114,11 @@ export function pickLocalizedValue<T>(valuesByLocale: unknown, preferredAudioLan
         .trim()
         .toLowerCase() === normalizedPreferred
     ) {
-      return value
+      return value;
     }
   }
 
-  return fallbackValue
+  return fallbackValue;
 }
 
 function makeWatchlistRow({
@@ -199,7 +199,7 @@ function makeWatchlistRow({
         roles: isDubbed ? ['dub'] : ['sub'],
       },
     },
-  }
+  };
 }
 
 export const watchlistRows = [
@@ -262,7 +262,7 @@ export const watchlistRows = [
     isSubbed: true,
     audioLocale: 'en-US',
   }),
-]
+];
 
 function makeWatchHistoryRow({
   seriesId,
@@ -302,7 +302,7 @@ function makeWatchHistoryRow({
         episode_air_date: '2025-01-01T12:00:00Z',
       },
     },
-  }
+  };
 }
 
 export const watchHistoryRows = [
@@ -354,4 +354,4 @@ export const watchHistoryRows = [
     datePlayed: '2025-03-19T08:20:00Z',
     audioLocale: 'en-US',
   }),
-]
+];

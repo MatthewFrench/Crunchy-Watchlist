@@ -1,125 +1,125 @@
-;(() => {
-  type AnyFn = (...args: unknown[]) => unknown
+(() => {
+  type AnyFn = (...args: unknown[]) => unknown;
 
-  type UnknownRecord = Record<string, unknown>
+  type UnknownRecord = Record<string, unknown>;
 
   type CoverImages = {
-    portrait?: string
-    landscape?: string
-    fallback?: string
-  }
+    portrait?: string;
+    landscape?: string;
+    fallback?: string;
+  };
 
   type NormalizedEntry = {
-    source: 'api'
-    seriesId: string
-    panelId: string | null
-    canonicalEpisodeKey: string
-    title: string
-    href: string
-    episodeHref: string
-    imageUrl: string
-    portraitImageUrl: string
-    landscapeImageUrl: string
-    hoverPreviewImageUrl: string
-    streamsLink: string
-    description: string
-    dateAddedMs: number | null
-    lastWatchedMs: number | null
-    dateUpdatedMs: number | null
-    episodeCount: number | null
-    seasonCount: number | null
-    genreTags: string[]
-    statusText: string
-    statusBase: string
-    nextEpisodeLabel: string
-    seasonNumber: number | null
-    episodeNumber: number | null
-    absoluteEpisodeNumber: number | null
-    episodeDurationMs: number | null
-    playheadMs: number
-    fullyWatched: boolean
-    neverWatched: boolean
-    isFavorite: boolean
-    audioLocales: string[]
-    knownEpisodeMaxByAudioLocale: Record<string, number>
-    hasEnglishAudio: boolean
-    watchReadyBase: boolean
-    originalIndex: number
-    fixtureTitle: null
-  }
+    source: 'api';
+    seriesId: string;
+    panelId: string | null;
+    canonicalEpisodeKey: string;
+    title: string;
+    href: string;
+    episodeHref: string;
+    imageUrl: string;
+    portraitImageUrl: string;
+    landscapeImageUrl: string;
+    hoverPreviewImageUrl: string;
+    streamsLink: string;
+    description: string;
+    dateAddedMs: number | null;
+    lastWatchedMs: number | null;
+    dateUpdatedMs: number | null;
+    episodeCount: number | null;
+    seasonCount: number | null;
+    genreTags: string[];
+    statusText: string;
+    statusBase: string;
+    nextEpisodeLabel: string;
+    seasonNumber: number | null;
+    episodeNumber: number | null;
+    absoluteEpisodeNumber: number | null;
+    episodeDurationMs: number | null;
+    playheadMs: number;
+    fullyWatched: boolean;
+    neverWatched: boolean;
+    isFavorite: boolean;
+    audioLocales: string[];
+    knownEpisodeMaxByAudioLocale: Record<string, number>;
+    hasEnglishAudio: boolean;
+    watchReadyBase: boolean;
+    originalIndex: number;
+    fixtureTitle: null;
+  };
 
   type EntryNormalizerContext = {
-    sanitizePositiveInt: (value: unknown) => number | null
-    getAbsoluteEpisodeNumberFromEpisodeMetadata: (meta: UnknownRecord) => number | null
-    deriveCanonicalEpisodeKeyFromEpisodeMetadata: (meta: UnknownRecord, seriesId: string) => string
-    formatEpisodeIdentifier: (seasonNumber: number | null, episodeNumber: number | null) => string
-    hasEnUsAudio: (audioLocales: string[]) => boolean
-    extractCoverImagesFromApiImages: (images: unknown) => CoverImages
-    extractThumbnailImageFromApiImages: (images: unknown) => string
-    pickFirstDateMs: (candidates: unknown[]) => number | null
-    getWatchlistSeriesId: (row: UnknownRecord) => string
-    getEpisodeAvailabilityByAudioLocale: (meta: UnknownRecord) => Record<string, number>
+    sanitizePositiveInt: (value: unknown) => number | null;
+    getAbsoluteEpisodeNumberFromEpisodeMetadata: (meta: UnknownRecord) => number | null;
+    deriveCanonicalEpisodeKeyFromEpisodeMetadata: (meta: UnknownRecord, seriesId: string) => string;
+    formatEpisodeIdentifier: (seasonNumber: number | null, episodeNumber: number | null) => string;
+    hasEnUsAudio: (audioLocales: string[]) => boolean;
+    extractCoverImagesFromApiImages: (images: unknown) => CoverImages;
+    extractThumbnailImageFromApiImages: (images: unknown) => string;
+    pickFirstDateMs: (candidates: unknown[]) => number | null;
+    getWatchlistSeriesId: (row: UnknownRecord) => string;
+    getEpisodeAvailabilityByAudioLocale: (meta: UnknownRecord) => Record<string, number>;
     mergeEpisodeAvailabilityByAudioLocale: (
       existing: Record<string, number>,
       next: Record<string, number>,
-    ) => Record<string, number>
-    normalizeAudioLocales: (audioLocales: unknown[]) => string[]
-  }
+    ) => Record<string, number>;
+    normalizeAudioLocales: (audioLocales: unknown[]) => string[];
+  };
 
   type EntryNormalizerDeps = {
-    sanitizePositiveInt?: unknown
-    getAbsoluteEpisodeNumberFromEpisodeMetadata?: unknown
-    deriveCanonicalEpisodeKeyFromEpisodeMetadata?: unknown
-    formatEpisodeIdentifier?: unknown
-    hasEnUsAudio?: unknown
-    extractCoverImagesFromApiImages?: unknown
-    extractThumbnailImageFromApiImages?: unknown
-    pickFirstDateMs?: unknown
-    getWatchlistSeriesId?: unknown
-    getEpisodeAvailabilityByAudioLocale?: unknown
-    mergeEpisodeAvailabilityByAudioLocale?: unknown
-    normalizeAudioLocales?: unknown
-  }
+    sanitizePositiveInt?: unknown;
+    getAbsoluteEpisodeNumberFromEpisodeMetadata?: unknown;
+    deriveCanonicalEpisodeKeyFromEpisodeMetadata?: unknown;
+    formatEpisodeIdentifier?: unknown;
+    hasEnUsAudio?: unknown;
+    extractCoverImagesFromApiImages?: unknown;
+    extractThumbnailImageFromApiImages?: unknown;
+    pickFirstDateMs?: unknown;
+    getWatchlistSeriesId?: unknown;
+    getEpisodeAvailabilityByAudioLocale?: unknown;
+    mergeEpisodeAvailabilityByAudioLocale?: unknown;
+    normalizeAudioLocales?: unknown;
+  };
 
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis
+  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {}
+    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
+  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
 
   function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
     if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing domain dependency: ${name}`)
+      throw new Error(`[CW] Missing domain dependency: ${name}`);
     }
-    return value as T
+    return value as T;
   }
 
   function toRecord(value: unknown): UnknownRecord {
     if (!value || typeof value !== 'object') {
-      return {}
+      return {};
     }
 
-    return value as UnknownRecord
+    return value as UnknownRecord;
   }
 
   function toRows(rows: unknown): UnknownRecord[] {
     if (!Array.isArray(rows)) {
-      return []
+      return [];
     }
 
-    return rows.filter((row): row is UnknownRecord => !!row && typeof row === 'object')
+    return rows.filter((row): row is UnknownRecord => !!row && typeof row === 'object');
   }
 
   function getPanel(row: UnknownRecord): UnknownRecord {
-    return toRecord(row.panel)
+    return toRecord(row.panel);
   }
 
   function getMeta(row: UnknownRecord): UnknownRecord {
-    return toRecord(getPanel(row).episode_metadata)
+    return toRecord(getPanel(row).episode_metadata);
   }
 
   function getTrimmedString(value: unknown): string {
-    return typeof value === 'string' ? value.trim() : ''
+    return typeof value === 'string' ? value.trim() : '';
   }
 
   function createEntryNormalizerContext(deps: EntryNormalizerDeps = {}): EntryNormalizerContext {
@@ -169,77 +169,77 @@
         'normalizeAudioLocales',
         deps.normalizeAudioLocales,
       ) as EntryNormalizerContext['normalizeAudioLocales'],
-    }
+    };
   }
 
   function deriveStatusBaseFromApi(row: UnknownRecord, meta: UnknownRecord): string {
     if (meta.availability_status && meta.availability_status !== 'available') {
-      return 'Unavailable'
+      return 'Unavailable';
     }
 
     if (row.fully_watched) {
-      return 'Watch Again'
+      return 'Watch Again';
     }
 
     if (row.never_watched) {
-      return 'Start Watching'
+      return 'Start Watching';
     }
 
     if (Number(row.playhead || 0) > 0) {
-      return 'Continue'
+      return 'Continue';
     }
 
     if (row.new) {
-      return 'Up Next'
+      return 'Up Next';
     }
 
-    return 'Up Next'
+    return 'Up Next';
   }
 
   function deriveAudioLocalesFromApi(context: EntryNormalizerContext, meta: UnknownRecord): string[] {
-    const locales: unknown[] = []
+    const locales: unknown[] = [];
 
     if (meta.audio_locale) {
-      locales.push(meta.audio_locale)
+      locales.push(meta.audio_locale);
     }
 
     if (Array.isArray(meta.audio_locales)) {
-      locales.push(...meta.audio_locales)
+      locales.push(...meta.audio_locales);
     }
 
-    return context.normalizeAudioLocales(locales)
+    return context.normalizeAudioLocales(locales);
   }
 
   function parseWatchReadyBoolean(value: unknown): boolean | null {
     if (typeof value === 'boolean') {
-      return value
+      return value;
     }
 
     if (typeof value === 'number') {
       if (!Number.isFinite(value)) {
-        return null
+        return null;
       }
-      return value !== 0
+      return value !== 0;
     }
 
     if (typeof value === 'string') {
-      const normalized = value.trim().toLowerCase()
+      const normalized = value.trim().toLowerCase();
       if (normalized === '') {
-        return null
+        return null;
       }
       if (['true', '1', 'yes', 'on', 'y'].includes(normalized)) {
-        return true
+        return true;
       }
       if (['false', '0', 'no', 'off', 'n'].includes(normalized)) {
-        return false
+        return false;
       }
     }
 
-    return null
+    return null;
   }
 
   function resolveWatchReadyFromApi(row: UnknownRecord): boolean | null {
-    const meta = getMeta(row)
+    const meta = getMeta(row);
     const candidates: Array<{ value: unknown; watchReadyMeaning: boolean }> = [
       { value: row.non_actionable, watchReadyMeaning: false },
       { value: row.nonActionable, watchReadyMeaning: false },
@@ -263,17 +263,17 @@
       { value: meta.isActionable, watchReadyMeaning: true },
       { value: meta.watchable, watchReadyMeaning: true },
       { value: meta.is_watchable, watchReadyMeaning: true },
-    ]
+    ];
 
     for (const candidate of candidates) {
-      const parsed = parseWatchReadyBoolean(candidate.value)
+      const parsed = parseWatchReadyBoolean(candidate.value);
       if (parsed === null) {
-        continue
+        continue;
       }
-      return candidate.watchReadyMeaning ? parsed : !parsed
+      return candidate.watchReadyMeaning ? parsed : !parsed;
     }
 
-    return null
+    return null;
   }
 
   function deriveBaseWatchReady(
@@ -282,26 +282,26 @@
     availabilityStatus: unknown,
     fullyWatched: boolean,
   ): boolean {
-    const explicitWatchReady = resolveWatchReadyFromApi(row)
+    const explicitWatchReady = resolveWatchReadyFromApi(row);
     if (explicitWatchReady !== null) {
-      return explicitWatchReady
+      return explicitWatchReady;
     }
 
     if (/watch again|rewatch|coming soon|unavailable/i.test(statusBase || '')) {
-      return false
+      return false;
     }
     if (availabilityStatus && availabilityStatus !== 'available') {
-      return false
+      return false;
     }
     if (fullyWatched) {
-      return false
+      return false;
     }
-    return true
+    return true;
   }
 
   function buildWatchlistHref(meta: UnknownRecord, seriesId: string): string {
-    const slug = getTrimmedString(meta.series_slug_title)
-    return slug ? `/series/${seriesId}/${slug}` : `/series/${seriesId}`
+    const slug = getTrimmedString(meta.series_slug_title);
+    return slug ? `/series/${seriesId}/${slug}` : `/series/${seriesId}`;
   }
 
   function buildEpisodeHrefFromPanel(panel: UnknownRecord, meta: UnknownRecord): string {
@@ -318,46 +318,46 @@
       meta.watchHref,
     ]
       .map((value) => getTrimmedString(value))
-      .filter(Boolean)
+      .filter(Boolean);
 
     if (directHrefCandidates.length > 0) {
-      return directHrefCandidates[0] || ''
+      return directHrefCandidates[0] || '';
     }
 
-    const panelId = getTrimmedString(panel.id)
+    const panelId = getTrimmedString(panel.id);
     if (!panelId) {
-      return ''
+      return '';
     }
 
-    const episodeSlug = getTrimmedString(panel.slug_title)
-    return episodeSlug ? `/watch/${panelId}/${episodeSlug}` : `/watch/${panelId}`
+    const episodeSlug = getTrimmedString(panel.slug_title);
+    return episodeSlug ? `/watch/${panelId}/${episodeSlug}` : `/watch/${panelId}`;
   }
 
   function buildImageFields(context: EntryNormalizerContext, row: UnknownRecord) {
-    const panel = getPanel(row)
-    const coverImages = context.extractCoverImagesFromApiImages(panel.images)
-    const portraitImageUrl = typeof coverImages.portrait === 'string' ? coverImages.portrait : ''
-    const landscapeImageUrl = typeof coverImages.landscape === 'string' ? coverImages.landscape : ''
-    const fallback = typeof coverImages.fallback === 'string' ? coverImages.fallback : ''
+    const panel = getPanel(row);
+    const coverImages = context.extractCoverImagesFromApiImages(panel.images);
+    const portraitImageUrl = typeof coverImages.portrait === 'string' ? coverImages.portrait : '';
+    const landscapeImageUrl = typeof coverImages.landscape === 'string' ? coverImages.landscape : '';
+    const fallback = typeof coverImages.fallback === 'string' ? coverImages.fallback : '';
 
     return {
       portraitImageUrl,
       landscapeImageUrl,
       imageUrl: portraitImageUrl || landscapeImageUrl || fallback,
       hoverPreviewImageUrl: context.extractThumbnailImageFromApiImages(panel.images),
-    }
+    };
   }
 
   function buildTimestampFields(
     context: EntryNormalizerContext,
     row: UnknownRecord,
   ): {
-    dateAddedMs: number | null
-    lastWatchedMs: number | null
-    dateUpdatedMs: number | null
+    dateAddedMs: number | null;
+    lastWatchedMs: number | null;
+    dateUpdatedMs: number | null;
   } {
-    const panel = getPanel(row)
-    const panelMeta = getMeta(row)
+    const panel = getPanel(row);
+    const panelMeta = getMeta(row);
 
     const dateAddedMs = context.pickFirstDateMs([
       row.date_added,
@@ -368,7 +368,7 @@
       panel.date_added,
       panel.created_at,
       panelMeta.availability_starts,
-    ])
+    ]);
     const lastWatchedMs = context.pickFirstDateMs([
       row.last_watched,
       row.last_watched_at,
@@ -377,7 +377,7 @@
       row.last_played_at,
       panel.last_watched,
       panelMeta.last_watched,
-    ])
+    ]);
 
     return {
       dateAddedMs,
@@ -393,7 +393,7 @@
         panel.last_modified_at,
         dateAddedMs,
       ]),
-    }
+    };
   }
 
   function mergeNormalizedEntryAvailability(
@@ -404,7 +404,7 @@
     existingEntry.knownEpisodeMaxByAudioLocale = context.mergeEpisodeAvailabilityByAudioLocale(
       existingEntry.knownEpisodeMaxByAudioLocale,
       knownEpisodeMaxByAudioLocale,
-    )
+    );
   }
 
   function buildNormalizedEntryFromApiRow(
@@ -414,25 +414,25 @@
     seriesId: string,
     knownEpisodeMaxByAudioLocale: Record<string, number>,
   ): NormalizedEntry {
-    const panel = getPanel(row)
-    const meta = getMeta(row)
-    const statusBase = deriveStatusBaseFromApi(row, meta)
-    const seasonNumber = context.sanitizePositiveInt(meta.season_number)
-    const episodeNumber = context.sanitizePositiveInt(meta.episode_number)
-    const absoluteEpisodeNumber = context.getAbsoluteEpisodeNumberFromEpisodeMetadata(meta)
-    const episodeDurationMs = context.sanitizePositiveInt(meta.duration_ms ?? meta.durationMs)
-    const canonicalEpisodeKey = context.deriveCanonicalEpisodeKeyFromEpisodeMetadata(meta, seriesId)
-    const nextEpisodeLabel = context.formatEpisodeIdentifier(seasonNumber, episodeNumber)
-    const statusText = nextEpisodeLabel ? `${statusBase}: ${nextEpisodeLabel}` : statusBase
-    const audioLocales = deriveAudioLocalesFromApi(context, meta)
-    const fullyWatched = Boolean(row.fully_watched)
-    const neverWatched = Boolean(row.never_watched)
-    const playheadMs = Number(row.playhead || 0) > 0 ? Number(row.playhead) : 0
-    const watchReadyBase = deriveBaseWatchReady(row, statusBase, meta.availability_status, fullyWatched)
-    const title = getTrimmedString(meta.series_title) || getTrimmedString(panel.title) || seriesId
-    const description = getTrimmedString(panel.description)
-    const timestampFields = buildTimestampFields(context, row)
-    const imageFields = buildImageFields(context, row)
+    const panel = getPanel(row);
+    const meta = getMeta(row);
+    const statusBase = deriveStatusBaseFromApi(row, meta);
+    const seasonNumber = context.sanitizePositiveInt(meta.season_number);
+    const episodeNumber = context.sanitizePositiveInt(meta.episode_number);
+    const absoluteEpisodeNumber = context.getAbsoluteEpisodeNumberFromEpisodeMetadata(meta);
+    const episodeDurationMs = context.sanitizePositiveInt(meta.duration_ms ?? meta.durationMs);
+    const canonicalEpisodeKey = context.deriveCanonicalEpisodeKeyFromEpisodeMetadata(meta, seriesId);
+    const nextEpisodeLabel = context.formatEpisodeIdentifier(seasonNumber, episodeNumber);
+    const statusText = nextEpisodeLabel ? `${statusBase}: ${nextEpisodeLabel}` : statusBase;
+    const audioLocales = deriveAudioLocalesFromApi(context, meta);
+    const fullyWatched = Boolean(row.fully_watched);
+    const neverWatched = Boolean(row.never_watched);
+    const playheadMs = Number(row.playhead || 0) > 0 ? Number(row.playhead) : 0;
+    const watchReadyBase = deriveBaseWatchReady(row, statusBase, meta.availability_status, fullyWatched);
+    const title = getTrimmedString(meta.series_title) || getTrimmedString(panel.title) || seriesId;
+    const description = getTrimmedString(panel.description);
+    const timestampFields = buildTimestampFields(context, row);
+    const imageFields = buildImageFields(context, row);
 
     return {
       source: 'api',
@@ -476,47 +476,47 @@
       watchReadyBase,
       originalIndex: index,
       fixtureTitle: null,
-    }
+    };
   }
 
   function normalizeEntriesFromApiRowsInternal(context: EntryNormalizerContext, rows: unknown): NormalizedEntry[] {
-    const dedup = new Map<string, NormalizedEntry>()
-    const inputRows = toRows(rows)
+    const dedup = new Map<string, NormalizedEntry>();
+    const inputRows = toRows(rows);
 
     inputRows.forEach((row, index) => {
-      const seriesId = context.getWatchlistSeriesId(row)
+      const seriesId = context.getWatchlistSeriesId(row);
       if (!seriesId) {
-        return
+        return;
       }
 
-      const meta = getMeta(row)
-      const knownEpisodeMaxByAudioLocale = context.getEpisodeAvailabilityByAudioLocale(meta)
-      const existing = dedup.get(seriesId)
+      const meta = getMeta(row);
+      const knownEpisodeMaxByAudioLocale = context.getEpisodeAvailabilityByAudioLocale(meta);
+      const existing = dedup.get(seriesId);
       if (existing) {
-        mergeNormalizedEntryAvailability(context, existing, knownEpisodeMaxByAudioLocale)
-        return
+        mergeNormalizedEntryAvailability(context, existing, knownEpisodeMaxByAudioLocale);
+        return;
       }
 
-      dedup.set(seriesId, buildNormalizedEntryFromApiRow(context, row, index, seriesId, knownEpisodeMaxByAudioLocale))
-    })
+      dedup.set(seriesId, buildNormalizedEntryFromApiRow(context, row, index, seriesId, knownEpisodeMaxByAudioLocale));
+    });
 
-    return Array.from(dedup.values())
+    return Array.from(dedup.values());
   }
 
   function createEntryNormalizer(deps: EntryNormalizerDeps = {}) {
-    const context = createEntryNormalizerContext(deps)
+    const context = createEntryNormalizerContext(deps);
     return {
       normalizeEntriesFromApiRows: (rows: unknown) => normalizeEntriesFromApiRowsInternal(context, rows),
-    }
+    };
   }
 
-  let domainRegistry = moduleRegistry.domain
+  let domainRegistry = moduleRegistry.domain;
   if (!domainRegistry || typeof domainRegistry !== 'object') {
-    domainRegistry = {}
-    moduleRegistry.domain = domainRegistry
+    domainRegistry = {};
+    moduleRegistry.domain = domainRegistry;
   }
 
-  ;(domainRegistry as Record<string, unknown>).entryNormalizer = {
+  (domainRegistry as Record<string, unknown>).entryNormalizer = {
     createEntryNormalizer,
-  }
-})()
+  };
+})();

@@ -1,25 +1,25 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type StateLoaderRuntime = {
-  loadInitialState: () => Promise<void>
-}
+  loadInitialState: () => Promise<void>;
+};
 
 type StateLoaderModule = {
   runtimeStateLoader: {
-    createStateLoader: (options: Record<string, unknown>) => StateLoaderRuntime
-  }
-}
+    createStateLoader: (options: Record<string, unknown>) => StateLoaderRuntime;
+  };
+};
 
 const stateLoaderModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'StateLoader.ts'),
-).href
+).href;
 
 function getStateLoaderModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as StateLoaderModule
-  return registry.runtimeStateLoader
+  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as StateLoaderModule;
+  return registry.runtimeStateLoader;
 }
 
 function createBaseState() {
@@ -32,11 +32,11 @@ function createBaseState() {
     curatedEntries: [] as unknown[],
     curatedSource: 'none',
     curatedLastRevalidateAt: 0,
-  }
+  };
 }
 
 function createStorageGet(values: Record<string, unknown>) {
-  return async (key: string, fallback: unknown) => (Object.hasOwn(values, key) ? values[key] : fallback)
+  return async (key: string, fallback: unknown) => (Object.hasOwn(values, key) ? values[key] : fallback);
 }
 
 function createTokenEntry(profileId = 'profile-1') {
@@ -44,28 +44,28 @@ function createTokenEntry(profileId = 'profile-1') {
     accessToken: 'token-1',
     accountId: 'account-1',
     profileId,
-  }
+  };
 }
 
 describe('runtime state-loader', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([stateLoaderModuleUrl])
-  })
+    await loadRuntimeModules([stateLoaderModuleUrl]);
+  });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry()
-  })
+    clearRuntimeModulesRegistry();
+  });
 
   it('migrates legacy settings and enforces sort/layout guards', async () => {
-    const state = createBaseState()
-    const runtimeEvents: Array<{ event: string; data?: unknown }> = []
+    const state = createBaseState();
+    const runtimeEvents: Array<{ event: string; data?: unknown }> = [];
     const defaultSettings = {
       activeTab: 'curated',
       cardLayout: 'portrait',
       watchReadyFilterMode: 'hide',
       sortMode: 'consensus_quality_desc',
       secondarySortMode: 'none',
-    }
+    };
 
     const storageValues = {
       cw_settings_v1: {
@@ -82,7 +82,7 @@ describe('runtime state-loader', () => {
         persisted: true,
       },
       cw_watchlist_cache_v1: null,
-    }
+    };
 
     const stateLoader = getStateLoaderModule().createStateLoader({
       state,
@@ -101,31 +101,31 @@ describe('runtime state-loader', () => {
       ratingCacheKey: 'cw_rating_cache_v2',
       watchHistoryCacheKey: 'cw_watch_history_cache_v1',
       watchlistCacheKey: 'cw_watchlist_cache_v1',
-    })
+    });
 
-    await stateLoader.loadInitialState()
+    await stateLoader.loadInitialState();
 
-    const settings = state.settings as Record<string, unknown>
-    expect(settings.audioLocaleFilter).toBe('en-US')
-    expect(settings.watchReadyFilterMode).toBe('dim')
-    expect(settings.cardLayout).toBe('portrait')
-    expect(settings.sortMode).toBe('consensus_quality_desc')
-    expect(settings.secondarySortMode).toBe('none')
+    const settings = state.settings as Record<string, unknown>;
+    expect(settings.audioLocaleFilter).toBe('en-US');
+    expect(settings.watchReadyFilterMode).toBe('dim');
+    expect(settings.cardLayout).toBe('portrait');
+    expect(settings.sortMode).toBe('consensus_quality_desc');
+    expect(settings.secondarySortMode).toBe('none');
     expect(state.ratingCache).toEqual({
       seriesA: { rating: 4.4 },
-    })
-    expect(state.watchHistoryStatus).toBe('idle')
+    });
+    expect(state.watchHistoryStatus).toBe('idle');
     expect(runtimeEvents.at(-1)).toEqual({
       event: 'state-load-done',
       data: {
         tab: 'curated',
         cachedCurated: 0,
       },
-    })
-  })
+    });
+  });
 
   it('disables secondary sort when it matches the primary sort mode', async () => {
-    const state = createBaseState()
+    const state = createBaseState();
     const stateLoader = getStateLoaderModule().createStateLoader({
       state,
       storageGet: createStorageGet({
@@ -159,20 +159,20 @@ describe('runtime state-loader', () => {
       ratingCacheKey: 'cw_rating_cache_v2',
       watchHistoryCacheKey: 'cw_watch_history_cache_v1',
       watchlistCacheKey: 'cw_watchlist_cache_v1',
-    })
+    });
 
-    await stateLoader.loadInitialState()
+    await stateLoader.loadInitialState();
 
-    expect((state.settings as Record<string, unknown>).sortMode).toBe('rating_desc')
-    expect((state.settings as Record<string, unknown>).secondarySortMode).toBe('none')
-  })
+    expect((state.settings as Record<string, unknown>).sortMode).toBe('rating_desc');
+    expect((state.settings as Record<string, unknown>).secondarySortMode).toBe('none');
+  });
 
   it('hydrates curated entries from valid watchlist cache and emits hydration event', async () => {
-    const state = createBaseState()
-    const runtimeEvents: Array<{ event: string; data?: unknown }> = []
-    const watchlistRows = [{ series_id: 'series-1' }, { series_id: 'series-2' }]
+    const state = createBaseState();
+    const runtimeEvents: Array<{ event: string; data?: unknown }> = [];
+    const watchlistRows = [{ series_id: 'series-1' }, { series_id: 'series-2' }];
     const isWatchlistCacheValid = (cache: unknown, accountId?: unknown, profileId?: unknown) =>
-      accountId === 'account-1' && profileId === 'profile-1' && Boolean(cache)
+      accountId === 'account-1' && profileId === 'profile-1' && Boolean(cache);
 
     const stateLoader = getStateLoaderModule().createStateLoader({
       state,
@@ -210,16 +210,16 @@ describe('runtime state-loader', () => {
       ratingCacheKey: 'cw_rating_cache_v2',
       watchHistoryCacheKey: 'cw_watch_history_cache_v1',
       watchlistCacheKey: 'cw_watchlist_cache_v1',
-    })
+    });
 
-    await stateLoader.loadInitialState()
+    await stateLoader.loadInitialState();
 
-    expect(state.curatedSource).toBe('cache')
-    expect(state.curatedLastRevalidateAt).toBe(12345)
+    expect(state.curatedSource).toBe('cache');
+    expect(state.curatedLastRevalidateAt).toBe(12345);
     expect(state.curatedEntries).toEqual([
       { series_id: 'series-1', normalized: true },
       { series_id: 'series-2', normalized: true },
-    ])
+    ]);
     expect(runtimeEvents).toContainEqual({
       event: 'curated-cache-hydrated',
       data: {
@@ -228,13 +228,13 @@ describe('runtime state-loader', () => {
         accountId: 'account-1',
         profileId: 'profile-1',
       },
-    })
-  })
+    });
+  });
 
   it('hydrates account-scoped watchlist cache when token has no profile_id', async () => {
-    const state = createBaseState()
-    const runtimeEvents: Array<{ event: string; data?: unknown }> = []
-    const isWatchlistCacheValid = vi.fn(() => true)
+    const state = createBaseState();
+    const runtimeEvents: Array<{ event: string; data?: unknown }> = [];
+    const isWatchlistCacheValid = vi.fn(() => true);
     const stateLoader = getStateLoaderModule().createStateLoader({
       state,
       storageGet: createStorageGet({
@@ -273,17 +273,17 @@ describe('runtime state-loader', () => {
       ratingCacheKey: 'cw_rating_cache_v2',
       watchHistoryCacheKey: 'cw_watch_history_cache_v1',
       watchlistCacheKey: 'cw_watchlist_cache_v1',
-    })
+    });
 
-    await stateLoader.loadInitialState()
+    await stateLoader.loadInitialState();
 
     expect(isWatchlistCacheValid).toHaveBeenCalledWith(
       expect.objectContaining({ accountId: 'account-1', profileId: '' }),
       'account-1',
       '',
-    )
-    expect(state.curatedSource).toBe('cache')
-    expect(state.curatedEntries).toEqual([{ series_id: 'series-1' }])
+    );
+    expect(state.curatedSource).toBe('cache');
+    expect(state.curatedEntries).toEqual([{ series_id: 'series-1' }]);
     expect(runtimeEvents).toContainEqual({
       event: 'curated-cache-hydrated',
       data: {
@@ -292,12 +292,12 @@ describe('runtime state-loader', () => {
         accountId: 'account-1',
         profileId: null,
       },
-    })
-  })
+    });
+  });
 
   it('skips cached watchlist hydration when auth scope is unavailable', async () => {
-    const state = createBaseState()
-    const runtimeEvents: Array<{ event: string; data?: unknown }> = []
+    const state = createBaseState();
+    const runtimeEvents: Array<{ event: string; data?: unknown }> = [];
     const stateLoader = getStateLoaderModule().createStateLoader({
       state,
       storageGet: createStorageGet({
@@ -333,32 +333,32 @@ describe('runtime state-loader', () => {
       ratingCacheKey: 'cw_rating_cache_v2',
       watchHistoryCacheKey: 'cw_watch_history_cache_v1',
       watchlistCacheKey: 'cw_watchlist_cache_v1',
-    })
+    });
 
-    await stateLoader.loadInitialState()
+    await stateLoader.loadInitialState();
 
-    expect(state.curatedEntries).toEqual([])
-    expect(state.curatedSource).toBe('none')
+    expect(state.curatedEntries).toEqual([]);
+    expect(state.curatedSource).toBe('none');
     expect(runtimeEvents).toContainEqual({
       event: 'curated-cache-scope-unavailable',
       data: {
         hasAccountId: false,
         hasProfileId: false,
       },
-    })
-  })
+    });
+  });
 
   it('does not hydrate cached watchlist rows when the active profile scope differs', async () => {
-    const state = createBaseState()
-    const runtimeEvents: Array<{ event: string; data?: unknown }> = []
+    const state = createBaseState();
+    const runtimeEvents: Array<{ event: string; data?: unknown }> = [];
     const isWatchlistCacheValid = (cache: unknown, accountId?: unknown, profileId?: unknown) => {
       if (accountId !== 'account-1' || profileId !== 'profile-2') {
-        return false
+        return false;
       }
 
-      const cacheRecord = cache as { accountId?: unknown; profileId?: unknown } | null | undefined
-      return cacheRecord?.accountId === accountId && cacheRecord?.profileId === profileId
-    }
+      const cacheRecord = cache as { accountId?: unknown; profileId?: unknown } | null | undefined;
+      return cacheRecord?.accountId === accountId && cacheRecord?.profileId === profileId;
+    };
 
     const stateLoader = getStateLoaderModule().createStateLoader({
       state,
@@ -395,18 +395,18 @@ describe('runtime state-loader', () => {
       ratingCacheKey: 'cw_rating_cache_v2',
       watchHistoryCacheKey: 'cw_watch_history_cache_v1',
       watchlistCacheKey: 'cw_watchlist_cache_v1',
-    })
+    });
 
-    await stateLoader.loadInitialState()
+    await stateLoader.loadInitialState();
 
-    expect(state.curatedEntries).toEqual([])
-    expect(state.curatedSource).toBe('none')
-    expect(runtimeEvents.map((entry) => entry.event)).not.toContain('curated-cache-hydrated')
-  })
+    expect(state.curatedEntries).toEqual([]);
+    expect(state.curatedSource).toBe('none');
+    expect(runtimeEvents.map((entry) => entry.event)).not.toContain('curated-cache-hydrated');
+  });
 
   it('skips profile-scoped cache hydration when token profile scope is unavailable', async () => {
-    const state = createBaseState()
-    const runtimeEvents: Array<{ event: string; data?: unknown }> = []
+    const state = createBaseState();
+    const runtimeEvents: Array<{ event: string; data?: unknown }> = [];
     const stateLoader = getStateLoaderModule().createStateLoader({
       state,
       storageGet: createStorageGet({
@@ -445,12 +445,12 @@ describe('runtime state-loader', () => {
       ratingCacheKey: 'cw_rating_cache_v2',
       watchHistoryCacheKey: 'cw_watch_history_cache_v1',
       watchlistCacheKey: 'cw_watchlist_cache_v1',
-    })
+    });
 
-    await stateLoader.loadInitialState()
+    await stateLoader.loadInitialState();
 
-    expect(state.curatedSource).toBe('none')
-    expect(state.curatedEntries).toEqual([])
+    expect(state.curatedSource).toBe('none');
+    expect(state.curatedEntries).toEqual([]);
     expect(runtimeEvents).toContainEqual({
       event: 'curated-cache-scope-unavailable',
       data: {
@@ -458,12 +458,12 @@ describe('runtime state-loader', () => {
         hasProfileId: false,
         requiresProfileScope: true,
       },
-    })
-    expect(runtimeEvents.map((entry) => entry.event)).not.toContain('curated-cache-hydrated')
-  })
+    });
+    expect(runtimeEvents.map((entry) => entry.event)).not.toContain('curated-cache-hydrated');
+  });
 
   it('preserves hide_not_started watch-ready mode when stored in settings', async () => {
-    const state = createBaseState()
+    const state = createBaseState();
     const stateLoader = getStateLoaderModule().createStateLoader({
       state,
       storageGet: createStorageGet({
@@ -496,10 +496,10 @@ describe('runtime state-loader', () => {
       ratingCacheKey: 'cw_rating_cache_v2',
       watchHistoryCacheKey: 'cw_watch_history_cache_v1',
       watchlistCacheKey: 'cw_watchlist_cache_v1',
-    })
+    });
 
-    await stateLoader.loadInitialState()
+    await stateLoader.loadInitialState();
 
-    expect((state.settings as Record<string, unknown>).watchReadyFilterMode).toBe('hide_not_started')
-  })
-})
+    expect((state.settings as Record<string, unknown>).watchReadyFilterMode).toBe('hide_not_started');
+  });
+});

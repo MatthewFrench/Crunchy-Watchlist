@@ -1,33 +1,33 @@
-;(() => {
-  const runtimeInstanceStartedAt = Date.now()
-  const runtimeInstanceId = `cw-${runtimeInstanceStartedAt}-${Math.random().toString(36).slice(2, 10)}`
-  const domRuntimeLockOwnerAttribute = 'data-cw-runtime-owner'
-  const domRuntimeLockTimestampAttribute = 'data-cw-runtime-owner-ts'
-  const domRuntimeLockStaleMs = 15_000
-  const domRuntimeLockHeartbeatMs = 3_000
-  const domRuntimeTakeoverGraceMs = 1_500
-  const domRuntimeTakeoverPollMs = 75
-  const runtimeTakeoverRequestEventName = 'cw-runtime-takeover-request'
+(() => {
+  const runtimeInstanceStartedAt = Date.now();
+  const runtimeInstanceId = `cw-${runtimeInstanceStartedAt}-${Math.random().toString(36).slice(2, 10)}`;
+  const domRuntimeLockOwnerAttribute = 'data-cw-runtime-owner';
+  const domRuntimeLockTimestampAttribute = 'data-cw-runtime-owner-ts';
+  const domRuntimeLockStaleMs = 15_000;
+  const domRuntimeLockHeartbeatMs = 3_000;
+  const domRuntimeTakeoverGraceMs = 1_500;
+  const domRuntimeTakeoverPollMs = 75;
+  const runtimeTakeoverRequestEventName = 'cw-runtime-takeover-request';
   const runtimeControl =
     window.__CW_WATCHLIST_CURATOR_CONTROL__ && typeof window.__CW_WATCHLIST_CURATOR_CONTROL__ === 'object'
       ? window.__CW_WATCHLIST_CURATOR_CONTROL__
-      : {}
-  window.__CW_WATCHLIST_CURATOR_CONTROL__ = runtimeControl
+      : {};
+  window.__CW_WATCHLIST_CURATOR_CONTROL__ = runtimeControl;
 
   const setRuntimeControl = (patch) => {
-    Object.assign(runtimeControl, patch)
-    window.__CW_WATCHLIST_CURATOR_CONTROL__ = runtimeControl
-  }
+    Object.assign(runtimeControl, patch);
+    window.__CW_WATCHLIST_CURATOR_CONTROL__ = runtimeControl;
+  };
 
   const markRuntimeInactive = (reason, extraPayload = {}) => {
     const activeOwnerId =
       window.__CW_WATCHLIST_CURATOR_CONTROL__ &&
       typeof window.__CW_WATCHLIST_CURATOR_CONTROL__.activeInstanceId === 'string'
         ? window.__CW_WATCHLIST_CURATOR_CONTROL__.activeInstanceId
-        : null
-    const isOwnedByCurrentRuntime = activeOwnerId === runtimeInstanceId
+        : null;
+    const isOwnedByCurrentRuntime = activeOwnerId === runtimeInstanceId;
     if (!isOwnedByCurrentRuntime && activeOwnerId) {
-      return
+      return;
     }
     setRuntimeControl({
       active: false,
@@ -37,28 +37,28 @@
         reason,
         ...extraPayload,
       },
-    })
-  }
+    });
+  };
 
   const isCurrentRuntimeOwner = () =>
     window.__CW_WATCHLIST_CURATOR_CONTROL__ &&
-    window.__CW_WATCHLIST_CURATOR_CONTROL__.activeInstanceId === runtimeInstanceId
+    window.__CW_WATCHLIST_CURATOR_CONTROL__.activeInstanceId === runtimeInstanceId;
 
   const isCurrentRuntimeActive = () =>
     window.__CW_WATCHLIST_CURATOR_CONTROL__ &&
     window.__CW_WATCHLIST_CURATOR_CONTROL__.activeInstanceId === runtimeInstanceId &&
-    window.__CW_WATCHLIST_CURATOR_CONTROL__.active !== false
+    window.__CW_WATCHLIST_CURATOR_CONTROL__.active !== false;
 
-  const moduleRegistry = window.__CW_WATCHLIST_CURATOR_MODULES__ || {}
-  const runtimeContentRuntimeBootstrapHelpersModule = moduleRegistry.runtimeContentRuntimeBootstrapHelpers
+  const moduleRegistry = window.__CW_WATCHLIST_CURATOR_MODULES__ || {};
+  const runtimeContentRuntimeBootstrapHelpersModule = moduleRegistry.runtimeContentRuntimeBootstrapHelpers;
   if (
     !runtimeContentRuntimeBootstrapHelpersModule ||
     typeof runtimeContentRuntimeBootstrapHelpersModule.createContentRuntimeBootstrapHelpers !== 'function'
   ) {
     // eslint-disable-next-line no-console
-    console.error('[CW] missing-content-runtime-bootstrap-helpers-module')
-    markRuntimeInactive('missing-content-runtime-bootstrap-helpers-module')
-    return
+    console.error('[CW] missing-content-runtime-bootstrap-helpers-module');
+    markRuntimeInactive('missing-content-runtime-bootstrap-helpers-module');
+    return;
   }
 
   const runtimeBootstrapHelpersRuntime =
@@ -78,10 +78,10 @@
       runtimeTakeoverRequestEventName,
       isCurrentRuntimeOwner,
       isCurrentRuntimeActive,
-    })
+    });
 
   const setRuntimeSetupBindings = (runtimeSetupBindings) => {
-    ;({
+    ({
       normalizeEntriesFromApiRows,
       fetchWithResilience,
       getAccessToken,
@@ -128,21 +128,21 @@
       persistSettings,
       printSeriesApiData,
       setWatchlistCacheRows,
-    } = runtimeSetupBindings)
-  }
+    } = runtimeSetupBindings);
+  };
 
   const resolveRuntimeBootstrapSession = (bootstrapContext) => {
     const runtimeBootstrapSession = runtimeBootstrapHelpersRuntime.createRuntimeBootstrapSession({
       bootstrapContext,
-    })
+    });
     if (runtimeBootstrapSession) {
-      return runtimeBootstrapSession
+      return runtimeBootstrapSession;
     }
 
-    bootstrapContext.setBootstrapIssue('runtime-bootstrap-session-not-ready')
-    runtimeBootstrapHelpersRuntime.clearStaleInjectedShell('runtime-bootstrap-session-not-ready')
-    return null
-  }
+    bootstrapContext.setBootstrapIssue('runtime-bootstrap-session-not-ready');
+    runtimeBootstrapHelpersRuntime.clearStaleInjectedShell('runtime-bootstrap-session-not-ready');
+    return null;
+  };
 
   const resolveRuntimeSetupResult = (runtimeBootstrapSession, bootstrapContext) => {
     const runtimeSetupResult = runtimeBootstrapSession.runtimeContentRuntimeSetupModule.createContentRuntimeSetup(
@@ -150,68 +150,68 @@
         windowRef: window,
         ...runtimeBootstrapSession,
       }),
-    )
+    );
     if (!runtimeSetupResult || runtimeSetupResult.ok !== true) {
       bootstrapContext.setBootstrapIssue('runtime-module-initialization-failed', {
         message: runtimeSetupResult?.message || 'unknown',
-      })
-      runtimeBootstrapHelpersRuntime.clearStaleInjectedShell('runtime-module-initialization-failed')
-      return null
+      });
+      runtimeBootstrapHelpersRuntime.clearStaleInjectedShell('runtime-module-initialization-failed');
+      return null;
     }
 
     runtimeBootstrapHelpersRuntime.applyRuntimeSetupBindings({
       runtimeSetupResult,
       setRuntimeEvent: runtimeBootstrapSession.setRuntimeEvent,
       setRuntimeSetupBindings,
-    })
+    });
 
-    return runtimeSetupResult
-  }
+    return runtimeSetupResult;
+  };
 
   const resolveBootstrapFinalizeRuntime = (runtimeSetupResult, runtimeBootstrapSession, bootstrapContext) => {
     const bootstrapFinalizeRuntime = runtimeBootstrapHelpersRuntime.createBootstrapFinalizeRuntimeFromSetupResult({
       windowRef: window,
       runtimeSetupResult,
       runtimeBootstrapSession,
-    })
+    });
     const hasValidBootstrapFinalizeRuntime = runtimeBootstrapHelpersRuntime.bindBootstrapFinalizeRuntimeMethods({
       bootstrapFinalizeRuntime,
       setProcessWatchlist: runtimeBootstrapSession.setProcessWatchlist,
       setSyncRouteRuntime: runtimeBootstrapSession.setSyncRouteRuntime,
       setDestroyRuntime: runtimeBootstrapSession.setDestroyRuntime,
       setBootstrapIssue: bootstrapContext.setBootstrapIssue,
-    })
+    });
 
-    return hasValidBootstrapFinalizeRuntime ? bootstrapFinalizeRuntime : null
-  }
+    return hasValidBootstrapFinalizeRuntime ? bootstrapFinalizeRuntime : null;
+  };
 
   const startRuntime = () => {
     if (!runtimeBootstrapHelpersRuntime.tryAcquireDomRuntimeLock()) {
-      markRuntimeInactive('dom-runtime-lock-held')
-      return
+      markRuntimeInactive('dom-runtime-lock-held');
+      return;
     }
 
-    const bootstrapContext = runtimeBootstrapHelpersRuntime.resolveValidatedBootstrapContext(moduleRegistry)
+    const bootstrapContext = runtimeBootstrapHelpersRuntime.resolveValidatedBootstrapContext(moduleRegistry);
     if (!bootstrapContext) {
-      return
+      return;
     }
-    const runtimeBootstrapSession = resolveRuntimeBootstrapSession(bootstrapContext)
+    const runtimeBootstrapSession = resolveRuntimeBootstrapSession(bootstrapContext);
     if (!runtimeBootstrapSession) {
-      return
+      return;
     }
 
-    const runtimeSetupResult = resolveRuntimeSetupResult(runtimeBootstrapSession, bootstrapContext)
+    const runtimeSetupResult = resolveRuntimeSetupResult(runtimeBootstrapSession, bootstrapContext);
     if (!runtimeSetupResult) {
-      return
+      return;
     }
 
     const bootstrapFinalizeRuntime = resolveBootstrapFinalizeRuntime(
       runtimeSetupResult,
       runtimeBootstrapSession,
       bootstrapContext,
-    )
+    );
     if (!bootstrapFinalizeRuntime) {
-      return
+      return;
     }
 
     runtimeBootstrapHelpersRuntime.runBootstrapFinalizeInitFlow({
@@ -222,51 +222,51 @@
       runtimeEvent: runtimeBootstrapSession.getRuntimeEvent(),
       setBootstrapIssue: bootstrapContext.setBootstrapIssue,
       shutdownRuntime: runtimeBootstrapSession.shutdownRuntime,
-    })
-  }
+    });
+  };
 
-  let runtimeBootstrapStarted = false
+  let runtimeBootstrapStarted = false;
 
   const startRuntimeOnce = () => {
     if (runtimeBootstrapStarted) {
-      return
+      return;
     }
-    runtimeBootstrapStarted = true
-    startRuntime()
-  }
+    runtimeBootstrapStarted = true;
+    startRuntime();
+  };
 
   const beginRuntimeBootstrap = () => {
     if (runtimeBootstrapHelpersRuntime.tryAcquireDomRuntimeLock()) {
-      startRuntimeOnce()
-      return
+      startRuntimeOnce();
+      return;
     }
 
-    const runtimeLockNode = runtimeBootstrapHelpersRuntime.resolveRuntimeLockNode()
-    const incumbentOwnerId = runtimeLockNode?.getAttribute(domRuntimeLockOwnerAttribute) || ''
-    runtimeBootstrapHelpersRuntime.requestRuntimeTakeover(incumbentOwnerId)
+    const runtimeLockNode = runtimeBootstrapHelpersRuntime.resolveRuntimeLockNode();
+    const incumbentOwnerId = runtimeLockNode?.getAttribute(domRuntimeLockOwnerAttribute) || '';
+    runtimeBootstrapHelpersRuntime.requestRuntimeTakeover(incumbentOwnerId);
 
     // Content-script worlds can overlap during extension reloads; wait briefly for incumbent shutdown.
-    const takeoverDeadlineAt = Date.now() + domRuntimeTakeoverGraceMs
+    const takeoverDeadlineAt = Date.now() + domRuntimeTakeoverGraceMs;
     const attemptTakeoverBootstrap = () => {
       if (runtimeBootstrapStarted) {
-        return
+        return;
       }
 
       if (runtimeBootstrapHelpersRuntime.tryAcquireDomRuntimeLock()) {
-        startRuntimeOnce()
-        return
+        startRuntimeOnce();
+        return;
       }
 
       if (Date.now() >= takeoverDeadlineAt) {
-        markRuntimeInactive('dom-runtime-lock-held-timeout', { incumbentOwnerId })
-        return
+        markRuntimeInactive('dom-runtime-lock-held-timeout', { incumbentOwnerId });
+        return;
       }
 
-      window.setTimeout(attemptTakeoverBootstrap, domRuntimeTakeoverPollMs)
-    }
+      window.setTimeout(attemptTakeoverBootstrap, domRuntimeTakeoverPollMs);
+    };
 
-    window.setTimeout(attemptTakeoverBootstrap, domRuntimeTakeoverPollMs)
-  }
+    window.setTimeout(attemptTakeoverBootstrap, domRuntimeTakeoverPollMs);
+  };
 
-  beginRuntimeBootstrap()
-})()
+  beginRuntimeBootstrap();
+})();
