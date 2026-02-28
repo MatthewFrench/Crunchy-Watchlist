@@ -29,6 +29,7 @@ function createBaseState() {
     watchHistoryCache: {},
     watchHistoryStatus: 'idle',
     watchlistCache: {},
+    authToken: null as unknown,
     curatedEntries: [] as unknown[],
     curatedSource: 'none',
     curatedLastRevalidateAt: 0,
@@ -295,9 +296,10 @@ describe('runtime state-loader', () => {
     });
   });
 
-  it('skips cached watchlist hydration when auth scope is unavailable', async () => {
+  it('hydrates cached watchlist rows without forcing access-token refresh on initial state load', async () => {
     const state = createBaseState();
     const runtimeEvents: Array<{ event: string; data?: unknown }> = [];
+    const getAccessToken = vi.fn(async () => null);
     const stateLoader = getStateLoaderModule().createStateLoader({
       state,
       storageGet: createStorageGet({
@@ -311,7 +313,7 @@ describe('runtime state-loader', () => {
           updatedAt: 12345,
         },
       }),
-      getAccessToken: async () => null,
+      getAccessToken,
       runtimeEvent: (event: string, data?: unknown) => runtimeEvents.push({ event, data }),
       normalizeStoredWatchHistoryCache: (raw: unknown) => raw,
       isWatchHistoryCacheValid: () => true,
@@ -337,19 +339,23 @@ describe('runtime state-loader', () => {
 
     await stateLoader.loadInitialState();
 
-    expect(state.curatedEntries).toEqual([]);
-    expect(state.curatedSource).toBe('none');
+    expect(getAccessToken).not.toHaveBeenCalled();
+    expect(state.curatedEntries).toEqual([{ series_id: 'series-1' }]);
+    expect(state.curatedSource).toBe('cache');
     expect(runtimeEvents).toContainEqual({
-      event: 'curated-cache-scope-unavailable',
+      event: 'curated-cache-hydrated',
       data: {
-        hasAccountId: false,
-        hasProfileId: false,
+        total: 1,
+        updatedAt: 12345,
+        accountId: 'account-1',
+        profileId: 'profile-1',
       },
     });
   });
 
   it('does not hydrate cached watchlist rows when the active profile scope differs', async () => {
     const state = createBaseState();
+    state.authToken = createTokenEntry('profile-2');
     const runtimeEvents: Array<{ event: string; data?: unknown }> = [];
     const isWatchlistCacheValid = (cache: unknown, accountId?: unknown, profileId?: unknown) => {
       if (accountId !== 'account-1' || profileId !== 'profile-2') {
@@ -373,7 +379,7 @@ describe('runtime state-loader', () => {
           updatedAt: 12345,
         },
       }),
-      getAccessToken: async () => createTokenEntry('profile-2'),
+      getAccessToken: vi.fn(async () => createTokenEntry('profile-2')),
       runtimeEvent: (event: string, data?: unknown) => runtimeEvents.push({ event, data }),
       normalizeStoredWatchHistoryCache: (raw: unknown) => raw,
       isWatchHistoryCacheValid: () => true,
@@ -404,8 +410,12 @@ describe('runtime state-loader', () => {
     expect(runtimeEvents.map((entry) => entry.event)).not.toContain('curated-cache-hydrated');
   });
 
-  it('skips profile-scoped cache hydration when token profile scope is unavailable', async () => {
+  it('skips profile-scoped cache hydration when in-memory token profile scope is unavailable', async () => {
     const state = createBaseState();
+    state.authToken = {
+      accessToken: 'token-1',
+      accountId: 'account-1',
+    };
     const runtimeEvents: Array<{ event: string; data?: unknown }> = [];
     const stateLoader = getStateLoaderModule().createStateLoader({
       state,
@@ -420,10 +430,7 @@ describe('runtime state-loader', () => {
           updatedAt: 12345,
         },
       }),
-      getAccessToken: async () => ({
-        accessToken: 'token-1',
-        accountId: 'account-1',
-      }),
+      getAccessToken: vi.fn(async () => null),
       runtimeEvent: (event: string, data?: unknown) => runtimeEvents.push({ event, data }),
       normalizeStoredWatchHistoryCache: (raw: unknown) => raw,
       isWatchHistoryCacheValid: () => true,

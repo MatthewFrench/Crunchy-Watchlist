@@ -87,6 +87,18 @@
     return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
   }
 
+  function readInMemoryTokenScope(state: RuntimeState): { accountId: string; profileId: string } {
+    const tokenEntry = state.authToken;
+    if (!tokenEntry || typeof tokenEntry !== 'object') {
+      return { accountId: '', profileId: '' };
+    }
+    const tokenRecord = tokenEntry as Record<string, unknown>;
+    return {
+      accountId: getString(tokenRecord.accountId, ''),
+      profileId: getString(tokenRecord.profileId, ''),
+    };
+  }
+
   function applyLegacyAudioSettingsInternal(
     nextSettings: Record<string, unknown>,
     storedSettings: Record<string, unknown>,
@@ -194,29 +206,25 @@
       context.state.watchlistCache = context.normalizeStoredWatchlistCache(rawWatchlistCache);
     }
 
-    const tokenEntry = await context.getAccessToken(true);
-    const accountId = getString(tokenEntry?.accountId, '');
-    const profileId = getString(tokenEntry?.profileId, '');
-    if (!accountId) {
-      context.runtimeEvent('curated-cache-scope-unavailable', {
-        hasAccountId: Boolean(accountId),
-        hasProfileId: Boolean(profileId),
-      });
+    const watchlistCacheRecord = toRecord(context.state.watchlistCache);
+    const { accountId: cachedAccountId, profileId: cachedProfileId } = {
+      accountId: getString(watchlistCacheRecord.accountId, ''),
+      profileId: getString(watchlistCacheRecord.profileId, ''),
+    };
+    const inMemoryTokenScope = readInMemoryTokenScope(context.state);
+    const accountId = inMemoryTokenScope.accountId || cachedAccountId;
+    const profileId = inMemoryTokenScope.accountId ? inMemoryTokenScope.profileId : cachedProfileId;
+
+    if (!context.isWatchlistCacheValid(context.state.watchlistCache, accountId, profileId)) {
       return;
     }
 
-    const watchlistCacheRecord = toRecord(context.state.watchlistCache);
-    const cachedProfileId = getString(watchlistCacheRecord.profileId, '');
-    if (!profileId && cachedProfileId) {
+    if (inMemoryTokenScope.accountId && !profileId && cachedProfileId) {
       context.runtimeEvent('curated-cache-scope-unavailable', {
         hasAccountId: true,
         hasProfileId: false,
         requiresProfileScope: true,
       });
-      return;
-    }
-
-    if (!context.isWatchlistCacheValid(context.state.watchlistCache, accountId, profileId)) {
       return;
     }
 
