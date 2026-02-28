@@ -62,6 +62,21 @@ type CardShellModule = {
 const cardShellModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardShell.ts'),
 ).href;
+const cardProgressComponentModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardProgressComponent.ts'),
+).href;
+const cardHeaderComponentModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardHeaderComponent.ts'),
+).href;
+const cardActionsComponentModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardActionsComponent.ts'),
+).href;
+const cardMetadataComponentModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardMetadataComponent.ts'),
+).href;
+const cardMediaComponentModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardMediaComponent.ts'),
+).href;
 
 function createFakeDocument(): FakeDocument {
   const createElement = (tagName: string): FakeElement => {
@@ -230,7 +245,14 @@ function createCardShellRuntime(options: Partial<Record<string, unknown>> = {}) 
 
 describe('curated-card-shell ui module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([cardShellModuleUrl]);
+    await loadRuntimeModules([
+      cardProgressComponentModuleUrl,
+      cardHeaderComponentModuleUrl,
+      cardActionsComponentModuleUrl,
+      cardMetadataComponentModuleUrl,
+      cardMediaComponentModuleUrl,
+      cardShellModuleUrl,
+    ]);
   });
 
   afterEach(() => {

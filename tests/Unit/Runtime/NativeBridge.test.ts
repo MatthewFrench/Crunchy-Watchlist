@@ -31,6 +31,9 @@ const nativeBridgeModuleUrl = pathToFileURL(
 const nativeActionBridgeModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeActionBridge.ts'),
 ).href;
+const nativeCardSelectorAdapterModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeCardSelectorAdapter.ts'),
+).href;
 const nativeBridgePreviewModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeBridgePreview.ts'),
 ).href;
@@ -98,18 +101,6 @@ function createNativeBridgeRuntime(
   const resolveApiHref =
     overrides.resolveApiHref ?? ((pathWithQuery: string) => `https://api.crunchyroll.test${pathWithQuery}`);
 
-  if (overrides.installCuratedCardPreview) {
-    const moduleRegistry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<
-      string,
-      unknown
-    >;
-    moduleRegistry.runtimeNativeBridgePreview = {
-      createNativeBridgePreviewRuntime: () => ({
-        installCuratedCardPreview: overrides.installCuratedCardPreview,
-      }),
-    };
-  }
-
   const runtime = getNativeBridgeModule().createNativeBridgeRuntime({
     documentRef: {
       querySelectorAll: (selector: string) => (selector === '[data-t="watch-list-card"]' ? cards : []),
@@ -129,6 +120,11 @@ function createNativeBridgeRuntime(
     fetchPreviewUrlForEntry: async () => '',
     isLikelyVideoUrl: () => false,
     previewHoverDelayMs: 220,
+    nativeBridgePreviewRuntime: overrides.installCuratedCardPreview
+      ? {
+          installCuratedCardPreview: overrides.installCuratedCardPreview,
+        }
+      : undefined,
   });
 
   return {
@@ -143,15 +139,24 @@ function createNativeBridgeRuntime(
 describe('native-bridge runtime', () => {
   const runtimeGlobal = globalThis as Record<string, unknown>;
   let originalHTMLElement: unknown;
+  let originalHTMLAnchorElement: unknown;
 
   beforeEach(async () => {
-    await loadRuntimeModules([nativeActionBridgeModuleUrl, nativeBridgePreviewModuleUrl, nativeBridgeModuleUrl]);
     originalHTMLElement = runtimeGlobal.HTMLElement;
+    originalHTMLAnchorElement = runtimeGlobal.HTMLAnchorElement;
     runtimeGlobal.HTMLElement = FakeElement;
+    runtimeGlobal.HTMLAnchorElement = FakeElement;
+    await loadRuntimeModules([
+      nativeCardSelectorAdapterModuleUrl,
+      nativeActionBridgeModuleUrl,
+      nativeBridgePreviewModuleUrl,
+      nativeBridgeModuleUrl,
+    ]);
   });
 
   afterEach(() => {
     runtimeGlobal.HTMLElement = originalHTMLElement;
+    runtimeGlobal.HTMLAnchorElement = originalHTMLAnchorElement;
     clearRuntimeModulesRegistry();
   });
 

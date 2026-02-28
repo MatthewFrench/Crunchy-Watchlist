@@ -1,3 +1,5 @@
+import { type CuratedCardEntry, createCardShell } from '../Ui/CuratedCardShell.js';
+
 (() => {
   const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
   if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
@@ -231,20 +233,33 @@
     patchCuratedCardBody: CardRuntime['patchCuratedCardBody'],
     deferredCallbacks: DeferredCompositionCallbacks,
   ): Pick<CardRuntime, 'createCuratedCard' | 'patchCuratedCard'> {
-    const cardShell = requireFunction<AnyFn>(
-      'createCardShell',
-      options.modules.cardShellModule.createCardShell,
-    )({
+    const normalizeImageUrlCandidate = requireFunction<(value: unknown) => string>(
+      'normalizeImageUrlCandidate',
+      options.dependencies.normalizeImageUrlCandidate,
+    );
+    const resolveApiHref = requireFunction<(href: unknown) => string>(
+      'resolveApiHref',
+      options.dependencies.resolveApiHref,
+    );
+    const makeRatingBadge = requireFunction<(rating: unknown, votes: unknown) => HTMLElement>(
+      'makeRatingBadge',
+      cardMetadata.makeRatingBadge,
+    );
+    const cardShellDeps = {
       documentRef: options.windowRef.document,
       windowRef: options.windowRef,
       getCardLayout: () => getSettingsRecord(options.state).cardLayout,
-      normalizeImageUrlCandidate: options.dependencies.normalizeImageUrlCandidate,
-      resolveApiHref: options.dependencies.resolveApiHref,
-      makeRatingBadge: cardMetadata.makeRatingBadge,
-      createCuratedCardActions: (entry: unknown) => deferredCallbacks.createCuratedCardActions(entry),
-      createCuratedCardBody,
-      getCuratedCardBodyRefs,
-      patchCuratedCardBody,
+      normalizeImageUrlCandidate,
+      resolveApiHref,
+      makeRatingBadge,
+      createCuratedCardActions: (entry: CuratedCardEntry) =>
+        deferredCallbacks.createCuratedCardActions(entry) as CwCuratedActionsElement,
+      createCuratedCardBody: (entry: CuratedCardEntry, actions: CwCuratedActionsElement) =>
+        createCuratedCardBody(entry, actions) as HTMLElement,
+      getCuratedCardBodyRefs: (value: unknown) => getCuratedCardBodyRefs(value) as CwCuratedCardBodyRefs | null,
+      patchCuratedCardBody: (card: Element, entry: CuratedCardEntry) => {
+        patchCuratedCardBody(card, entry);
+      },
       installCuratedCardPreview: (
         thumbLink: unknown,
         entry: unknown,
@@ -253,17 +268,28 @@
         thumbImage: unknown,
       ) =>
         deferredCallbacks.installCuratedCardPreview(thumbLink, entry, coverImageUrl, hoverPreviewImageUrl, thumbImage),
-    }) as AnyFunctionRecord;
-    options.assertRuntimeMethods('card shell', cardShell, ['createCuratedCard', 'patchCuratedCard']);
+    };
+
+    const moduleCardShellFactory = toFunctionRecord(options.modules.cardShellModule).createCardShell;
+    if (typeof moduleCardShellFactory === 'function') {
+      const cardShellRuntime = (moduleCardShellFactory as AnyFn)(cardShellDeps) as AnyFunctionRecord;
+      options.assertRuntimeMethods('card shell', cardShellRuntime, ['createCuratedCard', 'patchCuratedCard']);
+      return {
+        createCuratedCard: requireFunction<AnyFn>(
+          'createCuratedCard',
+          cardShellRuntime.createCuratedCard,
+        ) as CardRuntime['createCuratedCard'],
+        patchCuratedCard: requireFunction<AnyFn>(
+          'patchCuratedCard',
+          cardShellRuntime.patchCuratedCard,
+        ) as CardRuntime['patchCuratedCard'],
+      };
+    }
+
+    const cardShell = createCardShell(cardShellDeps);
     return {
-      createCuratedCard: requireFunction<AnyFn>(
-        'createCuratedCard',
-        cardShell.createCuratedCard,
-      ) as CardRuntime['createCuratedCard'],
-      patchCuratedCard: requireFunction<AnyFn>(
-        'patchCuratedCard',
-        cardShell.patchCuratedCard,
-      ) as CardRuntime['patchCuratedCard'],
+      createCuratedCard: cardShell.createCuratedCard as CardRuntime['createCuratedCard'],
+      patchCuratedCard: cardShell.patchCuratedCard as CardRuntime['patchCuratedCard'],
     };
   }
 

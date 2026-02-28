@@ -462,33 +462,34 @@
     };
   }
 
-  function ensureInterfaceInternal(
+  function handleMissingWatchlistStructureInternal(
     context: InterfaceShellContext,
     hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
   ): void {
-    const rootElement = context.getWatchlistRoot();
-    const headerElement = context.getWatchlistHeader();
-    if (!rootElement || !headerElement) {
-      // During SPA churn Crunchyroll can temporarily replace watchlist nodes; fall back to native content
-      // so users do not get stuck in an empty framed shell while structure reattaches.
-      setNativeVisibilityInternal(context, hostLifecycleRuntime, true);
-      clearRootFrameInternal(context, hostLifecycleRuntime);
-      if (!hostLifecycleRuntime.isConnectedElement(context.state.hostEl)) {
-        hostLifecycleRuntime.clearInterfaceReferences(context);
-      }
-      syncRuntimeControlOwnedRefs(context);
-      context.runtimeEvent('ui-missing-watchlist-structure');
-      return;
+    // During SPA churn Crunchyroll can temporarily replace watchlist nodes; fall back to native content
+    // so users do not get stuck in an empty framed shell while structure reattaches.
+    setNativeVisibilityInternal(context, hostLifecycleRuntime, true);
+    clearRootFrameInternal(context, hostLifecycleRuntime);
+    if (!hostLifecycleRuntime.isConnectedElement(context.state.hostEl)) {
+      hostLifecycleRuntime.clearInterfaceReferences(context);
     }
+    syncRuntimeControlOwnedRefs(context);
+    context.runtimeEvent('ui-missing-watchlist-structure');
+  }
 
+  function prepareWatchlistRootForShellInternal(
+    context: InterfaceShellContext,
+    hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
+    rootElement: Element,
+  ): void {
     hostLifecycleRuntime.ensureRootFrame(context, rootElement);
     hostLifecycleRuntime.removeOrphanCuratedHosts(context, rootElement);
+  }
 
-    if (hostLifecycleRuntime.isInterfaceShellIntact(context)) {
-      syncRuntimeControlOwnedRefs(context);
-      return;
-    }
-
+  function resetInterfaceShellForRemountInternal(
+    context: InterfaceShellContext,
+    hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
+  ): void {
     if (context.state.hostEl) {
       context.runtimeEvent('ui-shell-repair', {
         reason: hostLifecycleRuntime.isConnectedElement(context.state.hostEl)
@@ -496,18 +497,37 @@
           : 'disconnected-host',
       });
       hostLifecycleRuntime.resetInterfaceShell(context, true);
-    } else {
-      hostLifecycleRuntime.clearInterfaceReferences(context);
+      return;
     }
 
+    hostLifecycleRuntime.clearInterfaceReferences(context);
+  }
+
+  type MountedInterfaceShell = {
+    host: HTMLElement;
+    tabs: {
+      tabCrunchyroll: HTMLButtonElement;
+      tabCurated: HTMLButtonElement;
+    };
+    panel: HTMLElement;
+    controls: ControlsContext;
+    loadingBox: HTMLElement;
+    grid: HTMLElement;
+  };
+
+  function mountInterfaceShellInternal(
+    context: InterfaceShellContext,
+    hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
+    headerElement: Element,
+  ): MountedInterfaceShell {
     const host = context.documentRef.createElement('section');
     host.className = 'cw-host';
 
     const { tabs, tabCrunchyroll, tabCurated } = createCuratedInterfaceTabsInternal(context, hostLifecycleRuntime);
     const panel = context.documentRef.createElement('div');
     panel.className = 'cw-panel';
-    const controlsContext = context.createCuratedInterfaceControls();
-    context.bindCuratedInterfaceControls(controlsContext);
+    const controls = context.createCuratedInterfaceControls();
+    context.bindCuratedInterfaceControls(controls);
     const loadingBox = context.documentRef.createElement('div');
     loadingBox.className = 'cw-empty cw-loading-box';
     if (loadingBox.style) {
@@ -519,31 +539,71 @@
     loadingBoxTitle.textContent = 'Loading watchlist results...';
 
     loadingBox.appendChild(loadingBoxTitle);
-    loadingBox.appendChild(controlsContext.loadingIndicator);
+    loadingBox.appendChild(controls.loadingIndicator);
 
     const grid = context.documentRef.createElement('div');
     grid.className = 'cw-curated-grid';
 
-    panel.appendChild(controlsContext.controls);
+    panel.appendChild(controls.controls);
     panel.appendChild(loadingBox);
     panel.appendChild(grid);
     host.appendChild(tabs);
     host.appendChild(panel);
     headerElement.insertAdjacentElement('beforebegin', host);
 
-    context.state.hostEl = host;
-    context.state.tabCrunchyrollEl = tabCrunchyroll;
-    context.state.tabCuratedEl = tabCurated;
-    context.state.curatedPanelEl = panel;
-    context.state.controlsEl = controlsContext.controls;
-    context.state.loadingBoxEl = loadingBox;
-    context.state.loadingIndicatorEl = controlsContext.loadingIndicator;
-    context.state.audioFilterSelectEl = controlsContext.audioFilterControl.select;
-    context.state.genreFilterSelectEl = controlsContext.genreFilterControl.select;
-    context.state.statsEl = controlsContext.stats;
-    context.state.gridEl = grid;
+    return {
+      host,
+      tabs: {
+        tabCrunchyroll,
+        tabCurated,
+      },
+      panel,
+      controls,
+      loadingBox,
+      grid,
+    };
+  }
+
+  function applyMountedInterfaceShellToStateInternal(
+    context: InterfaceShellContext,
+    mountedShell: MountedInterfaceShell,
+  ): void {
+    context.state.hostEl = mountedShell.host;
+    context.state.tabCrunchyrollEl = mountedShell.tabs.tabCrunchyroll;
+    context.state.tabCuratedEl = mountedShell.tabs.tabCurated;
+    context.state.curatedPanelEl = mountedShell.panel;
+    context.state.controlsEl = mountedShell.controls.controls;
+    context.state.loadingBoxEl = mountedShell.loadingBox;
+    context.state.loadingIndicatorEl = mountedShell.controls.loadingIndicator;
+    context.state.audioFilterSelectEl = mountedShell.controls.audioFilterControl.select;
+    context.state.genreFilterSelectEl = mountedShell.controls.genreFilterControl.select;
+    context.state.statsEl = mountedShell.controls.stats;
+    context.state.gridEl = mountedShell.grid;
     context.state.curatedGridRenderSignature = '';
     syncRuntimeControlOwnedRefs(context);
+  }
+
+  function ensureInterfaceInternal(
+    context: InterfaceShellContext,
+    hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
+  ): void {
+    const rootElement = context.getWatchlistRoot();
+    const headerElement = context.getWatchlistHeader();
+    if (!rootElement || !headerElement) {
+      handleMissingWatchlistStructureInternal(context, hostLifecycleRuntime);
+      return;
+    }
+
+    prepareWatchlistRootForShellInternal(context, hostLifecycleRuntime, rootElement);
+
+    if (hostLifecycleRuntime.isInterfaceShellIntact(context)) {
+      syncRuntimeControlOwnedRefs(context);
+      return;
+    }
+
+    resetInterfaceShellForRemountInternal(context, hostLifecycleRuntime);
+    const mountedShell = mountInterfaceShellInternal(context, hostLifecycleRuntime, headerElement);
+    applyMountedInterfaceShellToStateInternal(context, mountedShell);
 
     context.runtimeEvent('ui-mounted', {
       headerClass: String(headerElement.className || ''),

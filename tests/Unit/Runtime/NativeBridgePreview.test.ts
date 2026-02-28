@@ -22,6 +22,9 @@ type NativeBridgePreviewModule = {
 const nativeBridgePreviewModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeBridgePreview.ts'),
 ).href;
+const nativeCardSelectorAdapterModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeCardSelectorAdapter.ts'),
+).href;
 
 async function flushMicrotasks(iterations = 6): Promise<void> {
   for (let index = 0; index < iterations; index += 1) {
@@ -235,7 +238,6 @@ describe('native-bridge-preview runtime', () => {
   let originalMouseEvent: unknown;
 
   beforeEach(async () => {
-    await loadRuntimeModules([nativeBridgePreviewModuleUrl]);
     originalHTMLElement = runtimeGlobal.HTMLElement;
     originalHTMLAnchorElement = runtimeGlobal.HTMLAnchorElement;
     originalHTMLImageElement = runtimeGlobal.HTMLImageElement;
@@ -246,6 +248,7 @@ describe('native-bridge-preview runtime', () => {
     runtimeGlobal.HTMLImageElement = FakeImage;
     runtimeGlobal.HTMLVideoElement = FakeVideo;
     runtimeGlobal.MouseEvent = FakeMouseEvent;
+    await loadRuntimeModules([nativeCardSelectorAdapterModuleUrl, nativeBridgePreviewModuleUrl]);
   });
 
   afterEach(() => {

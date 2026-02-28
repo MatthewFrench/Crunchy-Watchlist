@@ -17,6 +17,9 @@ type NativeActionBridgeModule = {
 const nativeActionBridgeModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeActionBridge.ts'),
 ).href;
+const nativeCardSelectorAdapterModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeCardSelectorAdapter.ts'),
+).href;
 
 class FakeElement {
   private readonly selectorAllMap = new Map<string, FakeElement[]>();
@@ -76,15 +79,19 @@ function createNativeActionBridgeRuntime(cards: FakeElement[]) {
 describe('native-action-bridge runtime', () => {
   const runtimeGlobal = globalThis as Record<string, unknown>;
   let originalHTMLElement: unknown;
+  let originalHTMLAnchorElement: unknown;
 
   beforeEach(async () => {
-    await loadRuntimeModules([nativeActionBridgeModuleUrl]);
     originalHTMLElement = runtimeGlobal.HTMLElement;
+    originalHTMLAnchorElement = runtimeGlobal.HTMLAnchorElement;
     runtimeGlobal.HTMLElement = FakeElement;
+    runtimeGlobal.HTMLAnchorElement = FakeElement;
+    await loadRuntimeModules([nativeCardSelectorAdapterModuleUrl, nativeActionBridgeModuleUrl]);
   });
 
   afterEach(() => {
     runtimeGlobal.HTMLElement = originalHTMLElement;
+    runtimeGlobal.HTMLAnchorElement = originalHTMLAnchorElement;
     clearRuntimeModulesRegistry();
   });
 
