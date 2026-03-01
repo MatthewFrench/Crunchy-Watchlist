@@ -35,6 +35,7 @@ type WatchHistoryState = {
   watchHistoryCache: WatchHistoryCache;
   watchHistoryStatus: string;
   watchHistoryInflight: Promise<unknown> | null;
+  curatedLastRevalidateAt?: number;
 };
 
 type HistoryRepositoryCache = {
@@ -336,6 +337,16 @@ describe('HistoryRepositoryPreload', () => {
     expect(state.watchHistoryCache.bySeriesId['series-a']?.episodeId).toBe('episode-3');
     expect(state.watchHistoryCache.bySeriesIdAudioLocale['series-a']?.['en-us']?.episodeId).toBe('episode-3');
     expect(runtimeEvents.some((eventItem) => eventItem.event === 'watch-history-preload')).toBe(true);
+    expect(runtimeEvents).toContainEqual(
+      expect.objectContaining({
+        event: 'watch-history-preload-start',
+        payload: expect.objectContaining({
+          attemptLocale: 'en-us',
+          localeAttemptCount: 1,
+          localeRevisionAttemptCount: 1,
+        }),
+      }),
+    );
   });
 
   it('emits contract warning and falls back to row count when payload total is invalid', async () => {
@@ -436,5 +447,120 @@ describe('HistoryRepositoryPreload', () => {
         'ja-jp',
       ),
     ).toBe(false);
+  });
+
+  it('dedupes forced localized preload requests by locale and curated-data revision', async () => {
+    const state = createWatchHistoryState();
+    state.curatedLastRevalidateAt = 1_710_000_000_000;
+    const fetchWithResilience = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            total: 0,
+            data: [],
+          }),
+          { status: 200 },
+        ),
+    );
+
+    const { preloadRepository } = createRepositories(state, {
+      fetchWithResilience,
+      getPreferredAudioLanguage: () => 'en-us',
+    });
+
+    const entries = [{ seriesId: 'series-a', neverWatched: false, playheadMs: 200 }];
+    const tokenEntry = { accessToken: 'token-1', accountId: 'acct-1' };
+    await Promise.all([
+      preloadRepository.preloadWatchHistoryForEntries(entries, tokenEntry, true, 'ja-JP'),
+      preloadRepository.preloadWatchHistoryForEntries(entries, tokenEntry, true, 'ja-JP'),
+    ]);
+    await preloadRepository.preloadWatchHistoryForEntries(entries, tokenEntry, true, 'ja-JP');
+
+    expect(fetchWithResilience).toHaveBeenCalledTimes(1);
+
+    state.curatedLastRevalidateAt = 1_710_000_000_001;
+    await preloadRepository.preloadWatchHistoryForEntries(entries, tokenEntry, true, 'ja-JP');
+    expect(fetchWithResilience).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports localized attempt counters in preload diagnostics events', async () => {
+    const state = createWatchHistoryState();
+    state.curatedLastRevalidateAt = 1_710_000_000_000;
+    const runtimeEvents: Array<{ event: string; payload?: unknown }> = [];
+    const fetchWithResilience = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            total: 0,
+            data: [],
+          }),
+          { status: 200 },
+        ),
+    );
+
+    const { preloadRepository } = createRepositories(state, {
+      fetchWithResilience,
+      runtimeEvent: (event: string, payload?: unknown) => {
+        runtimeEvents.push({ event, payload });
+      },
+      getPreferredAudioLanguage: () => 'en-us',
+    });
+
+    const entries = [{ seriesId: 'series-a', neverWatched: false, playheadMs: 200 }];
+    const tokenEntry = { accessToken: 'token-1', accountId: 'acct-1' };
+    await preloadRepository.preloadWatchHistoryForEntries(entries, tokenEntry, true, 'ja-JP');
+    state.curatedLastRevalidateAt = 1_710_000_000_001;
+    await preloadRepository.preloadWatchHistoryForEntries(entries, tokenEntry, true, 'ja-JP');
+
+    const preloadStartEvents = runtimeEvents.filter((entry) => entry.event === 'watch-history-preload-start');
+    expect(preloadStartEvents).toHaveLength(2);
+    expect(preloadStartEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        attemptLocale: 'ja-jp',
+        curatedDataRevision: 1_710_000_000_000,
+        localeAttemptCount: 1,
+        localeRevisionAttemptCount: 1,
+      }),
+    );
+    expect(preloadStartEvents[1]?.payload).toEqual(
+      expect.objectContaining({
+        attemptLocale: 'ja-jp',
+        curatedDataRevision: 1_710_000_000_001,
+        localeAttemptCount: 2,
+        localeRevisionAttemptCount: 1,
+      }),
+    );
+
+    const preloadDoneEvents = runtimeEvents.filter((entry) => entry.event === 'watch-history-preload');
+    expect(preloadDoneEvents).toHaveLength(2);
+    expect(preloadDoneEvents[1]?.payload).toEqual(
+      expect.objectContaining({
+        attemptLocale: 'ja-jp',
+        localeAttemptCount: 2,
+        localeRevisionAttemptCount: 1,
+      }),
+    );
+
+    expect(
+      (state as unknown as { watchHistoryPreloadAttemptDiagnostics?: Record<string, unknown> })
+        .watchHistoryPreloadAttemptDiagnostics,
+    ).toEqual(
+      expect.objectContaining({
+        totalAttempts: 2,
+        byLocale: {
+          'ja-jp': 2,
+        },
+        byLocaleRevision: {
+          'ja-jp@1710000000000': 1,
+          'ja-jp@1710000000001': 1,
+        },
+        lastAttempt: {
+          locale: 'ja-jp',
+          curatedDataRevision: 1_710_000_000_001,
+          localeAttemptCount: 2,
+          localeRevisionAttemptCount: 1,
+        },
+      }),
+    );
   });
 });

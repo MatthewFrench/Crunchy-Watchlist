@@ -19,11 +19,17 @@ export function setElementDataAttribute(
 ): void {
   const dataset = (element as Element & { dataset?: DOMStringMap }).dataset;
   if (dataset && typeof dataset === 'object') {
+    if (dataset[datasetKey] === value) {
+      return;
+    }
     dataset[datasetKey] = value;
     return;
   }
 
   if (typeof element.setAttribute === 'function') {
+    if (typeof element.getAttribute === 'function' && (element.getAttribute(attributeName) || '') === value) {
+      return;
+    }
     element.setAttribute(attributeName, value);
   }
 }

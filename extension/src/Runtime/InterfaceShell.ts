@@ -507,12 +507,22 @@ function mountInterfaceShellInternal(
   const { tabs, tabCrunchyroll, tabCurated } = createCuratedInterfaceTabsInternal(context, hostLifecycleRuntime);
   const panel = context.documentRef.createElement('div');
   panel.className = 'cw-panel';
+  if (panel.style) {
+    panel.style.position = 'relative';
+  }
   const controls = context.createCuratedInterfaceControls();
   context.bindCuratedInterfaceControls(controls);
   const loadingBox = context.documentRef.createElement('div');
   loadingBox.className = 'cw-empty cw-loading-box';
   if (loadingBox.style) {
     loadingBox.style.display = 'none';
+    loadingBox.style.margin = '0';
+    loadingBox.style.position = 'absolute';
+    loadingBox.style.left = '0';
+    loadingBox.style.right = '0';
+    loadingBox.style.top = '0';
+    loadingBox.style.zIndex = '2';
+    loadingBox.style.pointerEvents = 'none';
   }
 
   const loadingBoxTitle = context.documentRef.createElement('div');

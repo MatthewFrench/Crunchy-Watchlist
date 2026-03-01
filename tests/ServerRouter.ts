@@ -16,9 +16,79 @@ type FixtureServerRouterOptions = {
   port: number;
 };
 
+const fixtureModeCookieName = 'cw_fixture_mode';
+const multipageUnmatchedWatchHistoryFixtureMode = 'watch-history-multipage-unmatched';
+
 function parsePositiveInt(value: string | null, fallback: number): number {
   return Math.max(1, Number.parseInt(String(value || `${fallback}`), 10) || fallback);
 }
+
+function parseCookies(headerValue: string | undefined): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!headerValue) {
+    return cookies;
+  }
+
+  headerValue.split(';').forEach((part) => {
+    const [rawKey, ...rest] = part.split('=');
+    const key = String(rawKey || '').trim();
+    if (!key) {
+      return;
+    }
+    const value = rest.join('=').trim();
+    cookies[key] = decodeURIComponent(value);
+  });
+
+  return cookies;
+}
+
+function createFixtureModeCookieHeader(fixtureMode: string | null): string {
+  if (!fixtureMode) {
+    return `${fixtureModeCookieName}=; Path=/; Max-Age=0; SameSite=Lax`;
+  }
+
+  return `${fixtureModeCookieName}=${encodeURIComponent(fixtureMode)}; Path=/; SameSite=Lax`;
+}
+
+function getFixtureModeFromRequest(req: IncomingMessage): string {
+  const cookieHeader = req.headers.cookie;
+  const cookies = parseCookies(typeof cookieHeader === 'string' ? cookieHeader : undefined);
+  return String(cookies[fixtureModeCookieName] || '').trim();
+}
+
+function createSyntheticUnmatchedWatchHistoryRow(index: number): Record<string, unknown> {
+  const sequenceNumber = index + 1;
+  const seriesId = `UNRELATED-SERIES-${sequenceNumber}`;
+  return {
+    id: `unrelated-history-${sequenceNumber}`,
+    date_played: '2025-03-14T11:30:00Z',
+    parent_id: seriesId,
+    parent_type: 'series',
+    playhead: 300,
+    fully_watched: false,
+    panel: {
+      id: `unrelated-episode-${sequenceNumber}`,
+      type: 'episode',
+      title: `Unrelated episode ${sequenceNumber}`,
+      description: 'Synthetic unmatched watch-history row',
+      slug_title: `unrelated-episode-${sequenceNumber}`,
+      episode_metadata: {
+        series_id: seriesId,
+        series_title: `Unrelated Series ${sequenceNumber}`,
+        series_slug_title: `unrelated-series-${sequenceNumber}`,
+        identifier: `unrelated-id-${sequenceNumber}`,
+        sequence_number: sequenceNumber,
+        season_number: 1,
+        episode_number: sequenceNumber,
+        audio_locale: 'en-US',
+      },
+    },
+  };
+}
+
+const syntheticUnmatchedWatchHistoryRows = Array.from({ length: 1_500 }, (_value, index) =>
+  createSyntheticUnmatchedWatchHistoryRow(index),
+);
 
 async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
@@ -57,7 +127,12 @@ export async function handleFixtureRequest(
 
     if (url.pathname === '/' || url.pathname === '/watchlist') {
       const html = await readFixture('WatchlistFixture.html');
-      text(res, 200, html, 'text/html; charset=utf-8');
+      const requestedFixtureMode = String(url.searchParams.get('fixture_mode') || '').trim();
+      const nextFixtureMode =
+        requestedFixtureMode === multipageUnmatchedWatchHistoryFixtureMode ? requestedFixtureMode : null;
+      text(res, 200, html, 'text/html; charset=utf-8', {
+        'Set-Cookie': createFixtureModeCookieHeader(nextFixtureMode),
+      });
       return;
     }
 
@@ -94,12 +169,17 @@ export async function handleFixtureRequest(
         return;
       }
 
+      const fixtureMode = getFixtureModeFromRequest(req);
+      const sourceRows =
+        fixtureMode === multipageUnmatchedWatchHistoryFixtureMode
+          ? syntheticUnmatchedWatchHistoryRows
+          : watchHistoryRows;
       const pageSize = parsePositiveInt(url.searchParams.get('page_size'), 100);
       const pageNumber = parsePositiveInt(url.searchParams.get('page'), 1);
       const start = (pageNumber - 1) * pageSize;
-      const pageRows = watchHistoryRows.slice(start, start + pageSize);
+      const pageRows = sourceRows.slice(start, start + pageSize);
 
-      json(res, 200, buildWatchHistoryPagePayload(pageRows, watchHistoryRows.length, pageNumber, pageSize));
+      json(res, 200, buildWatchHistoryPagePayload(pageRows, sourceRows.length, pageNumber, pageSize));
       return;
     }
 

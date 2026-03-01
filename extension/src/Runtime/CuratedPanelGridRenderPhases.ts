@@ -1,3 +1,6 @@
+import { CuratedPanelGridMountReconcilerOwner } from './CuratedPanelGridMountReconciler.js';
+import { CuratedPanelGridOrderPlannerOwner } from './CuratedPanelGridOrderPlanner.js';
+
 type BoundaryValue = CwBoundaryValue;
 type BoundaryRecord = Record<string, BoundaryValue>;
 
@@ -94,71 +97,56 @@ function shouldSkipCuratedGridRender(options: ShouldSkipCuratedGridRenderOptions
   return children.length === 1 && isCuratedGridEmptyElement(firstChild);
 }
 
-function renderEmptyCuratedGridState(options: RenderEmptyCuratedGridStateOptions): void {
-  const {
-    documentRef,
-    gridEl,
-    total,
-    loading,
-    parkGridCardsForReuse,
-    parkUnusedControllersForReuse,
-    createCuratedGridEmptyElement,
-    trimParkedCardsForReuse,
-  } = options;
+class CuratedPanelGridRenderPhasesOwner implements CuratedPanelGridRenderPhasesRuntime {
+  private readonly orderPlanner = new CuratedPanelGridOrderPlannerOwner();
+  private readonly mountReconciler = new CuratedPanelGridMountReconcilerOwner();
 
-  const visibleSeriesIds = new Set<string>();
-  parkGridCardsForReuse(gridEl);
-  parkUnusedControllersForReuse(visibleSeriesIds);
-  gridEl.textContent = '';
-  if (!(loading && total === 0)) {
-    gridEl.appendChild(createCuratedGridEmptyElement(documentRef, total));
-  }
-  trimParkedCardsForReuse();
-}
+  readonly shouldSkipCuratedGridRender = (options: ShouldSkipCuratedGridRenderOptions): boolean => {
+    return shouldSkipCuratedGridRender(options);
+  };
 
-function renderVisibleCuratedGridState(options: RenderVisibleCuratedGridStateOptions): void {
-  const {
-    visible,
-    metadataLoading,
-    gridEl,
-    createOrReuseCuratedCard,
-    getEntrySeriesId,
-    markCardControllerActive,
-    setCardParkedState,
-    isRenderableEntryMetadataLoading,
-    reorderCuratedGridChildren,
-    parkCardForReuse,
-    parkUnusedControllersForReuse,
-    trimParkedCardsForReuse,
-  } = options;
+  readonly renderEmptyCuratedGridState = (options: RenderEmptyCuratedGridStateOptions): void => {
+    this.mountReconciler.renderEmptyState(options);
+  };
 
-  const visibleSeriesIds = new Set<string>();
-  const nextCards = visible.map((entry) => {
-    const nextCard = createOrReuseCuratedCard(
-      entry,
-      metadataLoading && isRenderableEntryMetadataLoading(entry),
-      visibleSeriesIds,
-    );
-    const seriesId = getEntrySeriesId(entry);
-    markCardControllerActive(seriesId);
-    setCardParkedState(nextCard, false);
-    return nextCard;
-  });
+  readonly renderVisibleCuratedGridState = (options: RenderVisibleCuratedGridStateOptions): void => {
+    const {
+      visible,
+      metadataLoading,
+      createOrReuseCuratedCard,
+      getEntrySeriesId,
+      markCardControllerActive,
+      setCardParkedState,
+      isRenderableEntryMetadataLoading,
+      gridEl,
+      reorderCuratedGridChildren,
+      parkCardForReuse,
+      parkUnusedControllersForReuse,
+      trimParkedCardsForReuse,
+    } = options;
 
-  reorderCuratedGridChildren(gridEl, nextCards, {
-    onCardRemoved: (removedCard) => {
-      parkCardForReuse(removedCard);
-    },
-  });
+    const orderPlan = this.orderPlanner.buildOrderPlan({
+      visible,
+      metadataLoading,
+      createOrReuseCuratedCard,
+      getEntrySeriesId,
+      markCardControllerActive,
+      setCardParkedState,
+      isRenderableEntryMetadataLoading,
+    });
 
-  parkUnusedControllersForReuse(visibleSeriesIds);
-  trimParkedCardsForReuse();
+    this.mountReconciler.renderVisibleState({
+      gridEl,
+      nextCards: orderPlan.nextCards,
+      visibleSeriesIds: orderPlan.visibleSeriesIds,
+      reorderCuratedGridChildren,
+      parkCardForReuse,
+      parkUnusedControllersForReuse,
+      trimParkedCardsForReuse,
+    });
+  };
 }
 
 export function createCuratedPanelGridRenderPhasesRuntime(): CuratedPanelGridRenderPhasesRuntime {
-  return {
-    shouldSkipCuratedGridRender,
-    renderEmptyCuratedGridState,
-    renderVisibleCuratedGridState,
-  };
+  return new CuratedPanelGridRenderPhasesOwner();
 }

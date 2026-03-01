@@ -29,6 +29,13 @@ type CuratedDomLifecycleCounters = {
   renderPasses: number;
 };
 
+type WatchHistoryPreloadAttemptDiagnostics = {
+  totalAttempts: number;
+  byLocale: BoundaryRecord;
+  byLocaleRevision: BoundaryRecord;
+  lastAttempt: BoundaryRecord | null;
+};
+
 type ApiTraceBuckets = {
   authToken: BoundaryArray;
   watchlist: BoundaryArray;
@@ -62,6 +69,7 @@ type RuntimeState = {
   watchHistoryStatus: string;
   watchlistCache: WatchlistCacheSnapshot;
   watchHistoryInflight: BoundaryPromise | null;
+  watchHistoryPreloadAttemptDiagnostics: WatchHistoryPreloadAttemptDiagnostics;
   preferredAudioLanguage: string | null;
   preferredAudioLanguageUpdatedAt: number;
   apiTrace: ApiTraceBuckets;
@@ -176,6 +184,15 @@ function createCuratedDomLifecycleCounters(): CuratedDomLifecycleCounters {
   };
 }
 
+function createWatchHistoryPreloadAttemptDiagnostics(): WatchHistoryPreloadAttemptDiagnostics {
+  return {
+    totalAttempts: 0,
+    byLocale: {},
+    byLocaleRevision: {},
+    lastAttempt: null,
+  };
+}
+
 function createRuntimeState(options: RuntimeStateOptions = {}): RuntimeState {
   const defaultSettings =
     options.defaultSettings && typeof options.defaultSettings === 'object' ? options.defaultSettings : {};
@@ -198,6 +215,7 @@ function createRuntimeState(options: RuntimeStateOptions = {}): RuntimeState {
     watchHistoryLocalePreloadInflight: new Map(),
     watchHistoryCache: createEmptyWatchHistoryCache(watchHistoryCacheVersion),
     watchHistoryStatus: 'idle',
+    watchHistoryPreloadAttemptDiagnostics: createWatchHistoryPreloadAttemptDiagnostics(),
     watchlistCache: createWatchlistCacheSnapshot(),
     watchHistoryInflight: null,
     preferredAudioLanguage: null,

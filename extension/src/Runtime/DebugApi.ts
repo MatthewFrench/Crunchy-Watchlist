@@ -47,6 +47,19 @@ type CuratedDomLifecycleStats = {
   counters: CuratedDomLifecycleCounters;
   totalLifecycleMutations: number;
   identityChurnRate: number;
+  watchHistoryPreloadAttempts: WatchHistoryPreloadAttemptStats;
+};
+
+type WatchHistoryPreloadAttemptStats = {
+  totalAttempts: number;
+  byLocale: Record<string, number>;
+  byLocaleRevision: Record<string, number>;
+  lastAttempt: {
+    locale: string;
+    curatedDataRevision: number;
+    localeAttemptCount: number;
+    localeRevisionAttemptCount: number;
+  } | null;
 };
 
 type DebugApiContext = {
@@ -113,6 +126,53 @@ function toNonNegativeInt(value: BoundaryValue): number {
 
 function toApiTraceBucket(value: BoundaryValue): ApiTraceRecord[] {
   return Array.isArray(value) ? (value as ApiTraceRecord[]) : [];
+}
+
+function toCountRecord(value: BoundaryValue): Record<string, number> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  const normalized: Record<string, number> = {};
+  Object.entries(value as BoundaryRecord).forEach(([key, recordValue]) => {
+    const parsed = Number(recordValue);
+    if (!key || !Number.isFinite(parsed) || parsed <= 0) {
+      return;
+    }
+    normalized[key] = Math.round(parsed);
+  });
+  return normalized;
+}
+
+function getWatchHistoryPreloadAttemptStats(context: DebugApiContext): WatchHistoryPreloadAttemptStats {
+  const diagnosticsRecord = toRecord((context.state as BoundaryRecord).watchHistoryPreloadAttemptDiagnostics);
+  const byLocale = toCountRecord(diagnosticsRecord.byLocale);
+  const byLocaleRevision = toCountRecord(diagnosticsRecord.byLocaleRevision);
+  const totalAttemptsFromValue = toNonNegativeInt(diagnosticsRecord.totalAttempts);
+  const totalAttemptsFromByLocale = Object.values(byLocale).reduce((sum, value) => sum + value, 0);
+  const totalAttempts = Math.max(totalAttemptsFromValue, totalAttemptsFromByLocale);
+
+  const lastAttemptRecord = toRecord(diagnosticsRecord.lastAttempt);
+  const lastAttemptLocale = getString(lastAttemptRecord.locale);
+  const curatedDataRevision = toNonNegativeInt(lastAttemptRecord.curatedDataRevision);
+  const localeAttemptCount = toNonNegativeInt(lastAttemptRecord.localeAttemptCount);
+  const localeRevisionAttemptCount = toNonNegativeInt(lastAttemptRecord.localeRevisionAttemptCount);
+  const lastAttempt =
+    lastAttemptLocale && (localeAttemptCount > 0 || localeRevisionAttemptCount > 0)
+      ? {
+          locale: lastAttemptLocale,
+          curatedDataRevision,
+          localeAttemptCount,
+          localeRevisionAttemptCount,
+        }
+      : null;
+
+  return {
+    totalAttempts,
+    byLocale,
+    byLocaleRevision,
+    lastAttempt,
+  };
 }
 
 function resolveState(value: BoundaryValue): RuntimeState {
@@ -244,6 +304,7 @@ function getCuratedDomLifecycleStatsInternal(context: DebugApiContext): CuratedD
     counters,
     totalLifecycleMutations,
     identityChurnRate,
+    watchHistoryPreloadAttempts: getWatchHistoryPreloadAttemptStats(context),
   };
 }
 

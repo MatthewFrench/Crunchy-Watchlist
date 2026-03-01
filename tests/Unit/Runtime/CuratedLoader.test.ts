@@ -249,14 +249,14 @@ describe('curated-loader runtime', () => {
     });
 
     const loadPromise = harness.runtime.loadCuratedEntries(false);
-    await flushMicrotasks();
-
-    expect(harness.state.curatedEntries).toHaveLength(1);
-    expect(harness.state.curatedSource).toBe('api');
-    expect(harness.state.curatedInflight).not.toBeNull();
-    expect(harness.dependencies.setWatchlistCacheRows).toHaveBeenCalledTimes(1);
-    expect(harness.dependencies.renderCuratedPanel).toHaveBeenCalled();
-    expect(harness.runtimeEvents.map((entry) => entry.event)).toContain('curated-load-partial');
+    await vi.waitFor(() => {
+      expect(harness.state.curatedEntries).toHaveLength(1);
+      expect(harness.state.curatedSource).toBe('api');
+      expect(harness.state.curatedInflight).not.toBeNull();
+      expect(harness.dependencies.setWatchlistCacheRows).toHaveBeenCalledTimes(1);
+      expect(harness.dependencies.renderCuratedPanel).toHaveBeenCalled();
+      expect(harness.runtimeEvents.map((entry) => entry.event)).toContain('curated-load-partial');
+    });
     expect(harness.runtimeEvents.map((entry) => entry.event)).not.toContain('curated-load-done');
 
     preloadRatingsDeferred.resolve(null);

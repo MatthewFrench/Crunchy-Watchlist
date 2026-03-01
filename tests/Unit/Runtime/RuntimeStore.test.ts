@@ -122,6 +122,12 @@ describe('RuntimeStore', () => {
     expect((typedState.ratingInflight as unknown) instanceof Map).toBe(true);
     expect((typedState.previewInflight as unknown) instanceof Map).toBe(true);
     expect(typedState.watchHistoryStatus).toBe('idle');
+    expect(typedState.watchHistoryPreloadAttemptDiagnostics).toEqual({
+      totalAttempts: 0,
+      byLocale: {},
+      byLocaleRevision: {},
+      lastAttempt: null,
+    });
     expect(typedState.curatedPendingRequests).toEqual([]);
     expect(typedState.curatedPendingRequestStartedCount).toBe(0);
     expect(typedState.curatedPendingRequestCompletedCount).toBe(0);

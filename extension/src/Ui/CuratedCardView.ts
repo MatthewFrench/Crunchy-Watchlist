@@ -600,6 +600,50 @@ function getCardBodyRefsFromValue(
   return null;
 }
 
+class CuratedCardBodyRefsStore {
+  private readonly refsByElement = new WeakMap<Element, CardBodyRefs>();
+
+  readonly set = (element: Element, refs: CardBodyRefs): void => {
+    this.refsByElement.set(element, refs);
+  };
+
+  readonly getMap = (): WeakMap<Element, CardBodyRefs> => {
+    return this.refsByElement;
+  };
+
+  readonly get = (value: BoundaryValue): CardBodyRefs | null => {
+    return getCardBodyRefsFromValue(this.refsByElement, value);
+  };
+}
+
+class CuratedCardBodyFactoryOwner {
+  private readonly context: CardViewContext;
+  private readonly refsStore: CuratedCardBodyRefsStore;
+
+  constructor(context: CardViewContext, refsStore: CuratedCardBodyRefsStore) {
+    this.context = context;
+    this.refsStore = refsStore;
+  }
+
+  readonly create = (entry: BoundaryValue, actions: HTMLElement): HTMLElement => {
+    return createCuratedCardBodyInternal(this.context, this.refsStore.getMap(), entry, actions);
+  };
+}
+
+class CuratedCardBodyPatchOwner {
+  private readonly context: CardViewContext;
+  private readonly refsStore: CuratedCardBodyRefsStore;
+
+  constructor(context: CardViewContext, refsStore: CuratedCardBodyRefsStore) {
+    this.context = context;
+    this.refsStore = refsStore;
+  }
+
+  readonly patch = (cardValue: BoundaryValue, inputEntry: BoundaryValue): void => {
+    patchCuratedCardBodyInternal(this.context, this.refsStore.getMap(), cardValue, inputEntry);
+  };
+}
+
 function patchCuratedCardBodyInternal(
   context: CardViewContext,
   cardBodyRefsByElement: WeakMap<Element, CardBodyRefs>,
@@ -623,22 +667,26 @@ function patchCuratedCardBodyInternal(
 
 class CardViewOwner {
   private readonly context: CardViewContext;
-  private readonly cardBodyRefsByElement = new WeakMap<Element, CardBodyRefs>();
+  private readonly refsStore = new CuratedCardBodyRefsStore();
+  private readonly bodyFactoryOwner: CuratedCardBodyFactoryOwner;
+  private readonly bodyPatchOwner: CuratedCardBodyPatchOwner;
 
   constructor(deps: CardViewDeps = {}) {
     this.context = createCardViewContext(deps);
+    this.bodyFactoryOwner = new CuratedCardBodyFactoryOwner(this.context, this.refsStore);
+    this.bodyPatchOwner = new CuratedCardBodyPatchOwner(this.context, this.refsStore);
   }
 
   readonly createCuratedCardBody = (entry: BoundaryValue, actions: HTMLElement): HTMLElement => {
-    return createCuratedCardBodyInternal(this.context, this.cardBodyRefsByElement, entry, actions);
+    return this.bodyFactoryOwner.create(entry, actions);
   };
 
   readonly patchCuratedCardBody = (card: BoundaryValue, entry: BoundaryValue): void => {
-    patchCuratedCardBodyInternal(this.context, this.cardBodyRefsByElement, card, entry);
+    this.bodyPatchOwner.patch(card, entry);
   };
 
   readonly getCuratedCardBodyRefs = (value: BoundaryValue): CardBodyRefs | null => {
-    return getCardBodyRefsFromValue(this.cardBodyRefsByElement, value);
+    return this.refsStore.get(value);
   };
 }
 

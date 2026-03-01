@@ -17,11 +17,13 @@ export function text(
   statusCode: number,
   body: string,
   contentType = 'text/plain; charset=utf-8',
+  extraHeaders: Record<string, string> = {},
 ): void {
   res.writeHead(statusCode, {
     'Content-Type': contentType,
     'Content-Length': Buffer.byteLength(body),
     'Cache-Control': 'no-store',
+    ...extraHeaders,
   });
   res.end(body);
 }

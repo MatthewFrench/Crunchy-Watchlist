@@ -8,6 +8,8 @@ type CuratedPanelGridSignatureRuntime = {
   parseCardLayoutFromContentSignature: (signature: string) => CuratedCardLayout | null;
 };
 
+const entrySignatureIgnoredKeys = new Set<string>(['dimNotWatchReady']);
+
 function normalizeCardLayout(value: BoundaryValue): CuratedCardLayout {
   return value === 'landscape' ? 'landscape' : 'portrait';
 }
@@ -22,7 +24,12 @@ function updateRevisionHash(hash: number, value: string): number {
   return next >>> 0;
 }
 
-function hashRevisionToken(hash: number, value: BoundaryValue, seen: Set<BoundaryValue>): number {
+function hashRevisionToken(
+  hash: number,
+  value: BoundaryValue,
+  seen: Set<BoundaryValue>,
+  ignoredKeys: Set<string>,
+): number {
   if (value == null) {
     return updateRevisionHash(hash, 'null');
   }
@@ -38,7 +45,7 @@ function hashRevisionToken(hash: number, value: BoundaryValue, seen: Set<Boundar
   if (Array.isArray(value)) {
     let next = updateRevisionHash(hash, `arr:${value.length}`);
     value.forEach((item) => {
-      next = hashRevisionToken(next, item, seen);
+      next = hashRevisionToken(next, item, seen, ignoredKeys);
     });
     return next;
   }
@@ -49,11 +56,13 @@ function hashRevisionToken(hash: number, value: BoundaryValue, seen: Set<Boundar
     }
     seen.add(value);
     const record = value as BoundaryRecord;
-    const keys = Object.keys(record).sort();
+    const keys = Object.keys(record)
+      .filter((key) => !ignoredKeys.has(key))
+      .sort();
     let next = updateRevisionHash(hash, `obj:${keys.length}`);
     keys.forEach((key) => {
       next = updateRevisionHash(next, `key:${key}`);
-      next = hashRevisionToken(next, record[key], seen);
+      next = hashRevisionToken(next, record[key], seen, ignoredKeys);
     });
     seen.delete(value);
     return next;
@@ -63,7 +72,7 @@ function hashRevisionToken(hash: number, value: BoundaryValue, seen: Set<Boundar
 }
 
 function buildEntryRevisionToken(entry: BoundaryRecord): string {
-  return hashRevisionToken(2166136261, entry, new Set<BoundaryValue>()).toString(16);
+  return hashRevisionToken(2166136261, entry, new Set<BoundaryValue>(), entrySignatureIgnoredKeys).toString(16);
 }
 
 function buildCuratedCardContentSignature(entry: BoundaryRecord, cardLayout: BoundaryValue): string {

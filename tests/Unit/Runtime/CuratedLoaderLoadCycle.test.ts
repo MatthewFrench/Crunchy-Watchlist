@@ -162,6 +162,32 @@ describe('curated-loader-load-cycle runtime', () => {
         'curated-load-timing',
       ]),
     );
+    const loadTimingEvent = runtimeEvents.find((entry) => entry.event === 'curated-load-timing');
+    const loadTimingPayload = (loadTimingEvent?.data || {}) as Record<string, unknown>;
+    expect(Object.keys(loadTimingPayload).sort()).toEqual(
+      [
+        'deferredEntryCount',
+        'force',
+        'priorityEntryCount',
+        'priorityMetadataDurationMs',
+        'requestCountTotal',
+        'requestCounts',
+        'rowsDurationMs',
+        'tokenDurationMs',
+        'totalDurationMs',
+        'totalEntries',
+      ].sort(),
+    );
+    expect(loadTimingPayload.requestCountTotal).toBe(6);
+    const requestCounts = (loadTimingPayload.requestCounts || {}) as Record<string, unknown>;
+    expect(Object.keys(requestCounts).sort()).toEqual(['authToken', 'other', 'ratings', 'watchHistory', 'watchlist']);
+    expect(requestCounts).toEqual({
+      authToken: 1,
+      watchlist: 1,
+      ratings: 2,
+      watchHistory: 2,
+      other: 0,
+    });
   });
 
   it('does not force-refresh auth for cache-backed loads when the first token is usable', async () => {

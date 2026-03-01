@@ -613,6 +613,14 @@ Progress notes:
   - `CuratedPanelGrid.createOrReuseCuratedCard(...)` no longer replaces existing card nodes when content signatures change and `patchCuratedCard` is unavailable.
   - Card identity now remains stable in this path (in-place/no-op behavior rather than replacement), aligning with create-once/update-in-place policy.
   - Added regression coverage in `CuratedPanel.test.ts` to assert no node replacement under signature churn without patch callbacks.
+- 2026-03-01: extracted parked-card lifecycle ownership from `CuratedPanelGrid` into `CuratedPanelGridParkingManager`:
+  - Park/unpark/trim/dispose responsibilities are now delegated to a dedicated class owner with explicit typed lifecycle handlers.
+  - Added focused unit coverage in `CuratedPanelGridParkingManager.test.ts` for parking callbacks, age-based disposal, and over-budget eviction.
+- 2026-03-01: completed follow-up owner-hierarchy decomposition for panel/grid/card-body orchestration:
+  - `CuratedPanel` now delegates render scheduling/signature/loading orchestration to `CuratedPanelRenderOrchestrator`.
+  - `CuratedPanelGridRenderPhases` now delegates visible-order planning and mount reconciliation to `CuratedPanelGridOrderPlanner` and `CuratedPanelGridMountReconciler`.
+  - `CuratedCardView` now composes explicit sub-owners (`CuratedCardBodyRefsStore`, `CuratedCardBodyFactoryOwner`, `CuratedCardBodyPatchOwner`) for deterministic body creation/patch ownership.
+  - Added focused unit coverage for new grid owner components in `CuratedPanelGridOrderPlanner.test.ts` and `CuratedPanelGridMountReconciler.test.ts`.
 
 ## WS4: Native Interop Adapter Isolation and Cleanup
 
@@ -667,6 +675,9 @@ Progress notes:
   - `HistoryRepositoryPreloadCollector` now normalizes dependency/options ingress and page envelopes (`rows`, `totalRows`) before collection loops.
   - `EntryNormalizer` now introduces explicit per-row DTO extraction (`ApiRowDto`) before dedupe/normalized entry construction.
   - `CuratedLoaderLoadCycle` now normalizes fetched rows and normalized entries into typed curated row/entry arrays before preload and commit paths.
+- 2026-03-01: completed DTO contract documentation and drift-lock coverage for production envelope variants:
+  - Added endpoint DTO + normalization reference doc: `docs/api-dto-contracts.md`.
+  - Added dedicated drift suite: `tests/Unit/Data/ApiEnvelopeContractDrift.test.ts` covering watchlist, watch-history, and CMS envelope variants plus row-contract warning semantics.
 
 ## WS6: Verification and Regression Discipline
 
@@ -695,8 +706,8 @@ Required gates:
 - `npm run arch:metrics`
 
 Latest full-gate validation stamp:
-- 2026-03-01: full gate set green after final v1 closure sync:
-  - `typecheck`, `lint`, `format:check`, `test:perf:budgets`, `test:unit` (`288 passed`), `lint:firefox`, `test:e2e` (`117 passed`), `build:webext`, `build:safari`, `guard:arch-growth`, `arch:metrics`.
+- 2026-03-01: full gate set green on current v1/v2 completion state:
+  - `typecheck`, `lint`, `format:check`, `test:perf:budgets`, `test:unit` (`304 passed`), `lint:firefox`, `test:e2e` (`148 passed`, `2 skipped`), `build:webext`, `build:safari`, `guard:arch-growth`, `arch:metrics`.
   - Related guard outcomes at this stamp:
     - boundary growth: `unknown 0/0`, files `0/0`, `AnyFn 0/0`.
     - owned DOM lookup guard: allowlisted root/native query lookups only (`3 + 3 + 1` budgets in the three allowlisted runtime files).
@@ -732,3 +743,4 @@ Remaining direct `__CW_WATCHLIST_CURATOR_MODULES__` touch points:
 - `docs/architecture-transformation-plan.md`
 - `docs/ui-dom-state-architecture-overhaul.md`
 - `docs/ui-done-right-transformation.md`
+- `docs/modern-architecture-improvement-v2.md`

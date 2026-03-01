@@ -24,6 +24,30 @@ type PendingRequestProgress = {
   completed: number;
 };
 
+type CuratedLoadRequestCounters = {
+  authToken: number;
+  watchlist: number;
+  ratings: number;
+  watchHistory: number;
+  other: number;
+};
+
+type CuratedLoadCycleFetchedData = {
+  tokenEntry: TokenEntry;
+  accountId: string;
+  profileId: string;
+  rows: CuratedRowList;
+  entries: CuratedEntryList;
+  tokenDurationMs: number;
+  rowsDurationMs: number;
+};
+
+type CuratedLoadCyclePriorityMetadata = {
+  priorityEntries: CuratedEntryList;
+  deferredEntries: CuratedEntryList;
+  priorityMetadataDurationMs: number;
+};
+
 type TokenEntry = {
   accessToken?: BoundaryValue;
   accountId?: BoundaryValue;
@@ -132,20 +156,74 @@ function toCuratedEntryList(value: BoundaryValue): CuratedEntryList {
   );
 }
 
+function createCuratedLoadRequestCounters(): CuratedLoadRequestCounters {
+  return {
+    authToken: 0,
+    watchlist: 0,
+    ratings: 0,
+    watchHistory: 0,
+    other: 0,
+  };
+}
+
+function classifyCuratedRequestLabel(label: string): keyof CuratedLoadRequestCounters {
+  const normalizedLabel = label.toLowerCase();
+  if (normalizedLabel.includes('/auth/v1/token')) {
+    return 'authToken';
+  }
+  if (normalizedLabel.includes('/discover/{account_id}/watchlist')) {
+    return 'watchlist';
+  }
+  if (normalizedLabel.includes('rating')) {
+    return 'ratings';
+  }
+  if (normalizedLabel.includes('watch history')) {
+    return 'watchHistory';
+  }
+  return 'other';
+}
+
+function getCuratedLoadRequestCountTotal(requestCounters: CuratedLoadRequestCounters): number {
+  return (
+    requestCounters.authToken +
+    requestCounters.watchlist +
+    requestCounters.ratings +
+    requestCounters.watchHistory +
+    requestCounters.other
+  );
+}
+
+async function withTrackedPendingRequestWithMetrics<T>(
+  context: CuratedLoaderContextLike,
+  pendingRequestsRuntime: CuratedLoaderPendingRequestsRuntime,
+  activeRequests: string[],
+  progress: PendingRequestProgress,
+  requestCounters: CuratedLoadRequestCounters,
+  label: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  const requestClass = classifyCuratedRequestLabel(label);
+  requestCounters[requestClass] += 1;
+  return pendingRequestsRuntime.withTrackedPendingRequest(context, activeRequests, progress, label, work);
+}
+
 async function loadAuthorizedTokenInternal(
   context: CuratedLoaderContextLike,
   pendingRequestsRuntime: CuratedLoaderPendingRequestsRuntime,
   activeRequests: string[],
   progress: PendingRequestProgress,
+  requestCounters: CuratedLoadRequestCounters,
   forceRefresh: boolean,
 ): Promise<{ tokenEntry: TokenEntry; accountId: string; profileId: string }> {
   // Cache-backed refreshes should still reuse warm/inflight auth when available.
   // We only force-refresh when the caller explicitly requests it or fallback recovery requires it.
   const shouldForceRefresh = forceRefresh;
-  let tokenEntry = await pendingRequestsRuntime.withTrackedPendingRequest(
+  let tokenEntry = await withTrackedPendingRequestWithMetrics(
     context,
+    pendingRequestsRuntime,
     activeRequests,
     progress,
+    requestCounters,
     'Authorizing Crunchyroll API token (/auth/v1/token)',
     () => context.getAccessToken(shouldForceRefresh),
   );
@@ -155,10 +233,12 @@ async function loadAuthorizedTokenInternal(
   let profileId = getString(tokenEntry?.profileId);
 
   if (!shouldForceRefresh && (!accessToken || !accountId || !profileId)) {
-    const refreshedTokenEntry = await pendingRequestsRuntime.withTrackedPendingRequest(
+    const refreshedTokenEntry = await withTrackedPendingRequestWithMetrics(
       context,
+      pendingRequestsRuntime,
       activeRequests,
       progress,
+      requestCounters,
       'Refreshing Crunchyroll API token (/auth/v1/token)',
       () => context.getAccessToken(true),
     );
@@ -190,12 +270,15 @@ async function loadRowsAndEntriesInternal(
   pendingRequestsRuntime: CuratedLoaderPendingRequestsRuntime,
   activeRequests: string[],
   progress: PendingRequestProgress,
+  requestCounters: CuratedLoadRequestCounters,
   tokenEntry: TokenEntry,
 ): Promise<{ rows: CuratedRowList; entries: CuratedEntryList }> {
-  const rawRows = await pendingRequestsRuntime.withTrackedPendingRequest(
+  const rawRows = await withTrackedPendingRequestWithMetrics(
     context,
+    pendingRequestsRuntime,
     activeRequests,
     progress,
+    requestCounters,
     'Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)',
     () => context.fetchAllWatchlistRows(tokenEntry),
   );
@@ -213,22 +296,27 @@ async function preloadPrimaryLocaleDataInternal(
   pendingRequestsRuntime: CuratedLoaderPendingRequestsRuntime,
   activeRequests: string[],
   progress: PendingRequestProgress,
+  requestCounters: CuratedLoadRequestCounters,
   entries: CuratedEntryList,
   tokenEntry: TokenEntry,
   force: boolean,
 ): Promise<void> {
   await Promise.all([
-    pendingRequestsRuntime.withTrackedPendingRequest(
+    withTrackedPendingRequestWithMetrics(
       context,
+      pendingRequestsRuntime,
       activeRequests,
       progress,
+      requestCounters,
       'Fetching ratings (/content-reviews/v3/rating/series/{series_id})',
       () => context.preloadRatingsForEntries(entries, tokenEntry),
     ),
-    pendingRequestsRuntime.withTrackedPendingRequest(
+    withTrackedPendingRequestWithMetrics(
       context,
+      pendingRequestsRuntime,
       activeRequests,
       progress,
+      requestCounters,
       'Fetching watch history (/content/v2/{account_id}/watch-history)',
       () => context.preloadWatchHistoryForEntries(entries, tokenEntry, force),
     ),
@@ -265,6 +353,7 @@ async function preloadSelectedAudioLocaleDataInternal(
   pendingRequestsRuntime: CuratedLoaderPendingRequestsRuntime,
   activeRequests: string[],
   progress: PendingRequestProgress,
+  requestCounters: CuratedLoadRequestCounters,
   entries: CuratedEntryList,
   tokenEntry: TokenEntry,
 ): Promise<void> {
@@ -274,10 +363,12 @@ async function preloadSelectedAudioLocaleDataInternal(
   }
 
   const preloadTasks: Array<Promise<BoundaryValue>> = [
-    pendingRequestsRuntime.withTrackedPendingRequest(
+    withTrackedPendingRequestWithMetrics(
       context,
+      pendingRequestsRuntime,
       activeRequests,
       progress,
+      requestCounters,
       `Fetching ${selectedAudioLocale} ratings (/content-reviews/v3/rating/series/{series_id})`,
       () => context.preloadRatingsForEntries(entries, tokenEntry, selectedAudioLocale),
     ),
@@ -285,10 +376,12 @@ async function preloadSelectedAudioLocaleDataInternal(
 
   if (shouldPreloadSelectedAudioLocaleWatchHistoryInternal(context, entries, selectedAudioLocale)) {
     preloadTasks.push(
-      pendingRequestsRuntime.withTrackedPendingRequest(
+      withTrackedPendingRequestWithMetrics(
         context,
+        pendingRequestsRuntime,
         activeRequests,
         progress,
+        requestCounters,
         `Fetching ${selectedAudioLocale} watch history (/content/v2/{account_id}/watch-history)`,
         () => context.preloadWatchHistoryForEntries(entries, tokenEntry, true, selectedAudioLocale),
       ),
@@ -402,8 +495,10 @@ function emitCuratedLoadTimingEvent(
     rowsDurationMs: number;
     priorityMetadataDurationMs: number;
     startedAt: number;
+    requestCounters: CuratedLoadRequestCounters;
   },
 ): void {
+  const requestCounters = options.requestCounters;
   context.runtimeEvent('curated-load-timing', {
     force: options.force,
     totalEntries: options.totalEntries,
@@ -413,7 +508,99 @@ function emitCuratedLoadTimingEvent(
     rowsDurationMs: options.rowsDurationMs,
     priorityMetadataDurationMs: options.priorityMetadataDurationMs,
     totalDurationMs: Date.now() - options.startedAt,
+    requestCountTotal: getCuratedLoadRequestCountTotal(requestCounters),
+    requestCounts: {
+      authToken: requestCounters.authToken,
+      watchlist: requestCounters.watchlist,
+      ratings: requestCounters.ratings,
+      watchHistory: requestCounters.watchHistory,
+      other: requestCounters.other,
+    },
   });
+}
+
+async function fetchAndCommitPartialEntriesInternal(
+  context: CuratedLoaderContextLike,
+  pendingRequestsRuntime: CuratedLoaderPendingRequestsRuntime,
+  activeRequests: string[],
+  pendingProgress: PendingRequestProgress,
+  requestCounters: CuratedLoadRequestCounters,
+  force: boolean,
+): Promise<CuratedLoadCycleFetchedData> {
+  const tokenStartedAt = Date.now();
+  const { tokenEntry, accountId, profileId } = await loadAuthorizedTokenInternal(
+    context,
+    pendingRequestsRuntime,
+    activeRequests,
+    pendingProgress,
+    requestCounters,
+    force,
+  );
+  const tokenDurationMs = Date.now() - tokenStartedAt;
+  context.resetWatchlistCacheOnAccountMismatch(accountId, profileId);
+
+  const rowsStartedAt = Date.now();
+  const { rows, entries } = await loadRowsAndEntriesInternal(
+    context,
+    pendingRequestsRuntime,
+    activeRequests,
+    pendingProgress,
+    requestCounters,
+    tokenEntry,
+  );
+  const rowsDurationMs = Date.now() - rowsStartedAt;
+  commitCuratedEntriesFromApiInternal(context, accountId, profileId, rows, entries, 'partial');
+
+  return {
+    tokenEntry,
+    accountId,
+    profileId,
+    rows,
+    entries,
+    tokenDurationMs,
+    rowsDurationMs,
+  };
+}
+
+async function preloadPriorityMetadataInternal(
+  context: CuratedLoaderContextLike,
+  deferredMetadataRuntime: CuratedLoaderDeferredMetadataRuntime,
+  pendingRequestsRuntime: CuratedLoaderPendingRequestsRuntime,
+  activeRequests: string[],
+  pendingProgress: PendingRequestProgress,
+  requestCounters: CuratedLoadRequestCounters,
+  entries: CuratedEntryList,
+  tokenEntry: TokenEntry,
+  force: boolean,
+): Promise<CuratedLoadCyclePriorityMetadata> {
+  const { priorityEntries, deferredEntries } = deferredMetadataRuntime.splitMetadataPreloadEntries(context, entries);
+  const priorityMetadataStartedAt = Date.now();
+  await preloadPrimaryLocaleDataInternal(
+    context,
+    pendingRequestsRuntime,
+    activeRequests,
+    pendingProgress,
+    requestCounters,
+    priorityEntries,
+    tokenEntry,
+    force,
+  );
+  await preloadSelectedAudioLocaleDataInternal(
+    context,
+    pendingRequestsRuntime,
+    activeRequests,
+    pendingProgress,
+    requestCounters,
+    priorityEntries,
+    tokenEntry,
+  );
+  const priorityMetadataDurationMs = Date.now() - priorityMetadataStartedAt;
+
+  return {
+    priorityEntries,
+    deferredEntries,
+    priorityMetadataDurationMs,
+  };
 }
 
 async function runCuratedLoadCycleInternal({
@@ -432,48 +619,29 @@ async function runCuratedLoadCycleInternal({
   force: boolean;
 }): Promise<CuratedEntryList> {
   const startedAt = startCuratedLoadCycle(context, pendingRequestsRuntime, activeRequests, pendingProgress);
+  const requestCounters = createCuratedLoadRequestCounters();
 
-  const tokenStartedAt = Date.now();
-  const { tokenEntry, accountId, profileId } = await loadAuthorizedTokenInternal(
-    context,
-    pendingRequestsRuntime,
-    activeRequests,
-    pendingProgress,
-    force,
-  );
-  const tokenDurationMs = Date.now() - tokenStartedAt;
-  context.resetWatchlistCacheOnAccountMismatch(accountId, profileId);
-  const rowsStartedAt = Date.now();
-  const { rows, entries } = await loadRowsAndEntriesInternal(
-    context,
-    pendingRequestsRuntime,
-    activeRequests,
-    pendingProgress,
-    tokenEntry,
-  );
-  const rowsDurationMs = Date.now() - rowsStartedAt;
-  commitCuratedEntriesFromApiInternal(context, accountId, profileId, rows, entries, 'partial');
+  const { tokenEntry, accountId, profileId, rows, entries, tokenDurationMs, rowsDurationMs } =
+    await fetchAndCommitPartialEntriesInternal(
+      context,
+      pendingRequestsRuntime,
+      activeRequests,
+      pendingProgress,
+      requestCounters,
+      force,
+    );
 
-  const { priorityEntries, deferredEntries } = deferredMetadataRuntime.splitMetadataPreloadEntries(context, entries);
-  const priorityMetadataStartedAt = Date.now();
-  await preloadPrimaryLocaleDataInternal(
+  const { priorityEntries, deferredEntries, priorityMetadataDurationMs } = await preloadPriorityMetadataInternal(
     context,
+    deferredMetadataRuntime,
     pendingRequestsRuntime,
     activeRequests,
     pendingProgress,
-    priorityEntries,
+    requestCounters,
+    entries,
     tokenEntry,
     force,
   );
-  await preloadSelectedAudioLocaleDataInternal(
-    context,
-    pendingRequestsRuntime,
-    activeRequests,
-    pendingProgress,
-    priorityEntries,
-    tokenEntry,
-  );
-  const priorityMetadataDurationMs = Date.now() - priorityMetadataStartedAt;
   const committedEntries = commitCuratedEntriesFromApiInternal(context, accountId, profileId, rows, entries, 'final');
 
   emitCuratedLoadTimingEvent(context, {
@@ -485,6 +653,7 @@ async function runCuratedLoadCycleInternal({
     rowsDurationMs,
     priorityMetadataDurationMs,
     startedAt,
+    requestCounters,
   });
 
   deferredMetadataRuntime.queueDeferredMetadataPreload({

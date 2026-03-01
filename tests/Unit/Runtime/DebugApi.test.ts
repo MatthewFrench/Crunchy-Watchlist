@@ -114,6 +114,24 @@ function createHarness(overrides: Record<string, unknown> = {}) {
       disposed: 1,
       renderPasses: 30,
     },
+    watchHistoryPreloadAttemptDiagnostics: {
+      totalAttempts: 3,
+      byLocale: {
+        'en-us': 1,
+        'ja-jp': 2,
+      },
+      byLocaleRevision: {
+        'en-us@1710000000000': 1,
+        'ja-jp@1710000000000': 1,
+        'ja-jp@1710000000001': 1,
+      },
+      lastAttempt: {
+        locale: 'ja-jp',
+        curatedDataRevision: 1_710_000_000_001,
+        localeAttemptCount: 2,
+        localeRevisionAttemptCount: 1,
+      },
+    },
   };
 
   const runtime = getDebugApiModule().createDebugApiRuntime({
@@ -200,6 +218,24 @@ describe('debug-api runtime', () => {
       },
       totalLifecycleMutations: 68,
       identityChurnRate: 0.2,
+      watchHistoryPreloadAttempts: {
+        totalAttempts: 3,
+        byLocale: {
+          'en-us': 1,
+          'ja-jp': 2,
+        },
+        byLocaleRevision: {
+          'en-us@1710000000000': 1,
+          'ja-jp@1710000000000': 1,
+          'ja-jp@1710000000001': 1,
+        },
+        lastAttempt: {
+          locale: 'ja-jp',
+          curatedDataRevision: 1_710_000_000_001,
+          localeAttemptCount: 2,
+          localeRevisionAttemptCount: 1,
+        },
+      },
     });
   });
 

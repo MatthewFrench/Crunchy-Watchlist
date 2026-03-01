@@ -4,6 +4,29 @@ import { resolveHistoryPreloadPlan as resolveHistoryPreloadPlanFactory } from '.
 type BoundaryValue = CwBoundaryValue;
 type BoundaryFunction = (...args: BoundaryValue[]) => BoundaryValue;
 const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
+type WatchHistoryInflightPromise = Promise<BoundaryValue>;
+type WatchHistoryPreloadAttemptDiagnostics = {
+  localeStorageKey: string;
+  curatedDataRevision: number;
+  localeAttemptCount: number;
+  localeRevisionAttemptCount: number;
+};
+type WatchHistoryPreloadAttemptSnapshot = {
+  totalAttempts: number;
+  byLocale: Record<string, number>;
+  byLocaleRevision: Record<string, number>;
+  lastAttempt: {
+    locale: string;
+    curatedDataRevision: number;
+    localeAttemptCount: number;
+    localeRevisionAttemptCount: number;
+  } | null;
+};
+
+const localizedWatchHistoryInflightByState = new WeakMap<WatchHistoryState, Map<string, WatchHistoryInflightPromise>>();
+const localizedWatchHistoryRevisionByState = new WeakMap<WatchHistoryState, Map<string, number>>();
+const localizedWatchHistoryAttemptCountByState = new WeakMap<WatchHistoryState, Map<string, number>>();
+const localizedWatchHistoryAttemptCountByLocaleRevisionByState = new WeakMap<WatchHistoryState, Map<string, number>>();
 
 function requireFunction<T extends BoundaryFunction>(name: string, value: BoundaryValue): T {
   if (typeof value !== 'function') {
@@ -24,6 +47,90 @@ function toHistoryPreloadEntries(value: BoundaryValue): HistoryPreloadEntry[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is HistoryPreloadEntry => !!entry && typeof entry === 'object')
     : [];
+}
+
+function getOrCreateStateMap<TValue>(
+  cache: WeakMap<WatchHistoryState, Map<string, TValue>>,
+  state: WatchHistoryState,
+): Map<string, TValue> {
+  const existing = cache.get(state);
+  if (existing) {
+    return existing;
+  }
+
+  const created = new Map<string, TValue>();
+  cache.set(state, created);
+  return created;
+}
+
+function getCuratedDataRevision(state: WatchHistoryState): number {
+  const revision = Number((state as LooseRecord).curatedLastRevalidateAt);
+  return Number.isFinite(revision) && revision > 0 ? Math.round(revision) : 0;
+}
+
+function getLocaleRevisionAttemptKey(localeStorageKey: string, curatedDataRevision: number): string {
+  return `${localeStorageKey}@${curatedDataRevision}`;
+}
+
+function toAttemptCountRecord(entries: Iterable<[string, number]>): Record<string, number> {
+  const record: Record<string, number> = {};
+  for (const [key, value] of entries) {
+    const normalizedValue = Number(value);
+    if (!key || !Number.isFinite(normalizedValue) || normalizedValue <= 0) {
+      continue;
+    }
+    record[key] = Math.round(normalizedValue);
+  }
+  return record;
+}
+
+function syncWatchHistoryPreloadAttemptSnapshot(
+  state: WatchHistoryState,
+  diagnostics: WatchHistoryPreloadAttemptDiagnostics,
+  localeCounts: Map<string, number>,
+  localeRevisionCounts: Map<string, number>,
+): void {
+  const byLocale = toAttemptCountRecord(localeCounts.entries());
+  const byLocaleRevision = toAttemptCountRecord(localeRevisionCounts.entries());
+  const totalAttempts = Object.values(byLocale).reduce((sum, value) => sum + value, 0);
+
+  const snapshot: WatchHistoryPreloadAttemptSnapshot = {
+    totalAttempts,
+    byLocale,
+    byLocaleRevision,
+    lastAttempt: {
+      locale: diagnostics.localeStorageKey,
+      curatedDataRevision: diagnostics.curatedDataRevision,
+      localeAttemptCount: diagnostics.localeAttemptCount,
+      localeRevisionAttemptCount: diagnostics.localeRevisionAttemptCount,
+    },
+  };
+
+  (state as LooseRecord).watchHistoryPreloadAttemptDiagnostics = snapshot as BoundaryValue;
+}
+
+function trackWatchHistoryPreloadAttempt(
+  state: WatchHistoryState,
+  localeStorageKey: string,
+  curatedDataRevision: number,
+): WatchHistoryPreloadAttemptDiagnostics {
+  const perLocaleCounts = getOrCreateStateMap(localizedWatchHistoryAttemptCountByState, state);
+  const localeAttemptCount = (perLocaleCounts.get(localeStorageKey) ?? 0) + 1;
+  perLocaleCounts.set(localeStorageKey, localeAttemptCount);
+
+  const perLocaleRevisionCounts = getOrCreateStateMap(localizedWatchHistoryAttemptCountByLocaleRevisionByState, state);
+  const localeRevisionKey = getLocaleRevisionAttemptKey(localeStorageKey, curatedDataRevision);
+  const localeRevisionAttemptCount = (perLocaleRevisionCounts.get(localeRevisionKey) ?? 0) + 1;
+  perLocaleRevisionCounts.set(localeRevisionKey, localeRevisionAttemptCount);
+
+  const diagnostics = {
+    localeStorageKey,
+    curatedDataRevision,
+    localeAttemptCount,
+    localeRevisionAttemptCount,
+  };
+  syncWatchHistoryPreloadAttemptSnapshot(state, diagnostics, perLocaleCounts, perLocaleRevisionCounts);
+  return diagnostics;
 }
 
 function requireContextFunction<
@@ -320,6 +427,7 @@ function applyWatchHistoryBucketsToState(
   buckets: HistoryUpdateBuckets,
   preloadPlan: WatchHistoryPreloadPlan,
   tokenAccountId: string,
+  attemptDiagnostics: WatchHistoryPreloadAttemptDiagnostics,
 ): void {
   const latestCache = context.normalizeStoredWatchHistoryCache(context.state.watchHistoryCache);
   const mergedCache = mergeWatchHistoryCacheWithBucketsInternal(
@@ -343,6 +451,10 @@ function applyWatchHistoryBucketsToState(
 
   context.runtimeEvent('watch-history-preload', {
     preferredAudioLanguage: preloadPlan.effectivePreferredAudioLanguage,
+    attemptLocale: attemptDiagnostics.localeStorageKey,
+    curatedDataRevision: attemptDiagnostics.curatedDataRevision,
+    localeAttemptCount: attemptDiagnostics.localeAttemptCount,
+    localeRevisionAttemptCount: attemptDiagnostics.localeRevisionAttemptCount,
     pages: buckets.pages,
     fetchedRows: buckets.fetchedRows,
     mappedSeries: mergedCache.mappedSeries,
@@ -360,6 +472,7 @@ function handleWatchHistoryPreloadFailure(
   error: BoundaryValue,
   preloadPlan: WatchHistoryPreloadPlan,
   tokenAccountId: string,
+  attemptDiagnostics: WatchHistoryPreloadAttemptDiagnostics,
 ): void {
   context.state.watchHistoryStatus =
     preloadPlan.isDefaultPreferredAudio ||
@@ -368,8 +481,99 @@ function handleWatchHistoryPreloadFailure(
       : 'ready';
   context.runtimeEvent('watch-history-preload-failed', {
     preferredAudioLanguage: preloadPlan.effectivePreferredAudioLanguage,
+    attemptLocale: attemptDiagnostics.localeStorageKey,
+    curatedDataRevision: attemptDiagnostics.curatedDataRevision,
+    localeAttemptCount: attemptDiagnostics.localeAttemptCount,
+    localeRevisionAttemptCount: attemptDiagnostics.localeRevisionAttemptCount,
     message: error instanceof Error ? error.message : 'unavailable',
   });
+}
+
+function emitWatchHistoryPreloadStart(
+  context: HistoryRepositoryPreloadContext,
+  preloadPlan: WatchHistoryPreloadPlan,
+  attemptDiagnostics: WatchHistoryPreloadAttemptDiagnostics,
+  force: boolean,
+): void {
+  context.runtimeEvent('watch-history-preload-start', {
+    preferredAudioLanguage: preloadPlan.effectivePreferredAudioLanguage,
+    attemptLocale: attemptDiagnostics.localeStorageKey,
+    curatedDataRevision: attemptDiagnostics.curatedDataRevision,
+    localeAttemptCount: attemptDiagnostics.localeAttemptCount,
+    localeRevisionAttemptCount: attemptDiagnostics.localeRevisionAttemptCount,
+    candidates: preloadPlan.candidateSeriesIds.length,
+    force,
+    isDefaultPreferredAudio: preloadPlan.isDefaultPreferredAudio,
+  });
+}
+
+function createWatchHistoryPreloadInflight(options: {
+  context: HistoryRepositoryPreloadContext;
+  tokenEntry: TokenEntry;
+  preloadPlan: WatchHistoryPreloadPlan;
+  tokenAccountId: string;
+  attemptDiagnostics: WatchHistoryPreloadAttemptDiagnostics;
+  force: boolean;
+  isForcedLocalizedPreload: boolean;
+  localeStorageKey: string;
+  localizedInflightMap: Map<string, WatchHistoryInflightPromise> | null;
+}): WatchHistoryInflightPromise {
+  const {
+    context,
+    tokenEntry,
+    preloadPlan,
+    tokenAccountId,
+    attemptDiagnostics,
+    force,
+    isForcedLocalizedPreload,
+    localeStorageKey,
+    localizedInflightMap,
+  } = options;
+
+  const inflight = (async () => {
+    context.state.watchHistoryStatus = 'loading';
+    emitWatchHistoryPreloadStart(context, preloadPlan, attemptDiagnostics, force);
+    const buckets = await context.collectWatchHistoryUpdateBuckets({
+      tokenEntry,
+      effectivePreferredAudioLanguage: preloadPlan.effectivePreferredAudioLanguage,
+      candidateSeriesIds: preloadPlan.candidateSeriesIds,
+      isDefaultPreferredAudio: preloadPlan.isDefaultPreferredAudio,
+      watchHistoryMaxPages: context.watchHistoryMaxPages,
+      watchHistoryPageSize: context.watchHistoryPageSize,
+      watchHistoryNoMatchPageLimit: context.watchHistoryNoMatchPageLimit,
+      fetchWatchHistoryPage: (
+        tokenEntryForPage: TokenEntry,
+        pageNumber: number,
+        preferredAudioLanguageForPage: BoundaryValue = preloadPlan.effectivePreferredAudioLanguage,
+      ) => fetchWatchHistoryPageInternal(context, tokenEntryForPage, pageNumber, preferredAudioLanguageForPage),
+      normalizeAudioLocale: context.normalizeAudioLocale,
+      sanitizePositiveInt: context.sanitizePositiveInt,
+      parseDateMs: context.parseDateMs,
+      deriveCanonicalEpisodeKeyFromEpisodeMetadata: context.deriveCanonicalEpisodeKeyFromEpisodeMetadata,
+      getAbsoluteEpisodeNumberFromEpisodeMetadata: context.getAbsoluteEpisodeNumberFromEpisodeMetadata,
+      shouldReplaceWatchHistoryProgress: context.shouldReplaceWatchHistoryProgress,
+    });
+    applyWatchHistoryBucketsToState(context, buckets, preloadPlan, tokenAccountId, attemptDiagnostics);
+  })()
+    .catch((error: BoundaryValue) => {
+      handleWatchHistoryPreloadFailure(context, error, preloadPlan, tokenAccountId, attemptDiagnostics);
+    })
+    .finally(() => {
+      if (!isForcedLocalizedPreload && context.state.watchHistoryInflight === inflight) {
+        context.state.watchHistoryInflight = null;
+      }
+
+      if (isForcedLocalizedPreload && localizedInflightMap?.get(localeStorageKey) === inflight) {
+        localizedInflightMap.delete(localeStorageKey);
+      }
+    });
+
+  if (isForcedLocalizedPreload) {
+    localizedInflightMap?.set(localeStorageKey, inflight);
+  } else {
+    context.state.watchHistoryInflight = inflight;
+  }
+  return inflight;
 }
 
 async function preloadWatchHistoryForEntriesInternal(
@@ -391,6 +595,9 @@ async function preloadWatchHistoryForEntriesInternal(
     getPreferredAudioLanguage: context.getPreferredAudioLanguage,
     normalizeAudioLocale: context.normalizeAudioLocale,
   });
+  const localeStorageKey = preloadPlan.effectivePreferredAudioLanguage.toLowerCase();
+  const curatedDataRevision = getCuratedDataRevision(context.state);
+  const isForcedLocalizedPreload = force && !preloadPlan.isDefaultPreferredAudio;
 
   if (!force && context.isWatchHistoryCacheValid(context.state.watchHistoryCache, tokenAccountId)) {
     context.state.watchHistoryStatus = 'ready';
@@ -401,41 +608,35 @@ async function preloadWatchHistoryForEntriesInternal(
     return context.state.watchHistoryInflight;
   }
 
-  const inflight = (async () => {
-    context.state.watchHistoryStatus = 'loading';
-    const buckets = await context.collectWatchHistoryUpdateBuckets({
-      tokenEntry,
-      effectivePreferredAudioLanguage: preloadPlan.effectivePreferredAudioLanguage,
-      candidateSeriesIds: preloadPlan.candidateSeriesIds,
-      isDefaultPreferredAudio: preloadPlan.isDefaultPreferredAudio,
-      watchHistoryMaxPages: context.watchHistoryMaxPages,
-      watchHistoryPageSize: context.watchHistoryPageSize,
-      watchHistoryNoMatchPageLimit: context.watchHistoryNoMatchPageLimit,
-      fetchWatchHistoryPage: (
-        tokenEntryForPage: TokenEntry,
-        pageNumber: number,
-        preferredAudioLanguageForPage: BoundaryValue = preloadPlan.effectivePreferredAudioLanguage,
-      ) => fetchWatchHistoryPageInternal(context, tokenEntryForPage, pageNumber, preferredAudioLanguageForPage),
-      normalizeAudioLocale: context.normalizeAudioLocale,
-      sanitizePositiveInt: context.sanitizePositiveInt,
-      parseDateMs: context.parseDateMs,
-      deriveCanonicalEpisodeKeyFromEpisodeMetadata: context.deriveCanonicalEpisodeKeyFromEpisodeMetadata,
-      getAbsoluteEpisodeNumberFromEpisodeMetadata: context.getAbsoluteEpisodeNumberFromEpisodeMetadata,
-      shouldReplaceWatchHistoryProgress: context.shouldReplaceWatchHistoryProgress,
-    });
-    applyWatchHistoryBucketsToState(context, buckets, preloadPlan, tokenAccountId);
-  })()
-    .catch((error: BoundaryValue) => {
-      handleWatchHistoryPreloadFailure(context, error, preloadPlan, tokenAccountId);
-    })
-    .finally(() => {
-      if (context.state.watchHistoryInflight === inflight) {
-        context.state.watchHistoryInflight = null;
-      }
-    });
+  const localizedInflightMap = isForcedLocalizedPreload
+    ? getOrCreateStateMap(localizedWatchHistoryInflightByState, context.state)
+    : null;
+  if (localizedInflightMap?.has(localeStorageKey)) {
+    return localizedInflightMap.get(localeStorageKey);
+  }
 
-  context.state.watchHistoryInflight = inflight;
-  return inflight;
+  if (isForcedLocalizedPreload) {
+    const localizedRevisionMap = getOrCreateStateMap(localizedWatchHistoryRevisionByState, context.state);
+    const previousRevision = localizedRevisionMap.get(localeStorageKey);
+    if (previousRevision != null && previousRevision === curatedDataRevision) {
+      return;
+    }
+
+    localizedRevisionMap.set(localeStorageKey, curatedDataRevision);
+  }
+
+  const attemptDiagnostics = trackWatchHistoryPreloadAttempt(context.state, localeStorageKey, curatedDataRevision);
+  return createWatchHistoryPreloadInflight({
+    context,
+    tokenEntry,
+    preloadPlan,
+    tokenAccountId,
+    attemptDiagnostics,
+    force,
+    isForcedLocalizedPreload,
+    localeStorageKey,
+    localizedInflightMap,
+  });
 }
 
 function isLocalizedWatchHistoryDataMissingForEntriesInternal(

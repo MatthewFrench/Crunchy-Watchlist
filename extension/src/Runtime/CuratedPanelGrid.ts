@@ -1,5 +1,10 @@
 import { getElementDataAttribute, setElementDataAttribute, toggleClassNameToken } from './CuratedPanelGridDom.js';
 import {
+  CuratedPanelGridParkingManager,
+  type CuratedCardLayout,
+  type CuratedPanelGridParkingLifecycleHandlers,
+} from './CuratedPanelGridParkingManager.js';
+import {
   type CuratedGridEntry,
   type CuratedGridRenderContext,
   type CuratedPanelGridRenderPhasesRuntime,
@@ -56,24 +61,23 @@ type CuratedPanelGridSignatureRuntime = {
   parseCardLayoutFromContentSignature: (signature: string) => CuratedCardLayout | null;
 };
 
-type CuratedCardLayout = 'portrait' | 'landscape';
-
-type CuratedCardController = {
-  seriesId: string;
-  card: Element;
-  contentSignature: string;
-  cardLayout: CuratedCardLayout;
-  parkedAt: number | null;
+type CuratedGridRenderContextOptions = {
+  state: CuratedPanelGridState;
+  gridEl: Element;
+  documentRef: Document;
+  visible: CuratedGridEntry[];
+  total: number;
+  loading: boolean;
+  metadataLoading: boolean;
+  gridRenderSignature: string;
+  createCuratedCard: CuratedCardFactory;
+  patchCuratedCard: CuratedCardPatchFn | null | undefined;
+  transitionsRuntime: CuratedPanelGridTransitionsRuntime;
+  renderPhasesRuntime: CuratedPanelGridRenderPhasesRuntime;
+  parkingManager: CuratedPanelGridParkingManager;
+  parkingLifecycleHandlers: CuratedPanelGridParkingLifecycleHandlers;
 };
 
-type CuratedPanelGridRuntimeState = {
-  cardControllersBySeriesId: Map<string, CuratedCardController>;
-  parkedCardSeriesOrder: string[];
-  parkedCardContainer: (DocumentFragment | Element) | null;
-};
-
-const maxParkedCardCount = 180;
-const maxParkedCardAgeMs = 5 * 60_000;
 let cachedSignatureRuntime: CuratedPanelGridSignatureRuntime | null = null;
 
 function toNonNegativeInt(value: CuratedBoundaryValue): number {
@@ -274,7 +278,8 @@ function isRenderableEntryMetadataLoading(entry: CuratedGridEntry): boolean {
 
 function createOrReuseCuratedCard(
   state: CuratedPanelGridState,
-  runtimeState: CuratedPanelGridRuntimeState,
+  parkingManager: CuratedPanelGridParkingManager,
+  parkingLifecycleHandlers: CuratedPanelGridParkingLifecycleHandlers,
   createCuratedCard: CuratedCardFactory,
   patchCuratedCard: CuratedCardPatchFn | null | undefined,
   usedSeriesIds: Set<string>,
@@ -289,12 +294,13 @@ function createOrReuseCuratedCard(
   if (!seriesId || usedSeriesIds.has(seriesId)) {
     const nextCard = createCuratedCard(entry);
     incrementCuratedDomLifecycleCounter(state, 'created');
+    setCardClassToken(nextCard, 'cw-curated-card--not-watch-ready', Boolean(entry.dimNotWatchReady));
     annotateCuratedCardElement(nextCard, seriesId, contentSignature, detailsLoading);
     return nextCard;
   }
 
   usedSeriesIds.add(seriesId);
-  let controller = runtimeState.cardControllersBySeriesId.get(seriesId) || null;
+  let controller = parkingManager.getControllerForSeriesId(seriesId);
   if (!controller) {
     const nextCard = createCuratedCard(entry);
     incrementCuratedDomLifecycleCounter(state, 'created');
@@ -305,7 +311,8 @@ function createOrReuseCuratedCard(
       cardLayout: normalizedCardLayout,
       parkedAt: null,
     };
-    runtimeState.cardControllersBySeriesId.set(seriesId, controller);
+    parkingManager.setController(controller);
+    setCardClassToken(nextCard, 'cw-curated-card--not-watch-ready', Boolean(entry.dimNotWatchReady));
     annotateCuratedCardElement(nextCard, seriesId, contentSignature, detailsLoading);
     return nextCard;
   }
@@ -332,11 +339,10 @@ function createOrReuseCuratedCard(
   }
 
   if (controller.parkedAt != null) {
-    removeSeriesIdFromParkedOrder(runtimeState, seriesId);
-    controller.parkedAt = null;
-    incrementCuratedDomLifecycleCounter(state, 'unparked');
+    parkingManager.markCardControllerActive(seriesId, parkingLifecycleHandlers);
   }
 
+  setCardClassToken(controller.card, 'cw-curated-card--not-watch-ready', Boolean(entry.dimNotWatchReady));
   annotateCuratedCardElement(controller.card, seriesId, controller.contentSignature, detailsLoading);
   return controller.card;
 }
@@ -345,7 +351,7 @@ function isCuratedCardElement(value: CuratedBoundaryValue): value is Element {
   if (!value || typeof value !== 'object') {
     return false;
   }
-  return Boolean(getControllerSeriesIdForCard(value as Element));
+  return Boolean(getElementDataAttribute(value as Element, 'cwSeriesId', 'data-cw-series-id'));
 }
 
 function isCuratedGridEmptyElement(value: CuratedBoundaryValue): boolean {
@@ -359,225 +365,23 @@ function setCardParkedState(card: Element, parked: boolean): void {
   const cardElement = card as Element & { className?: string };
   const currentClassName = cardElement.className || '';
   const nextWithParked = toggleClassNameToken(currentClassName, 'cw-curated-card--parked', parked);
-  cardElement.className = parked
+  const nextClassName = parked
     ? toggleClassNameToken(nextWithParked, 'cw-curated-card--entering', false)
     : nextWithParked;
-}
-
-function removeSeriesIdFromParkedOrder(runtimeState: CuratedPanelGridRuntimeState, seriesId: string): void {
-  const index = runtimeState.parkedCardSeriesOrder.indexOf(seriesId);
-  if (index >= 0) {
-    runtimeState.parkedCardSeriesOrder.splice(index, 1);
-  }
-}
-
-function ensureParkedCardContainer(
-  runtimeState: CuratedPanelGridRuntimeState,
-  documentRef: Document,
-): DocumentFragment | Element {
-  if (runtimeState.parkedCardContainer) {
-    return runtimeState.parkedCardContainer;
-  }
-
-  if (typeof documentRef.createDocumentFragment === 'function') {
-    runtimeState.parkedCardContainer = documentRef.createDocumentFragment();
-    return runtimeState.parkedCardContainer;
-  }
-
-  const fallback = documentRef.createElement('div');
-  (fallback as HTMLElement).style.display = 'none';
-  runtimeState.parkedCardContainer = fallback;
-  return fallback;
-}
-
-function removeCardFromParentNode(card: Element): void {
-  const parentNode = (card as Element & { parentNode?: Element | DocumentFragment | null }).parentNode;
-  if (!parentNode || typeof parentNode.removeChild !== 'function') {
+  if (nextClassName === currentClassName) {
     return;
   }
-  parentNode.removeChild(card);
+  cardElement.className = nextClassName;
 }
 
-function getControllerSeriesIdForCard(card: Element): string {
-  return getElementDataAttribute(card, 'cwSeriesId', 'data-cw-series-id');
-}
-
-function getControllerForSeriesId(
-  runtimeState: CuratedPanelGridRuntimeState,
-  seriesId: string,
-): CuratedCardController | null {
-  if (!seriesId) {
-    return null;
-  }
-  return runtimeState.cardControllersBySeriesId.get(seriesId) || null;
-}
-
-function createControllerFromCard(seriesId: string, card: Element): CuratedCardController {
-  const contentSignature = getElementDataAttribute(card, 'cwCardContentSignature', 'data-cw-card-content-signature');
-  const cardLayout =
-    getCuratedPanelGridSignatureRuntime().parseCardLayoutFromContentSignature(contentSignature) || 'portrait';
-  return {
-    seriesId,
-    card,
-    contentSignature,
-    cardLayout,
-    parkedAt: null,
-  };
-}
-
-function getParkedControllerCount(runtimeState: CuratedPanelGridRuntimeState): number {
-  let parkedCount = 0;
-  runtimeState.cardControllersBySeriesId.forEach((controller) => {
-    if (controller.parkedAt != null) {
-      parkedCount += 1;
-    }
-  });
-  return parkedCount;
-}
-
-function disposeCardController(
-  state: CuratedPanelGridState,
-  runtimeState: CuratedPanelGridRuntimeState,
-  seriesId: string,
-  controller: CuratedCardController,
-): void {
-  runtimeState.cardControllersBySeriesId.delete(seriesId);
-  removeSeriesIdFromParkedOrder(runtimeState, seriesId);
-  removeCardFromParentNode(controller.card);
-  controller.parkedAt = null;
-  incrementCuratedDomLifecycleCounter(state, 'disposed');
-}
-
-function trimParkedCardsForReuse(
-  state: CuratedPanelGridState,
-  runtimeState: CuratedPanelGridRuntimeState,
-  now = Date.now(),
-): void {
-  runtimeState.parkedCardSeriesOrder.slice().forEach((seriesId) => {
-    const controller = runtimeState.cardControllersBySeriesId.get(seriesId);
-    if (!controller || controller.parkedAt == null) {
-      removeSeriesIdFromParkedOrder(runtimeState, seriesId);
-      return;
-    }
-    if (now - controller.parkedAt <= maxParkedCardAgeMs) {
-      return;
-    }
-    disposeCardController(state, runtimeState, seriesId, controller);
-  });
-
-  let parkedCount = getParkedControllerCount(runtimeState);
-  while (parkedCount > maxParkedCardCount) {
-    const oldestSeriesId = runtimeState.parkedCardSeriesOrder[0] || '';
-    if (!oldestSeriesId) {
-      break;
-    }
-    const controller = runtimeState.cardControllersBySeriesId.get(oldestSeriesId);
-    if (!controller || controller.parkedAt == null) {
-      removeSeriesIdFromParkedOrder(runtimeState, oldestSeriesId);
-      continue;
-    }
-    disposeCardController(state, runtimeState, oldestSeriesId, controller);
-    parkedCount -= 1;
-  }
-}
-
-function parkControllerForReuse(
-  state: CuratedPanelGridState,
-  runtimeState: CuratedPanelGridRuntimeState,
-  documentRef: Document,
-  controller: CuratedCardController,
-): void {
-  if (!isCuratedCardElement(controller.card)) {
+function setCardClassToken(card: Element, token: string, enabled: boolean): void {
+  const cardElement = card as Element & { className?: string };
+  const currentClassName = cardElement.className || '';
+  const nextClassName = toggleClassNameToken(currentClassName, token, enabled);
+  if (nextClassName === currentClassName) {
     return;
   }
-  if (!controller.seriesId) {
-    return;
-  }
-  if (controller.parkedAt != null) {
-    return;
-  }
-
-  const parkingContainer = ensureParkedCardContainer(runtimeState, documentRef);
-  setCardParkedState(controller.card, true);
-  parkingContainer.appendChild(controller.card);
-  controller.parkedAt = Date.now();
-  removeSeriesIdFromParkedOrder(runtimeState, controller.seriesId);
-  runtimeState.parkedCardSeriesOrder.push(controller.seriesId);
-  incrementCuratedDomLifecycleCounter(state, 'parked');
-}
-
-function parkCardForReuse(
-  state: CuratedPanelGridState,
-  runtimeState: CuratedPanelGridRuntimeState,
-  documentRef: Document,
-  card: Element,
-): void {
-  if (!isCuratedCardElement(card)) {
-    return;
-  }
-  const seriesId = getControllerSeriesIdForCard(card);
-  if (!seriesId) {
-    return;
-  }
-
-  const existingController = getControllerForSeriesId(runtimeState, seriesId);
-  const controller =
-    existingController && existingController.card === card
-      ? existingController
-      : createControllerFromCard(seriesId, card);
-  if (!existingController) {
-    runtimeState.cardControllersBySeriesId.set(seriesId, controller);
-  } else if (existingController.card !== card) {
-    removeCardFromParentNode(card);
-    return;
-  }
-
-  parkControllerForReuse(state, runtimeState, documentRef, controller);
-}
-
-function parkUnusedControllersForReuse(
-  state: CuratedPanelGridState,
-  runtimeState: CuratedPanelGridRuntimeState,
-  documentRef: Document,
-  visibleSeriesIds: Set<string>,
-): void {
-  runtimeState.cardControllersBySeriesId.forEach((controller, seriesId) => {
-    if (visibleSeriesIds.has(seriesId) || controller.parkedAt != null) {
-      return;
-    }
-    parkControllerForReuse(state, runtimeState, documentRef, controller);
-  });
-}
-
-function markCardControllerActive(
-  state: CuratedPanelGridState,
-  runtimeState: CuratedPanelGridRuntimeState,
-  seriesId: string,
-): void {
-  if (!seriesId) {
-    return;
-  }
-  const controller = runtimeState.cardControllersBySeriesId.get(seriesId);
-  if (!controller || controller.parkedAt == null) {
-    return;
-  }
-  controller.parkedAt = null;
-  removeSeriesIdFromParkedOrder(runtimeState, seriesId);
-  incrementCuratedDomLifecycleCounter(state, 'unparked');
-}
-
-function parkGridCardsForReuse(
-  state: CuratedPanelGridState,
-  runtimeState: CuratedPanelGridRuntimeState,
-  documentRef: Document,
-  gridElement: Element,
-): void {
-  Array.from(gridElement.children).forEach((child) => {
-    if (!isCuratedCardElement(child)) {
-      return;
-    }
-    parkCardForReuse(state, runtimeState, documentRef, child);
-  });
+  cardElement.className = nextClassName;
 }
 
 function createCuratedGridEmptyElement(documentRef: Document, state: CuratedPanelGridState, total: number): Element {
@@ -599,11 +403,91 @@ function createCuratedGridEmptyElement(documentRef: Document, state: CuratedPane
   return empty;
 }
 
+function createParkingLifecycleHandlers(state: CuratedPanelGridState): CuratedPanelGridParkingLifecycleHandlers {
+  return {
+    onParked: () => {
+      incrementCuratedDomLifecycleCounter(state, 'parked');
+    },
+    onUnparked: () => {
+      incrementCuratedDomLifecycleCounter(state, 'unparked');
+    },
+    onDisposed: () => {
+      incrementCuratedDomLifecycleCounter(state, 'disposed');
+    },
+  };
+}
+
+function createCuratedGridRenderContext(options: CuratedGridRenderContextOptions): CuratedGridRenderContext {
+  const {
+    state,
+    gridEl,
+    documentRef,
+    visible,
+    total,
+    loading,
+    metadataLoading,
+    gridRenderSignature,
+    createCuratedCard,
+    patchCuratedCard,
+    transitionsRuntime,
+    renderPhasesRuntime,
+    parkingManager,
+    parkingLifecycleHandlers,
+  } = options;
+
+  return {
+    stateRenderSignature: state.curatedGridRenderSignature,
+    gridRenderSignature,
+    documentRef,
+    visible,
+    total,
+    loading,
+    metadataLoading,
+    gridEl,
+    transitionsRuntime,
+    renderPhasesRuntime,
+    isCuratedCardElement,
+    getEntrySeriesId,
+    getElementDataAttribute,
+    isCuratedGridEmptyElement,
+    isRenderableEntryMetadataLoading,
+    setCardParkedState,
+    parkGridCardsForReuse: (gridElement: Element) => {
+      parkingManager.parkGridCardsForReuse(documentRef, gridElement, parkingLifecycleHandlers);
+    },
+    parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => {
+      parkingManager.parkUnusedControllersForReuse(documentRef, visibleSeriesIds, parkingLifecycleHandlers);
+    },
+    createCuratedGridEmptyElement: (nextDocumentRef: Document, nextTotal: number) =>
+      createCuratedGridEmptyElement(nextDocumentRef, state, nextTotal),
+    trimParkedCardsForReuse: () => {
+      parkingManager.trimParkedCardsForReuse(parkingLifecycleHandlers);
+    },
+    createOrReuseCuratedCard: (entry: CuratedGridEntry, detailsLoading: boolean, visibleSeriesIds: Set<string>) =>
+      createOrReuseCuratedCard(
+        state,
+        parkingManager,
+        parkingLifecycleHandlers,
+        createCuratedCard,
+        patchCuratedCard ?? null,
+        visibleSeriesIds,
+        entry,
+        detailsLoading,
+      ),
+    markCardControllerActive: (seriesId: string) => {
+      parkingManager.markCardControllerActive(seriesId, parkingLifecycleHandlers);
+    },
+    parkCardForReuse: (card: Element) => {
+      parkingManager.parkCardForReuse(documentRef, card, parkingLifecycleHandlers);
+    },
+  };
+}
+
 function renderCuratedGridIfNeeded(
   options: CuratedPanelGridRenderOptions,
   transitionsRuntime: CuratedPanelGridTransitionsRuntime,
   renderPhasesRuntime: CuratedPanelGridRenderPhasesRuntime,
-  runtimeState: CuratedPanelGridRuntimeState,
+  parkingManager: CuratedPanelGridParkingManager,
 ): void {
   const {
     state,
@@ -616,55 +500,28 @@ function renderCuratedGridIfNeeded(
     createCuratedCard,
     patchCuratedCard,
   } = options;
-  if (!state.gridEl) {
+  const gridEl = state.gridEl;
+  if (!gridEl) {
     return;
   }
 
-  const renderContext: CuratedGridRenderContext = {
-    stateRenderSignature: state.curatedGridRenderSignature,
-    gridRenderSignature,
+  const parkingLifecycleHandlers = createParkingLifecycleHandlers(state);
+  const renderContext = createCuratedGridRenderContext({
+    state,
+    gridEl,
     documentRef,
     visible,
     total,
     loading,
     metadataLoading,
-    gridEl: state.gridEl,
+    gridRenderSignature,
+    createCuratedCard,
+    patchCuratedCard,
     transitionsRuntime,
     renderPhasesRuntime,
-    isCuratedCardElement,
-    getEntrySeriesId,
-    getElementDataAttribute,
-    isCuratedGridEmptyElement,
-    isRenderableEntryMetadataLoading,
-    setCardParkedState,
-    parkGridCardsForReuse: (gridElement: Element) => {
-      parkGridCardsForReuse(state, runtimeState, documentRef, gridElement);
-    },
-    parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => {
-      parkUnusedControllersForReuse(state, runtimeState, documentRef, visibleSeriesIds);
-    },
-    createCuratedGridEmptyElement: (nextDocumentRef: Document, nextTotal: number) =>
-      createCuratedGridEmptyElement(nextDocumentRef, state, nextTotal),
-    trimParkedCardsForReuse: () => {
-      trimParkedCardsForReuse(state, runtimeState);
-    },
-    createOrReuseCuratedCard: (entry: CuratedGridEntry, detailsLoading: boolean, visibleSeriesIds: Set<string>) =>
-      createOrReuseCuratedCard(
-        state,
-        runtimeState,
-        createCuratedCard,
-        patchCuratedCard ?? null,
-        visibleSeriesIds,
-        entry,
-        detailsLoading,
-      ),
-    markCardControllerActive: (seriesId: string) => {
-      markCardControllerActive(state, runtimeState, seriesId);
-    },
-    parkCardForReuse: (card: Element) => {
-      parkCardForReuse(state, runtimeState, documentRef, card);
-    },
-  };
+    parkingManager,
+    parkingLifecycleHandlers,
+  });
 
   if (shouldSkipCuratedGridRenderPass(renderContext)) {
     return;
@@ -680,25 +537,27 @@ function renderCuratedGridIfNeeded(
 class CuratedPanelGridOwner implements CuratedPanelGridRuntime {
   private readonly transitionsRuntime: CuratedPanelGridTransitionsRuntime;
   private readonly renderPhasesRuntime: CuratedPanelGridRenderPhasesRuntime;
-  private readonly runtimeState: CuratedPanelGridRuntimeState;
+  private readonly parkingManager: CuratedPanelGridParkingManager;
   private disposed = false;
 
   constructor() {
     this.transitionsRuntime = resolveCuratedPanelGridTransitionsRuntime();
     this.renderPhasesRuntime = resolveCuratedPanelGridRenderPhasesRuntime();
-    cachedSignatureRuntime = resolveCuratedPanelGridSignatureRuntime();
-    this.runtimeState = {
-      cardControllersBySeriesId: new Map<string, CuratedCardController>(),
-      parkedCardSeriesOrder: [],
-      parkedCardContainer: null,
-    };
+    const signatureRuntime = resolveCuratedPanelGridSignatureRuntime();
+    cachedSignatureRuntime = signatureRuntime;
+    this.parkingManager = new CuratedPanelGridParkingManager({
+      isCuratedCardElement,
+      getElementDataAttribute,
+      parseCardLayoutFromContentSignature: signatureRuntime.parseCardLayoutFromContentSignature,
+      setCardParkedState,
+    });
   }
 
   readonly renderCuratedGridIfNeeded = (options: CuratedPanelGridRenderOptions): void => {
     if (this.disposed) {
       return;
     }
-    renderCuratedGridIfNeeded(options, this.transitionsRuntime, this.renderPhasesRuntime, this.runtimeState);
+    renderCuratedGridIfNeeded(options, this.transitionsRuntime, this.renderPhasesRuntime, this.parkingManager);
   };
 
   readonly dispose = (): void => {
@@ -706,16 +565,7 @@ class CuratedPanelGridOwner implements CuratedPanelGridRuntime {
       return;
     }
     this.disposed = true;
-
-    this.runtimeState.cardControllersBySeriesId.forEach((controller) => {
-      const removable = controller.card as Element & { isConnected?: boolean; remove?: () => void };
-      if (removable.isConnected && typeof removable.remove === 'function') {
-        removable.remove();
-      }
-    });
-    this.runtimeState.cardControllersBySeriesId.clear();
-    this.runtimeState.parkedCardSeriesOrder = [];
-    this.runtimeState.parkedCardContainer = null;
+    this.parkingManager.dispose();
   };
 }
 

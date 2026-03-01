@@ -24,6 +24,13 @@ type LoadingIndicatorElement = CwLoadingIndicatorElement & {
   parentNode?: Element | null;
 };
 
+type PositionableElement = Element & {
+  parentElement?: Element | null;
+  children?: ArrayLike<Element>;
+  offsetTop?: number;
+  offsetHeight?: number;
+};
+
 class CuratedPanelLoadingIndicatorController {
   private readonly loadingIndicatorDetailsByElement = new WeakMap<Element, LoadingIndicatorDetailsNodes>();
 
@@ -39,7 +46,50 @@ class CuratedPanelLoadingIndicatorController {
     if (!style) {
       return;
     }
+    if (style.display === displayValue) {
+      return;
+    }
     style.display = displayValue;
+  }
+
+  private setElementTopStyle(element: Element, topValue: string): void {
+    const style = (element as Element & { style?: { top?: string } }).style;
+    if (!style) {
+      return;
+    }
+    if (style.top === topValue) {
+      return;
+    }
+    style.top = topValue;
+  }
+
+  private getLoadingBoxTopOffsetPx(loadingBoxEl: Element): number {
+    const panelElement = (loadingBoxEl as PositionableElement).parentElement;
+    if (!panelElement) {
+      return 0;
+    }
+
+    const panelChildren = panelElement.children;
+    if (!panelChildren || panelChildren.length === 0) {
+      return 0;
+    }
+
+    const firstChild = panelChildren[0] as PositionableElement | null;
+    if (!firstChild || firstChild === loadingBoxEl) {
+      return 0;
+    }
+
+    const controlsTop = Number(firstChild.offsetTop) || 0;
+    const controlsHeight = Number(firstChild.offsetHeight) || 0;
+    return Math.max(0, Math.round(controlsTop + controlsHeight + 8));
+  }
+
+  private syncLoadingBoxOverlayOffset(loadingBoxEl: Element | null): void {
+    if (!loadingBoxEl) {
+      return;
+    }
+    const topOffsetPx = this.getLoadingBoxTopOffsetPx(loadingBoxEl);
+    this.setElementTopStyle(loadingBoxEl, `${topOffsetPx}px`);
   }
 
   private createLoadingIndicatorDetailsNodes(
@@ -145,7 +195,9 @@ class CuratedPanelLoadingIndicatorController {
     } = options;
 
     this.syncLoadingIndicatorDetails(documentRef, loadingIndicatorEl, loading, pendingRequests, requestProgress);
-    this.setLoadingBoxVisibility(this.resolveLoadingBoxElement(loadingIndicatorEl, loadingBoxEl), firstLoadInFlight);
+    const resolvedLoadingBox = this.resolveLoadingBoxElement(loadingIndicatorEl, loadingBoxEl);
+    this.syncLoadingBoxOverlayOffset(resolvedLoadingBox);
+    this.setLoadingBoxVisibility(resolvedLoadingBox, firstLoadInFlight);
     this.setElementDisplayStyle(loadingIndicatorEl, firstLoadInFlight ? 'flex' : 'none');
   }
 }

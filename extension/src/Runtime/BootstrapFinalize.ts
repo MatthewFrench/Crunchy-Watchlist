@@ -169,6 +169,12 @@ function resolveBootstrapDebugApiDependencies(options: BootstrapFinalizeOptions)
       },
       totalLifecycleMutations: 0,
       identityChurnRate: 0,
+      watchHistoryPreloadAttempts: {
+        totalAttempts: 0,
+        byLocale: {},
+        byLocaleRevision: {},
+        lastAttempt: null,
+      },
     })),
     dumpSeriesApiData,
     printSeriesApiData: toFunction<(query: BoundaryValue) => BoundaryValue>(
