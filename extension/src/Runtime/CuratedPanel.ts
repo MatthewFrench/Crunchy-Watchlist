@@ -1,6 +1,6 @@
+import { CuratedPanelControlsSyncOwner } from './CuratedPanelControlsSync.js';
 import { createCuratedPanelGridRuntime as createCuratedPanelGridRuntimeFactory } from './CuratedPanelGrid.js';
 import { createCuratedPanelLoadingIndicatorRuntime as createCuratedPanelLoadingIndicatorRuntimeFactory } from './CuratedPanelLoadingIndicator.js';
-import { CuratedPanelControlsSyncOwner } from './CuratedPanelControlsSync.js';
 import { CuratedPanelLocalizedPreloadCoordinator } from './CuratedPanelLocalizedPreloadCoordinator.js';
 import { CuratedPanelRenderOrchestrator } from './CuratedPanelRenderOrchestrator.js';
 

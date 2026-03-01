@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 import { FIXTURE_URL, gotoFixture, injectExtension } from './Helpers/ExtensionFixture';
 
 type WatchHistoryRequestCounters = {

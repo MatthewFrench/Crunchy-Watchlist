@@ -1,8 +1,8 @@
 import { getElementDataAttribute, setElementDataAttribute, toggleClassNameToken } from './CuratedPanelGridDom.js';
 import {
-  CuratedPanelGridParkingManager,
   type CuratedCardLayout,
   type CuratedPanelGridParkingLifecycleHandlers,
+  CuratedPanelGridParkingManager,
 } from './CuratedPanelGridParkingManager.js';
 import {
   type CuratedGridEntry,
