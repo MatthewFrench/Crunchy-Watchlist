@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type TraceContractsRuntime = {
   corePrimitives: Record<string, unknown>;
@@ -35,35 +34,29 @@ type DataInitializationRuntime = {
 };
 
 type DataInitializationModule = {
-  runtimeContentRuntimeSetupDataInitialization: {
-    createContentRuntimeSetupDataInitializationRuntime: (
-      options?: Record<string, unknown>,
-    ) => DataInitializationRuntime;
-  };
+  createContentRuntimeSetupDataInitializationRuntime: (options?: unknown) => DataInitializationRuntime;
 };
 
 const dataInitializationModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentRuntimeSetupDataInitialization.ts'),
 ).href;
 
-function getDataInitializationRuntime(): DataInitializationRuntime {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as DataInitializationModule;
-  return registry.runtimeContentRuntimeSetupDataInitialization.createContentRuntimeSetupDataInitializationRuntime();
+async function getDataInitializationRuntime(options: Record<string, unknown> = {}): Promise<DataInitializationRuntime> {
+  const module = (await import(dataInitializationModuleUrl)) as DataInitializationModule;
+  return module.createContentRuntimeSetupDataInitializationRuntime(options);
 }
 
 describe('content-runtime-setup-data-initialization runtime', () => {
-  beforeEach(async () => {
-    await loadRuntimeModules([dataInitializationModuleUrl]);
+  beforeEach(() => {
+    vi.resetModules();
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
     vi.restoreAllMocks();
   });
 
-  it('initializes trace/contracts and preferred-audio/storage owners and binds bootstrap helpers', () => {
+  it('initializes trace/contracts and preferred-audio/storage owners and binds bootstrap helpers', async () => {
     const storageSet = vi.fn();
-    const runtime = getDataInitializationRuntime();
     const runtimeEvent = vi.fn();
     const pushApiTrace = vi.fn();
     const detectPreferredAudioLanguage = vi.fn(() => 'en-US');
@@ -80,6 +73,13 @@ describe('content-runtime-setup-data-initialization runtime', () => {
     const createApiContracts = vi.fn(() => ({
       shouldRetryStatus: vi.fn(),
       requirePayloadDataArray: vi.fn(),
+      parsePayloadDataEnvelope: vi.fn((endpoint: unknown, payload: unknown) => ({
+        endpoint,
+        rows: Array.isArray((payload as Record<string, unknown>)?.data)
+          ? ((payload as Record<string, unknown>).data as unknown[])
+          : [],
+        total: null,
+      })),
       resolveApiHref: vi.fn((pathWithQuery: string) => `https://api.crunchyroll.test${pathWithQuery}`),
     }));
     const createPreferredAudioDetector = vi.fn(() => ({
@@ -104,6 +104,25 @@ describe('content-runtime-setup-data-initialization runtime', () => {
       applyCardLayoutUi: vi.fn(),
       persistSettings: vi.fn(),
     }));
+    const runtimeBootstrapFinalizeModule = {
+      safeJsonParse: vi.fn((value: unknown, fallback: unknown) => {
+        if (typeof value !== 'string') {
+          return fallback;
+        }
+        try {
+          return JSON.parse(value);
+        } catch {
+          return fallback;
+        }
+      }),
+      createStorageAccessors,
+    };
+    const runtime = await getDataInitializationRuntime({
+      runtimeBootstrapFinalizeModule,
+      runtimeBootstrapHelpersModule: {
+        createBootstrapHelpersRuntime,
+      },
+    });
 
     const context = {
       windowRef: {
@@ -138,24 +157,8 @@ describe('content-runtime-setup-data-initialization runtime', () => {
       runtimePreferredAudioModule: {
         createPreferredAudioDetector,
       },
-      runtimeBootstrapFinalizeModule: {
-        safeJsonParse: vi.fn((value: unknown, fallback: unknown) => {
-          if (typeof value !== 'string') {
-            return fallback;
-          }
-          try {
-            return JSON.parse(value);
-          } catch {
-            return fallback;
-          }
-        }),
-        createStorageAccessors,
-      },
       storageModule: {
         createStorageAdapter,
-      },
-      runtimeBootstrapHelpersModule: {
-        createBootstrapHelpersRuntime,
       },
     };
     const bindings: Record<string, unknown> = {
@@ -187,8 +190,8 @@ describe('content-runtime-setup-data-initialization runtime', () => {
     expect((bindings.detectPreferredAudioLanguage as () => string)()).toBe('en-US');
   });
 
-  it('initializes auth/image/ratings and watchlist/history/preview owners', () => {
-    const runtime = getDataInitializationRuntime();
+  it('initializes auth/image/ratings and watchlist/history/preview owners', async () => {
+    const runtime = await getDataInitializationRuntime();
     const createAuthClient = vi.fn(() => ({
       fetchWithResilience: vi.fn(),
       getAccessToken: vi.fn(async () => ({ accountId: 'account-1', accessToken: 'token' })),
@@ -324,6 +327,12 @@ describe('content-runtime-setup-data-initialization runtime', () => {
         sleep: vi.fn(async () => null),
         getLocale: vi.fn(() => 'en-US'),
         requirePayloadDataArray: vi.fn((value: unknown) => value),
+        parsePayloadDataEnvelope: vi.fn((_endpoint: unknown, payload: unknown) => ({
+          rows: Array.isArray((payload as Record<string, unknown>)?.data)
+            ? ((payload as Record<string, unknown>).data as unknown[])
+            : [],
+          total: null,
+        })),
         auditCmsObjectContract: vi.fn(),
         auditWatchlistRowsContract: vi.fn(),
         auditWatchHistoryRowsContract: vi.fn(),

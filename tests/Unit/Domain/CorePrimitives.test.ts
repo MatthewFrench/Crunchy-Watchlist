@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type CorePrimitivesRuntime = {
   sanitizeRating: (value: unknown) => number | null;
@@ -16,23 +15,15 @@ type CorePrimitivesModule = {
 };
 
 const coreModuleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Domain', 'CorePrimitives.ts')).href;
-const episodeModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Domain', 'EpisodePrimitives.ts'),
-).href;
-const ratingModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Domain', 'RatingPrimitives.ts'),
-).href;
 
-function getCorePrimitivesModule(): CorePrimitivesModule {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    domain?: Record<string, unknown>;
-  };
-  const domainRegistry = registry.domain ?? {};
-  return domainRegistry.corePrimitives as CorePrimitivesModule;
-}
+let createCorePrimitives: CorePrimitivesModule['createCorePrimitives'] | null = null;
 
 function createCorePrimitivesRuntime(): CorePrimitivesRuntime {
-  return getCorePrimitivesModule().createCorePrimitives({
+  if (typeof createCorePrimitives !== 'function') {
+    throw new Error('Core primitives runtime was not initialized for test');
+  }
+
+  return createCorePrimitives({
     extractCoverImagesFromApiImages: (images: unknown) => {
       const record = images && typeof images === 'object' ? (images as Record<string, unknown>) : {};
       return {
@@ -46,11 +37,16 @@ function createCorePrimitivesRuntime(): CorePrimitivesRuntime {
 
 describe('core-primitives domain module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([episodeModuleUrl, ratingModuleUrl, coreModuleUrl]);
+    vi.resetModules();
+    const coreModule = (await import(coreModuleUrl)) as {
+      createCorePrimitivesRuntime: () => object;
+    };
+    createCorePrimitives = (coreModule.createCorePrimitivesRuntime() as CorePrimitivesModule).createCorePrimitives;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createCorePrimitives = null;
+    vi.restoreAllMocks();
   });
 
   it('normalizes ratings, dates, and audio locales', () => {

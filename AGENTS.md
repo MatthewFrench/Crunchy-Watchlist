@@ -233,6 +233,28 @@ function createCuratedCardMediaComponent(documentRef: Document): CuratedCardMedi
    - Parent owners/controllers may operate on their own root plus direct child-owner contracts only.
    - Each child owner/controller is responsible for its subtree refs/patching; do not bypass ownership with deep utility lookups.
 
+## Metadata Preload And Network Budget Guardrails
+
+1. **Single-owner preload policy**:
+   - Metadata preloads (ratings/watch-history/localized variants) must be orchestrated by one owner policy per flow.
+   - Avoid duplicate trigger paths that can each schedule the same preload on render/control-change/load-complete without shared guards.
+
+2. **Sentinel filters are hard no-op boundaries**:
+   - Treat sentinel filter values (for example `audioLocaleFilter = 'any'`) as explicit "do not preload localized metadata" at trigger boundaries.
+   - Do not rely on downstream normalization to infer this behavior.
+
+3. **Render feedback loops must be revision-gated**:
+   - Any async preload completion callback that requests another render must first verify data revision/cache timestamps changed.
+   - Never call render-unconditionally from preload completion handlers.
+
+4. **Forced localized preload requires idempotency across revision**:
+   - If localized preload uses force semantics to fill gaps, guard calls by `(locale, curatedDataRevision)` and inflight maps.
+   - Repeated sort/filter/render churn must not produce repeated network requests for unchanged data revision.
+
+5. **Request-budget tests are required for network-heavy UI flows**:
+   - Add or update unit tests for sentinel no-op behavior and per-revision dedupe.
+   - Maintain focused Playwright coverage that asserts bounded request counts for initial load, locale switching, and sort/filter churn.
+
 ## Formatting And Linting Discipline
 
 1. **Biome is the single source of truth for style**:

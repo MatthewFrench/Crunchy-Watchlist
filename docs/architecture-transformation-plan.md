@@ -1,6 +1,6 @@
 # Crunchy Watchlist Curator Architecture Transformation Plan
 
-Last updated: 2026-02-27
+Last updated: 2026-03-01
 
 This plan converts the current monolithic extension runtime into a layered, TypeScript-first architecture while preserving behavior and release readiness across Chromium, Firefox, WebKit, and Safari wrapper distribution.
 
@@ -134,10 +134,10 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - `npm run typecheck`: pass
   - `npm run lint`: pass
   - `npm run format:check`: pass
-  - `npm run test:unit`: pass (146 passed)
+  - `npm run test:unit`: pass (281 passed)
   - `npm run pw:live:smoke`: pass
   - `npm run lint:firefox`: pass
-  - `npm run test:e2e`: pass (81 passed)
+  - `npm run test:e2e`: pass (117 passed)
   - `npm run build:webext`: pass
   - `npm run build:safari`: pass
   - `npm run arch:metrics`: pass

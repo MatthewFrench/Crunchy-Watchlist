@@ -5,7 +5,7 @@ import type {
   UnknownFn,
 } from './ContentRuntimeSetupDataInitializationPhases.js';
 
-function toRecord(value: unknown): LooseRecord {
+function toRecord(value: CwBoundaryValue): LooseRecord {
   if (!value || typeof value !== 'object') {
     return {};
   }
@@ -31,7 +31,7 @@ function initializeWatchlistRuntime(
     fetchWithResilience: bindings.fetchWithResilience,
     createAuthRefreshHandler: bindings.createAuthRefreshHandler,
     resolveApiHref: bindings.resolveApiHref,
-    requirePayloadDataArray: apiContracts.requirePayloadDataArray as UnknownFn,
+    parsePayloadDataEnvelope: apiContracts.parsePayloadDataEnvelope as UnknownFn,
     auditWatchlistRowsContract: apiContracts.auditWatchlistRowsContract as UnknownFn,
     getPreferredAudioLanguage: bindings.getPreferredAudioLanguage,
     getLocale: apiContracts.getLocale as UnknownFn,
@@ -96,7 +96,7 @@ function initializeHistoryAndPreviewRuntime(
     resolveApiHref: bindings.resolveApiHref,
     fetchWithResilience: bindings.fetchWithResilience,
     createAuthRefreshHandler: bindings.createAuthRefreshHandler,
-    requirePayloadDataArray: apiContracts.requirePayloadDataArray as UnknownFn,
+    parsePayloadDataEnvelope: apiContracts.parsePayloadDataEnvelope as UnknownFn,
     auditWatchHistoryRowsContract: apiContracts.auditWatchHistoryRowsContract as UnknownFn,
     createEmptyWatchHistoryCache: context.createEmptyWatchHistoryCache,
     scheduleSaveWatchHistory: bindings.scheduleSaveWatchHistory,

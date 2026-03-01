@@ -1,25 +1,26 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type StateLoaderRuntime = {
   loadInitialState: () => Promise<void>;
 };
 
-type StateLoaderModule = {
-  runtimeStateLoader: {
-    createStateLoader: (options: Record<string, unknown>) => StateLoaderRuntime;
-  };
+type RuntimeStateLoaderModule = {
+  createStateLoader: (options: Record<string, unknown>) => StateLoaderRuntime;
 };
 
 const stateLoaderModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'StateLoader.ts'),
 ).href;
+let runtimeStateLoaderModule: RuntimeStateLoaderModule | null = null;
 
 function getStateLoaderModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as StateLoaderModule;
-  return registry.runtimeStateLoader;
+  if (!runtimeStateLoaderModule) {
+    throw new Error('Runtime state-loader module was not initialized for test');
+  }
+
+  return runtimeStateLoaderModule;
 }
 
 function createBaseState() {
@@ -50,11 +51,15 @@ function createTokenEntry(profileId = 'profile-1') {
 
 describe('runtime state-loader', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([stateLoaderModuleUrl]);
+    vi.resetModules();
+    const module = (await import(stateLoaderModuleUrl)) as {
+      createRuntimeStateLoaderRuntime: () => RuntimeStateLoaderModule;
+    };
+    runtimeStateLoaderModule = module.createRuntimeStateLoaderRuntime();
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    runtimeStateLoaderModule = null;
   });
 
   it('migrates legacy settings and enforces sort/layout guards', async () => {
@@ -168,8 +173,81 @@ describe('runtime state-loader', () => {
     expect((state.settings as Record<string, unknown>).secondarySortMode).toBe('none');
   });
 
+  it('normalizes audio locale filter at state boundary for sentinel and locale values', async () => {
+    const state = createBaseState();
+    const defaultSettings = {
+      activeTab: 'curated',
+      audioLocaleFilter: 'any',
+      genreFilter: 'any',
+      cardLayout: 'portrait',
+      watchReadyFilterMode: 'hide',
+      sortMode: 'none',
+      secondarySortMode: 'none',
+    };
+
+    const stateLoaderSentinel = getStateLoaderModule().createStateLoader({
+      state,
+      storageGet: createStorageGet({
+        cw_settings_v1: {
+          audioLocaleFilter: ' Any ',
+        },
+        cw_rating_cache_v2: {},
+        cw_watch_history_cache_v1: {},
+        cw_watchlist_cache_v1: null,
+      }),
+      getAccessToken: async () => createTokenEntry(),
+      runtimeEvent: () => {},
+      normalizeStoredWatchHistoryCache: (raw: unknown) => raw,
+      isWatchHistoryCacheValid: () => false,
+      normalizeStoredWatchlistCache: (raw: unknown) => raw,
+      isWatchlistCacheValid: () => false,
+      normalizeEntriesFromApiRows: (rows: unknown[]) => rows,
+      defaultSettings,
+      validSortModes: new Set(['none']),
+      defaultSortMode: 'none',
+      settingsKey: 'cw_settings_v1',
+      ratingCacheKey: 'cw_rating_cache_v2',
+      watchHistoryCacheKey: 'cw_watch_history_cache_v1',
+      watchlistCacheKey: 'cw_watchlist_cache_v1',
+    });
+
+    await stateLoaderSentinel.loadInitialState();
+    expect((state.settings as Record<string, unknown>).audioLocaleFilter).toBe('any');
+
+    const stateWithLocale = createBaseState();
+    const stateLoaderLocale = getStateLoaderModule().createStateLoader({
+      state: stateWithLocale,
+      storageGet: createStorageGet({
+        cw_settings_v1: {
+          audioLocaleFilter: ' ja-JP ',
+        },
+        cw_rating_cache_v2: {},
+        cw_watch_history_cache_v1: {},
+        cw_watchlist_cache_v1: null,
+      }),
+      getAccessToken: async () => createTokenEntry(),
+      runtimeEvent: () => {},
+      normalizeStoredWatchHistoryCache: (raw: unknown) => raw,
+      isWatchHistoryCacheValid: () => false,
+      normalizeStoredWatchlistCache: (raw: unknown) => raw,
+      isWatchlistCacheValid: () => false,
+      normalizeEntriesFromApiRows: (rows: unknown[]) => rows,
+      defaultSettings,
+      validSortModes: new Set(['none']),
+      defaultSortMode: 'none',
+      settingsKey: 'cw_settings_v1',
+      ratingCacheKey: 'cw_rating_cache_v2',
+      watchHistoryCacheKey: 'cw_watch_history_cache_v1',
+      watchlistCacheKey: 'cw_watchlist_cache_v1',
+    });
+
+    await stateLoaderLocale.loadInitialState();
+    expect((stateWithLocale.settings as Record<string, unknown>).audioLocaleFilter).toBe('ja-JP');
+  });
+
   it('hydrates curated entries from valid watchlist cache and emits hydration event', async () => {
     const state = createBaseState();
+    state.authToken = createTokenEntry();
     const runtimeEvents: Array<{ event: string; data?: unknown }> = [];
     const watchlistRows = [{ series_id: 'series-1' }, { series_id: 'series-2' }];
     const isWatchlistCacheValid = (cache: unknown, accountId?: unknown, profileId?: unknown) =>
@@ -296,7 +374,64 @@ describe('runtime state-loader', () => {
     });
   });
 
-  it('hydrates cached watchlist rows without forcing access-token refresh on initial state load', async () => {
+  it('hydrates account-scoped cached watchlist rows without forcing access-token refresh on initial state load', async () => {
+    const state = createBaseState();
+    const runtimeEvents: Array<{ event: string; data?: unknown }> = [];
+    const getAccessToken = vi.fn(async () => null);
+    const stateLoader = getStateLoaderModule().createStateLoader({
+      state,
+      storageGet: createStorageGet({
+        cw_settings_v1: {},
+        cw_rating_cache_v2: {},
+        cw_watch_history_cache_v1: {},
+        cw_watchlist_cache_v1: {
+          accountId: 'account-1',
+          profileId: '',
+          rows: [{ series_id: 'series-1' }],
+          updatedAt: 12345,
+        },
+      }),
+      getAccessToken,
+      runtimeEvent: (event: string, data?: unknown) => runtimeEvents.push({ event, data }),
+      normalizeStoredWatchHistoryCache: (raw: unknown) => raw,
+      isWatchHistoryCacheValid: () => true,
+      normalizeStoredWatchlistCache: (raw: unknown) => raw,
+      isWatchlistCacheValid: () => true,
+      normalizeEntriesFromApiRows: (rows: unknown[]) => rows,
+      defaultSettings: {
+        activeTab: 'curated',
+        audioLocaleFilter: 'any',
+        genreFilter: 'any',
+        cardLayout: 'portrait',
+        watchReadyFilterMode: 'hide',
+        sortMode: 'none',
+        secondarySortMode: 'none',
+      },
+      validSortModes: new Set(['none']),
+      defaultSortMode: 'none',
+      settingsKey: 'cw_settings_v1',
+      ratingCacheKey: 'cw_rating_cache_v2',
+      watchHistoryCacheKey: 'cw_watch_history_cache_v1',
+      watchlistCacheKey: 'cw_watchlist_cache_v1',
+    });
+
+    await stateLoader.loadInitialState();
+
+    expect(getAccessToken).not.toHaveBeenCalled();
+    expect(state.curatedEntries).toEqual([{ series_id: 'series-1' }]);
+    expect(state.curatedSource).toBe('cache');
+    expect(runtimeEvents).toContainEqual({
+      event: 'curated-cache-hydrated',
+      data: {
+        total: 1,
+        updatedAt: 12345,
+        accountId: 'account-1',
+        profileId: null,
+      },
+    });
+  });
+
+  it('does not hydrate profile-scoped cache when profile scope is unverified at bootstrap', async () => {
     const state = createBaseState();
     const runtimeEvents: Array<{ event: string; data?: unknown }> = [];
     const getAccessToken = vi.fn(async () => null);
@@ -340,17 +475,17 @@ describe('runtime state-loader', () => {
     await stateLoader.loadInitialState();
 
     expect(getAccessToken).not.toHaveBeenCalled();
-    expect(state.curatedEntries).toEqual([{ series_id: 'series-1' }]);
-    expect(state.curatedSource).toBe('cache');
+    expect(state.curatedEntries).toEqual([]);
+    expect(state.curatedSource).toBe('none');
     expect(runtimeEvents).toContainEqual({
-      event: 'curated-cache-hydrated',
+      event: 'curated-cache-scope-unavailable',
       data: {
-        total: 1,
-        updatedAt: 12345,
-        accountId: 'account-1',
-        profileId: 'profile-1',
+        hasAccountId: false,
+        hasProfileId: false,
+        requiresProfileScope: true,
       },
     });
+    expect(runtimeEvents.map((entry) => entry.event)).not.toContain('curated-cache-hydrated');
   });
 
   it('does not hydrate cached watchlist rows when the active profile scope differs', async () => {

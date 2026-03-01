@@ -1,34 +1,38 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type BootstrapHelpersRuntime = {
   getPreferredAudioLanguage: () => string;
   preloadRatingsForSelectedAudioLocale: (audioLocale: unknown) => Promise<unknown>;
+  preloadWatchHistoryForSelectedAudioLocale: (audioLocale: unknown) => Promise<unknown>;
   scheduleSaveRatings: () => void;
   toggleCuratedFavorite: (seriesId: unknown) => void;
   removeCuratedSeries: (seriesId: unknown) => void;
 };
 
-type BootstrapHelpersModule = {
-  runtimeBootstrapHelpers: {
-    createBootstrapHelpersRuntime: (options: Record<string, unknown>) => BootstrapHelpersRuntime;
-  };
+type RuntimeBootstrapHelpersModule = {
+  createBootstrapHelpersRuntime: (options: Record<string, unknown>) => BootstrapHelpersRuntime;
 };
 
 const bootstrapHelpersModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'BootstrapHelpers.ts'),
 ).href;
 
-function getBootstrapHelpersModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as BootstrapHelpersModule;
-  return registry.runtimeBootstrapHelpers;
+let runtimeBootstrapHelpersModule: RuntimeBootstrapHelpersModule | null = null;
+
+function getBootstrapHelpersModule(): RuntimeBootstrapHelpersModule {
+  if (!runtimeBootstrapHelpersModule) {
+    throw new Error('Bootstrap helpers runtime module was not initialized for test');
+  }
+
+  return runtimeBootstrapHelpersModule;
 }
 
 function createBaseState() {
   return {
     curatedEntries: [{ seriesId: 'series-1', isFavorite: false }],
+    curatedLastRevalidateAt: 0,
     ratingLocalePreloadInflight: new Map<string, Promise<unknown>>(),
     watchHistoryLocalePreloadInflight: new Map<string, Promise<unknown>>(),
     preferredAudioLanguage: '',
@@ -89,12 +93,17 @@ function createRuntime(overrides: Record<string, unknown> = {}) {
 
 describe('bootstrap-helpers runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([bootstrapHelpersModuleUrl]);
+    vi.resetModules();
+    const module = (await import(bootstrapHelpersModuleUrl)) as {
+      createRuntimeBootstrapHelpersRuntime: () => RuntimeBootstrapHelpersModule;
+    };
+    runtimeBootstrapHelpersModule = module.createRuntimeBootstrapHelpersRuntime();
   });
 
   afterEach(() => {
     vi.useRealTimers();
-    clearRuntimeModulesRegistry();
+    runtimeBootstrapHelpersModule = null;
+    vi.restoreAllMocks();
   });
 
   it('caches preferred audio locale and emits change event once per refresh window', () => {
@@ -132,6 +141,21 @@ describe('bootstrap-helpers runtime', () => {
     await Promise.all([firstPromise, secondPromise]);
     expect(preloadRatingsForEntries).toHaveBeenCalledTimes(1);
     expect(state.ratingLocalePreloadInflight.size).toBe(0);
+  });
+
+  it('limits localized watch-history preloads to one request per locale per curated data revision', async () => {
+    const preloadWatchHistoryForEntries = vi.fn(async () => undefined);
+    const { runtime, state } = createRuntime({
+      preloadWatchHistoryForEntries,
+    });
+
+    await runtime.preloadWatchHistoryForSelectedAudioLocale('ja-JP');
+    await runtime.preloadWatchHistoryForSelectedAudioLocale('ja-JP');
+    expect(preloadWatchHistoryForEntries).toHaveBeenCalledTimes(1);
+
+    state.curatedLastRevalidateAt = Date.now();
+    await runtime.preloadWatchHistoryForSelectedAudioLocale('ja-JP');
+    expect(preloadWatchHistoryForEntries).toHaveBeenCalledTimes(2);
   });
 
   it('schedules ratings cache persistence through storageSet', async () => {

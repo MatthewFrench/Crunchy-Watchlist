@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type WatchHistoryEntry = {
   seriesId: string;
@@ -72,15 +71,14 @@ type HistoryRepositoryPreloadModule = {
 const cacheModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryCache.ts'),
 ).href;
-const planningModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreloadPlanning.ts'),
-).href;
-const collectorModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreloadCollector.ts'),
-).href;
 const preloadModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreload.ts'),
 ).href;
+let createHistoryRepositoryCacheRuntimeFactory: HistoryRepositoryCacheModule['createHistoryRepositoryCache'] | null =
+  null;
+let createHistoryRepositoryPreloadRuntimeFactory:
+  | HistoryRepositoryPreloadModule['createHistoryRepositoryPreload']
+  | null = null;
 
 function normalizeAudioLocale(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -155,11 +153,14 @@ function createRepositories(
     getPreferredAudioLanguage?: () => string;
   } = {},
 ): { cacheRepository: HistoryRepositoryCache; preloadRepository: HistoryRepositoryPreload } {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
-  const cacheModule = registry.historyRepositoryCache as HistoryRepositoryCacheModule;
-  const preloadModule = registry.historyRepositoryPreload as HistoryRepositoryPreloadModule;
+  if (typeof createHistoryRepositoryCacheRuntimeFactory !== 'function') {
+    throw new Error('History repository cache runtime was not initialized for test');
+  }
+  if (typeof createHistoryRepositoryPreloadRuntimeFactory !== 'function') {
+    throw new Error('History repository preload runtime was not initialized for test');
+  }
 
-  const cacheRepository = cacheModule.createHistoryRepositoryCache({
+  const cacheRepository = createHistoryRepositoryCacheRuntimeFactory({
     state,
     normalizeAudioLocale,
     sanitizePositiveInt,
@@ -171,7 +172,7 @@ function createRepositories(
     watchHistoryCacheTtlMs: 60_000,
   });
 
-  const preloadRepository = preloadModule.createHistoryRepositoryPreload({
+  const preloadRepository = createHistoryRepositoryPreloadRuntimeFactory({
     state,
     normalizeAudioLocale,
     sanitizePositiveInt,
@@ -185,12 +186,16 @@ function createRepositories(
       overrides.fetchWithResilience ??
       (async () => new Response(JSON.stringify({ data: [], total: 0 }), { status: 200 })),
     createAuthRefreshHandler: () => () => undefined,
-    requirePayloadDataArray: (name: string, payload: unknown) => {
+    parsePayloadDataEnvelope: (name: string, payload: unknown) => {
       const payloadRecord = payload as { data?: unknown };
       if (!Array.isArray(payloadRecord?.data)) {
         throw new Error(`invalid payload for ${name}`);
       }
-      return payloadRecord.data as Record<string, unknown>[];
+      const totalValue = Number((payload as { total?: unknown }).total);
+      return {
+        rows: payloadRecord.data as Record<string, unknown>[],
+        total: Number.isFinite(totalValue) && totalValue >= 0 ? totalValue : null,
+      };
     },
     auditWatchHistoryRowsContract: () => {},
     normalizeStoredWatchHistoryCache: cacheRepository.normalizeStoredWatchHistoryCache,
@@ -216,11 +221,17 @@ function createRepositories(
 
 describe('HistoryRepositoryPreload', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([cacheModuleUrl, planningModuleUrl, collectorModuleUrl, preloadModuleUrl]);
+    vi.resetModules();
+    const cacheModule = (await import(cacheModuleUrl)) as HistoryRepositoryCacheModule;
+    const preloadModule = (await import(preloadModuleUrl)) as HistoryRepositoryPreloadModule;
+    createHistoryRepositoryCacheRuntimeFactory = cacheModule.createHistoryRepositoryCache;
+    createHistoryRepositoryPreloadRuntimeFactory = preloadModule.createHistoryRepositoryPreload;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createHistoryRepositoryCacheRuntimeFactory = null;
+    createHistoryRepositoryPreloadRuntimeFactory = null;
+    vi.restoreAllMocks();
   });
 
   it('marks history as unavailable when token data is missing', async () => {

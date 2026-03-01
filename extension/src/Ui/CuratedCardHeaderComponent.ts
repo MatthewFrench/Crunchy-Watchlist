@@ -1,15 +1,12 @@
-type RuntimeModuleRegistry = Record<string, unknown>;
-
-type RuntimeGlobal = typeof globalThis & {
-  __CW_WATCHLIST_CURATOR_MODULES__?: RuntimeModuleRegistry;
-};
+type BoundaryValue = CwBoundaryValue;
+type BoundaryRecord = Record<string, BoundaryValue>;
 
 export type CuratedCardHeaderEntry = {
   title?: string | null;
   href?: string | null;
   rating?: number | null;
   votes?: number | null;
-} & Record<string, unknown>;
+} & BoundaryRecord;
 
 export type CuratedCardHeaderRefs = {
   header: HTMLElement;
@@ -25,7 +22,7 @@ export type CuratedCardHeaderComponent = {
 
 export type CuratedCardHeaderComponentOptions = {
   documentRef?: Document;
-  makeRatingBadge?: (rating: unknown, votes: unknown) => HTMLElement;
+  makeRatingBadge?: (rating: BoundaryValue, votes: BoundaryValue) => HTMLElement;
   entry?: CuratedCardHeaderEntry;
 };
 
@@ -47,7 +44,7 @@ function requireDocumentRef(value: Document | undefined): Document {
   return value;
 }
 
-function toEntry(value: CuratedCardHeaderEntry | unknown): CuratedCardHeaderEntry {
+function toEntry(value: CuratedCardHeaderEntry | BoundaryValue): CuratedCardHeaderEntry {
   if (!value || typeof value !== 'object') {
     return {};
   }
@@ -111,8 +108,8 @@ class CuratedCardHeaderController {
 
   constructor(
     private readonly documentRef: Document,
-    private readonly makeRatingBadge: (rating: unknown, votes: unknown) => HTMLElement,
-    initialEntry: CuratedCardHeaderEntry | unknown,
+    private readonly makeRatingBadge: (rating: BoundaryValue, votes: BoundaryValue) => HTMLElement,
+    initialEntry: CuratedCardHeaderEntry | BoundaryValue,
   ) {
     const titleLink = this.documentRef.createElement('a');
     titleLink.className = 'cw-curated-card__title';
@@ -134,7 +131,7 @@ class CuratedCardHeaderController {
     this.patchEntry(initialEntry);
   }
 
-  patchEntry(entryValue: CuratedCardHeaderEntry | unknown): void {
+  patchEntry(entryValue: CuratedCardHeaderEntry | BoundaryValue): void {
     const entry = toEntry(entryValue);
     const title = getEntryString(entry, 'title');
     setElementTextContent(this.refs.titleLink, title);
@@ -180,23 +177,3 @@ export function createCuratedCardHeaderComponent(
     },
   };
 }
-
-function registerCardHeaderComponentRuntime(): void {
-  const root = (typeof window !== 'undefined' ? window : globalThis) as RuntimeGlobal;
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
-
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__;
-  let uiRegistry = moduleRegistry.ui;
-  if (!uiRegistry || typeof uiRegistry !== 'object') {
-    uiRegistry = {};
-    moduleRegistry.ui = uiRegistry;
-  }
-
-  (uiRegistry as Record<string, unknown>).cardHeaderComponent = {
-    createCuratedCardHeaderComponent,
-  };
-}
-
-registerCardHeaderComponentRuntime();

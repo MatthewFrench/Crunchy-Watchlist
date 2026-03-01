@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type RatingCacheEntry = {
   rating: number | null;
@@ -27,9 +26,7 @@ type RatingsRepositoryRuntime = {
 };
 
 type RatingsRepositoryModule = {
-  ratingsRepository: {
-    createRatingsRepository: (options: Record<string, unknown>) => RatingsRepositoryRuntime;
-  };
+  createRatingsRepository: (options: Record<string, unknown>) => RatingsRepositoryRuntime;
 };
 
 type RatingsRepositoryState = {
@@ -41,14 +38,7 @@ type RatingsRepositoryState = {
 const ratingsRepositoryModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'RatingsRepository.ts'),
 ).href;
-const ratingsRepositoryCacheSupportModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Data', 'RatingsRepositoryCacheSupport.ts'),
-).href;
-
-function getRatingsRepositoryModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as RatingsRepositoryModule;
-  return registry.ratingsRepository;
-}
+let createRatingsRepositoryRuntimeFactory: RatingsRepositoryModule['createRatingsRepository'] | null = null;
 
 function normalizeAudioLocale(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -82,6 +72,10 @@ function normalizeImageUrlCandidate(value: unknown): string {
 }
 
 function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
+  if (typeof createRatingsRepositoryRuntimeFactory !== 'function') {
+    throw new Error('Ratings repository runtime was not initialized for test');
+  }
+
   const state: RatingsRepositoryState = {
     ratingCache: {},
     ratingCacheRevision: 0,
@@ -107,7 +101,7 @@ function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
   const scheduleSaveRatings = vi.fn();
   const runtimeEvent = vi.fn();
 
-  const runtime = getRatingsRepositoryModule().createRatingsRepository({
+  const runtime = createRatingsRepositoryRuntimeFactory({
     state,
     normalizeAudioLocale,
     normalizeAudioLocales: (values: unknown[]) =>
@@ -170,11 +164,17 @@ async function flushMicrotasks(iterations = 4): Promise<void> {
 
 describe('ratings-repository module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([ratingsRepositoryCacheSupportModuleUrl, ratingsRepositoryModuleUrl]);
+    vi.resetModules();
+    const module = (await import(ratingsRepositoryModuleUrl)) as {
+      createRatingsRepositoryRuntime: () => object;
+    };
+    createRatingsRepositoryRuntimeFactory = (module.createRatingsRepositoryRuntime() as RatingsRepositoryModule)
+      .createRatingsRepository;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createRatingsRepositoryRuntimeFactory = null;
+    vi.restoreAllMocks();
   });
 
   it('emits contract warnings for invalid batch rows while still updating valid ratings', async () => {

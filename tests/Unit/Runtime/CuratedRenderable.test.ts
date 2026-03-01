@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type FilterContext = {
   effectiveAudioFilter: string;
@@ -29,24 +28,19 @@ type CuratedRenderableRuntime = {
 };
 
 type CuratedRenderableModule = {
-  runtimeRenderable: {
-    createCuratedRenderable: (options: Record<string, unknown>) => CuratedRenderableRuntime;
-  };
+  createCuratedRenderable: (options: Record<string, unknown>) => CuratedRenderableRuntime;
 };
 
 const curatedRenderableModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedRenderable.ts'),
 ).href;
-const curatedRenderableListProcessingModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedRenderableListProcessing.ts'),
-).href;
-const curatedRenderableMergeSupportModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedRenderableMergeSupport.ts'),
-).href;
+let curatedRenderableModule: CuratedRenderableModule | null = null;
 
 function getCuratedRenderableModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as CuratedRenderableModule;
-  return registry.runtimeRenderable;
+  if (!curatedRenderableModule) {
+    throw new Error('Curated renderable module was not initialized for test');
+  }
+  return curatedRenderableModule;
 }
 
 function normalizeAudioLocales(locales: unknown[]): string[] {
@@ -184,15 +178,16 @@ function createCuratedRenderableRuntime(
 
 describe('curated-renderable runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([
-      curatedRenderableListProcessingModuleUrl,
-      curatedRenderableMergeSupportModuleUrl,
-      curatedRenderableModuleUrl,
-    ]);
+    vi.resetModules();
+    const curatedRenderableRuntimeModule = (await import(curatedRenderableModuleUrl)) as {
+      createRuntimeRenderableRuntime: () => object;
+    };
+    curatedRenderableModule =
+      curatedRenderableRuntimeModule.createRuntimeRenderableRuntime() as CuratedRenderableModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    curatedRenderableModule = null;
   });
 
   it('builds renderable entries with merged cache fields and dim filter mode', () => {

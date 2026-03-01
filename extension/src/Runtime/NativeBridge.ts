@@ -1,16 +1,14 @@
 import { createNativeActionBridgeRuntime, type NativeActionBridgeRuntime } from './NativeActionBridge.js';
 import { createNativeBridgePreviewRuntime, type NativeBridgePreviewRuntime } from './NativeBridgePreview.js';
 
-type RuntimeModuleRegistry = Record<string, unknown>;
-
-type RuntimeGlobal = typeof globalThis & {
-  __CW_WATCHLIST_CURATOR_MODULES__?: RuntimeModuleRegistry;
-};
+type NativeBridgeBoundaryValue = CwBoundaryValue;
+type NativeBridgeBoundaryRecord = Record<string, NativeBridgeBoundaryValue>;
+type NativeBridgeRuntimeEvent = (event: string, data?: NativeBridgeBoundaryValue) => void;
 
 type TokenEntry = {
-  accountId?: unknown;
-  accessToken?: unknown;
-} & Record<string, unknown>;
+  accountId?: NativeBridgeBoundaryValue;
+  accessToken?: NativeBridgeBoundaryValue;
+} & NativeBridgeBoundaryRecord;
 
 type FetchWithResilience = (
   url: string,
@@ -18,7 +16,7 @@ type FetchWithResilience = (
   options: {
     label: string;
     bearerToken?: string;
-    refreshBearerToken?: unknown;
+    refreshBearerToken?: NativeBridgeBoundaryValue;
   },
 ) => Promise<Response>;
 
@@ -27,76 +25,81 @@ type NativeActionType = 'favorite' | 'remove';
 type NativeBridgeContext = {
   documentRef: Document;
   windowRef: Window;
-  runtimeEvent: (event: string, data?: unknown) => void;
+  runtimeEvent: NativeBridgeRuntimeEvent;
   nativeActionBridgeRuntime: NativeActionBridgeRuntime;
   getAccessToken: (forceRefresh?: boolean) => Promise<TokenEntry | null>;
   fetchWithResilience: FetchWithResilience;
-  createAuthRefreshHandler: (tokenEntry: TokenEntry | null) => unknown;
+  createAuthRefreshHandler: (tokenEntry: TokenEntry | null) => NativeBridgeBoundaryValue;
   resolveApiHref: (pathWithQuery: string) => string;
-  normalizeImageUrlCandidate: (value: unknown) => string;
-  fetchPreviewUrlForEntry: (entry: unknown) => Promise<unknown>;
-  isLikelyVideoUrl: (url: unknown) => boolean;
+  normalizeImageUrlCandidate: (value: NativeBridgeBoundaryValue) => string;
+  fetchPreviewUrlForEntry: (entry: NativeBridgeBoundaryValue) => Promise<NativeBridgeBoundaryValue>;
+  isLikelyVideoUrl: (url: NativeBridgeBoundaryValue) => boolean;
   previewHoverDelayMs: number;
   previewRuntime: NativeBridgePreviewRuntime;
 };
 
 export type NativeBridgeOptions = {
-  documentRef?: unknown;
-  windowRef?: unknown;
-  runtimeEvent?: unknown;
-  getAccessToken?: unknown;
-  fetchWithResilience?: unknown;
-  createAuthRefreshHandler?: unknown;
-  resolveApiHref?: unknown;
-  normalizeImageUrlCandidate?: unknown;
-  fetchPreviewUrlForEntry?: unknown;
-  isLikelyVideoUrl?: unknown;
-  previewHoverDelayMs?: unknown;
-  nativeActionBridgeRuntime?: unknown;
-  nativeBridgePreviewRuntime?: unknown;
+  documentRef?: NativeBridgeBoundaryValue;
+  windowRef?: NativeBridgeBoundaryValue;
+  runtimeEvent?: NativeBridgeBoundaryValue;
+  getAccessToken?: NativeBridgeBoundaryValue;
+  fetchWithResilience?: NativeBridgeBoundaryValue;
+  createAuthRefreshHandler?: NativeBridgeBoundaryValue;
+  resolveApiHref?: NativeBridgeBoundaryValue;
+  normalizeImageUrlCandidate?: NativeBridgeBoundaryValue;
+  fetchPreviewUrlForEntry?: NativeBridgeBoundaryValue;
+  isLikelyVideoUrl?: NativeBridgeBoundaryValue;
+  previewHoverDelayMs?: NativeBridgeBoundaryValue;
+  nativeActionBridgeRuntime?: NativeBridgeBoundaryValue;
+  nativeBridgePreviewRuntime?: NativeBridgeBoundaryValue;
 };
 
 export type NativeBridgeRuntime = {
-  triggerNativeCardAction: (seriesId: unknown, actionType: unknown, favoriteValue?: unknown) => Promise<boolean>;
+  triggerNativeCardAction: (
+    seriesId: NativeBridgeBoundaryValue,
+    actionType: NativeBridgeBoundaryValue,
+    favoriteValue?: NativeBridgeBoundaryValue,
+  ) => Promise<boolean>;
   installCuratedCardPreview: (
-    thumbLink: unknown,
-    entry: unknown,
-    coverImageUrl: unknown,
-    hoverPreviewImageUrl: unknown,
-    thumbImage: unknown,
+    thumbLink: NativeBridgeBoundaryValue,
+    entry: NativeBridgeBoundaryValue,
+    coverImageUrl: NativeBridgeBoundaryValue,
+    hoverPreviewImageUrl: NativeBridgeBoundaryValue,
+    thumbImage: NativeBridgeBoundaryValue,
   ) => void;
+  dispose: () => void;
 };
 
-function requireFunction<T>(name: string, value: unknown): T {
+function requireFunction<T>(name: string, value: NativeBridgeBoundaryValue): T {
   if (typeof value !== 'function') {
     throw new Error(`[CW] Missing native bridge dependency: ${name}`);
   }
   return value as T;
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
+function asRecord(value: NativeBridgeBoundaryValue): NativeBridgeBoundaryRecord {
   if (!value || typeof value !== 'object') {
     return {};
   }
 
-  return value as Record<string, unknown>;
+  return value as NativeBridgeBoundaryRecord;
 }
 
-function resolveDocumentRef(value: unknown): Document {
+function resolveDocumentRef(value: NativeBridgeBoundaryValue): Document {
   if (!value || typeof value !== 'object') {
     throw new Error('[CW] Missing native bridge documentRef');
   }
   return value as Document;
 }
 
-function resolveWindowRef(value: unknown): Window {
+function resolveWindowRef(value: NativeBridgeBoundaryValue): Window {
   if (!value || typeof value !== 'object') {
     throw new Error('[CW] Missing native bridge windowRef');
   }
   return value as Window;
 }
 
-function normalizePositiveNumber(value: unknown, fallback: number): number {
+function normalizePositiveNumber(value: NativeBridgeBoundaryValue, fallback: number): number {
   const normalized = Number(value);
   if (!Number.isFinite(normalized) || normalized <= 0) {
     return fallback;
@@ -104,14 +107,14 @@ function normalizePositiveNumber(value: unknown, fallback: number): number {
   return Math.round(normalized);
 }
 
-function getString(value: unknown): string {
+function getString(value: NativeBridgeBoundaryValue): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
 function resolveNativeActionBridgeRuntime(
   documentRef: Document,
-  runtimeEvent: (event: string, data?: unknown) => void,
-  runtimeValue: unknown,
+  runtimeEvent: NativeBridgeRuntimeEvent,
+  runtimeValue: NativeBridgeBoundaryValue,
 ): NativeActionBridgeRuntime {
   if (runtimeValue) {
     const runtimeRecord = asRecord(runtimeValue);
@@ -136,11 +139,11 @@ function resolveNativeActionBridgeRuntime(
 function resolveNativeBridgePreviewRuntime(context: {
   windowRef: Window;
   nativeActionBridgeRuntime: NativeActionBridgeRuntime;
-  normalizeImageUrlCandidate: (value: unknown) => string;
-  fetchPreviewUrlForEntry: (entry: unknown) => Promise<unknown>;
-  isLikelyVideoUrl: (url: unknown) => boolean;
+  normalizeImageUrlCandidate: (value: NativeBridgeBoundaryValue) => string;
+  fetchPreviewUrlForEntry: (entry: NativeBridgeBoundaryValue) => Promise<NativeBridgeBoundaryValue>;
+  isLikelyVideoUrl: (url: NativeBridgeBoundaryValue) => boolean;
   previewHoverDelayMs: number;
-  runtimeValue: unknown;
+  runtimeValue: NativeBridgeBoundaryValue;
 }): NativeBridgePreviewRuntime {
   if (context.runtimeValue) {
     const runtimeRecord = asRecord(context.runtimeValue);
@@ -149,6 +152,10 @@ function resolveNativeBridgePreviewRuntime(context: {
         'nativeBridgePreviewRuntime.installCuratedCardPreview',
         runtimeRecord.installCuratedCardPreview,
       ),
+      dispose:
+        typeof runtimeRecord.dispose === 'function'
+          ? (runtimeRecord.dispose as NativeBridgePreviewRuntime['dispose'])
+          : () => {},
     };
   }
 
@@ -219,14 +226,14 @@ function createNativeBridgeContext(options: NativeBridgeOptions = {}): NativeBri
   };
 }
 
-function toTokenEntry(value: unknown): TokenEntry | null {
+function toTokenEntry(value: NativeBridgeBoundaryValue): TokenEntry | null {
   if (!value || typeof value !== 'object') {
     return null;
   }
   return value as TokenEntry;
 }
 
-function toActionType(value: unknown): NativeActionType | null {
+function toActionType(value: NativeBridgeBoundaryValue): NativeActionType | null {
   const actionType = getString(value).toLowerCase();
   if (actionType === 'favorite' || actionType === 'remove') {
     return actionType;
@@ -247,12 +254,12 @@ function createWatchlistActionRequestOptions(
 ): {
   label: string;
   bearerToken?: string;
-  refreshBearerToken?: unknown;
+  refreshBearerToken?: NativeBridgeBoundaryValue;
 } {
   const requestOptions: {
     label: string;
     bearerToken?: string;
-    refreshBearerToken?: unknown;
+    refreshBearerToken?: NativeBridgeBoundaryValue;
   } = {
     label: actionType === 'favorite' ? 'watchlist favorite request' : 'watchlist remove request',
     refreshBearerToken: context.createAuthRefreshHandler(tokenEntry),
@@ -265,7 +272,10 @@ function createWatchlistActionRequestOptions(
   return requestOptions;
 }
 
-function createWatchlistActionRequestInit(actionType: NativeActionType, favoriteValue: unknown): RequestInit | null {
+function createWatchlistActionRequestInit(
+  actionType: NativeActionType,
+  favoriteValue: NativeBridgeBoundaryValue,
+): RequestInit | null {
   if (actionType === 'favorite') {
     if (typeof favoriteValue !== 'boolean') {
       return null;
@@ -291,9 +301,9 @@ function createWatchlistActionRequestInit(actionType: NativeActionType, favorite
 
 async function triggerNativeCardActionInternal(
   context: NativeBridgeContext,
-  seriesIdValue: unknown,
-  actionTypeValue: unknown,
-  favoriteValue: unknown,
+  seriesIdValue: NativeBridgeBoundaryValue,
+  actionTypeValue: NativeBridgeBoundaryValue,
+  favoriteValue: NativeBridgeBoundaryValue,
 ): Promise<boolean> {
   const seriesId = getString(seriesIdValue);
   const actionType = toActionType(actionTypeValue);
@@ -343,7 +353,7 @@ async function triggerNativeCardActionInternal(
     context.runtimeEvent('watchlist-action-failed', {
       seriesId,
       actionType,
-      message: error instanceof Error ? error.message : 'unknown',
+      message: error instanceof Error ? error.message : 'unavailable',
     });
     return false;
   }
@@ -364,18 +374,8 @@ export function createNativeBridgeRuntime(options: NativeBridgeOptions = {}): Na
         thumbImage,
       );
     },
+    dispose: () => {
+      context.previewRuntime.dispose();
+    },
   };
 }
-
-function registerNativeBridgeRuntime(): void {
-  const root = (typeof window !== 'undefined' ? window : globalThis) as RuntimeGlobal;
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
-
-  root.__CW_WATCHLIST_CURATOR_MODULES__.runtimeNativeBridge = {
-    createNativeBridgeRuntime,
-  };
-}
-
-registerNativeBridgeRuntime();

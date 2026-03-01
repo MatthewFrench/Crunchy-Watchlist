@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type CuratedLoaderPendingRequestsRuntime = {
   createPendingRequestProgress: (state: {
@@ -43,9 +42,7 @@ type CuratedLoaderPendingRequestsRuntime = {
 };
 
 type CuratedLoaderPendingRequestsModule = {
-  runtimeCuratedLoaderPendingRequests: {
-    createCuratedLoaderPendingRequestsRuntime: () => CuratedLoaderPendingRequestsRuntime;
-  };
+  createCuratedLoaderPendingRequestsRuntime: () => CuratedLoaderPendingRequestsRuntime;
 };
 
 type Deferred<T> = {
@@ -57,6 +54,7 @@ type Deferred<T> = {
 const curatedLoaderPendingRequestsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedLoaderPendingRequests.ts'),
 ).href;
+let curatedLoaderPendingRequestsModule: CuratedLoaderPendingRequestsModule | null = null;
 
 function createDeferred<T>(): Deferred<T> {
   let resolveRef: ((value: T | PromiseLike<T>) => void) | null = null;
@@ -78,18 +76,22 @@ function createDeferred<T>(): Deferred<T> {
 }
 
 function getCuratedLoaderPendingRequestsModule() {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as CuratedLoaderPendingRequestsModule;
-  return registry.runtimeCuratedLoaderPendingRequests;
+  if (!curatedLoaderPendingRequestsModule) {
+    throw new Error('Curated loader pending requests runtime module was not initialized for test');
+  }
+  return curatedLoaderPendingRequestsModule;
 }
 
 describe('curated-loader-pending-requests runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([curatedLoaderPendingRequestsModuleUrl]);
+    vi.resetModules();
+    curatedLoaderPendingRequestsModule = (await import(
+      curatedLoaderPendingRequestsModuleUrl
+    )) as CuratedLoaderPendingRequestsModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    curatedLoaderPendingRequestsModule = null;
   });
 
   it('normalizes malformed pending request counters when creating progress state', () => {

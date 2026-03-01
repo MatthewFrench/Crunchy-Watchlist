@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type CardMetadataRuntime = {
   formatVotes: (votes: unknown) => string;
@@ -23,6 +22,7 @@ type CardMetadataModule = {
 };
 
 const cardMetadataModuleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Ui', 'CardMetadata.ts')).href;
+let createCardMetadata: CardMetadataModule['createCardMetadata'] | null = null;
 
 function sanitizePositiveInt(value: unknown): number | null {
   const number = Number(value);
@@ -58,9 +58,9 @@ function parseDateMs(value: unknown): number | null {
 }
 
 function createCardMetadataRuntime(getWatchHistoryStatus: () => string): CardMetadataRuntime {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
-  const uiRegistry = registry.ui as Record<string, unknown>;
-  const cardMetadataModule = uiRegistry.cardMetadata as CardMetadataModule;
+  if (typeof createCardMetadata !== 'function') {
+    throw new Error('Card metadata runtime was not initialized for test');
+  }
 
   const createElement = () => ({
     className: '',
@@ -75,7 +75,7 @@ function createCardMetadataRuntime(getWatchHistoryStatus: () => string): CardMet
     },
   });
 
-  return cardMetadataModule.createCardMetadata({
+  return createCardMetadata({
     getPlausiblePastTimestamp: (value: unknown) => parseDateMs(value),
     estimateUnwatchedEpisodesLeft: (entry: unknown) =>
       sanitizePositiveInt((entry as Record<string, unknown>)?.unwatchedLeft),
@@ -93,11 +93,15 @@ function createCardMetadataRuntime(getWatchHistoryStatus: () => string): CardMet
 
 describe('card-metadata ui module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([cardMetadataModuleUrl]);
+    vi.resetModules();
+    const cardMetadataModule = (await import(cardMetadataModuleUrl)) as {
+      createCardMetadataRuntime: () => object;
+    };
+    createCardMetadata = (cardMetadataModule.createCardMetadataRuntime() as CardMetadataModule).createCardMetadata;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createCardMetadata = null;
     vi.useRealTimers();
   });
 
@@ -112,6 +116,7 @@ describe('card-metadata ui module', () => {
 
     const runtimeReady = createCardMetadataRuntime(() => 'ready');
     const runtimeFailed = createCardMetadataRuntime(() => 'failed');
+    const runtimePending = createCardMetadataRuntime(() => 'loading');
 
     expect(runtimeReady.getLastWatchedPresentation({ neverWatched: true })).toEqual({
       state: 'never',
@@ -131,6 +136,10 @@ describe('card-metadata ui module', () => {
     expect(runtimeFailed.getLastWatchedPresentation({})).toEqual({
       state: 'history-unavailable',
       text: 'history unavailable',
+    });
+    expect(runtimePending.getLastWatchedPresentation({})).toEqual({
+      state: 'pending',
+      text: 'pending',
     });
   });
 

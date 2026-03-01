@@ -1,492 +1,507 @@
-(() => {
-  type RatingResult = {
-    rating: number | null;
-    votes: number | null;
-    distribution: unknown;
-    description: string;
-    audioLocales: string[];
-    episodeCount: number | null;
-    seasonCount: number | null;
-    genreTags: string[];
-    portraitImageUrl?: string | null;
-    landscapeImageUrl?: string | null;
-    preferredAudioLocale?: string;
-  };
+import { createRatingsRepositoryCacheSupportRuntime as createRatingsRepositoryCacheSupportRuntimeFactory } from './RatingsRepositoryCacheSupport.js';
 
-  type RatingCacheEntry = {
-    rating: number | null;
-    votes: number | null;
-    distribution: unknown;
-    audioLocales: string[];
-    description: string;
-    episodeCount: number | null;
-    seasonCount: number | null;
-    episodeCountByAudioLocale: Record<string, number>;
-    seasonCountByAudioLocale: Record<string, number>;
-    genreTags: string[];
-    portraitImageUrl?: string | null;
-    landscapeImageUrl?: string | null;
-    updatedAt: number;
-  };
+type BoundaryValue = CwBoundaryValue;
+type BoundaryRecord = Record<string, BoundaryValue>;
 
-  type RatingsRepositoryState = {
-    ratingCache: Record<string, RatingCacheEntry | Record<string, unknown>>;
-    ratingCacheRevision?: number;
-    ratingInflight: Map<string, Promise<RatingCacheEntry>>;
-  };
+type RatingResult = {
+  rating: number | null;
+  votes: number | null;
+  distribution: BoundaryValue;
+  description: string;
+  audioLocales: string[];
+  episodeCount: number | null;
+  seasonCount: number | null;
+  genreTags: string[];
+  portraitImageUrl?: string | null;
+  landscapeImageUrl?: string | null;
+  preferredAudioLocale?: string;
+};
 
-  type RatingsRepositoryContext = {
-    state: RatingsRepositoryState;
-    normalizeAudioLocale: (value: unknown) => string;
-    normalizeAudioLocales: (values: unknown[]) => string[];
-    sanitizePositiveInt: (value: unknown) => number | null;
-    normalizeTagList: (values: unknown[]) => string[];
-    normalizeImageUrlCandidate: (value: unknown) => string;
-    getAudioLocaleCountFromMap: (value: unknown, audioLocale: string) => number | null;
-    mergeAudioLocaleCountMap: (source: unknown, audioLocale: string, count: number | null) => Record<string, number>;
-    getPreferredAudioLanguage: () => string;
-    chunkArray: <T>(values: T[], chunkSize: number) => T[][];
-    fetchRatingsBatch: (
-      tokenEntry: unknown,
-      seriesIds: string[],
-      preferredAudioLanguage: string,
-    ) => Promise<Array<Record<string, unknown>>>;
-    fetchRating: (seriesId: string, seriesHref: string) => Promise<unknown>;
-    scheduleSaveRatings: () => void;
-    runtimeEvent: (event: string, payload?: unknown) => void;
-    ratingBatchSize: number;
-    ratingBatchParallelChunks: number;
-    ratingCacheTtlMs: number;
-  };
+type RatingCacheEntry = {
+  rating: number | null;
+  votes: number | null;
+  distribution: BoundaryValue;
+  audioLocales: string[];
+  description: string;
+  episodeCount: number | null;
+  seasonCount: number | null;
+  episodeCountByAudioLocale: Record<string, number>;
+  seasonCountByAudioLocale: Record<string, number>;
+  genreTags: string[];
+  portraitImageUrl?: string | null;
+  landscapeImageUrl?: string | null;
+  updatedAt: number;
+};
 
-  type RatingsRepositoryCacheSupportRuntime = {
-    createEmptyRatingResult: (preferredAudioLocale?: string) => RatingResult;
-    toRecord: (value: unknown) => Record<string, unknown>;
-    isCacheValid: (context: RatingsRepositoryContext, entry: unknown) => entry is RatingCacheEntry;
-    normalizeRatingUpdate: (
-      context: RatingsRepositoryContext,
-      rawValue: unknown,
-      preferredAudioLocale?: unknown,
-    ) => Partial<RatingResult> & Record<string, unknown>;
-    mergeCachedSeriesData: (
-      context: RatingsRepositoryContext,
-      seriesId: string,
-      nextData: Partial<RatingResult> & Record<string, unknown>,
-    ) => RatingCacheEntry;
-    hasEpisodeCountForAudioLocale: (
-      context: RatingsRepositoryContext,
-      entry: RatingCacheEntry | null,
-      audioLocale: string,
-    ) => boolean;
-  };
+type NormalizedRatingUpdate = Partial<RatingResult> & BoundaryRecord;
+type BatchRatingRecord = BoundaryRecord;
+type ParsedBatchRatingRecord = {
+  seriesId: string;
+  update: NormalizedRatingUpdate;
+};
 
-  type RatingsRepositoryOptions = {
-    state?: unknown;
-    normalizeAudioLocale?: unknown;
-    normalizeAudioLocales?: unknown;
-    sanitizePositiveInt?: unknown;
-    normalizeTagList?: unknown;
-    normalizeImageUrlCandidate?: unknown;
-    getAudioLocaleCountFromMap?: unknown;
-    mergeAudioLocaleCountMap?: unknown;
-    getPreferredAudioLanguage?: unknown;
-    chunkArray?: unknown;
-    fetchRatingsBatch?: unknown;
-    fetchRating?: unknown;
-    scheduleSaveRatings?: unknown;
-    runtimeEvent?: unknown;
-    ratingBatchSize?: unknown;
-    ratingBatchParallelChunks?: unknown;
-    ratingCacheTtlMs?: unknown;
-  };
+type RatingsRepositoryState = {
+  ratingCache: Record<string, RatingCacheEntry | BoundaryRecord>;
+  ratingCacheRevision?: number;
+  ratingInflight: Map<string, Promise<RatingCacheEntry>>;
+};
 
-  type SeriesEntry = {
-    seriesId?: unknown;
-    seriesHref?: unknown;
-  } & Record<string, unknown>;
-
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
-
-  function requireFunction<T>(name: string, value: unknown): T {
-    if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing ratings repository dependency: ${name}`);
-    }
-    return value as T;
-  }
-
-  function requireRuntimeFactory<T>(moduleName: string, factoryName: string): () => T {
-    const moduleValue = moduleRegistry[moduleName];
-    if (!moduleValue || typeof moduleValue !== 'object') {
-      throw new Error(`[CW] Missing ratings repository dependency: ${moduleName}`);
-    }
-
-    const factory = (moduleValue as Record<string, unknown>)[factoryName];
-    if (typeof factory !== 'function') {
-      throw new Error(`[CW] Missing ratings repository dependency: ${moduleName}.${factoryName}`);
-    }
-
-    return factory as () => T;
-  }
-
-  function resolveRatingsRepositoryCacheSupportRuntime(): RatingsRepositoryCacheSupportRuntime {
-    const createRuntime = requireRuntimeFactory<unknown>(
-      'ratingsRepositoryCacheSupport',
-      'createRatingsRepositoryCacheSupportRuntime',
-    );
-    const runtime = createRuntime();
-    if (!runtime || typeof runtime !== 'object') {
-      throw new Error('[CW] Missing ratings repository dependency: ratingsRepositoryCacheSupport.runtime');
-    }
-
-    return {
-      createEmptyRatingResult: requireFunction(
-        'ratingsRepositoryCacheSupport.createEmptyRatingResult',
-        (runtime as Record<string, unknown>).createEmptyRatingResult,
-      ),
-      toRecord: requireFunction(
-        'ratingsRepositoryCacheSupport.toRecord',
-        (runtime as Record<string, unknown>).toRecord,
-      ),
-      isCacheValid: requireFunction(
-        'ratingsRepositoryCacheSupport.isCacheValid',
-        (runtime as Record<string, unknown>).isCacheValid,
-      ),
-      normalizeRatingUpdate: requireFunction(
-        'ratingsRepositoryCacheSupport.normalizeRatingUpdate',
-        (runtime as Record<string, unknown>).normalizeRatingUpdate,
-      ),
-      mergeCachedSeriesData: requireFunction(
-        'ratingsRepositoryCacheSupport.mergeCachedSeriesData',
-        (runtime as Record<string, unknown>).mergeCachedSeriesData,
-      ),
-      hasEpisodeCountForAudioLocale: requireFunction(
-        'ratingsRepositoryCacheSupport.hasEpisodeCountForAudioLocale',
-        (runtime as Record<string, unknown>).hasEpisodeCountForAudioLocale,
-      ),
-    };
-  }
-
-  function toRatingsRepositoryState(value: unknown): RatingsRepositoryState | null {
-    if (!value || typeof value !== 'object') {
-      return null;
-    }
-
-    const state = value as Partial<RatingsRepositoryState>;
-
-    if (!state.ratingCache || typeof state.ratingCache !== 'object') {
-      state.ratingCache = {};
-    }
-
-    if (!(state.ratingInflight instanceof Map)) {
-      state.ratingInflight = new Map<string, Promise<RatingCacheEntry>>();
-    }
-
-    const ratingCacheRevision = Number(state.ratingCacheRevision);
-    state.ratingCacheRevision =
-      Number.isFinite(ratingCacheRevision) && ratingCacheRevision >= 0 ? ratingCacheRevision : 0;
-
-    return state as RatingsRepositoryState;
-  }
-
-  function toSeriesEntries(entries: unknown): SeriesEntry[] {
-    if (!Array.isArray(entries)) {
-      return [];
-    }
-
-    return entries.filter((entry): entry is SeriesEntry => !!entry && typeof entry === 'object');
-  }
-
-  function createRatingsRepositoryContext(options: RatingsRepositoryOptions = {}): RatingsRepositoryContext {
-    const state = toRatingsRepositoryState(options.state);
-    if (!state) {
-      throw new Error('[CW] Missing ratings repository state');
-    }
-
-    return {
-      state,
-      normalizeAudioLocale: requireFunction(
-        'normalizeAudioLocale',
-        options.normalizeAudioLocale,
-      ) as RatingsRepositoryContext['normalizeAudioLocale'],
-      normalizeAudioLocales: requireFunction(
-        'normalizeAudioLocales',
-        options.normalizeAudioLocales,
-      ) as RatingsRepositoryContext['normalizeAudioLocales'],
-      sanitizePositiveInt: requireFunction(
-        'sanitizePositiveInt',
-        options.sanitizePositiveInt,
-      ) as RatingsRepositoryContext['sanitizePositiveInt'],
-      normalizeTagList: requireFunction(
-        'normalizeTagList',
-        options.normalizeTagList,
-      ) as RatingsRepositoryContext['normalizeTagList'],
-      normalizeImageUrlCandidate: requireFunction(
-        'normalizeImageUrlCandidate',
-        options.normalizeImageUrlCandidate,
-      ) as RatingsRepositoryContext['normalizeImageUrlCandidate'],
-      getAudioLocaleCountFromMap: requireFunction(
-        'getAudioLocaleCountFromMap',
-        options.getAudioLocaleCountFromMap,
-      ) as RatingsRepositoryContext['getAudioLocaleCountFromMap'],
-      mergeAudioLocaleCountMap: requireFunction(
-        'mergeAudioLocaleCountMap',
-        options.mergeAudioLocaleCountMap,
-      ) as RatingsRepositoryContext['mergeAudioLocaleCountMap'],
-      getPreferredAudioLanguage: requireFunction(
-        'getPreferredAudioLanguage',
-        options.getPreferredAudioLanguage,
-      ) as RatingsRepositoryContext['getPreferredAudioLanguage'],
-      chunkArray: requireFunction('chunkArray', options.chunkArray) as RatingsRepositoryContext['chunkArray'],
-      fetchRatingsBatch: requireFunction(
-        'fetchRatingsBatch',
-        options.fetchRatingsBatch,
-      ) as RatingsRepositoryContext['fetchRatingsBatch'],
-      fetchRating: requireFunction('fetchRating', options.fetchRating) as RatingsRepositoryContext['fetchRating'],
-      scheduleSaveRatings: requireFunction(
-        'scheduleSaveRatings',
-        options.scheduleSaveRatings,
-      ) as RatingsRepositoryContext['scheduleSaveRatings'],
-      runtimeEvent:
-        typeof options.runtimeEvent === 'function'
-          ? (options.runtimeEvent as RatingsRepositoryContext['runtimeEvent'])
-          : () => {},
-      ratingBatchSize: Math.max(1, Number(options.ratingBatchSize) || 1),
-      ratingBatchParallelChunks: Math.max(1, Number(options.ratingBatchParallelChunks) || 1),
-      ratingCacheTtlMs: Math.max(1, Number(options.ratingCacheTtlMs) || 1),
-    };
-  }
-
-  async function getSeriesRatingInternal(
-    context: RatingsRepositoryContext,
-    cacheSupportRuntime: RatingsRepositoryCacheSupportRuntime,
-    seriesId: string,
-    seriesHref: string,
-  ): Promise<RatingCacheEntry> {
-    const cached = context.state.ratingCache[seriesId];
-    if (cacheSupportRuntime.isCacheValid(context, cached)) {
-      return cached;
-    }
-
-    const inflightCached = context.state.ratingInflight.get(seriesId);
-    if (inflightCached) {
-      return inflightCached;
-    }
-
-    const inflight = (async () => {
-      const fetched = await context.fetchRating(seriesId, seriesHref);
-      if (!fetched || typeof fetched !== 'object' || Array.isArray(fetched)) {
-        context.runtimeEvent('ratings-contract-warning', {
-          scope: 'getSeriesRating',
-          reason: 'invalid-rating-payload-root',
-          seriesId,
-        });
-      }
-
-      const entry = cacheSupportRuntime.mergeCachedSeriesData(
-        context,
-        seriesId,
-        cacheSupportRuntime.normalizeRatingUpdate(context, fetched),
-      );
-      context.scheduleSaveRatings();
-      return entry;
-    })()
-      .catch(() =>
-        cacheSupportRuntime.mergeCachedSeriesData(context, seriesId, cacheSupportRuntime.createEmptyRatingResult()),
-      )
-      .finally(() => {
-        context.state.ratingInflight.delete(seriesId);
-      });
-
-    context.state.ratingInflight.set(seriesId, inflight);
-    return inflight;
-  }
-
-  async function fetchRatingsBatchChunksInternal(
-    context: RatingsRepositoryContext,
-    tokenEntry: unknown,
-    chunks: string[][],
+type RatingsRepositoryDependencyContract = {
+  normalizeAudioLocale: (value: BoundaryValue) => string;
+  normalizeAudioLocales: (values: BoundaryValue[]) => string[];
+  sanitizePositiveInt: (value: BoundaryValue) => number | null;
+  normalizeTagList: (values: BoundaryValue[]) => string[];
+  normalizeImageUrlCandidate: (value: BoundaryValue) => string;
+  getAudioLocaleCountFromMap: (value: BoundaryValue, audioLocale: string) => number | null;
+  mergeAudioLocaleCountMap: (
+    source: BoundaryValue,
+    audioLocale: string,
+    count: number | null,
+  ) => Record<string, number>;
+  getPreferredAudioLanguage: () => string;
+  chunkArray: <T>(values: T[], chunkSize: number) => T[][];
+  fetchRatingsBatch: (
+    tokenEntry: BoundaryValue,
+    seriesIds: string[],
     preferredAudioLanguage: string,
-  ): Promise<Array<Array<Record<string, unknown>>>> {
-    const chunkResults: Array<Array<Record<string, unknown>>> = chunks.map(() => []);
-    let nextChunkIndex = 0;
+  ) => Promise<BatchRatingRecord[]>;
+  fetchRating: (seriesId: string, seriesHref: string) => Promise<BoundaryValue>;
+  scheduleSaveRatings: () => void;
+  runtimeEvent: (event: string, payload?: BoundaryValue) => void;
+};
 
-    const workerCount = Math.min(chunks.length, context.ratingBatchParallelChunks);
-    if (workerCount <= 0) {
-      return chunkResults;
-    }
+type RatingsRepositoryContext = RatingsRepositoryDependencyContract & {
+  state: RatingsRepositoryState;
+  ratingBatchSize: number;
+  ratingBatchParallelChunks: number;
+  ratingCacheTtlMs: number;
+};
 
-    const workers = Array.from({ length: workerCount }, () =>
-      (async () => {
-        while (nextChunkIndex < chunks.length) {
-          const currentChunkIndex = nextChunkIndex;
-          nextChunkIndex += 1;
-          const chunk = chunks[currentChunkIndex];
-          if (!chunk || !chunk.length) {
-            continue;
-          }
+type RatingsRepositoryCacheSupportRuntime = {
+  createEmptyRatingResult: (preferredAudioLocale?: string) => RatingResult;
+  toRecord: (value: BoundaryValue) => BoundaryRecord;
+  isCacheValid: (context: RatingsRepositoryContext, entry: BoundaryValue) => entry is RatingCacheEntry;
+  normalizeRatingUpdate: (
+    context: RatingsRepositoryContext,
+    rawValue: BoundaryValue,
+    preferredAudioLocale?: BoundaryValue,
+  ) => NormalizedRatingUpdate;
+  mergeCachedSeriesData: (
+    context: RatingsRepositoryContext,
+    seriesId: string,
+    nextData: NormalizedRatingUpdate,
+  ) => RatingCacheEntry;
+  hasEpisodeCountForAudioLocale: (
+    context: RatingsRepositoryContext,
+    entry: RatingCacheEntry | null,
+    audioLocale: string,
+  ) => boolean;
+};
 
-          try {
-            const records = await context.fetchRatingsBatch(tokenEntry, chunk, preferredAudioLanguage);
-            chunkResults[currentChunkIndex] = Array.isArray(records)
-              ? records.filter((record): record is Record<string, unknown> => !!record && typeof record === 'object')
-              : [];
-          } catch {
-            chunkResults[currentChunkIndex] = [];
-          }
-        }
-      })(),
+type RatingsRepositoryDependencyOptions = {
+  [K in keyof RatingsRepositoryDependencyContract]?: BoundaryValue;
+};
+
+type RatingsRepositoryOptions = RatingsRepositoryDependencyOptions & {
+  state?: BoundaryValue;
+  ratingBatchSize?: BoundaryValue;
+  ratingBatchParallelChunks?: BoundaryValue;
+  ratingCacheTtlMs?: BoundaryValue;
+};
+
+type SeriesEntry = {
+  seriesId?: BoundaryValue;
+  seriesHref?: BoundaryValue;
+} & BoundaryRecord;
+
+function requireFunction<T>(name: string, value: BoundaryValue): T {
+  if (typeof value !== 'function') {
+    throw new Error(`[CW] Missing ratings repository dependency: ${name}`);
+  }
+  return value as T;
+}
+
+function resolveRatingsRepositoryCacheSupportRuntime(): RatingsRepositoryCacheSupportRuntime {
+  const runtime = createRatingsRepositoryCacheSupportRuntimeFactory();
+  if (!runtime || typeof runtime !== 'object') {
+    throw new Error('[CW] Missing ratings repository dependency: ratingsRepositoryCacheSupport.runtime');
+  }
+
+  const runtimeRecord = runtime as BoundaryRecord;
+  return {
+    createEmptyRatingResult: requireFunction(
+      'ratingsRepositoryCacheSupport.createEmptyRatingResult',
+      runtimeRecord.createEmptyRatingResult,
+    ),
+    toRecord: requireFunction('ratingsRepositoryCacheSupport.toRecord', runtimeRecord.toRecord),
+    isCacheValid: requireFunction('ratingsRepositoryCacheSupport.isCacheValid', runtimeRecord.isCacheValid),
+    normalizeRatingUpdate: requireFunction(
+      'ratingsRepositoryCacheSupport.normalizeRatingUpdate',
+      runtimeRecord.normalizeRatingUpdate,
+    ),
+    mergeCachedSeriesData: requireFunction(
+      'ratingsRepositoryCacheSupport.mergeCachedSeriesData',
+      runtimeRecord.mergeCachedSeriesData,
+    ),
+    hasEpisodeCountForAudioLocale: requireFunction(
+      'ratingsRepositoryCacheSupport.hasEpisodeCountForAudioLocale',
+      runtimeRecord.hasEpisodeCountForAudioLocale,
+    ),
+  };
+}
+
+function toRatingsRepositoryState(value: BoundaryValue): RatingsRepositoryState | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const state = value as Partial<RatingsRepositoryState>;
+
+  if (!state.ratingCache || typeof state.ratingCache !== 'object') {
+    state.ratingCache = {};
+  }
+
+  if (!(state.ratingInflight instanceof Map)) {
+    state.ratingInflight = new Map<string, Promise<RatingCacheEntry>>();
+  }
+
+  const ratingCacheRevision = Number(state.ratingCacheRevision);
+  state.ratingCacheRevision =
+    Number.isFinite(ratingCacheRevision) && ratingCacheRevision >= 0 ? ratingCacheRevision : 0;
+
+  return state as RatingsRepositoryState;
+}
+
+function toSeriesEntries(entries: BoundaryValue): SeriesEntry[] {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+
+  return entries.filter((entry): entry is SeriesEntry => !!entry && typeof entry === 'object');
+}
+
+function createRatingsRepositoryContext(options: RatingsRepositoryOptions = {}): RatingsRepositoryContext {
+  const state = toRatingsRepositoryState(options.state);
+  if (!state) {
+    throw new Error('[CW] Missing ratings repository state');
+  }
+
+  const dependencies: RatingsRepositoryDependencyContract = {
+    normalizeAudioLocale: requireFunction<RatingsRepositoryDependencyContract['normalizeAudioLocale']>(
+      'normalizeAudioLocale',
+      options.normalizeAudioLocale,
+    ),
+    normalizeAudioLocales: requireFunction<RatingsRepositoryDependencyContract['normalizeAudioLocales']>(
+      'normalizeAudioLocales',
+      options.normalizeAudioLocales,
+    ),
+    sanitizePositiveInt: requireFunction<RatingsRepositoryDependencyContract['sanitizePositiveInt']>(
+      'sanitizePositiveInt',
+      options.sanitizePositiveInt,
+    ),
+    normalizeTagList: requireFunction<RatingsRepositoryDependencyContract['normalizeTagList']>(
+      'normalizeTagList',
+      options.normalizeTagList,
+    ),
+    normalizeImageUrlCandidate: requireFunction<RatingsRepositoryDependencyContract['normalizeImageUrlCandidate']>(
+      'normalizeImageUrlCandidate',
+      options.normalizeImageUrlCandidate,
+    ),
+    getAudioLocaleCountFromMap: requireFunction<RatingsRepositoryDependencyContract['getAudioLocaleCountFromMap']>(
+      'getAudioLocaleCountFromMap',
+      options.getAudioLocaleCountFromMap,
+    ),
+    mergeAudioLocaleCountMap: requireFunction<RatingsRepositoryDependencyContract['mergeAudioLocaleCountMap']>(
+      'mergeAudioLocaleCountMap',
+      options.mergeAudioLocaleCountMap,
+    ),
+    getPreferredAudioLanguage: requireFunction<RatingsRepositoryDependencyContract['getPreferredAudioLanguage']>(
+      'getPreferredAudioLanguage',
+      options.getPreferredAudioLanguage,
+    ),
+    chunkArray: requireFunction<RatingsRepositoryDependencyContract['chunkArray']>('chunkArray', options.chunkArray),
+    fetchRatingsBatch: requireFunction<RatingsRepositoryDependencyContract['fetchRatingsBatch']>(
+      'fetchRatingsBatch',
+      options.fetchRatingsBatch,
+    ),
+    fetchRating: requireFunction<RatingsRepositoryDependencyContract['fetchRating']>(
+      'fetchRating',
+      options.fetchRating,
+    ),
+    scheduleSaveRatings: requireFunction<RatingsRepositoryDependencyContract['scheduleSaveRatings']>(
+      'scheduleSaveRatings',
+      options.scheduleSaveRatings,
+    ),
+    runtimeEvent:
+      typeof options.runtimeEvent === 'function'
+        ? (options.runtimeEvent as RatingsRepositoryDependencyContract['runtimeEvent'])
+        : () => {},
+  };
+
+  return {
+    state,
+    ...dependencies,
+    ratingBatchSize: Math.max(1, Number(options.ratingBatchSize) || 1),
+    ratingBatchParallelChunks: Math.max(1, Number(options.ratingBatchParallelChunks) || 1),
+    ratingCacheTtlMs: Math.max(1, Number(options.ratingCacheTtlMs) || 1),
+  };
+}
+
+function normalizeFetchedSeriesRatingPayload(
+  context: RatingsRepositoryContext,
+  cacheSupportRuntime: RatingsRepositoryCacheSupportRuntime,
+  seriesId: string,
+  fetched: BoundaryValue,
+): NormalizedRatingUpdate {
+  if (!fetched || typeof fetched !== 'object' || Array.isArray(fetched)) {
+    context.runtimeEvent('ratings-contract-warning', {
+      scope: 'getSeriesRating',
+      reason: 'invalid-rating-payload-root',
+      seriesId,
+    });
+  }
+
+  return cacheSupportRuntime.normalizeRatingUpdate(context, fetched);
+}
+
+function parseBatchRatingRecord(
+  context: RatingsRepositoryContext,
+  cacheSupportRuntime: RatingsRepositoryCacheSupportRuntime,
+  record: BatchRatingRecord,
+  preferredAudioLanguage: string,
+): ParsedBatchRatingRecord | null {
+  const recordData = cacheSupportRuntime.toRecord(record);
+  const seriesId = typeof recordData.seriesId === 'string' ? recordData.seriesId : '';
+  if (!seriesId) {
+    return null;
+  }
+
+  return {
+    seriesId,
+    update: cacheSupportRuntime.normalizeRatingUpdate(context, recordData, preferredAudioLanguage),
+  };
+}
+
+async function getSeriesRatingInternal(
+  context: RatingsRepositoryContext,
+  cacheSupportRuntime: RatingsRepositoryCacheSupportRuntime,
+  seriesId: string,
+  seriesHref: string,
+): Promise<RatingCacheEntry> {
+  const cached = context.state.ratingCache[seriesId];
+  if (cacheSupportRuntime.isCacheValid(context, cached)) {
+    return cached;
+  }
+
+  const inflightCached = context.state.ratingInflight.get(seriesId);
+  if (inflightCached) {
+    return inflightCached;
+  }
+
+  const inflight = (async () => {
+    const fetched = await context.fetchRating(seriesId, seriesHref);
+    const entry = cacheSupportRuntime.mergeCachedSeriesData(
+      context,
+      seriesId,
+      normalizeFetchedSeriesRatingPayload(context, cacheSupportRuntime, seriesId, fetched),
     );
+    context.scheduleSaveRatings();
+    return entry;
+  })()
+    .catch(() =>
+      cacheSupportRuntime.mergeCachedSeriesData(context, seriesId, cacheSupportRuntime.createEmptyRatingResult()),
+    )
+    .finally(() => {
+      context.state.ratingInflight.delete(seriesId);
+    });
 
-    await Promise.all(workers);
+  context.state.ratingInflight.set(seriesId, inflight);
+  return inflight;
+}
+
+async function fetchRatingsBatchChunksInternal(
+  context: RatingsRepositoryContext,
+  tokenEntry: BoundaryValue,
+  chunks: string[][],
+  preferredAudioLanguage: string,
+): Promise<BatchRatingRecord[][]> {
+  const chunkResults: BatchRatingRecord[][] = chunks.map(() => []);
+  let nextChunkIndex = 0;
+
+  const workerCount = Math.min(chunks.length, context.ratingBatchParallelChunks);
+  if (workerCount <= 0) {
     return chunkResults;
   }
 
-  async function preloadRatingsForEntriesInternal(
-    context: RatingsRepositoryContext,
-    cacheSupportRuntime: RatingsRepositoryCacheSupportRuntime,
-    entries: unknown,
-    tokenEntry: unknown,
-    preferredAudioLanguage: unknown = context.getPreferredAudioLanguage(),
-  ): Promise<void> {
-    const effectivePreferredAudioLanguage =
-      context.normalizeAudioLocale(preferredAudioLanguage) || context.getPreferredAudioLanguage();
-    const allSeriesIds = Array.from(
-      new Set(
-        toSeriesEntries(entries)
-          .map((entry) => (typeof entry.seriesId === 'string' ? entry.seriesId : ''))
-          .filter(Boolean),
-      ),
-    );
-    const staleSeriesIds = allSeriesIds.filter((seriesId) => {
-      const cachedEntry = context.state.ratingCache[seriesId];
-      if (!cacheSupportRuntime.isCacheValid(context, cachedEntry)) {
-        return true;
+  const workers = Array.from({ length: workerCount }, () =>
+    (async () => {
+      while (nextChunkIndex < chunks.length) {
+        const currentChunkIndex = nextChunkIndex;
+        nextChunkIndex += 1;
+        const chunk = chunks[currentChunkIndex];
+        if (!chunk || !chunk.length) {
+          continue;
+        }
+
+        try {
+          const records = await context.fetchRatingsBatch(tokenEntry, chunk, preferredAudioLanguage);
+          chunkResults[currentChunkIndex] = Array.isArray(records)
+            ? records.filter((record): record is BatchRatingRecord => !!record && typeof record === 'object')
+            : [];
+        } catch {
+          chunkResults[currentChunkIndex] = [];
+        }
       }
+    })(),
+  );
 
-      return !cacheSupportRuntime.hasEpisodeCountForAudioLocale(context, cachedEntry, effectivePreferredAudioLanguage);
+  await Promise.all(workers);
+  return chunkResults;
+}
+
+async function preloadRatingsForEntriesInternal(
+  context: RatingsRepositoryContext,
+  cacheSupportRuntime: RatingsRepositoryCacheSupportRuntime,
+  entries: BoundaryValue,
+  tokenEntry: BoundaryValue,
+  preferredAudioLanguage: BoundaryValue = context.getPreferredAudioLanguage(),
+): Promise<void> {
+  const effectivePreferredAudioLanguage =
+    context.normalizeAudioLocale(preferredAudioLanguage) || context.getPreferredAudioLanguage();
+  const allSeriesIds = Array.from(
+    new Set(
+      toSeriesEntries(entries)
+        .map((entry) => (typeof entry.seriesId === 'string' ? entry.seriesId : ''))
+        .filter(Boolean),
+    ),
+  );
+  const staleSeriesIds = allSeriesIds.filter((seriesId) => {
+    const cachedEntry = context.state.ratingCache[seriesId];
+    if (!cacheSupportRuntime.isCacheValid(context, cachedEntry)) {
+      return true;
+    }
+
+    return !cacheSupportRuntime.hasEpisodeCountForAudioLocale(context, cachedEntry, effectivePreferredAudioLanguage);
+  });
+
+  if (!staleSeriesIds.length) {
+    return;
+  }
+
+  let updated = 0;
+  let invalidRecords = 0;
+
+  const tokenEntryRecord = cacheSupportRuntime.toRecord(tokenEntry);
+  if (typeof tokenEntryRecord.accessToken === 'string' && tokenEntryRecord.accessToken) {
+    const chunks = context.chunkArray(staleSeriesIds, context.ratingBatchSize);
+    const chunkResults = await fetchRatingsBatchChunksInternal(
+      context,
+      tokenEntry,
+      chunks,
+      effectivePreferredAudioLanguage,
+    );
+    chunkResults.forEach((records) => {
+      records.forEach((record) => {
+        const parsed = parseBatchRatingRecord(context, cacheSupportRuntime, record, effectivePreferredAudioLanguage);
+        if (!parsed) {
+          invalidRecords += 1;
+          return;
+        }
+
+        cacheSupportRuntime.mergeCachedSeriesData(context, parsed.seriesId, parsed.update);
+        updated += 1;
+      });
     });
+  }
 
-    if (!staleSeriesIds.length) {
-      return;
-    }
+  if (updated > 0) {
+    context.scheduleSaveRatings();
+  }
 
-    let updated = 0;
-    let invalidRecords = 0;
-
-    const tokenEntryRecord = cacheSupportRuntime.toRecord(tokenEntry);
-    if (typeof tokenEntryRecord.accessToken === 'string' && tokenEntryRecord.accessToken) {
-      const chunks = context.chunkArray(staleSeriesIds, context.ratingBatchSize);
-      const chunkResults = await fetchRatingsBatchChunksInternal(
-        context,
-        tokenEntry,
-        chunks,
-        effectivePreferredAudioLanguage,
-      );
-      chunkResults.forEach((records) => {
-        records.forEach((record) => {
-          const recordData = cacheSupportRuntime.toRecord(record);
-          const seriesId = typeof recordData.seriesId === 'string' ? recordData.seriesId : '';
-          if (!seriesId) {
-            invalidRecords += 1;
-            return;
-          }
-
-          cacheSupportRuntime.mergeCachedSeriesData(
-            context,
-            seriesId,
-            cacheSupportRuntime.normalizeRatingUpdate(context, recordData, effectivePreferredAudioLanguage),
-          );
-          updated += 1;
-        });
-      });
-    }
-
-    if (updated > 0) {
-      context.scheduleSaveRatings();
-    }
-
-    if (invalidRecords > 0) {
-      context.runtimeEvent('ratings-contract-warning', {
-        scope: 'preloadRatingsForEntries',
-        reason: 'invalid-batch-record',
-        preferredAudioLanguage: effectivePreferredAudioLanguage,
-        invalidRecords,
-      });
-    }
-
-    context.runtimeEvent('ratings-preload', {
+  if (invalidRecords > 0) {
+    context.runtimeEvent('ratings-contract-warning', {
+      scope: 'preloadRatingsForEntries',
+      reason: 'invalid-batch-record',
       preferredAudioLanguage: effectivePreferredAudioLanguage,
-      stale: staleSeriesIds.length,
-      updated,
       invalidRecords,
     });
   }
 
-  function getCachedRatingInternal(
-    context: RatingsRepositoryContext,
-    cacheSupportRuntime: RatingsRepositoryCacheSupportRuntime,
-    seriesId: string,
-  ): RatingCacheEntry | null {
+  context.runtimeEvent('ratings-preload', {
+    preferredAudioLanguage: effectivePreferredAudioLanguage,
+    stale: staleSeriesIds.length,
+    updated,
+    invalidRecords,
+  });
+}
+
+function getCachedRatingInternal(
+  context: RatingsRepositoryContext,
+  cacheSupportRuntime: RatingsRepositoryCacheSupportRuntime,
+  seriesId: string,
+): RatingCacheEntry | null {
+  const cached = context.state.ratingCache[seriesId];
+  return cacheSupportRuntime.isCacheValid(context, cached) ? cached : null;
+}
+
+function isLocalizedRatingDataMissingForEntriesInternal(
+  context: RatingsRepositoryContext,
+  cacheSupportRuntime: RatingsRepositoryCacheSupportRuntime,
+  entries: BoundaryValue,
+  audioLocale: BoundaryValue,
+): boolean {
+  const selectedAudioLocale = context.normalizeAudioLocale(audioLocale);
+  if (!selectedAudioLocale) {
+    return false;
+  }
+
+  const inputEntries = toSeriesEntries(entries);
+  if (!inputEntries.length) {
+    return false;
+  }
+
+  return inputEntries.some((entry) => {
+    const seriesId = typeof entry.seriesId === 'string' ? entry.seriesId : '';
+    if (!seriesId) {
+      return false;
+    }
+
     const cached = context.state.ratingCache[seriesId];
-    return cacheSupportRuntime.isCacheValid(context, cached) ? cached : null;
-  }
-
-  function isLocalizedRatingDataMissingForEntriesInternal(
-    context: RatingsRepositoryContext,
-    cacheSupportRuntime: RatingsRepositoryCacheSupportRuntime,
-    entries: unknown,
-    audioLocale: unknown,
-  ): boolean {
-    const selectedAudioLocale = context.normalizeAudioLocale(audioLocale);
-    if (!selectedAudioLocale) {
-      return false;
+    if (!cacheSupportRuntime.isCacheValid(context, cached)) {
+      return true;
     }
 
-    const inputEntries = toSeriesEntries(entries);
-    if (!inputEntries.length) {
-      return false;
-    }
+    return !cacheSupportRuntime.hasEpisodeCountForAudioLocale(context, cached, selectedAudioLocale);
+  });
+}
 
-    return inputEntries.some((entry) => {
-      const seriesId = typeof entry.seriesId === 'string' ? entry.seriesId : '';
-      if (!seriesId) {
-        return false;
-      }
-
-      const cached = context.state.ratingCache[seriesId];
-      if (!cacheSupportRuntime.isCacheValid(context, cached)) {
-        return true;
-      }
-
-      return !cacheSupportRuntime.hasEpisodeCountForAudioLocale(context, cached, selectedAudioLocale);
-    });
-  }
-
-  function createRatingsRepository(options: RatingsRepositoryOptions = {}) {
-    const context = createRatingsRepositoryContext(options);
-    const cacheSupportRuntime = resolveRatingsRepositoryCacheSupportRuntime();
-    return {
-      getSeriesRating: (seriesId: unknown, seriesHref: unknown) =>
-        getSeriesRatingInternal(
-          context,
-          cacheSupportRuntime,
-          typeof seriesId === 'string' ? seriesId : '',
-          typeof seriesHref === 'string' ? seriesHref : '',
-        ),
-      preloadRatingsForEntries: (entries: unknown, tokenEntry: unknown, preferredAudioLanguage: unknown) =>
-        preloadRatingsForEntriesInternal(context, cacheSupportRuntime, entries, tokenEntry, preferredAudioLanguage),
-      getCachedRating: (seriesId: unknown) =>
-        getCachedRatingInternal(context, cacheSupportRuntime, typeof seriesId === 'string' ? seriesId : ''),
-      isLocalizedRatingDataMissingForEntries: (entries: unknown, audioLocale: unknown) =>
-        isLocalizedRatingDataMissingForEntriesInternal(context, cacheSupportRuntime, entries, audioLocale),
-    };
-  }
-
-  moduleRegistry.ratingsRepository = {
-    createRatingsRepository,
+function createRatingsRepository(options: RatingsRepositoryOptions = {}) {
+  const context = createRatingsRepositoryContext(options);
+  const cacheSupportRuntime = resolveRatingsRepositoryCacheSupportRuntime();
+  return {
+    getSeriesRating: (seriesId: BoundaryValue, seriesHref: BoundaryValue) =>
+      getSeriesRatingInternal(
+        context,
+        cacheSupportRuntime,
+        typeof seriesId === 'string' ? seriesId : '',
+        typeof seriesHref === 'string' ? seriesHref : '',
+      ),
+    preloadRatingsForEntries: (
+      entries: BoundaryValue,
+      tokenEntry: BoundaryValue,
+      preferredAudioLanguage: BoundaryValue,
+    ) => preloadRatingsForEntriesInternal(context, cacheSupportRuntime, entries, tokenEntry, preferredAudioLanguage),
+    getCachedRating: (seriesId: BoundaryValue) =>
+      getCachedRatingInternal(context, cacheSupportRuntime, typeof seriesId === 'string' ? seriesId : ''),
+    isLocalizedRatingDataMissingForEntries: (entries: BoundaryValue, audioLocale: BoundaryValue) =>
+      isLocalizedRatingDataMissingForEntriesInternal(context, cacheSupportRuntime, entries, audioLocale),
   };
-})();
+}
+
+const ratingsRepositoryRuntime = {
+  createRatingsRepository,
+};
+
+export function createRatingsRepositoryRuntime(): object {
+  return ratingsRepositoryRuntime;
+}

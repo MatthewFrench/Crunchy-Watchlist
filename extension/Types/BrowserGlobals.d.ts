@@ -28,7 +28,6 @@ declare const chrome:
 
 declare global {
   interface Window {
-    __CW_WATCHLIST_CURATOR_MODULES__?: Record<string, unknown>;
     __CW_WATCHLIST_CURATOR_LOADED__?: {
       version?: string;
     };

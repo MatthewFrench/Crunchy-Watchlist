@@ -16,41 +16,41 @@ type ContentCompositionModuleSet = {
 };
 
 type ContentCompositionDependencies = {
-  extractCoverImagesFromApiImages: AnyFn;
-  extractThumbnailImageFromApiImages: AnyFn;
-  normalizeImageUrlCandidate: AnyFn;
-  getPreferredAudioLanguage: AnyFn;
-  getCachedRating: AnyFn;
-  getCachedWatchHistory: AnyFn;
-  getCachedWatchHistoryProgress: AnyFn;
-  isEntryWatchReady: AnyFn;
-  isLocalizedRatingDataMissingForEntries: AnyFn;
-  isLocalizedWatchHistoryDataMissingForEntries: AnyFn;
-  preloadRatingsForSelectedAudioLocale: AnyFn;
-  preloadWatchHistoryForSelectedAudioLocale: AnyFn;
-  getAccessToken: AnyFn;
-  fetchWithResilience: AnyFn;
-  createAuthRefreshHandler: AnyFn;
-  resetWatchlistCacheOnAccountMismatch: AnyFn;
-  fetchAllWatchlistRows: AnyFn;
-  preloadRatingsForEntries: AnyFn;
-  preloadWatchHistoryForEntries: AnyFn;
-  setWatchlistCacheRows: AnyFn;
-  fetchPreviewUrlForEntry: AnyFn;
-  isLikelyVideoUrl: AnyFn;
-  toggleCuratedFavorite: AnyFn;
-  removeCuratedSeries: AnyFn;
-  persistSettings: AnyFn;
-  debounceProcess: AnyFn;
-  isWatchlistPath: AnyFn;
-  withMutedObserver: AnyFn;
-  applyCardLayoutUi: AnyFn;
-  createEmptyWatchHistoryCache: AnyFn;
-  getWatchlistRoot: AnyFn;
-  getWatchlistHeader: AnyFn;
-  storageSet: AnyFn;
-  runtimeEvent: AnyFn;
-  resolveApiHref: AnyFn;
+  extractCoverImagesFromApiImages: UnknownFn;
+  extractThumbnailImageFromApiImages: UnknownFn;
+  normalizeImageUrlCandidate: UnknownFn;
+  getPreferredAudioLanguage: UnknownFn;
+  getCachedRating: UnknownFn;
+  getCachedWatchHistory: UnknownFn;
+  getCachedWatchHistoryProgress: UnknownFn;
+  isEntryWatchReady: UnknownFn;
+  isLocalizedRatingDataMissingForEntries: UnknownFn;
+  isLocalizedWatchHistoryDataMissingForEntries: UnknownFn;
+  preloadRatingsForSelectedAudioLocale: UnknownFn;
+  preloadWatchHistoryForSelectedAudioLocale: UnknownFn;
+  getAccessToken: UnknownFn;
+  fetchWithResilience: UnknownFn;
+  createAuthRefreshHandler: UnknownFn;
+  resetWatchlistCacheOnAccountMismatch: UnknownFn;
+  fetchAllWatchlistRows: UnknownFn;
+  preloadRatingsForEntries: UnknownFn;
+  preloadWatchHistoryForEntries: UnknownFn;
+  setWatchlistCacheRows: UnknownFn;
+  fetchPreviewUrlForEntry: UnknownFn;
+  isLikelyVideoUrl: UnknownFn;
+  toggleCuratedFavorite: UnknownFn;
+  removeCuratedSeries: UnknownFn;
+  persistSettings: UnknownFn;
+  debounceProcess: UnknownFn;
+  isWatchlistPath: UnknownFn;
+  withMutedObserver: UnknownFn;
+  applyCardLayoutUi: UnknownFn;
+  createEmptyWatchHistoryCache: UnknownFn;
+  getWatchlistRoot: UnknownFn;
+  getWatchlistHeader: UnknownFn;
+  storageSet: UnknownFn;
+  runtimeEvent: UnknownFn;
+  resolveApiHref: UnknownFn;
 };
 
 type ContentCompositionOptions = {
@@ -97,11 +97,13 @@ type CuratedRuntime = {
   ensureCuratedDataLoad: (force?: unknown) => Promise<unknown>;
   triggerNativeCardAction: (seriesId: unknown, actionType: unknown, favoriteValue?: unknown) => Promise<boolean>;
   installCuratedCardPreview: DeferredCompositionCallbacks['installCuratedCardPreview'];
+  dispose: () => void;
 };
 
 type InteractionRuntime = {
   createCuratedCardActions: (entry: unknown) => unknown;
   bindCuratedInterfaceControls: () => unknown;
+  dispose: () => void;
 };
 
 type InterfaceRuntime = {
@@ -110,6 +112,7 @@ type InterfaceRuntime = {
   applyTabUi: () => unknown;
   resetCuratedCachesForRefresh: () => unknown;
   ensureInterface: () => unknown;
+  dispose: () => void;
 };
 
 type DebugRuntime = {
@@ -142,6 +145,7 @@ type ContentCompositionRuntime = {
   getCuratedDomStats: () => unknown;
   dumpSeriesApiData: (query: unknown) => unknown;
   printSeriesApiData: (query: unknown) => unknown;
+  dispose: () => void;
 };
 
 type CwCuratedCardActionRefs = {

@@ -1,9 +1,3 @@
-type RuntimeModuleRegistry = Record<string, unknown>;
-
-type RuntimeGlobal = typeof globalThis & {
-  __CW_WATCHLIST_CURATOR_MODULES__?: RuntimeModuleRegistry;
-};
-
 export type CuratedCardProgressRefs = {
   progress: HTMLElement;
   fill: HTMLElement;
@@ -30,7 +24,7 @@ function requireDocumentRef(value: Document | undefined): Document {
   return value;
 }
 
-export function sanitizeEpisodeProgressRatio(value: unknown): number | null {
+export function sanitizeEpisodeProgressRatio(value: CwBoundaryValue): number | null {
   const normalized = Number(value);
   if (!Number.isFinite(normalized) || normalized <= 0 || normalized >= 1) {
     return null;
@@ -105,24 +99,3 @@ export function createCuratedCardProgressComponent(
     },
   };
 }
-
-function registerCardProgressComponentRuntime(): void {
-  const root = (typeof window !== 'undefined' ? window : globalThis) as RuntimeGlobal;
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
-
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__;
-  let uiRegistry = moduleRegistry.ui;
-  if (!uiRegistry || typeof uiRegistry !== 'object') {
-    uiRegistry = {};
-    moduleRegistry.ui = uiRegistry;
-  }
-
-  (uiRegistry as Record<string, unknown>).cardProgressComponent = {
-    createCuratedCardProgressComponent,
-    sanitizeEpisodeProgressRatio,
-  };
-}
-
-registerCardProgressComponentRuntime();

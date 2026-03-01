@@ -1,12 +1,13 @@
 import { createContentBootstrapPrelude } from './ContentBootstrap.js';
 
-type AnyFn = (...args: unknown[]) => unknown;
-type LooseRecord = Record<string, unknown>;
+type BoundaryValue = CwBoundaryValue;
+type RuntimeCallback = (...args: BoundaryValue[]) => BoundaryValue;
+type LooseRecord = Record<string, BoundaryValue>;
 
 type RuntimeControl = LooseRecord & {
   active?: boolean;
   activeInstanceId?: string | null;
-  shutdown?: (payload?: unknown) => void;
+  shutdown?: (payload?: BoundaryValue) => void;
 };
 
 type RuntimeWindow = Window &
@@ -15,14 +16,13 @@ type RuntimeWindow = Window &
     __CW_WATCHLIST_CURATOR_LOADED__?: {
       version?: string;
     };
-    __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
   };
 
 type RuntimeBootstrapHelpersContext = {
   windowRef: RuntimeWindow;
   consoleRef: Console;
-  browserRef: unknown;
-  chromeRef: unknown;
+  browserRef: BoundaryValue;
+  chromeRef: BoundaryValue;
   runtimeControl: RuntimeControl;
   setRuntimeControl: (patch: LooseRecord) => void;
   runtimeInstanceId: string;
@@ -38,8 +38,8 @@ type RuntimeBootstrapHelpersContext = {
 
 type RuntimeLockLifecycleOptions = {
   state: LooseRecord;
-  getRuntimeEvent: () => AnyFn;
-  getDestroyRuntime: () => AnyFn;
+  getRuntimeEvent: () => RuntimeCallback;
+  getDestroyRuntime: () => RuntimeCallback;
   getWatchlistHealthRuntime: () => LooseRecord;
 };
 
@@ -64,20 +64,14 @@ type RuntimeBootstrapDomLockRuntime = {
   createRuntimeLockLifecycleControl: (options: RuntimeLockLifecycleOptions) => RuntimeLockLifecycleControl;
 };
 
-const root = (typeof window !== 'undefined' ? window : globalThis) as RuntimeWindow;
-if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-  root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-}
-const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
-
-function toRecord(value: unknown): LooseRecord {
+function toRecord(value: BoundaryValue): LooseRecord {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
   }
   return value as LooseRecord;
 }
 
-function isWatchlistPathWithoutRuntime(pathname: unknown): boolean {
+function isWatchlistPathWithoutRuntime(pathname: BoundaryValue): boolean {
   return typeof pathname === 'string' && pathname.split('/').filter(Boolean).slice(-1)[0] === 'watchlist';
 }
 
@@ -85,7 +79,7 @@ function resolveRuntimeLockNodeForContext(context: RuntimeBootstrapHelpersContex
   return context.windowRef.document.documentElement || context.windowRef.document.body;
 }
 
-function readRuntimeLockTimestamp(value: unknown): number {
+function readRuntimeLockTimestamp(value: BoundaryValue): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
@@ -130,7 +124,7 @@ function releaseDomRuntimeLockForContext(context: RuntimeBootstrapHelpersContext
   runtimeLockNode.removeAttribute(context.domRuntimeLockTimestampAttribute);
 }
 
-function parseRuntimeInstanceStartedAt(instanceId: unknown): number {
+function parseRuntimeInstanceStartedAt(instanceId: BoundaryValue): number {
   if (typeof instanceId !== 'string') {
     return 0;
   }
@@ -256,7 +250,7 @@ function resolveValidatedBootstrapContextForContext(context: RuntimeBootstrapHel
     return null;
   }
 
-  const setBootstrapIssue = bootstrapPrelude.setBootstrapIssue as AnyFn;
+  const setBootstrapIssue = bootstrapPrelude.setBootstrapIssue as RuntimeCallback;
   if (typeof bootstrapPrelude.assertRuntimeMethods !== 'function') {
     setBootstrapIssue('missing-bootstrap-assert-runtime-methods');
     clearStaleInjectedShellForContext(context, 'missing-bootstrap-assert-runtime-methods');
@@ -273,12 +267,12 @@ function resolveValidatedBootstrapContextForContext(context: RuntimeBootstrapHel
   }
 
   return {
-    updateDiagnostics: bootstrapPrelude.updateDiagnostics as AnyFn,
+    updateDiagnostics: bootstrapPrelude.updateDiagnostics as RuntimeCallback,
     setBootstrapIssue,
-    isWatchlistPath: bootstrapPrelude.isWatchlistPath as AnyFn,
-    getWatchlistRoot: bootstrapPrelude.getWatchlistRoot as AnyFn,
-    getWatchlistHeader: bootstrapPrelude.getWatchlistHeader as AnyFn,
-    assertRuntimeMethods: bootstrapPrelude.assertRuntimeMethods as AnyFn,
+    isWatchlistPath: bootstrapPrelude.isWatchlistPath as RuntimeCallback,
+    getWatchlistRoot: bootstrapPrelude.getWatchlistRoot as RuntimeCallback,
+    getWatchlistHeader: bootstrapPrelude.getWatchlistHeader as RuntimeCallback,
+    assertRuntimeMethods: bootstrapPrelude.assertRuntimeMethods as RuntimeCallback,
     bootstrapModulesRuntime: toRecord(bootstrapPrelude.bootstrapModulesRuntime),
   };
 }
@@ -376,7 +370,7 @@ function startDomRuntimeLockHeartbeatForContext(
 function createRuntimeTakeoverRequestListener(
   context: RuntimeBootstrapHelpersContext,
   shutdownRuntime: (payload?: LooseRecord) => void,
-  getRuntimeEvent: () => AnyFn,
+  getRuntimeEvent: () => RuntimeCallback,
 ): EventListener {
   return (event) => {
     const detail = toRecord((event as CustomEvent)?.detail);
@@ -473,16 +467,3 @@ export function createContentRuntimeBootstrapDomLockRuntime({
       createRuntimeLockLifecycleControlForContext(context, options),
   };
 }
-
-function registerContentRuntimeBootstrapDomLockRuntime(): void {
-  let runtimeRegistry = moduleRegistry.runtimeContentRuntimeBootstrapDomLock;
-  if (!runtimeRegistry || typeof runtimeRegistry !== 'object') {
-    runtimeRegistry = {};
-    moduleRegistry.runtimeContentRuntimeBootstrapDomLock = runtimeRegistry;
-  }
-
-  (runtimeRegistry as LooseRecord).createContentRuntimeBootstrapDomLockRuntime =
-    createContentRuntimeBootstrapDomLockRuntime;
-}
-
-registerContentRuntimeBootstrapDomLockRuntime();

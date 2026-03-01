@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type ContentCompositionBindingsRuntime = {
   createEntryNormalizerBinding: (options: Record<string, unknown>) => (rows: unknown[]) => unknown[];
@@ -9,20 +8,16 @@ type ContentCompositionBindingsRuntime = {
 };
 
 type ContentCompositionBindingsModule = {
-  runtimeContentCompositionBindings: {
-    createContentCompositionBindingsRuntime: () => ContentCompositionBindingsRuntime;
-  };
+  createContentCompositionBindingsRuntime: () => ContentCompositionBindingsRuntime;
 };
 
 const contentCompositionBindingsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentCompositionBindings.ts'),
 ).href;
 
-function getContentCompositionBindingsRuntime(): ContentCompositionBindingsRuntime {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    runtimeContentCompositionBindings?: ContentCompositionBindingsModule['runtimeContentCompositionBindings'];
-  };
-  return registry.runtimeContentCompositionBindings?.createContentCompositionBindingsRuntime() as ContentCompositionBindingsRuntime;
+async function getContentCompositionBindingsRuntime(): Promise<ContentCompositionBindingsRuntime> {
+  const module = (await import(contentCompositionBindingsModuleUrl)) as ContentCompositionBindingsModule;
+  return module.createContentCompositionBindingsRuntime();
 }
 
 function createCorePrimitivesRuntime(): Record<string, unknown> {
@@ -44,17 +39,16 @@ function createCorePrimitivesRuntime(): Record<string, unknown> {
 }
 
 describe('content-composition bindings runtime', () => {
-  beforeEach(async () => {
-    await loadRuntimeModules([contentCompositionBindingsModuleUrl]);
+  beforeEach(() => {
+    vi.resetModules();
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
     vi.restoreAllMocks();
   });
 
-  it('creates a normalizeEntriesFromApiRows binding from entry normalizer runtime', () => {
-    const runtime = getContentCompositionBindingsRuntime();
+  it('creates a normalizeEntriesFromApiRows binding from entry normalizer runtime', async () => {
+    const runtime = await getContentCompositionBindingsRuntime();
     const normalizeEntriesFromApiRows = vi.fn((rows: unknown[]) =>
       rows.map((row) => ({ ...((row as Record<string, unknown>) || {}), normalized: true })),
     );
@@ -82,8 +76,8 @@ describe('content-composition bindings runtime', () => {
     expect(normalizedRows).toEqual([{ id: 'row-1', normalized: true }]);
   });
 
-  it('creates debug runtime bindings and validates runtime methods', () => {
-    const runtime = getContentCompositionBindingsRuntime();
+  it('creates debug runtime bindings and validates runtime methods', async () => {
+    const runtime = await getContentCompositionBindingsRuntime();
     const listSeries = vi.fn(() => ['series-1']);
     const getCuratedDomStats = vi.fn(() => ({ identityChurnRate: 0 }));
     const dumpSeriesApiData = vi.fn(() => ({ ok: true }));

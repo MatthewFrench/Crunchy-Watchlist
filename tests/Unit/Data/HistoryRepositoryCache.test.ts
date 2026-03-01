@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type WatchHistoryEntry = {
   seriesId: string;
@@ -58,6 +57,8 @@ type HistoryRepositoryCacheModule = {
 const cacheModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryCache.ts'),
 ).href;
+let createHistoryRepositoryCacheRuntimeFactory: HistoryRepositoryCacheModule['createHistoryRepositoryCache'] | null =
+  null;
 
 function normalizeAudioLocale(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -114,10 +115,11 @@ function createHistoryRepositoryCache(
   watchHistoryCacheVersion = 1,
   watchHistoryCacheTtlMs = 10_000,
 ): HistoryRepositoryCache {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
-  const cacheModule = registry.historyRepositoryCache as HistoryRepositoryCacheModule;
+  if (typeof createHistoryRepositoryCacheRuntimeFactory !== 'function') {
+    throw new Error('History repository cache runtime was not initialized for test');
+  }
 
-  return cacheModule.createHistoryRepositoryCache({
+  return createHistoryRepositoryCacheRuntimeFactory({
     state,
     normalizeAudioLocale,
     sanitizePositiveInt,
@@ -132,11 +134,14 @@ function createHistoryRepositoryCache(
 
 describe('HistoryRepositoryCache', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([cacheModuleUrl]);
+    vi.resetModules();
+    const module = (await import(cacheModuleUrl)) as HistoryRepositoryCacheModule;
+    createHistoryRepositoryCacheRuntimeFactory = module.createHistoryRepositoryCache;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createHistoryRepositoryCacheRuntimeFactory = null;
+    vi.restoreAllMocks();
   });
 
   it('validates cache version, account, and ttl boundaries', () => {

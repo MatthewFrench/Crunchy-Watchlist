@@ -4,15 +4,16 @@ import {
   type NativeCardSelectorAdapterRuntime,
 } from './NativeCardSelectorAdapter.js';
 
-type RuntimeModuleRegistry = Record<string, unknown>;
-
-type RuntimeGlobal = typeof globalThis & {
-  __CW_WATCHLIST_CURATOR_MODULES__?: RuntimeModuleRegistry;
-};
+type NativeActionBridgeBoundaryValue = CwBoundaryValue;
+type NativeActionBridgeBoundaryRecord = Record<string, NativeActionBridgeBoundaryValue>;
+type NativeActionBridgeRuntimeEvent = (event: string, data?: NativeActionBridgeBoundaryValue) => void;
 
 export type NativeActionBridgeRuntime = {
-  triggerNativeCardAction: (seriesId: unknown, actionType: unknown) => boolean;
-  findNativeCardBySeriesId: (seriesId: unknown) => HTMLElement | null;
+  triggerNativeCardAction: (
+    seriesId: NativeActionBridgeBoundaryValue,
+    actionType: NativeActionBridgeBoundaryValue,
+  ) => boolean;
+  findNativeCardBySeriesId: (seriesId: NativeActionBridgeBoundaryValue) => HTMLElement | null;
 };
 
 type NativeActionSelectorAdapterRuntime = Pick<
@@ -22,17 +23,17 @@ type NativeActionSelectorAdapterRuntime = Pick<
 
 type NativeActionBridgeContext = {
   documentRef: Document;
-  runtimeEvent: (event: string, data?: unknown) => void;
+  runtimeEvent: NativeActionBridgeRuntimeEvent;
   selectorAdapterRuntime: NativeActionSelectorAdapterRuntime;
 };
 
 export type NativeActionBridgeOptions = {
-  documentRef?: unknown;
-  runtimeEvent?: unknown;
-  selectorAdapterRuntime?: unknown;
+  documentRef?: NativeActionBridgeBoundaryValue;
+  runtimeEvent?: NativeActionBridgeBoundaryValue;
+  selectorAdapterRuntime?: NativeActionBridgeBoundaryValue;
 };
 
-function requireFunction<T>(name: string, value: unknown): T {
+function requireFunction<T>(name: string, value: NativeActionBridgeBoundaryValue): T {
   if (typeof value !== 'function') {
     throw new Error(`[CW] Missing native action bridge dependency: ${name}`);
   }
@@ -40,7 +41,7 @@ function requireFunction<T>(name: string, value: unknown): T {
   return value as T;
 }
 
-function resolveDocumentRef(value: unknown): Document {
+function resolveDocumentRef(value: NativeActionBridgeBoundaryValue): Document {
   if (!value || typeof value !== 'object') {
     throw new Error('[CW] Missing native action bridge documentRef');
   }
@@ -48,19 +49,22 @@ function resolveDocumentRef(value: unknown): Document {
   return value as Document;
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
+function asRecord(value: NativeActionBridgeBoundaryValue): NativeActionBridgeBoundaryRecord {
   if (!value || typeof value !== 'object') {
     return {};
   }
 
-  return value as Record<string, unknown>;
+  return value as NativeActionBridgeBoundaryRecord;
 }
 
-function getString(value: unknown): string {
+function getString(value: NativeActionBridgeBoundaryValue): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function resolveSelectorAdapterRuntime(runtimeValue: unknown, sourceLabel: string): NativeActionSelectorAdapterRuntime {
+function resolveSelectorAdapterRuntime(
+  runtimeValue: NativeActionBridgeBoundaryValue,
+  sourceLabel: string,
+): NativeActionSelectorAdapterRuntime {
   const runtimeRecord = asRecord(runtimeValue);
   return {
     findNativeCardMatches: requireFunction<NativeActionSelectorAdapterRuntime['findNativeCardMatches']>(
@@ -100,8 +104,8 @@ function findNativeCardBySeriesIdInternal(context: NativeActionBridgeContext, se
 
 function triggerNativeCardActionInternal(
   context: NativeActionBridgeContext,
-  seriesIdValue: unknown,
-  actionTypeValue: unknown,
+  seriesIdValue: NativeActionBridgeBoundaryValue,
+  actionTypeValue: NativeActionBridgeBoundaryValue,
 ): boolean {
   const seriesId = getString(seriesIdValue);
   const actionType = getString(actionTypeValue).toLowerCase();
@@ -141,16 +145,3 @@ export function createNativeActionBridgeRuntime(options: NativeActionBridgeOptio
     },
   };
 }
-
-function registerNativeActionBridgeRuntime(): void {
-  const root = (typeof window !== 'undefined' ? window : globalThis) as RuntimeGlobal;
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
-
-  root.__CW_WATCHLIST_CURATOR_MODULES__.runtimeNativeActionBridge = {
-    createNativeActionBridgeRuntime,
-  };
-}
-
-registerNativeActionBridgeRuntime();

@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type HistoryUpdateBuckets = {
   remainingSeriesIds: Set<string>;
@@ -29,7 +28,7 @@ type HistoryRepositoryPreloadCollectorModule = {
       tokenEntry: Record<string, unknown>,
       pageNumber: number,
       preferredAudioLanguage?: unknown,
-    ) => Promise<{ rows: Array<Record<string, unknown>>; total: number }>;
+    ) => Promise<{ rows: Array<Record<string, unknown>>; totalRows: number | null }>;
     normalizeAudioLocale: (value: unknown) => string;
     sanitizePositiveInt: (value: unknown) => number | null;
     parseDateMs: (value: unknown) => number | null;
@@ -45,6 +44,7 @@ type HistoryRepositoryPreloadCollectorModule = {
 const collectorModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreloadCollector.ts'),
 ).href;
+let collectorModule: HistoryRepositoryPreloadCollectorModule | null = null;
 
 function normalizeAudioLocale(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -84,20 +84,33 @@ function shouldReplaceWatchHistoryProgress(
   return nextPlayhead >= previousPlayhead;
 }
 
-async function loadCollectorModule(): Promise<HistoryRepositoryPreloadCollectorModule> {
-  const registry = await loadRuntimeModules([collectorModuleUrl]);
-  return registry.historyRepositoryPreloadCollector as HistoryRepositoryPreloadCollectorModule;
-}
+beforeEach(async () => {
+  vi.resetModules();
+  collectorModule = {
+    collectWatchHistoryUpdateBuckets: (await import(collectorModuleUrl)).collectWatchHistoryUpdateBuckets as (
+      options: Parameters<HistoryRepositoryPreloadCollectorModule['collectWatchHistoryUpdateBuckets']>[0],
+    ) => Promise<HistoryUpdateBuckets>,
+  };
+});
 
 afterEach(() => {
-  clearRuntimeModulesRegistry();
+  collectorModule = null;
+  vi.restoreAllMocks();
 });
+
+function getCollectorModule(): HistoryRepositoryPreloadCollectorModule {
+  if (!collectorModule) {
+    throw new Error('History preload collector module was not initialized for test');
+  }
+
+  return collectorModule;
+}
 
 describe('HistoryRepositoryPreloadCollector', () => {
   it('collects candidate updates and dedupes repeated rows', async () => {
-    const collector = await loadCollectorModule();
+    const collector = getCollectorModule();
     const fetchWatchHistoryPage = vi.fn(async () => ({
-      total: 2,
+      totalRows: 2,
       rows: [
         {
           id: 'episode-1',
@@ -166,9 +179,9 @@ describe('HistoryRepositoryPreloadCollector', () => {
   });
 
   it('stops collection when no-match page streak reaches the configured limit', async () => {
-    const collector = await loadCollectorModule();
+    const collector = getCollectorModule();
     const fetchWatchHistoryPage = vi.fn(async () => ({
-      total: 10,
+      totalRows: 10,
       rows: [
         {
           id: `other-${fetchWatchHistoryPage.mock.calls.length + 1}`,

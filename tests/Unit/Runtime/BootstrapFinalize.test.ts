@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type BootstrapFinalizeRuntime = {
   processWatchlist: () => Promise<void>;
@@ -12,33 +11,41 @@ type BootstrapFinalizeRuntime = {
   init: () => Promise<void>;
 };
 
-type BootstrapFinalizeModule = {
-  runtimeBootstrapFinalize: {
-    safeJsonParse: (value: unknown, fallback: unknown) => unknown;
-    createStorageAccessors: (options?: Record<string, unknown>) => {
-      storageGet: (key: string, fallback: unknown) => Promise<unknown>;
-      storageSet: (key: string, value: unknown) => Promise<void>;
-    };
-    createBootstrapFinalizeRuntime: (options?: Record<string, unknown>) => BootstrapFinalizeRuntime;
+type RuntimeBootstrapFinalizeModule = {
+  safeJsonParse: (value: unknown, fallback: unknown) => unknown;
+  createStorageAccessors: (options?: Record<string, unknown>) => {
+    storageGet: (key: string, fallback: unknown) => Promise<unknown>;
+    storageSet: (key: string, value: unknown) => Promise<void>;
   };
+  createBootstrapFinalizeRuntime: (options?: Record<string, unknown>) => BootstrapFinalizeRuntime;
 };
 
 const bootstrapFinalizeModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'BootstrapFinalize.ts'),
 ).href;
 
-function getBootstrapFinalizeModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as BootstrapFinalizeModule;
-  return registry.runtimeBootstrapFinalize;
+let runtimeBootstrapFinalizeModule: RuntimeBootstrapFinalizeModule | null = null;
+
+function getBootstrapFinalizeModule(): RuntimeBootstrapFinalizeModule {
+  if (!runtimeBootstrapFinalizeModule) {
+    throw new Error('Bootstrap finalize runtime module was not initialized for test');
+  }
+
+  return runtimeBootstrapFinalizeModule;
 }
 
 describe('bootstrap-finalize runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([bootstrapFinalizeModuleUrl]);
+    vi.resetModules();
+    const module = (await import(bootstrapFinalizeModuleUrl)) as {
+      createBootstrapFinalizeRuntimeModule: () => object;
+    };
+    runtimeBootstrapFinalizeModule = module.createBootstrapFinalizeRuntimeModule() as RuntimeBootstrapFinalizeModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    runtimeBootstrapFinalizeModule = null;
+    vi.restoreAllMocks();
   });
 
   it('parses json values with fallback behavior', () => {
@@ -87,12 +94,7 @@ describe('bootstrap-finalize runtime', () => {
         }),
       },
       runtimeLifecycleOptions: {},
-      runtimeStateLoaderModule: {
-        createStateLoader: () => ({
-          loadInitialState,
-        }),
-      },
-      runtimeStateLoaderOptions: {},
+      loadInitialState,
       listKnownSeries: () => ['SERIES_A'],
       getCuratedDomStats: () => ({
         identityChurnRate: 0.1,
@@ -113,7 +115,7 @@ describe('bootstrap-finalize runtime', () => {
     runtime.destroy();
     await runtime.init();
 
-    expect(processWatchlist).toHaveBeenCalledTimes(1);
+    expect(processWatchlist).toHaveBeenCalledTimes(2);
     expect(startRouteWatcher).toHaveBeenCalledTimes(2);
     expect(syncRoute).toHaveBeenCalledTimes(2);
     expect(loadInitialState).toHaveBeenCalledTimes(2);

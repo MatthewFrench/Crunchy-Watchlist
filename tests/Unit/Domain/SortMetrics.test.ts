@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type SortMetricsRuntime = {
   getStarCountFromDistribution: (votes: unknown, distribution: unknown, starLevel: unknown) => number | null;
@@ -27,6 +26,8 @@ type SortMetricsModule = {
 const sortMetricsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Domain', 'SortMetrics.ts'),
 ).href;
+
+let createSortMetrics: SortMetricsModule['createSortMetrics'] | null = null;
 
 function sanitizeVotes(value: unknown): number | null {
   const number = Number(value);
@@ -98,10 +99,11 @@ function pickFirstPositiveInt(values: unknown[]): number | null {
 }
 
 function createSortMetricsRuntime(): SortMetricsRuntime {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
-  const domainRegistry = registry.domain as Record<string, unknown>;
-  const sortMetricsModule = domainRegistry.sortMetrics as SortMetricsModule;
-  return sortMetricsModule.createSortMetrics({
+  if (typeof createSortMetrics !== 'function') {
+    throw new Error('Sort metrics runtime was not initialized for test');
+  }
+
+  return createSortMetrics({
     sanitizePercentage,
     sanitizeVotes,
     sanitizePositiveInt,
@@ -112,12 +114,17 @@ function createSortMetricsRuntime(): SortMetricsRuntime {
 
 describe('sort-metrics domain module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([sortMetricsModuleUrl]);
+    vi.resetModules();
+    const sortMetricsModule = (await import(sortMetricsModuleUrl)) as {
+      createSortMetricsRuntime: () => object;
+    };
+    createSortMetrics = (sortMetricsModule.createSortMetricsRuntime() as SortMetricsModule).createSortMetrics;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createSortMetrics = null;
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('computes star counts, percentages, and weighted total points from distribution data', () => {

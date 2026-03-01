@@ -1,145 +1,141 @@
-let createContentCompositionBindingsRuntimeFactory: (() => object) | null = null;
+type RuntimeBoundaryValue = CwBoundaryValue;
+type RuntimeCallback = (...args: RuntimeBoundaryValue[]) => RuntimeBoundaryValue;
+type LooseRecord = Record<string, RuntimeBoundaryValue>;
+type RuntimeCallbackRecord = Record<string, RuntimeCallback>;
+type RuntimeMethodAsserter = (owner: string, runtime: RuntimeCallbackRecord, methods: string[]) => void;
 
-(() => {
-  type AnyFn = (...args: unknown[]) => unknown;
-  type LooseRecord = Record<string, unknown>;
-  type AnyFunctionRecord = Record<string, AnyFn>;
+type ContentCompositionOptions = {
+  state: LooseRecord;
+  modules: LooseRecord;
+  corePrimitives: LooseRecord;
+  dependencies: LooseRecord;
+};
 
-  type ContentCompositionOptions = {
-    state: LooseRecord;
-    modules: LooseRecord;
-    corePrimitives: LooseRecord;
-    dependencies: LooseRecord;
-  };
+type DebugRuntime = {
+  listKnownSeries: (options?: RuntimeBoundaryValue) => RuntimeBoundaryValue;
+  getCuratedDomStats: (options?: RuntimeBoundaryValue) => RuntimeBoundaryValue;
+  dumpSeriesApiData: (seriesId: RuntimeBoundaryValue, options?: RuntimeBoundaryValue) => RuntimeBoundaryValue;
+  printSeriesApiData: (seriesId: RuntimeBoundaryValue, options?: RuntimeBoundaryValue) => RuntimeBoundaryValue;
+};
 
-  type DebugRuntime = {
-    listKnownSeries: (options?: unknown) => unknown;
-    getCuratedDomStats: (options?: unknown) => unknown;
-    dumpSeriesApiData: (seriesId: unknown, options?: unknown) => unknown;
-    printSeriesApiData: (seriesId: unknown, options?: unknown) => unknown;
-  };
+type EntryNormalizerRuntime = {
+  normalizeEntriesFromApiRows: (rows: RuntimeBoundaryValue[]) => RuntimeBoundaryValue[];
+};
 
-  type ContentCompositionBindingsRuntime = {
-    createEntryNormalizerBinding: (options: ContentCompositionOptions) => (rows: unknown[]) => unknown[];
-    createDebugRuntime: (options: {
-      state: LooseRecord;
-      corePrimitives: LooseRecord;
-      modules: LooseRecord;
-      assertRuntimeMethods: (owner: string, runtime: AnyFunctionRecord, methods: string[]) => void;
-      consoleRef: Console;
-    }) => DebugRuntime;
-  };
-
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
-    typeof globalThis & {
-      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
-    };
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
-
-  function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
-    if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing content composition binding dependency: ${name}`);
-    }
-    return value as T;
-  }
-
-  function toRecord(value: unknown): LooseRecord {
-    if (!value || typeof value !== 'object') {
-      return {};
-    }
-    return value as LooseRecord;
-  }
-
-  function createEntryNormalizerBinding(options: ContentCompositionOptions): (rows: unknown[]) => unknown[] {
-    const corePrimitives = options.corePrimitives;
-    const entryNormalizerModule = toRecord(options.modules.entryNormalizerModule);
-    const entryNormalizer = requireFunction<AnyFn>(
-      'createEntryNormalizer',
-      entryNormalizerModule.createEntryNormalizer,
-    )({
-      sanitizePositiveInt: corePrimitives.sanitizePositiveInt,
-      getAbsoluteEpisodeNumberFromEpisodeMetadata: corePrimitives.getAbsoluteEpisodeNumberFromEpisodeMetadata,
-      deriveCanonicalEpisodeKeyFromEpisodeMetadata: corePrimitives.deriveCanonicalEpisodeKeyFromEpisodeMetadata,
-      formatEpisodeIdentifier: corePrimitives.formatEpisodeIdentifier,
-      hasEnUsAudio: corePrimitives.hasEnUsAudio,
-      extractCoverImagesFromApiImages: options.dependencies.extractCoverImagesFromApiImages,
-      extractThumbnailImageFromApiImages: options.dependencies.extractThumbnailImageFromApiImages,
-      pickFirstDateMs: corePrimitives.pickFirstDateMs,
-      getWatchlistSeriesId: corePrimitives.getWatchlistSeriesId,
-      getEpisodeAvailabilityByAudioLocale: corePrimitives.getEpisodeAvailabilityByAudioLocale,
-      mergeEpisodeAvailabilityByAudioLocale: corePrimitives.mergeEpisodeAvailabilityByAudioLocale,
-      normalizeAudioLocales: corePrimitives.normalizeAudioLocales,
-    }) as Record<string, unknown>;
-
-    return (rows) =>
-      requireFunction<AnyFn>(
-        'normalizeEntriesFromApiRows',
-        (entryNormalizer as Record<string, unknown>).normalizeEntriesFromApiRows,
-      )(rows) as unknown[];
-  }
-
-  function createDebugRuntime({
-    state,
-    corePrimitives,
-    modules,
-    assertRuntimeMethods,
-    consoleRef,
-  }: {
+type ContentCompositionBindingsRuntime = {
+  createEntryNormalizerBinding: (
+    options: ContentCompositionOptions,
+  ) => (rows: RuntimeBoundaryValue[]) => RuntimeBoundaryValue[];
+  createDebugRuntime: (options: {
     state: LooseRecord;
     corePrimitives: LooseRecord;
     modules: LooseRecord;
-    assertRuntimeMethods: (owner: string, runtime: AnyFunctionRecord, methods: string[]) => void;
+    assertRuntimeMethods: RuntimeMethodAsserter;
     consoleRef: Console;
-  }): DebugRuntime {
-    const runtimeDebugModule = toRecord(modules.runtimeDebugModule);
-    const runtime = requireFunction<AnyFn>(
-      'createDebugApiRuntime',
-      runtimeDebugModule.createDebugApiRuntime,
-    )({
-      state,
-      getWatchlistSeriesId: corePrimitives.getWatchlistSeriesId,
-      getWatchHistorySeriesId: corePrimitives.getWatchHistorySeriesId,
-      getWatchlistSeriesTitle: corePrimitives.getWatchlistSeriesTitle,
-      getWatchHistorySeriesTitle: corePrimitives.getWatchHistorySeriesTitle,
-      logRef: (message: unknown) => {
-        // eslint-disable-next-line no-console
-        consoleRef.log(message);
-      },
-    }) as AnyFunctionRecord;
-    assertRuntimeMethods('debug runtime', runtime, [
-      'listSeries',
+  }) => DebugRuntime;
+};
+
+function requireFunction<T>(name: string, value: RuntimeBoundaryValue): T {
+  if (typeof value !== 'function') {
+    throw new Error(`[CW] Missing content composition binding dependency: ${name}`);
+  }
+  return value as T;
+}
+
+function toRecord(value: RuntimeBoundaryValue): LooseRecord {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  return value as LooseRecord;
+}
+
+function createEntryNormalizerBinding(
+  options: ContentCompositionOptions,
+): (rows: RuntimeBoundaryValue[]) => RuntimeBoundaryValue[] {
+  const corePrimitives = options.corePrimitives;
+  const entryNormalizerModule = toRecord(options.modules.entryNormalizerModule);
+  const createEntryNormalizer = requireFunction<(options: LooseRecord) => EntryNormalizerRuntime>(
+    'createEntryNormalizer',
+    entryNormalizerModule.createEntryNormalizer,
+  );
+  const entryNormalizer = createEntryNormalizer({
+    sanitizePositiveInt: corePrimitives.sanitizePositiveInt,
+    getAbsoluteEpisodeNumberFromEpisodeMetadata: corePrimitives.getAbsoluteEpisodeNumberFromEpisodeMetadata,
+    deriveCanonicalEpisodeKeyFromEpisodeMetadata: corePrimitives.deriveCanonicalEpisodeKeyFromEpisodeMetadata,
+    formatEpisodeIdentifier: corePrimitives.formatEpisodeIdentifier,
+    hasEnUsAudio: corePrimitives.hasEnUsAudio,
+    extractCoverImagesFromApiImages: options.dependencies.extractCoverImagesFromApiImages,
+    extractThumbnailImageFromApiImages: options.dependencies.extractThumbnailImageFromApiImages,
+    pickFirstDateMs: corePrimitives.pickFirstDateMs,
+    getWatchlistSeriesId: corePrimitives.getWatchlistSeriesId,
+    getEpisodeAvailabilityByAudioLocale: corePrimitives.getEpisodeAvailabilityByAudioLocale,
+    mergeEpisodeAvailabilityByAudioLocale: corePrimitives.mergeEpisodeAvailabilityByAudioLocale,
+    normalizeAudioLocales: corePrimitives.normalizeAudioLocales,
+  });
+
+  const normalizeEntriesFromApiRows = requireFunction<EntryNormalizerRuntime['normalizeEntriesFromApiRows']>(
+    'normalizeEntriesFromApiRows',
+    entryNormalizer.normalizeEntriesFromApiRows,
+  );
+  return (rows) => normalizeEntriesFromApiRows(rows);
+}
+
+function createDebugRuntime({
+  state,
+  corePrimitives,
+  modules,
+  assertRuntimeMethods,
+  consoleRef,
+}: {
+  state: LooseRecord;
+  corePrimitives: LooseRecord;
+  modules: LooseRecord;
+  assertRuntimeMethods: RuntimeMethodAsserter;
+  consoleRef: Console;
+}): DebugRuntime {
+  const runtimeDebugModule = toRecord(modules.runtimeDebugModule);
+  const createDebugApiRuntime = requireFunction<(options: LooseRecord) => RuntimeCallbackRecord>(
+    'createDebugApiRuntime',
+    runtimeDebugModule.createDebugApiRuntime,
+  );
+  const runtime = createDebugApiRuntime({
+    state,
+    getWatchlistSeriesId: corePrimitives.getWatchlistSeriesId,
+    getWatchHistorySeriesId: corePrimitives.getWatchHistorySeriesId,
+    getWatchlistSeriesTitle: corePrimitives.getWatchlistSeriesTitle,
+    getWatchHistorySeriesTitle: corePrimitives.getWatchHistorySeriesTitle,
+    logRef: (message: RuntimeBoundaryValue) => {
+      // eslint-disable-next-line no-console
+      consoleRef.log(message);
+    },
+  });
+  assertRuntimeMethods('debug runtime', runtime, [
+    'listSeries',
+    'getCuratedDomStats',
+    'dumpSeriesApiData',
+    'printSeriesApiData',
+  ]);
+
+  return {
+    listKnownSeries: requireFunction<DebugRuntime['listKnownSeries']>('listKnownSeries', runtime.listSeries),
+    getCuratedDomStats: requireFunction<DebugRuntime['getCuratedDomStats']>(
       'getCuratedDomStats',
+      runtime.getCuratedDomStats,
+    ),
+    dumpSeriesApiData: requireFunction<DebugRuntime['dumpSeriesApiData']>(
       'dumpSeriesApiData',
+      runtime.dumpSeriesApiData,
+    ),
+    printSeriesApiData: requireFunction<DebugRuntime['printSeriesApiData']>(
       'printSeriesApiData',
-    ]);
-
-    return {
-      listKnownSeries: requireFunction<AnyFn>('listKnownSeries', runtime.listSeries),
-      getCuratedDomStats: requireFunction<AnyFn>('getCuratedDomStats', runtime.getCuratedDomStats),
-      dumpSeriesApiData: requireFunction<AnyFn>('dumpSeriesApiData', runtime.dumpSeriesApiData),
-      printSeriesApiData: requireFunction<AnyFn>('printSeriesApiData', runtime.printSeriesApiData),
-    };
-  }
-
-  function createContentCompositionBindingsRuntime(): ContentCompositionBindingsRuntime {
-    return {
-      createEntryNormalizerBinding,
-      createDebugRuntime,
-    };
-  }
-
-  createContentCompositionBindingsRuntimeFactory = createContentCompositionBindingsRuntime;
-  moduleRegistry.runtimeContentCompositionBindings = {
-    createContentCompositionBindingsRuntime,
+      runtime.printSeriesApiData,
+    ),
   };
-})();
+}
 
-export function createContentCompositionBindingsRuntime(): object {
-  if (typeof createContentCompositionBindingsRuntimeFactory !== 'function') {
-    throw new Error('[CW] Content composition bindings runtime factory was not initialized.');
-  }
-  return createContentCompositionBindingsRuntimeFactory();
+export function createContentCompositionBindingsRuntime(): ContentCompositionBindingsRuntime {
+  return {
+    createEntryNormalizerBinding,
+    createDebugRuntime,
+  };
 }

@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type FakeElement = {
   tagName: string;
@@ -29,6 +28,7 @@ type CardViewModule = {
 };
 
 const cardViewModuleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardView.ts')).href;
+let createCardView: CardViewModule['createCardView'] | null = null;
 
 function createFakeDocument() {
   const createElement = (tagName: string): FakeElement => {
@@ -65,13 +65,6 @@ function createFakeDocument() {
   };
 }
 
-function getCardViewModule(): CardViewModule {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    ui?: Record<string, unknown>;
-  };
-  return registry.ui?.cardView as CardViewModule;
-}
-
 function findByClassName(root: FakeElement, className: string): FakeElement | null {
   if (root.className === className) {
     return root;
@@ -91,22 +84,29 @@ describe('curated-card-view ui module', () => {
   const originalDocument = (globalThis as Record<string, unknown>).document;
 
   beforeEach(async () => {
+    vi.resetModules();
     (globalThis as Record<string, unknown>).document = createFakeDocument();
-    await loadRuntimeModules([cardViewModuleUrl]);
+    const cardViewModule = (await import(cardViewModuleUrl)) as {
+      createCardViewRuntime: () => object;
+    };
+    createCardView = (cardViewModule.createCardViewRuntime() as CardViewModule).createCardView;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createCardView = null;
     (globalThis as Record<string, unknown>).document = originalDocument;
   });
 
   it('merges next episode into the status line and removes next-unwatched row', () => {
+    if (typeof createCardView !== 'function') {
+      throw new Error('Card view runtime was not initialized for test');
+    }
     const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
     const setLabeledValue = vi.fn((element: FakeElement, label: string, value: string) => {
       element.textContent = `${label}: ${value}`;
     });
 
-    const runtime = getCardViewModule().createCardView({
+    const runtime = createCardView({
       documentRef,
       getLastWatchedPresentation: () => ({ state: 'dated', text: '2026-02-24' }),
       setLabeledValue,
@@ -136,8 +136,11 @@ describe('curated-card-view ui module', () => {
   });
 
   it('keeps plain status text when next episode is unavailable', () => {
+    if (typeof createCardView !== 'function') {
+      throw new Error('Card view runtime was not initialized for test');
+    }
     const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
-    const runtime = getCardViewModule().createCardView({
+    const runtime = createCardView({
       documentRef,
       getLastWatchedPresentation: () => ({ state: 'unknown', text: 'unknown' }),
       setLabeledValue: (element: FakeElement, label: string, value: string) => {
@@ -167,8 +170,11 @@ describe('curated-card-view ui module', () => {
   });
 
   it('merges continue status with the next episode label', () => {
+    if (typeof createCardView !== 'function') {
+      throw new Error('Card view runtime was not initialized for test');
+    }
     const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
-    const runtime = getCardViewModule().createCardView({
+    const runtime = createCardView({
       documentRef,
       getLastWatchedPresentation: () => ({ state: 'dated', text: '2026-02-24' }),
       setLabeledValue: (element: FakeElement, label: string, value: string) => {
@@ -198,8 +204,11 @@ describe('curated-card-view ui module', () => {
   });
 
   it('renders a hidden empty-genre row and a dedicated details skeleton container', () => {
+    if (typeof createCardView !== 'function') {
+      throw new Error('Card view runtime was not initialized for test');
+    }
     const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
-    const runtime = getCardViewModule().createCardView({
+    const runtime = createCardView({
       documentRef,
       getLastWatchedPresentation: () => ({ state: 'unknown', text: 'unknown' }),
       setLabeledValue: (element: FakeElement, label: string, value: string) => {
@@ -234,8 +243,11 @@ describe('curated-card-view ui module', () => {
   });
 
   it('patches existing body fields in place without recreating field nodes', () => {
+    if (typeof createCardView !== 'function') {
+      throw new Error('Card view runtime was not initialized for test');
+    }
     const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
-    const runtime = getCardViewModule().createCardView({
+    const runtime = createCardView({
       documentRef,
       getLastWatchedPresentation: (entry: Record<string, unknown>) => ({
         state: String(entry.lastWatchedState || 'unknown'),

@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type ResponseLike = {
   ok: boolean;
@@ -13,9 +12,7 @@ type PreviewRepositoryRuntime = {
 };
 
 type PreviewRepositoryModule = {
-  previewRepository: {
-    createPreviewRepository: (options: Record<string, unknown>) => PreviewRepositoryRuntime;
-  };
+  createPreviewRepository: (options: Record<string, unknown>) => PreviewRepositoryRuntime;
 };
 
 type PreviewState = {
@@ -26,13 +23,13 @@ type PreviewState = {
 const previewRepositoryModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'PreviewRepository.ts'),
 ).href;
-
-function getPreviewRepositoryModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as PreviewRepositoryModule;
-  return registry.previewRepository;
-}
+let createPreviewRepositoryRuntimeFactory: PreviewRepositoryModule['createPreviewRepository'] | null = null;
 
 function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
+  if (typeof createPreviewRepositoryRuntimeFactory !== 'function') {
+    throw new Error('Preview repository runtime was not initialized for test');
+  }
+
   const state: PreviewState = {
     previewCache: {},
     previewInflight: new Map(),
@@ -55,7 +52,7 @@ function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
   const pushApiTrace = vi.fn();
   const runtimeEvent = vi.fn();
 
-  const runtime = getPreviewRepositoryModule().createPreviewRepository({
+  const runtime = createPreviewRepositoryRuntimeFactory({
     state,
     resolveApiHref: (value: unknown) => {
       if (typeof value !== 'string') {
@@ -98,11 +95,17 @@ function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
 
 describe('preview-repository module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([previewRepositoryModuleUrl]);
+    vi.resetModules();
+    const module = (await import(previewRepositoryModuleUrl)) as {
+      createPreviewRepositoryRuntime: () => object;
+    };
+    createPreviewRepositoryRuntimeFactory = (module.createPreviewRepositoryRuntime() as PreviewRepositoryModule)
+      .createPreviewRepository;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createPreviewRepositoryRuntimeFactory = null;
+    vi.restoreAllMocks();
   });
 
   it('records a contract warning when preview payload root is not an object', async () => {

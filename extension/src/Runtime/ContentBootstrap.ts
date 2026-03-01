@@ -3,12 +3,13 @@ import { createBootstrapFinalizeRuntimeModule } from './BootstrapFinalize.js';
 import { createBootstrapGateRuntime } from './BootstrapGate.js';
 import { createBootstrapModulesRuntime } from './BootstrapModules.js';
 
-type RuntimeFn = (...args: unknown[]) => unknown;
-type LooseRecord = Record<string, unknown>;
+type BoundaryValue = CwBoundaryValue;
+type RuntimeFn = (...args: BoundaryValue[]) => BoundaryValue;
+type LooseRecord = Record<string, BoundaryValue>;
 
 type DiagnosticsRuntime = {
-  updateDiagnostics: (payload: unknown) => void;
-  setBootstrapIssue: (reason: string, payload?: unknown) => void;
+  updateDiagnostics: (payload: BoundaryValue) => void;
+  setBootstrapIssue: (reason: string, payload?: BoundaryValue) => void;
 };
 
 type BootstrapGateContracts = {
@@ -31,12 +32,11 @@ type ContentBootstrapPrelude = {
 type ContentBootstrapOptions = {
   windowRef?: Window & typeof globalThis;
   consoleRef?: Console;
-  browserRef?: unknown;
-  chromeRef?: unknown;
+  browserRef?: BoundaryValue;
+  chromeRef?: BoundaryValue;
   runtimeBootstrapDiagnosticsModule?: object;
   runtimeBootstrapGateModule?: object;
   runtimeBootstrapModulesModule?: object;
-  runtimeBootstrapFinalizeModule?: object;
 };
 
 type BootstrapRuntimeModules = {
@@ -45,24 +45,20 @@ type BootstrapRuntimeModules = {
 };
 
 const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
-if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-  root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-}
-const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
 
-function toRecord(value: unknown): LooseRecord {
+function toRecord(value: BoundaryValue): LooseRecord {
   if (!value || typeof value !== 'object') {
     return {};
   }
   return value as LooseRecord;
 }
 
-function hasMethods(value: unknown, methodNames: string[]): boolean {
+function hasMethods(value: BoundaryValue, methodNames: string[]): boolean {
   const record = toRecord(value);
   return methodNames.every((methodName) => typeof record[methodName] === 'function');
 }
 
-function toDiagnosticsRuntime(value: unknown): DiagnosticsRuntime | null {
+function toDiagnosticsRuntime(value: BoundaryValue): DiagnosticsRuntime | null {
   const runtime = toRecord(value);
   if (typeof runtime.updateDiagnostics !== 'function' || typeof runtime.setBootstrapIssue !== 'function') {
     return null;
@@ -172,7 +168,6 @@ function resolveGateModule(
 
 function resolveBootstrapRuntimeModules(
   options: ContentBootstrapOptions,
-  windowRef: Window & typeof globalThis,
   setBootstrapIssue: DiagnosticsRuntime['setBootstrapIssue'],
 ): BootstrapRuntimeModules | null {
   let runtimeBootstrapModulesModule = toRecord(options.runtimeBootstrapModulesModule);
@@ -188,19 +183,11 @@ function resolveBootstrapRuntimeModules(
     return null;
   }
 
-  let runtimeBootstrapFinalizeModule = toRecord(options.runtimeBootstrapFinalizeModule);
-  if (
-    !hasMethods(runtimeBootstrapFinalizeModule, [
-      'createBootstrapFinalizeRuntime',
-      'createStorageAccessors',
-      'safeJsonParse',
-    ])
-  ) {
-    try {
-      runtimeBootstrapFinalizeModule = toRecord(createBootstrapFinalizeRuntimeModule());
-    } catch {
-      runtimeBootstrapFinalizeModule = {};
-    }
+  let runtimeBootstrapFinalizeModule: LooseRecord = {};
+  try {
+    runtimeBootstrapFinalizeModule = toRecord(createBootstrapFinalizeRuntimeModule());
+  } catch {
+    runtimeBootstrapFinalizeModule = {};
   }
   if (
     !hasMethods(runtimeBootstrapFinalizeModule, [
@@ -213,11 +200,7 @@ function resolveBootstrapRuntimeModules(
     return null;
   }
 
-  const bootstrapModulesRuntime = toRecord(
-    (runtimeBootstrapModulesModule.createBootstrapModules as RuntimeFn)({
-      windowRef,
-    }),
-  );
+  const bootstrapModulesRuntime = toRecord((runtimeBootstrapModulesModule.createBootstrapModules as RuntimeFn)());
   if (Object.keys(bootstrapModulesRuntime).length === 0) {
     setBootstrapIssue('invalid-bootstrap-modules-runtime');
     return null;
@@ -248,7 +231,7 @@ export function createContentBootstrapPrelude(options: ContentBootstrapOptions =
   }
   diagnosticsRuntime.updateDiagnostics({ ok: false, stage: 'bootstrap-started' });
 
-  const runtimeModules = resolveBootstrapRuntimeModules(options, windowRef, diagnosticsRuntime.setBootstrapIssue);
+  const runtimeModules = resolveBootstrapRuntimeModules(options, diagnosticsRuntime.setBootstrapIssue);
   if (!runtimeModules) {
     return { ok: false };
   }
@@ -264,15 +247,3 @@ export function createContentBootstrapPrelude(options: ContentBootstrapOptions =
     bootstrapModulesRuntime: runtimeModules.bootstrapModulesRuntime,
   };
 }
-
-function registerContentBootstrapPrelude(): void {
-  let runtimeRegistry = moduleRegistry.runtimeContentBootstrap;
-  if (!runtimeRegistry || typeof runtimeRegistry !== 'object') {
-    runtimeRegistry = {};
-    moduleRegistry.runtimeContentBootstrap = runtimeRegistry;
-  }
-
-  (runtimeRegistry as LooseRecord).createContentBootstrapPrelude = createContentBootstrapPrelude;
-}
-
-registerContentBootstrapPrelude();

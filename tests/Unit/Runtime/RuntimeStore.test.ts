@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type WatchHistoryCache = {
   version: number;
@@ -44,26 +43,31 @@ type RuntimeStore = {
   }) => Record<string, unknown>;
 };
 
-type RuntimeStoreModule = {
-  runtimeStore: RuntimeStore;
-};
-
 const runtimeStoreModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'RuntimeStore.ts'),
 ).href;
+let runtimeStore: RuntimeStore | null = null;
 
 function getRuntimeStore(): RuntimeStore {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as RuntimeStoreModule;
-  return registry.runtimeStore;
+  if (!runtimeStore) {
+    throw new Error('Runtime store runtime was not initialized for test');
+  }
+
+  return runtimeStore;
 }
 
 describe('RuntimeStore', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([runtimeStoreModuleUrl]);
+    vi.resetModules();
+    const module = (await import(runtimeStoreModuleUrl)) as {
+      createRuntimeStoreRuntime: () => RuntimeStore;
+    };
+    runtimeStore = module.createRuntimeStoreRuntime();
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    runtimeStore = null;
+    vi.restoreAllMocks();
   });
 
   it('normalizes watch-history cache version values', () => {

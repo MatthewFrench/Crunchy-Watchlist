@@ -1,9 +1,3 @@
-type RuntimeModuleRegistry = Record<string, unknown>;
-
-type RuntimeGlobal = typeof globalThis & {
-  __CW_WATCHLIST_CURATOR_MODULES__?: RuntimeModuleRegistry;
-};
-
 export type CuratedCardMetadataComponentRefs = {
   body: HTMLElement;
   bodyRefs: CwCuratedCardBodyRefs | null;
@@ -16,7 +10,7 @@ export type CuratedCardMetadataComponent = {
   moveDescriptionInto: (target: HTMLElement) => void;
 };
 
-export type CuratedCardMetadataEntry = Record<string, unknown>;
+export type CuratedCardMetadataEntry = LooseRecord;
 
 type CuratedCardMetadataDependencies = {
   createCuratedCardBody: (entry: CuratedCardMetadataEntry, actionsRoot: HTMLElement) => HTMLElement;
@@ -121,23 +115,3 @@ export function createCuratedCardMetadataComponent(
     },
   };
 }
-
-function registerCardMetadataComponentRuntime(): void {
-  const root = (typeof window !== 'undefined' ? window : globalThis) as RuntimeGlobal;
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
-
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__;
-  let uiRegistry = moduleRegistry.ui;
-  if (!uiRegistry || typeof uiRegistry !== 'object') {
-    uiRegistry = {};
-    moduleRegistry.ui = uiRegistry;
-  }
-
-  (uiRegistry as Record<string, unknown>).cardMetadataComponent = {
-    createCuratedCardMetadataComponent,
-  };
-}
-
-registerCardMetadataComponentRuntime();

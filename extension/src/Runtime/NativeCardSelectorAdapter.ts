@@ -1,9 +1,3 @@
-type RuntimeModuleRegistry = Record<string, unknown>;
-
-type RuntimeGlobal = typeof globalThis & {
-  __CW_WATCHLIST_CURATOR_MODULES__?: RuntimeModuleRegistry;
-};
-
 export type NativeActionType = 'favorite' | 'remove';
 
 export type NativeCardMatch = {
@@ -12,13 +6,24 @@ export type NativeCardMatch = {
   seriesLinks: HTMLAnchorElement[];
 };
 
+type BoundaryValue = CwBoundaryValue;
+type BoundaryObject = Record<string, BoundaryValue>;
+type SelectorQueryAllResult = Iterable<BoundaryValue> | ArrayLike<BoundaryValue>;
+type SelectorRootBoundary = {
+  querySelectorAll?: BoundaryValue;
+  querySelector?: BoundaryValue;
+};
+type LinkBoundary = {
+  href?: BoundaryValue;
+};
+
 type SelectorRootBase = {
   owner: object;
-  querySelectorAll: (this: object, selector: string) => unknown;
+  querySelectorAll: (this: object, selector: string) => SelectorQueryAllResult;
 };
 
 type SelectorRootWithQuerySelector = SelectorRootBase & {
-  querySelector: (this: object, selector: string) => unknown;
+  querySelector: (this: object, selector: string) => BoundaryValue;
 };
 
 type SelectorRoot = SelectorRootBase | SelectorRootWithQuerySelector;
@@ -32,11 +37,11 @@ export type NativeCardSelectorAdapterRuntime = {
 };
 
 export type NativeCardSelectorAdapterOptions = {
-  watchlistCardSelector?: unknown;
-  seriesLinkSelector?: unknown;
-  previewNodeSelectors?: unknown;
-  favoriteActionSelectors?: unknown;
-  removeActionSelectors?: unknown;
+  watchlistCardSelector?: BoundaryValue;
+  seriesLinkSelector?: BoundaryValue;
+  previewNodeSelectors?: BoundaryValue;
+  favoriteActionSelectors?: BoundaryValue;
+  removeActionSelectors?: BoundaryValue;
 };
 
 const defaultWatchlistCardSelector = '[data-t="watch-list-card"]';
@@ -73,7 +78,7 @@ const defaultPreviewNodeSelectors = [
   '[class*="image"]',
 ];
 
-function getStringArray(value: unknown, fallback: string[]): string[] {
+function getStringArray(value: BoundaryValue, fallback: string[]): string[] {
   if (!Array.isArray(value)) {
     return [...fallback];
   }
@@ -86,7 +91,7 @@ function getStringArray(value: unknown, fallback: string[]): string[] {
   return normalized;
 }
 
-function getString(value: unknown, fallback: string): string {
+function getString(value: BoundaryValue, fallback: string): string {
   if (typeof value !== 'string') {
     return fallback;
   }
@@ -95,27 +100,39 @@ function getString(value: unknown, fallback: string): string {
   return normalized || fallback;
 }
 
-function asSelectorRoot(value: unknown): SelectorRoot | null {
+function asBoundaryObject(value: BoundaryValue): BoundaryObject | null {
   if (!value || typeof value !== 'object') {
     return null;
   }
+  return value as BoundaryObject;
+}
 
-  const querySelectorAll = (value as { querySelectorAll?: unknown }).querySelectorAll;
+function asSelectorRoot(value: BoundaryValue): SelectorRoot | null {
+  const boundaryObject = asBoundaryObject(value);
+  if (!boundaryObject) {
+    return null;
+  }
+
+  const querySelectorAll = (boundaryObject as SelectorRootBoundary).querySelectorAll;
   if (typeof querySelectorAll !== 'function') {
     return null;
   }
 
-  const querySelector = (value as { querySelector?: unknown }).querySelector;
+  const querySelector = (boundaryObject as SelectorRootBoundary).querySelector;
   return typeof querySelector === 'function'
     ? {
-        owner: value as object,
+        owner: boundaryObject,
         querySelectorAll: querySelectorAll as SelectorRootBase['querySelectorAll'],
         querySelector: querySelector as SelectorRootWithQuerySelector['querySelector'],
       }
     : {
-        owner: value as object,
+        owner: boundaryObject,
         querySelectorAll: querySelectorAll as SelectorRootBase['querySelectorAll'],
       };
+}
+
+function isElementBoundaryCandidate(candidate: BoundaryValue): candidate is Element {
+  return Boolean(candidate && typeof candidate === 'object');
 }
 
 function queryAll(rootNode: SelectorRoot | null, selector: string): Element[] {
@@ -124,9 +141,8 @@ function queryAll(rootNode: SelectorRoot | null, selector: string): Element[] {
   }
 
   try {
-    return Array.from(rootNode.querySelectorAll.call(rootNode.owner, selector) as unknown[]).filter(
-      (candidate): candidate is Element => Boolean(candidate && typeof candidate === 'object'),
-    );
+    const queryResult = rootNode.querySelectorAll.call(rootNode.owner, selector);
+    return Array.from(queryResult).filter(isElementBoundaryCandidate);
   } catch {
     return [];
   }
@@ -139,14 +155,14 @@ function queryFirst(rootNode: SelectorRoot | null, selector: string): Element | 
 
   try {
     const candidate = rootNode.querySelector.call(rootNode.owner, selector);
-    return candidate && typeof candidate === 'object' ? (candidate as Element) : null;
+    return isElementBoundaryCandidate(candidate) ? candidate : null;
   } catch {
     return null;
   }
 }
 
 function toElementArray<T extends Element>(candidates: Element[]): T[] {
-  return candidates.filter((candidate): candidate is T => Boolean(candidate && typeof candidate === 'object'));
+  return candidates.filter((candidate): candidate is T => isElementBoundaryCandidate(candidate));
 }
 
 function readLinkHref(link: HTMLAnchorElement): string {
@@ -155,7 +171,7 @@ function readLinkHref(link: HTMLAnchorElement): string {
     return hrefAttribute;
   }
 
-  const hrefProperty = (link as { href?: unknown }).href;
+  const hrefProperty = (link as LinkBoundary).href;
   return typeof hrefProperty === 'string' ? hrefProperty : '';
 }
 
@@ -237,16 +253,3 @@ export function createNativeCardSelectorAdapterRuntime(
     },
   };
 }
-
-function registerNativeCardSelectorAdapterRuntime(): void {
-  const root = (typeof window !== 'undefined' ? window : globalThis) as RuntimeGlobal;
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
-
-  root.__CW_WATCHLIST_CURATOR_MODULES__.runtimeNativeCardSelectorAdapter = {
-    createNativeCardSelectorAdapterRuntime,
-  };
-}
-
-registerNativeCardSelectorAdapterRuntime();

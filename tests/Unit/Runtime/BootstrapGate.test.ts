@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type BootstrapGateRuntime = {
   shouldRun: (options: Record<string, unknown>) => boolean;
@@ -10,26 +9,32 @@ type BootstrapGateRuntime = {
   getWatchlistHeader: (documentRef: unknown) => Element | null;
 };
 
-type BootstrapGateModule = {
-  runtimeBootstrapGate: BootstrapGateRuntime;
-};
-
 const bootstrapGateModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'BootstrapGate.ts'),
 ).href;
 
-function getBootstrapGateRuntime() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as BootstrapGateModule;
-  return registry.runtimeBootstrapGate;
+let bootstrapGateRuntime: BootstrapGateRuntime | null = null;
+
+function getBootstrapGateRuntime(): BootstrapGateRuntime {
+  if (!bootstrapGateRuntime) {
+    throw new Error('Bootstrap gate runtime was not initialized for test');
+  }
+
+  return bootstrapGateRuntime;
 }
 
 describe('bootstrap-gate runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([bootstrapGateModuleUrl]);
+    vi.resetModules();
+    const module = (await import(bootstrapGateModuleUrl)) as {
+      createBootstrapGateRuntime: () => object;
+    };
+    bootstrapGateRuntime = module.createBootstrapGateRuntime() as BootstrapGateRuntime;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    bootstrapGateRuntime = null;
+    vi.restoreAllMocks();
   });
 
   it('blocks iframe execution and duplicate same-version bootstrap runs', () => {
@@ -37,7 +42,6 @@ describe('bootstrap-gate runtime', () => {
 
     const iframeWindow = {
       top: {},
-      __CW_WATCHLIST_CURATOR_MODULES__: {},
     };
     expect(
       runtime.shouldRun({
@@ -52,7 +56,6 @@ describe('bootstrap-gate runtime', () => {
 
     const topWindow = {
       top: null as unknown,
-      __CW_WATCHLIST_CURATOR_MODULES__: {},
       __CW_WATCHLIST_CURATOR_LOADED__: undefined as unknown,
     };
     topWindow.top = topWindow;
@@ -83,7 +86,6 @@ describe('bootstrap-gate runtime', () => {
     const shutdown = vi.fn();
     const topWindow = {
       top: null as unknown,
-      __CW_WATCHLIST_CURATOR_MODULES__: {},
       __CW_WATCHLIST_CURATOR_LOADED__: undefined as unknown,
       __CW_WATCHLIST_CURATOR_CONTROL__: {
         shutdown,
@@ -138,7 +140,6 @@ describe('bootstrap-gate runtime', () => {
     };
     const topWindow = {
       top: null as unknown,
-      __CW_WATCHLIST_CURATOR_MODULES__: {},
       __CW_WATCHLIST_CURATOR_LOADED__: undefined as unknown,
       location: {
         pathname: '/watchlist',
@@ -218,7 +219,6 @@ describe('bootstrap-gate runtime', () => {
     };
     const topWindow = {
       top: null as unknown,
-      __CW_WATCHLIST_CURATOR_MODULES__: {},
       __CW_WATCHLIST_CURATOR_LOADED__: undefined as unknown,
       __CW_WATCHLIST_CURATOR_CONTROL__: {
         ownedRefs: {
@@ -278,7 +278,6 @@ describe('bootstrap-gate runtime', () => {
     };
     const topWindow = {
       top: null as unknown,
-      __CW_WATCHLIST_CURATOR_MODULES__: {},
       __CW_WATCHLIST_CURATOR_LOADED__: undefined as unknown,
       location: {
         pathname: '/watchlist',

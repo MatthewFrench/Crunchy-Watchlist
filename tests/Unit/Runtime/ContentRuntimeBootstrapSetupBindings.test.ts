@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type RuntimeSetupBindingsRuntime = {
   createRuntimeSetupOptions: (options: Record<string, unknown>) => Record<string, unknown>;
@@ -13,39 +12,34 @@ type RuntimeSetupBindingsRuntime = {
 };
 
 type RuntimeSetupBindingsModule = {
-  runtimeContentRuntimeBootstrapSetupBindings: {
-    createContentRuntimeBootstrapSetupBindingsRuntime: () => RuntimeSetupBindingsRuntime;
-  };
+  createContentRuntimeBootstrapSetupBindingsRuntime: () => RuntimeSetupBindingsRuntime;
 };
 
 const setupBindingsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentRuntimeBootstrapSetupBindings.ts'),
 ).href;
 
-function getRuntimeSetupBindingsRuntime(): RuntimeSetupBindingsRuntime {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as RuntimeSetupBindingsModule;
-  return registry.runtimeContentRuntimeBootstrapSetupBindings.createContentRuntimeBootstrapSetupBindingsRuntime();
+async function getRuntimeSetupBindingsRuntime(): Promise<RuntimeSetupBindingsRuntime> {
+  const module = (await import(setupBindingsModuleUrl)) as RuntimeSetupBindingsModule;
+  return module.createContentRuntimeBootstrapSetupBindingsRuntime();
 }
 
 describe('content-runtime-bootstrap-setup-bindings runtime', () => {
-  beforeEach(async () => {
-    await loadRuntimeModules([setupBindingsModuleUrl]);
+  beforeEach(() => {
+    vi.resetModules();
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
     vi.restoreAllMocks();
   });
 
-  it('builds runtime setup options with module bindings and runtime dependencies', () => {
-    const runtime = getRuntimeSetupBindingsRuntime();
+  it('builds runtime setup options with module bindings and runtime dependencies', async () => {
+    const runtime = await getRuntimeSetupBindingsRuntime();
     const runtimeSetupOptions = runtime.createRuntimeSetupOptions({
       windowRef: { document: {} },
       state: { mounted: false },
       runtimeConstants: { settingsKey: 'settings' },
       assertRuntimeMethods: vi.fn(),
-      runtimeBootstrapHelpersModule: { marker: 'helpers' },
       defaultSettings: { cardLayout: 'portrait' },
       defaultSortMode: 'recentActivity',
       validSortModes: ['recentActivity'],
@@ -78,8 +72,8 @@ describe('content-runtime-bootstrap-setup-bindings runtime', () => {
     expect(runtimeSetupOptions.createWatchlistCacheSnapshot).toBeTypeOf('function');
   });
 
-  it('applies runtime setup bindings using known keys and ignores unexpected fields', () => {
-    const runtime = getRuntimeSetupBindingsRuntime();
+  it('applies runtime setup bindings using known keys and ignores unexpected fields', async () => {
+    const runtime = await getRuntimeSetupBindingsRuntime();
     const runtimeEvent = vi.fn();
     const setRuntimeEvent = vi.fn();
     const setRuntimeSetupBindings = vi.fn();

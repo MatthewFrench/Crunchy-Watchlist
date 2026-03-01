@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type CuratedLoaderLoadCycleRuntime = {
   runCuratedLoadCycle: (options: {
@@ -40,28 +39,29 @@ type CuratedLoaderLoadCycleRuntime = {
 };
 
 type CuratedLoaderLoadCycleModule = {
-  runtimeCuratedLoaderLoadCycle: {
-    createCuratedLoaderLoadCycleRuntime: () => CuratedLoaderLoadCycleRuntime;
-  };
+  createCuratedLoaderLoadCycleRuntime: () => CuratedLoaderLoadCycleRuntime;
 };
 
 const curatedLoaderLoadCycleModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedLoaderLoadCycle.ts'),
 ).href;
+let curatedLoaderLoadCycleModule: CuratedLoaderLoadCycleModule | null = null;
 
 function getCuratedLoaderLoadCycleModule() {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as CuratedLoaderLoadCycleModule;
-  return registry.runtimeCuratedLoaderLoadCycle;
+  if (!curatedLoaderLoadCycleModule) {
+    throw new Error('Curated loader load-cycle runtime module was not initialized for test');
+  }
+  return curatedLoaderLoadCycleModule;
 }
 
 describe('curated-loader-load-cycle runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([curatedLoaderLoadCycleModuleUrl]);
+    vi.resetModules();
+    curatedLoaderLoadCycleModule = (await import(curatedLoaderLoadCycleModuleUrl)) as CuratedLoaderLoadCycleModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    curatedLoaderLoadCycleModule = null;
   });
 
   it('runs the full load cycle and commits partial/final states with timing telemetry', async () => {
@@ -113,6 +113,7 @@ describe('curated-loader-load-cycle runtime', () => {
       ),
       preloadRatingsForEntries,
       preloadWatchHistoryForEntries,
+      isLocalizedWatchHistoryDataMissingForEntries: vi.fn(() => true),
       normalizeAudioLocale: vi.fn((locale: unknown) => (typeof locale === 'string' ? locale.trim() : null)),
       getPreferredAudioLanguage: vi.fn(() => 'en-US'),
       setWatchlistCacheRows,
@@ -199,6 +200,7 @@ describe('curated-loader-load-cycle runtime', () => {
       normalizeEntriesFromApiRows: vi.fn((rows: unknown[]) => rows),
       preloadRatingsForEntries: vi.fn(async () => null),
       preloadWatchHistoryForEntries: vi.fn(async () => null),
+      isLocalizedWatchHistoryDataMissingForEntries: vi.fn(() => false),
       normalizeAudioLocale: vi.fn((locale: unknown) => (typeof locale === 'string' ? locale : null)),
       getPreferredAudioLanguage: vi.fn(() => 'en-US'),
       setWatchlistCacheRows: vi.fn(),
@@ -273,6 +275,7 @@ describe('curated-loader-load-cycle runtime', () => {
       normalizeEntriesFromApiRows: vi.fn((rows: unknown[]) => rows),
       preloadRatingsForEntries: vi.fn(async () => null),
       preloadWatchHistoryForEntries: vi.fn(async () => null),
+      isLocalizedWatchHistoryDataMissingForEntries: vi.fn(() => false),
       normalizeAudioLocale: vi.fn((locale: unknown) => (typeof locale === 'string' ? locale : null)),
       getPreferredAudioLanguage: vi.fn(() => 'en-US'),
       setWatchlistCacheRows: vi.fn(),
@@ -345,6 +348,7 @@ describe('curated-loader-load-cycle runtime', () => {
       normalizeEntriesFromApiRows: vi.fn((rows: unknown[]) => rows),
       preloadRatingsForEntries: vi.fn(async () => null),
       preloadWatchHistoryForEntries: vi.fn(async () => null),
+      isLocalizedWatchHistoryDataMissingForEntries: vi.fn(() => false),
       normalizeAudioLocale: vi.fn((locale: unknown) => (typeof locale === 'string' ? locale : null)),
       getPreferredAudioLanguage: vi.fn(() => 'en-US'),
       setWatchlistCacheRows: vi.fn(),
@@ -381,6 +385,227 @@ describe('curated-loader-load-cycle runtime', () => {
         accountId: 'account-1',
       }),
     );
+  });
+
+  it('does not run selected-locale metadata preload when audio filter is any', async () => {
+    const runtime = getCuratedLoaderLoadCycleModule().createCuratedLoaderLoadCycleRuntime();
+    const withTrackedPendingRequest = async <T>(
+      _context: Record<string, unknown>,
+      _activeRequests: string[],
+      _progress: { started: number; completed: number },
+      _label: string,
+      work: () => Promise<T>,
+    ): Promise<T> => work();
+    const preloadRatingsForEntries = vi.fn(async () => null);
+    const preloadWatchHistoryForEntries = vi.fn(async () => null);
+    const context = {
+      state: {
+        mounted: false,
+        curatedError: null as unknown,
+        curatedEntries: [] as unknown[],
+        curatedSource: 'cache',
+        curatedLastRevalidateAt: 0,
+        deferredMetadataRunId: 0,
+        settings: {
+          audioLocaleFilter: 'any',
+        },
+      },
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      runtimeEvent: vi.fn(),
+      getAccessToken: vi.fn(async () => ({
+        accessToken: 'token-1',
+        accountId: 'account-1',
+        profileId: 'profile-1',
+      })),
+      resetWatchlistCacheOnAccountMismatch: vi.fn(),
+      fetchAllWatchlistRows: vi.fn(async () => [{ id: 'row-1', seriesId: 'series-1' }]),
+      normalizeEntriesFromApiRows: vi.fn((rows: unknown[]) => rows),
+      preloadRatingsForEntries,
+      preloadWatchHistoryForEntries,
+      isLocalizedWatchHistoryDataMissingForEntries: vi.fn(() => true),
+      normalizeAudioLocale: vi.fn((locale: unknown) => (typeof locale === 'string' ? locale : null)),
+      getPreferredAudioLanguage: vi.fn(() => 'en-US'),
+      setWatchlistCacheRows: vi.fn(),
+      isWatchlistPath: vi.fn(() => true),
+      renderCuratedPanel: vi.fn(),
+      refreshCuratedLoadingIndicator: vi.fn(),
+      deferredMetadataRunId: 0,
+    };
+
+    await runtime.runCuratedLoadCycle({
+      context,
+      deferredMetadataRuntime: {
+        splitMetadataPreloadEntries: vi.fn((_context: Record<string, unknown>, entries: unknown[]) => ({
+          priorityEntries: entries,
+          deferredEntries: [],
+        })),
+        queueDeferredMetadataPreload: vi.fn(),
+      },
+      pendingRequestsRuntime: {
+        syncPendingRequestDiagnostics: vi.fn(),
+        withTrackedPendingRequest,
+      },
+      activeRequests: [],
+      pendingProgress: { started: 0, completed: 0 },
+      force: false,
+    });
+
+    expect(preloadRatingsForEntries).toHaveBeenCalledTimes(1);
+    expect(preloadWatchHistoryForEntries).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips selected-locale watch history preload when localized cache is already complete', async () => {
+    const runtime = getCuratedLoaderLoadCycleModule().createCuratedLoaderLoadCycleRuntime();
+    const withTrackedPendingRequest = async <T>(
+      _context: Record<string, unknown>,
+      _activeRequests: string[],
+      _progress: { started: number; completed: number },
+      _label: string,
+      work: () => Promise<T>,
+    ): Promise<T> => work();
+    const preloadWatchHistoryForEntries = vi.fn(async () => null);
+    const context = {
+      state: {
+        mounted: false,
+        curatedError: null as unknown,
+        curatedEntries: [] as unknown[],
+        curatedSource: 'cache',
+        curatedLastRevalidateAt: 0,
+        deferredMetadataRunId: 0,
+        settings: {
+          audioLocaleFilter: 'ja-JP',
+        },
+      },
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      runtimeEvent: vi.fn(),
+      getAccessToken: vi.fn(async () => ({
+        accessToken: 'token-1',
+        accountId: 'account-1',
+        profileId: 'profile-1',
+      })),
+      resetWatchlistCacheOnAccountMismatch: vi.fn(),
+      fetchAllWatchlistRows: vi.fn(async () => [{ id: 'row-1', seriesId: 'series-1' }]),
+      normalizeEntriesFromApiRows: vi.fn((rows: unknown[]) => rows),
+      preloadRatingsForEntries: vi.fn(async () => null),
+      preloadWatchHistoryForEntries,
+      isLocalizedWatchHistoryDataMissingForEntries: vi.fn(() => false),
+      normalizeAudioLocale: vi.fn((locale: unknown) => (typeof locale === 'string' ? locale : null)),
+      getPreferredAudioLanguage: vi.fn(() => 'en-US'),
+      setWatchlistCacheRows: vi.fn(),
+      isWatchlistPath: vi.fn(() => true),
+      renderCuratedPanel: vi.fn(),
+      refreshCuratedLoadingIndicator: vi.fn(),
+      deferredMetadataRunId: 0,
+    };
+
+    await runtime.runCuratedLoadCycle({
+      context,
+      deferredMetadataRuntime: {
+        splitMetadataPreloadEntries: vi.fn((_context: Record<string, unknown>, entries: unknown[]) => ({
+          priorityEntries: entries,
+          deferredEntries: [],
+        })),
+        queueDeferredMetadataPreload: vi.fn(),
+      },
+      pendingRequestsRuntime: {
+        syncPendingRequestDiagnostics: vi.fn(),
+        withTrackedPendingRequest,
+      },
+      activeRequests: [],
+      pendingProgress: { started: 0, completed: 0 },
+      force: false,
+    });
+
+    const watchHistoryCalls = preloadWatchHistoryForEntries.mock.calls as unknown[][];
+    const selectedLocaleHistoryCalls = watchHistoryCalls.filter((call) => call[2] === true && call[3] === 'ja-JP');
+    expect(preloadWatchHistoryForEntries).toHaveBeenCalledTimes(1);
+    expect(selectedLocaleHistoryCalls).toHaveLength(0);
+  });
+
+  it('limits selected-locale watch history preload to the priority stage when deferred chunks run', async () => {
+    const runtime = getCuratedLoaderLoadCycleModule().createCuratedLoaderLoadCycleRuntime();
+    const withTrackedPendingRequest = async <T>(
+      _context: Record<string, unknown>,
+      _activeRequests: string[],
+      _progress: { started: number; completed: number },
+      _label: string,
+      work: () => Promise<T>,
+    ): Promise<T> => work();
+    const preloadWatchHistoryForEntries = vi.fn(async () => null);
+    const deferredPreloadPromises: Array<Promise<void>> = [];
+    const context = {
+      state: {
+        mounted: false,
+        curatedError: null as unknown,
+        curatedEntries: [] as unknown[],
+        curatedSource: 'cache',
+        curatedLastRevalidateAt: 0,
+        deferredMetadataRunId: 0,
+        settings: {
+          audioLocaleFilter: 'ja-JP',
+        },
+      },
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      runtimeEvent: vi.fn(),
+      getAccessToken: vi.fn(async () => ({
+        accessToken: 'token-1',
+        accountId: 'account-1',
+        profileId: 'profile-1',
+      })),
+      resetWatchlistCacheOnAccountMismatch: vi.fn(),
+      fetchAllWatchlistRows: vi.fn(async () => [
+        { id: 'row-1', seriesId: 'series-1' },
+        { id: 'row-2', seriesId: 'series-2' },
+        { id: 'row-3', seriesId: 'series-3' },
+      ]),
+      normalizeEntriesFromApiRows: vi.fn((rows: unknown[]) => rows),
+      preloadRatingsForEntries: vi.fn(async () => null),
+      preloadWatchHistoryForEntries,
+      isLocalizedWatchHistoryDataMissingForEntries: vi.fn(() => true),
+      normalizeAudioLocale: vi.fn((locale: unknown) => (typeof locale === 'string' ? locale : null)),
+      getPreferredAudioLanguage: vi.fn(() => 'en-US'),
+      setWatchlistCacheRows: vi.fn(),
+      isWatchlistPath: vi.fn(() => true),
+      renderCuratedPanel: vi.fn(),
+      refreshCuratedLoadingIndicator: vi.fn(),
+      deferredMetadataRunId: 0,
+    };
+
+    await runtime.runCuratedLoadCycle({
+      context,
+      deferredMetadataRuntime: {
+        splitMetadataPreloadEntries: vi.fn((_context: Record<string, unknown>, entries: unknown[]) => ({
+          priorityEntries: entries.slice(0, 1),
+          deferredEntries: entries.slice(1),
+        })),
+        queueDeferredMetadataPreload: vi.fn((options) => {
+          const deferredEntries = Array.isArray(options.deferredEntries) ? options.deferredEntries : [];
+          deferredEntries.forEach((entry: unknown) => {
+            deferredPreloadPromises.push(options.preloadMetadataForEntries([entry], options.tokenEntry));
+          });
+        }),
+      },
+      pendingRequestsRuntime: {
+        syncPendingRequestDiagnostics: vi.fn(),
+        withTrackedPendingRequest,
+      },
+      activeRequests: [],
+      pendingProgress: { started: 0, completed: 0 },
+      force: false,
+    });
+
+    await Promise.all(deferredPreloadPromises);
+
+    const watchHistoryCalls = preloadWatchHistoryForEntries.mock.calls as unknown[][];
+    const selectedLocaleHistoryCalls = watchHistoryCalls.filter((call) => call[2] === true && call[3] === 'ja-JP');
+    expect(preloadWatchHistoryForEntries).toHaveBeenCalledTimes(4);
+    expect(selectedLocaleHistoryCalls).toHaveLength(1);
   });
 
   it('returns existing entries and exposes fallback error state when load fails', () => {

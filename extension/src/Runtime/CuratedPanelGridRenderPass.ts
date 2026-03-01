@@ -1,39 +1,86 @@
+type CuratedBoundaryValue = CwBoundaryValue;
+export type CuratedGridEntry = Record<string, CuratedBoundaryValue>;
+type CuratedElementPredicate = (value: CuratedBoundaryValue) => boolean;
+
 export type CuratedGridReorderOptions = {
   onCardRemoved?: ((card: Element) => void) | null;
 };
 
-type CuratedPanelGridRenderPhasesRuntime = {
-  shouldSkipCuratedGridRender: (options: Record<string, unknown>) => boolean;
-  renderEmptyCuratedGridState: (options: Record<string, unknown>) => void;
-  renderVisibleCuratedGridState: (options: Record<string, unknown>) => void;
+export type CuratedPanelGridTransitionsRuntime = {
+  reorderCuratedGridChildren: (gridElement: Element, nextCards: Element[], options?: CuratedGridReorderOptions) => void;
 };
 
-type CuratedPanelGridTransitionsRuntime = {
+export type ShouldSkipCuratedGridRenderOptions = {
+  stateRenderSignature: string;
+  gridRenderSignature: string;
+  visible: CuratedGridEntry[];
+  total: number;
+  loading: boolean;
+  gridEl: Element;
+  isCuratedCardElement: CuratedElementPredicate;
+  getEntrySeriesId: (entry: CuratedGridEntry) => string;
+  getElementDataAttribute: (element: Element, datasetKey: string, attributeName: string) => string;
+  isCuratedGridEmptyElement: CuratedElementPredicate;
+};
+
+export type RenderEmptyCuratedGridStateOptions = {
+  documentRef: Document;
+  gridEl: Element;
+  total: number;
+  loading: boolean;
+  parkGridCardsForReuse: (gridElement: Element) => void;
+  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => void;
+  createCuratedGridEmptyElement: (documentRef: Document, total: number) => Element;
+  trimParkedCardsForReuse: () => void;
+};
+
+export type RenderVisibleCuratedGridStateOptions = {
+  visible: CuratedGridEntry[];
+  metadataLoading: boolean;
+  gridEl: Element;
+  createOrReuseCuratedCard: (
+    entry: CuratedGridEntry,
+    detailsLoading: boolean,
+    visibleSeriesIds: Set<string>,
+  ) => Element;
+  getEntrySeriesId: (entry: CuratedGridEntry) => string;
+  markCardControllerActive: (seriesId: string) => void;
+  setCardParkedState: (card: Element, parked: boolean) => void;
+  isRenderableEntryMetadataLoading: (entry: CuratedGridEntry) => boolean;
   reorderCuratedGridChildren: (gridElement: Element, nextCards: Element[], options?: CuratedGridReorderOptions) => void;
+  parkCardForReuse: (card: Element) => void;
+  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => void;
+  trimParkedCardsForReuse: () => void;
+};
+
+export type CuratedPanelGridRenderPhasesRuntime = {
+  shouldSkipCuratedGridRender: (options: ShouldSkipCuratedGridRenderOptions) => boolean;
+  renderEmptyCuratedGridState: (options: RenderEmptyCuratedGridStateOptions) => void;
+  renderVisibleCuratedGridState: (options: RenderVisibleCuratedGridStateOptions) => void;
 };
 
 export type CuratedGridRenderContext = {
   stateRenderSignature: string;
   gridRenderSignature: string;
-  visible: Array<Record<string, unknown>>;
+  visible: CuratedGridEntry[];
   total: number;
   loading: boolean;
   metadataLoading: boolean;
   gridEl: Element;
   transitionsRuntime: CuratedPanelGridTransitionsRuntime;
   renderPhasesRuntime: CuratedPanelGridRenderPhasesRuntime;
-  isCuratedCardElement: (value: unknown) => boolean;
-  getEntrySeriesId: (entry: Record<string, unknown>) => string;
+  isCuratedCardElement: CuratedElementPredicate;
+  getEntrySeriesId: (entry: CuratedGridEntry) => string;
   getElementDataAttribute: (element: Element, datasetKey: string, attributeName: string) => string;
-  isCuratedGridEmptyElement: (value: unknown) => boolean;
-  isRenderableEntryMetadataLoading: (entry: Record<string, unknown>) => boolean;
+  isCuratedGridEmptyElement: CuratedElementPredicate;
+  isRenderableEntryMetadataLoading: (entry: CuratedGridEntry) => boolean;
   setCardParkedState: (card: Element, parked: boolean) => void;
   parkGridCardsForReuse: (gridElement: Element) => void;
   parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => void;
   createCuratedGridEmptyElement: (documentRef: Document, total: number) => Element;
   trimParkedCardsForReuse: () => void;
   createOrReuseCuratedCard: (
-    entry: Record<string, unknown>,
+    entry: CuratedGridEntry,
     detailsLoading: boolean,
     visibleSeriesIds: Set<string>,
   ) => Element;

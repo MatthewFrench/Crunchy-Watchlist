@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type CuratedLoaderRuntime = {
   loadCuratedEntries: (force?: boolean) => Promise<unknown[]>;
@@ -9,9 +8,7 @@ type CuratedLoaderRuntime = {
 };
 
 type CuratedLoaderModule = {
-  runtimeCuratedLoader: {
-    createCuratedLoaderRuntime: (options: Record<string, unknown>) => CuratedLoaderRuntime;
-  };
+  createCuratedLoaderRuntime: (options: Record<string, unknown>) => CuratedLoaderRuntime;
 };
 
 type Deferred<T> = {
@@ -23,15 +20,7 @@ type Deferred<T> = {
 const curatedLoaderModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedLoader.ts'),
 ).href;
-const curatedLoaderDeferredMetadataModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedLoaderDeferredMetadata.ts'),
-).href;
-const curatedLoaderPendingRequestsModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedLoaderPendingRequests.ts'),
-).href;
-const curatedLoaderLoadCycleModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedLoaderLoadCycle.ts'),
-).href;
+let curatedLoaderModule: CuratedLoaderModule | null = null;
 
 function createDeferred<T>(): Deferred<T> {
   let resolveRef: ((value: T | PromiseLike<T>) => void) | null = null;
@@ -69,8 +58,10 @@ async function waitForCondition(condition: () => boolean, iterations = 24): Prom
 }
 
 function getCuratedLoaderModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as CuratedLoaderModule;
-  return registry.runtimeCuratedLoader;
+  if (!curatedLoaderModule) {
+    throw new Error('Curated loader module was not initialized for test');
+  }
+  return curatedLoaderModule;
 }
 
 function createCuratedLoaderHarness(overrides: Record<string, unknown> = {}) {
@@ -132,6 +123,7 @@ function createCuratedLoaderHarness(overrides: Record<string, unknown> = {}) {
     ),
     preloadRatingsForEntries: vi.fn(async () => null),
     preloadWatchHistoryForEntries: vi.fn(async () => null),
+    isLocalizedWatchHistoryDataMissingForEntries: vi.fn(() => true),
     normalizeAudioLocale: vi.fn((value: unknown) => {
       if (typeof value !== 'string') {
         return null;
@@ -169,16 +161,15 @@ function createCuratedLoaderHarness(overrides: Record<string, unknown> = {}) {
 
 describe('curated-loader runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([
-      curatedLoaderDeferredMetadataModuleUrl,
-      curatedLoaderPendingRequestsModuleUrl,
-      curatedLoaderLoadCycleModuleUrl,
-      curatedLoaderModuleUrl,
-    ]);
+    vi.resetModules();
+    const curatedLoaderRuntimeModule = (await import(curatedLoaderModuleUrl)) as {
+      createRuntimeCuratedLoaderRuntime: () => object;
+    };
+    curatedLoaderModule = curatedLoaderRuntimeModule.createRuntimeCuratedLoaderRuntime() as CuratedLoaderModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    curatedLoaderModule = null;
   });
 
   it('loads curated entries from API and updates cache + preload state', async () => {

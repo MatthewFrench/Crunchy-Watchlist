@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type EpisodePrimitivesRuntime = {
   parseCanonicalEpisodeIdentifier: (
@@ -18,6 +17,8 @@ type EpisodePrimitivesModule = {
 };
 
 const moduleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Domain', 'EpisodePrimitives.ts')).href;
+
+let createEpisodePrimitives: EpisodePrimitivesModule['createEpisodePrimitives'] | null = null;
 
 function sanitizePositiveInt(value: unknown): number | null {
   const numeric = Number(value);
@@ -59,16 +60,12 @@ function normalizeAudioLocaleCountMap(value: unknown): Record<string, number> {
   return normalized;
 }
 
-function getEpisodePrimitivesModule(): EpisodePrimitivesModule {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    domain?: Record<string, unknown>;
-  };
-  const domainRegistry = registry.domain ?? {};
-  return domainRegistry.episodePrimitives as EpisodePrimitivesModule;
-}
-
 function createEpisodePrimitivesRuntime(): EpisodePrimitivesRuntime {
-  return getEpisodePrimitivesModule().createEpisodePrimitives({
+  if (typeof createEpisodePrimitives !== 'function') {
+    throw new Error('Episode primitives runtime was not initialized for test');
+  }
+
+  return createEpisodePrimitives({
     sanitizePositiveInt,
     pickFirstPositiveInt,
     normalizeAudioLocale,
@@ -78,11 +75,16 @@ function createEpisodePrimitivesRuntime(): EpisodePrimitivesRuntime {
 
 describe('episode-primitives domain module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([moduleUrl]);
+    vi.resetModules();
+    const episodePrimitivesModule = (await import(moduleUrl)) as {
+      createEpisodePrimitivesRuntime: () => EpisodePrimitivesModule;
+    };
+    createEpisodePrimitives = episodePrimitivesModule.createEpisodePrimitivesRuntime().createEpisodePrimitives;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createEpisodePrimitives = null;
+    vi.restoreAllMocks();
   });
 
   it('parses canonical identifiers and derives fallback keys', () => {

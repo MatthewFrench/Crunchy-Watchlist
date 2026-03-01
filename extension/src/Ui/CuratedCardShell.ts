@@ -11,13 +11,12 @@ import {
 } from './CuratedCardMetadataComponent.js';
 import { createCuratedCardProgressComponent } from './CuratedCardProgressComponent.js';
 
-type RuntimeModuleRegistry = Record<string, unknown>;
+let createCardShellRuntimeFactory: (() => object) | null = null;
 
-type RuntimeGlobal = typeof globalThis & {
-  __CW_WATCHLIST_CURATOR_MODULES__?: RuntimeModuleRegistry;
-};
+type BoundaryValue = CwBoundaryValue;
+type BoundaryRecord = Record<string, BoundaryValue>;
 
-type AnyFn = (...args: never[]) => unknown;
+type UnknownFunction = (...args: never[]) => BoundaryValue;
 
 type CardBodyRefs = CwCuratedCardBodyRefs;
 
@@ -37,7 +36,7 @@ export type CuratedCardEntry = {
   isFavorite?: boolean | null;
   rating?: number | null;
   votes?: number | null;
-} & Record<string, unknown>;
+} & BoundaryRecord;
 
 export type CuratedCardThumbResult = {
   thumbLink: HTMLAnchorElement;
@@ -53,24 +52,24 @@ export type CuratedCardThumbResult = {
 };
 
 export type CuratedCardShellRuntime = {
-  getCardCoverImage: (entry: CuratedCardEntry, layout?: unknown) => string;
+  getCardCoverImage: (entry: CuratedCardEntry, layout?: BoundaryValue) => string;
   attachCuratedCardNavigation: (item: HTMLElement, cardHref: string) => void;
   createCuratedCardHeader: (entry: CuratedCardEntry) => HTMLElement;
   createCuratedCardThumb: (entry: CuratedCardEntry) => CuratedCardThumbResult;
   createCuratedCard: (entry: CuratedCardEntry) => HTMLElement;
-  patchCuratedCard: (card: unknown, entry: CuratedCardEntry) => void;
+  patchCuratedCard: (card: BoundaryValue, entry: CuratedCardEntry) => void;
 };
 
 export type CardShellDeps = {
   documentRef?: Document;
   windowRef?: Window & typeof globalThis;
-  getCardLayout?: () => CuratedCardLayout | unknown;
-  normalizeImageUrlCandidate?: (value: unknown) => string;
-  resolveApiHref?: (href: unknown) => string;
-  makeRatingBadge?: (rating: unknown, votes: unknown) => HTMLElement;
+  getCardLayout?: () => CuratedCardLayout | BoundaryValue;
+  normalizeImageUrlCandidate?: (value: BoundaryValue) => string;
+  resolveApiHref?: (href: BoundaryValue) => string;
+  makeRatingBadge?: (rating: BoundaryValue, votes: BoundaryValue) => HTMLElement;
   createCuratedCardActions?: (entry: CuratedCardEntry) => CwCuratedActionsElement;
   createCuratedCardBody?: (entry: CuratedCardEntry, actions: CwCuratedActionsElement) => HTMLElement;
-  getCuratedCardBodyRefs?: (value: unknown) => CardBodyRefs | null;
+  getCuratedCardBodyRefs?: (value: BoundaryValue) => CardBodyRefs | null;
   patchCuratedCardBody?: (card: Element, entry: CuratedCardEntry) => void;
   installCuratedCardPreview?: (
     thumbLink: HTMLAnchorElement,
@@ -94,13 +93,13 @@ type CardShellController = {
 type CardShellContext = {
   documentRef: Document;
   windowRef: Window & typeof globalThis;
-  getCardLayout: () => unknown;
-  normalizeImageUrlCandidate: (value: unknown) => string;
-  resolveApiHref: (href: unknown) => string;
-  makeRatingBadge: (rating: unknown, votes: unknown) => HTMLElement;
+  getCardLayout: () => BoundaryValue;
+  normalizeImageUrlCandidate: (value: BoundaryValue) => string;
+  resolveApiHref: (href: BoundaryValue) => string;
+  makeRatingBadge: (rating: BoundaryValue, votes: BoundaryValue) => HTMLElement;
   createCuratedCardActions: (entry: CuratedCardEntry) => CwCuratedActionsElement;
   createCuratedCardBody: (entry: CuratedCardEntry, actions: CwCuratedActionsElement) => HTMLElement;
-  getCuratedCardBodyRefs: (value: unknown) => CardBodyRefs | null;
+  getCuratedCardBodyRefs: (value: BoundaryValue) => CardBodyRefs | null;
   patchCuratedCardBody: (card: Element, entry: CuratedCardEntry) => void;
   installCuratedCardPreview: (
     thumbLink: HTMLAnchorElement,
@@ -115,9 +114,7 @@ type MinimalEventTarget = {
   closest?: (selector: string) => Element | null;
 };
 
-const cardShellControllersByElement = new WeakMap<Element, CardShellController>();
-
-function requireFunction<T extends AnyFn>(name: string, value: unknown): T {
+function requireFunction<T extends UnknownFunction>(name: string, value: BoundaryValue): T {
   if (typeof value !== 'function') {
     throw new Error(`[CW] Missing card shell dependency: ${name}`);
   }
@@ -149,7 +146,7 @@ function requireWindowRef(value: (Window & typeof globalThis) | undefined): Wind
   return value;
 }
 
-function toEntry(value: CuratedCardEntry | unknown): CuratedCardEntry {
+function toEntry(value: CuratedCardEntry | BoundaryValue): CuratedCardEntry {
   if (!value || typeof value !== 'object') {
     return {};
   }
@@ -169,7 +166,7 @@ function getEntryString(entry: CuratedCardEntry, key: keyof CuratedCardEntry): s
   return String(value);
 }
 
-function normalizeCardLayout(value: unknown): CuratedCardLayout {
+function normalizeCardLayout(value: BoundaryValue): CuratedCardLayout {
   return value === 'landscape' ? 'landscape' : 'portrait';
 }
 
@@ -335,7 +332,11 @@ function createCardShellContext(deps: CardShellDeps = {}): CardShellContext {
   };
 }
 
-function createCuratedCardInternal(context: CardShellContext, inputEntry: CuratedCardEntry | unknown): HTMLElement {
+function createCuratedCardInternal(
+  context: CardShellContext,
+  cardShellControllersByElement: WeakMap<Element, CardShellController>,
+  inputEntry: CuratedCardEntry | BoundaryValue,
+): HTMLElement {
   const entry = toEntry(inputEntry);
 
   const card = context.documentRef.createElement('article');
@@ -413,7 +414,12 @@ function createCuratedCardInternal(context: CardShellContext, inputEntry: Curate
   return card;
 }
 
-function patchCuratedCardInternal(context: CardShellContext, cardValue: unknown, entryValue: CuratedCardEntry): void {
+function patchCuratedCardInternal(
+  context: CardShellContext,
+  cardShellControllersByElement: WeakMap<Element, CardShellController>,
+  cardValue: BoundaryValue,
+  entryValue: CuratedCardEntry,
+): void {
   const card = cardValue && typeof cardValue === 'object' ? (cardValue as Element) : null;
   if (!card) {
     return;
@@ -450,70 +456,85 @@ function patchCuratedCardInternal(context: CardShellContext, cardValue: unknown,
   syncShellRefs(controller);
 }
 
+class CuratedCardShellOwner implements CuratedCardShellRuntime {
+  private readonly context: CardShellContext;
+  private readonly cardShellControllersByElement = new WeakMap<Element, CardShellController>();
+
+  constructor(deps: CardShellDeps = {}) {
+    this.context = createCardShellContext(deps);
+  }
+
+  readonly getCardCoverImage = (
+    entry: CuratedCardEntry,
+    layout: BoundaryValue = this.context.getCardLayout(),
+  ): string => {
+    return getCardCoverImageInternal(this.context, toEntry(entry), normalizeCardLayout(layout));
+  };
+
+  readonly attachCuratedCardNavigation = (item: HTMLElement, cardHref: string): void => {
+    attachCuratedCardNavigationInternal(this.context, item, cardHref);
+  };
+
+  readonly createCuratedCardHeader = (entry: CuratedCardEntry): HTMLElement => {
+    return createCuratedCardHeaderComponent({
+      documentRef: this.context.documentRef,
+      makeRatingBadge: this.context.makeRatingBadge,
+      entry,
+    }).root;
+  };
+
+  readonly createCuratedCardThumb = (entry: CuratedCardEntry): CuratedCardThumbResult => {
+    const nextEntry = toEntry(entry);
+    const mediaComponent = createCuratedCardMediaComponent({
+      documentRef: this.context.documentRef,
+      entry: nextEntry,
+      resolveCardThumbHref: (entryValue: CuratedCardEntry) => resolveCardThumbHref(this.context, toEntry(entryValue)),
+      getCardCoverImage: (entryValue: CuratedCardEntry) => getCardCoverImageInternal(this.context, toEntry(entryValue)),
+      normalizeImageUrlCandidate: this.context.normalizeImageUrlCandidate,
+      installCuratedCardPreview: this.context.installCuratedCardPreview,
+      createCuratedCardProgressComponent,
+    });
+    const coverImageUrl = getCardCoverImageInternal(this.context, nextEntry);
+    const hoverPreviewImageUrl = this.context.normalizeImageUrlCandidate(nextEntry.hoverPreviewImageUrl);
+
+    return {
+      thumbLink: mediaComponent.refs.thumbLink,
+      coverImageUrl,
+      hoverPreviewImageUrl,
+      thumbImage: mediaComponent.refs.thumbImage,
+      placeholder: mediaComponent.refs.thumbPlaceholder,
+      progressRefs:
+        mediaComponent.refs.thumbProgress && mediaComponent.refs.thumbProgressFill
+          ? {
+              progress: mediaComponent.refs.thumbProgress,
+              fill: mediaComponent.refs.thumbProgressFill,
+            }
+          : null,
+      progressBar: mediaComponent.refs.thumbProgress,
+    };
+  };
+
+  readonly createCuratedCard = (entry: CuratedCardEntry): HTMLElement => {
+    return createCuratedCardInternal(this.context, this.cardShellControllersByElement, entry);
+  };
+
+  readonly patchCuratedCard = (card: BoundaryValue, entry: CuratedCardEntry): void => {
+    patchCuratedCardInternal(this.context, this.cardShellControllersByElement, card, entry);
+  };
+}
+
 export function createCardShell(deps: CardShellDeps = {}): CuratedCardShellRuntime {
-  const context = createCardShellContext(deps);
-  return {
-    getCardCoverImage: (entry: CuratedCardEntry, layout: unknown = context.getCardLayout()) =>
-      getCardCoverImageInternal(context, toEntry(entry), normalizeCardLayout(layout)),
-    attachCuratedCardNavigation: (item: HTMLElement, cardHref: string) =>
-      attachCuratedCardNavigationInternal(context, item, cardHref),
-    createCuratedCardHeader: (entry: CuratedCardEntry) =>
-      createCuratedCardHeaderComponent({
-        documentRef: context.documentRef,
-        makeRatingBadge: context.makeRatingBadge,
-        entry,
-      }).root,
-    createCuratedCardThumb: (entry: CuratedCardEntry) => {
-      const nextEntry = toEntry(entry);
-      const mediaComponent = createCuratedCardMediaComponent({
-        documentRef: context.documentRef,
-        entry: nextEntry,
-        resolveCardThumbHref: (entryValue: CuratedCardEntry) => resolveCardThumbHref(context, toEntry(entryValue)),
-        getCardCoverImage: (entryValue: CuratedCardEntry) => getCardCoverImageInternal(context, toEntry(entryValue)),
-        normalizeImageUrlCandidate: context.normalizeImageUrlCandidate,
-        installCuratedCardPreview: context.installCuratedCardPreview,
-        createCuratedCardProgressComponent,
-      });
-      const coverImageUrl = getCardCoverImageInternal(context, nextEntry);
-      const hoverPreviewImageUrl = context.normalizeImageUrlCandidate(nextEntry.hoverPreviewImageUrl);
-
-      return {
-        thumbLink: mediaComponent.refs.thumbLink,
-        coverImageUrl,
-        hoverPreviewImageUrl,
-        thumbImage: mediaComponent.refs.thumbImage,
-        placeholder: mediaComponent.refs.thumbPlaceholder,
-        progressRefs:
-          mediaComponent.refs.thumbProgress && mediaComponent.refs.thumbProgressFill
-            ? {
-                progress: mediaComponent.refs.thumbProgress,
-                fill: mediaComponent.refs.thumbProgressFill,
-              }
-            : null,
-        progressBar: mediaComponent.refs.thumbProgress,
-      };
-    },
-    createCuratedCard: (entry: CuratedCardEntry) => createCuratedCardInternal(context, entry),
-    patchCuratedCard: (card: unknown, entry: CuratedCardEntry) => patchCuratedCardInternal(context, card, entry),
-  };
+  return new CuratedCardShellOwner(deps);
 }
 
-function registerCardShellRuntime(): void {
-  const root = (typeof window !== 'undefined' ? window : globalThis) as RuntimeGlobal;
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
+const cardShellRuntime = {
+  createCardShell,
+};
+createCardShellRuntimeFactory = () => cardShellRuntime;
 
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__;
-  let uiRegistry = moduleRegistry.ui;
-  if (!uiRegistry || typeof uiRegistry !== 'object') {
-    uiRegistry = {};
-    moduleRegistry.ui = uiRegistry;
+export function createCardShellRuntime(): object {
+  if (typeof createCardShellRuntimeFactory !== 'function') {
+    throw new Error('[CW] Card shell runtime factory was not initialized.');
   }
-
-  (uiRegistry as Record<string, unknown>).cardShell = {
-    createCardShell,
-  };
+  return createCardShellRuntimeFactory();
 }
-
-registerCardShellRuntime();

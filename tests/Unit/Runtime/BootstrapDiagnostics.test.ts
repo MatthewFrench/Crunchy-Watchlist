@@ -1,37 +1,38 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
-type RuntimeBootstrapDiagnosticsModule = {
-  runtimeBootstrapDiagnostics: {
-    createBootstrapDiagnostics: (options: Record<string, unknown>) => {
-      updateDiagnostics: (patch?: unknown) => void;
-      setBootstrapIssue: (stage: unknown, details?: unknown) => void;
-    };
-  };
+type RuntimeBootstrapDiagnostics = {
+  updateDiagnostics: (patch?: unknown) => void;
+  setBootstrapIssue: (stage: unknown, details?: unknown) => void;
 };
 
 const bootstrapDiagnosticsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'BootstrapDiagnostics.ts'),
 ).href;
-
-function getBootstrapDiagnosticsModule() {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as RuntimeBootstrapDiagnosticsModule;
-  return registry.runtimeBootstrapDiagnostics;
-}
+let createBootstrapDiagnosticsRuntimeFactory:
+  | ((options: Record<string, unknown>) => RuntimeBootstrapDiagnostics)
+  | null = null;
 
 describe('bootstrap-diagnostics runtime module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([bootstrapDiagnosticsModuleUrl]);
+    vi.resetModules();
+    const module = (await import(bootstrapDiagnosticsModuleUrl)) as {
+      createBootstrapDiagnosticsRuntime: (options: Record<string, unknown>) => object;
+    };
+    createBootstrapDiagnosticsRuntimeFactory = (options) =>
+      module.createBootstrapDiagnosticsRuntime(options) as RuntimeBootstrapDiagnostics;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createBootstrapDiagnosticsRuntimeFactory = null;
+    vi.restoreAllMocks();
   });
 
   it('merges diagnostics updates with timestamp and href', () => {
+    if (typeof createBootstrapDiagnosticsRuntimeFactory !== 'function') {
+      throw new Error('Bootstrap diagnostics runtime was not initialized for test');
+    }
     const windowRef = {
       location: { href: 'https://www.crunchyroll.com/watchlist' },
       __CW_WATCHLIST_CURATOR_DIAGNOSTICS__: {
@@ -39,7 +40,7 @@ describe('bootstrap-diagnostics runtime module', () => {
       },
     };
 
-    const runtime = getBootstrapDiagnosticsModule().createBootstrapDiagnostics({
+    const runtime = createBootstrapDiagnosticsRuntimeFactory({
       windowRef,
     });
 
@@ -57,13 +58,16 @@ describe('bootstrap-diagnostics runtime module', () => {
   });
 
   it('records bootstrap issues and logs with stage details', () => {
+    if (typeof createBootstrapDiagnosticsRuntimeFactory !== 'function') {
+      throw new Error('Bootstrap diagnostics runtime was not initialized for test');
+    }
     const errorSpy = vi.fn();
     const windowRef = {
       location: { href: 'https://www.crunchyroll.com/watchlist' },
       __CW_WATCHLIST_CURATOR_DIAGNOSTICS__: {},
     };
 
-    const runtime = getBootstrapDiagnosticsModule().createBootstrapDiagnostics({
+    const runtime = createBootstrapDiagnosticsRuntimeFactory({
       windowRef,
       consoleRef: {
         error: errorSpy,

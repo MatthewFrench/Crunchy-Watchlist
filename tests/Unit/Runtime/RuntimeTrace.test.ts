@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type RuntimeEventRecord = {
   at: number;
@@ -19,19 +18,13 @@ type RuntimeTraceRuntime = {
 };
 
 type RuntimeTraceModule = {
-  runtimeTrace: {
-    createRuntimeTrace: (options: Record<string, unknown>) => RuntimeTraceRuntime;
-  };
+  createRuntimeTrace: (options: Record<string, unknown>) => RuntimeTraceRuntime;
 };
 
 const runtimeTraceModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'RuntimeTrace.ts'),
 ).href;
-
-function getRuntimeTraceModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as RuntimeTraceModule;
-  return registry.runtimeTrace;
-}
+let createRuntimeTraceFactory: RuntimeTraceModule['createRuntimeTrace'] | null = null;
 
 function createState() {
   return {
@@ -44,17 +37,25 @@ function createState() {
 
 describe('runtime-trace module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([runtimeTraceModuleUrl]);
+    vi.resetModules();
+    const module = (await import(runtimeTraceModuleUrl)) as {
+      createRuntimeTraceRuntime: () => RuntimeTraceModule;
+    };
+    createRuntimeTraceFactory = module.createRuntimeTraceRuntime().createRuntimeTrace;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createRuntimeTraceFactory = null;
+    vi.restoreAllMocks();
     delete (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_RUNTIME__;
   });
 
   it('creates runtime global state and caps event history at 100', () => {
+    if (typeof createRuntimeTraceFactory !== 'function') {
+      throw new Error('Runtime trace runtime was not initialized for test');
+    }
     const state = createState();
-    const runtimeTrace = getRuntimeTraceModule().createRuntimeTrace({
+    const runtimeTrace = createRuntimeTraceFactory({
       windowRef: globalThis,
       state,
       apiTraceLimitPerEndpoint: 5,
@@ -75,8 +76,11 @@ describe('runtime-trace module', () => {
   });
 
   it('pushes cloned API trace records and enforces endpoint cap', () => {
+    if (typeof createRuntimeTraceFactory !== 'function') {
+      throw new Error('Runtime trace runtime was not initialized for test');
+    }
     const state = createState();
-    const runtimeTrace = getRuntimeTraceModule().createRuntimeTrace({
+    const runtimeTrace = createRuntimeTraceFactory({
       windowRef: globalThis,
       state,
       apiTraceLimitPerEndpoint: 2,
@@ -103,8 +107,11 @@ describe('runtime-trace module', () => {
   });
 
   it('ignores unknown apiTrace buckets', () => {
+    if (typeof createRuntimeTraceFactory !== 'function') {
+      throw new Error('Runtime trace runtime was not initialized for test');
+    }
     const state = createState();
-    const runtimeTrace = getRuntimeTraceModule().createRuntimeTrace({
+    const runtimeTrace = createRuntimeTraceFactory({
       windowRef: globalThis,
       state,
       apiTraceLimitPerEndpoint: 2,
@@ -116,13 +123,16 @@ describe('runtime-trace module', () => {
   });
 
   it('reuses existing runtime object instead of replacing it', () => {
+    if (typeof createRuntimeTraceFactory !== 'function') {
+      throw new Error('Runtime trace runtime was not initialized for test');
+    }
     const existing = {
       phase: 'existing-phase',
       events: [{ at: 1, event: 'existing', data: null }],
     };
     (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_RUNTIME__ = existing;
 
-    const runtimeTrace = getRuntimeTraceModule().createRuntimeTrace({
+    const runtimeTrace = createRuntimeTraceFactory({
       windowRef: globalThis,
       state: createState(),
       apiTraceLimitPerEndpoint: 2,

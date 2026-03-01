@@ -3,21 +3,18 @@ import {
   type NativeCardSelectorAdapterRuntime,
 } from './NativeCardSelectorAdapter.js';
 
-type RuntimeModuleRegistry = Record<string, unknown>;
-
-type RuntimeGlobal = typeof globalThis & {
-  __CW_WATCHLIST_CURATOR_MODULES__?: RuntimeModuleRegistry;
-};
+type NativeBridgePreviewBoundaryValue = CwBoundaryValue;
+type NativeBridgePreviewBoundaryRecord = Record<string, NativeBridgePreviewBoundaryValue>;
 
 type NativeActionBridgeRuntime = {
-  findNativeCardBySeriesId: (seriesId: unknown) => HTMLElement | null;
+  findNativeCardBySeriesId: (seriesId: NativeBridgePreviewBoundaryValue) => HTMLElement | null;
 };
 
 type NativePreviewSelectorAdapterRuntime = Pick<NativeCardSelectorAdapterRuntime, 'findPreviewNodes'>;
 
 type EntryLike = {
-  seriesId?: unknown;
-  streamsLink?: unknown;
+  seriesId?: NativeBridgePreviewBoundaryValue;
+  streamsLink?: NativeBridgePreviewBoundaryValue;
 };
 
 type PreviewContext = {
@@ -32,54 +29,59 @@ type PreviewContext = {
   previewPollTimer: number | null;
   previewSession: number;
   activeNativeCard: HTMLElement | null;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+  onBlur?: () => void;
 };
 
 type NativeBridgePreviewContext = {
   windowRef: Window;
   nativeActionBridgeRuntime: NativeActionBridgeRuntime;
   selectorAdapterRuntime: NativePreviewSelectorAdapterRuntime;
-  normalizeImageUrlCandidate: (value: unknown) => string;
-  fetchPreviewUrlForEntry: (entry: unknown) => Promise<unknown>;
-  isLikelyVideoUrl: (url: unknown) => boolean;
+  normalizeImageUrlCandidate: (value: NativeBridgePreviewBoundaryValue) => string;
+  fetchPreviewUrlForEntry: (entry: NativeBridgePreviewBoundaryValue) => Promise<NativeBridgePreviewBoundaryValue>;
+  isLikelyVideoUrl: (url: NativeBridgePreviewBoundaryValue) => boolean;
   previewHoverDelayMs: number;
   previewContextsByThumbLink: WeakMap<HTMLAnchorElement, PreviewContext>;
+  previewContexts: Set<PreviewContext>;
 };
 
 export type NativeBridgePreviewOptions = {
-  windowRef?: unknown;
-  nativeActionBridgeRuntime?: unknown;
-  selectorAdapterRuntime?: unknown;
-  normalizeImageUrlCandidate?: unknown;
-  fetchPreviewUrlForEntry?: unknown;
-  isLikelyVideoUrl?: unknown;
-  previewHoverDelayMs?: unknown;
+  windowRef?: NativeBridgePreviewBoundaryValue;
+  nativeActionBridgeRuntime?: NativeBridgePreviewBoundaryValue;
+  selectorAdapterRuntime?: NativeBridgePreviewBoundaryValue;
+  normalizeImageUrlCandidate?: NativeBridgePreviewBoundaryValue;
+  fetchPreviewUrlForEntry?: NativeBridgePreviewBoundaryValue;
+  isLikelyVideoUrl?: NativeBridgePreviewBoundaryValue;
+  previewHoverDelayMs?: NativeBridgePreviewBoundaryValue;
 };
 
 export type NativeBridgePreviewRuntime = {
   installCuratedCardPreview: (
-    thumbLink: unknown,
-    entry: unknown,
-    coverImageUrl: unknown,
-    hoverPreviewImageUrl: unknown,
-    thumbImage: unknown,
+    thumbLink: NativeBridgePreviewBoundaryValue,
+    entry: NativeBridgePreviewBoundaryValue,
+    coverImageUrl: NativeBridgePreviewBoundaryValue,
+    hoverPreviewImageUrl: NativeBridgePreviewBoundaryValue,
+    thumbImage: NativeBridgePreviewBoundaryValue,
   ) => void;
+  dispose: () => void;
 };
 
-function requireFunction<T>(name: string, value: unknown): T {
+function requireFunction<T>(name: string, value: NativeBridgePreviewBoundaryValue): T {
   if (typeof value !== 'function') {
     throw new Error(`[CW] Missing native bridge preview dependency: ${name}`);
   }
   return value as T;
 }
 
-function resolveWindowRef(value: unknown): Window {
+function resolveWindowRef(value: NativeBridgePreviewBoundaryValue): Window {
   if (!value || typeof value !== 'object') {
     throw new Error('[CW] Missing native bridge preview windowRef');
   }
   return value as Window;
 }
 
-function normalizePositiveNumber(value: unknown, fallback: number): number {
+function normalizePositiveNumber(value: NativeBridgePreviewBoundaryValue, fallback: number): number {
   const normalized = Number(value);
   if (!Number.isFinite(normalized) || normalized <= 0) {
     return fallback;
@@ -87,19 +89,19 @@ function normalizePositiveNumber(value: unknown, fallback: number): number {
   return Math.round(normalized);
 }
 
-function getString(value: unknown): string {
+function getString(value: NativeBridgePreviewBoundaryValue): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
+function asRecord(value: NativeBridgePreviewBoundaryValue): NativeBridgePreviewBoundaryRecord {
   if (!value || typeof value !== 'object') {
     return {};
   }
-  return value as Record<string, unknown>;
+  return value as NativeBridgePreviewBoundaryRecord;
 }
 
 function resolveSelectorAdapterRuntime(
-  runtimeValue: unknown,
+  runtimeValue: NativeBridgePreviewBoundaryValue,
   sourceLabel: string,
 ): NativePreviewSelectorAdapterRuntime {
   const runtimeRecord = asRecord(runtimeValue);
@@ -112,14 +114,14 @@ function resolveSelectorAdapterRuntime(
 }
 
 function createNativeBridgePreviewContext(options: NativeBridgePreviewOptions = {}): NativeBridgePreviewContext {
-  const nativeActionBridgeRuntime = options.nativeActionBridgeRuntime as NativeActionBridgeRuntime;
+  const nativeActionBridgeRuntimeRecord = asRecord(options.nativeActionBridgeRuntime);
 
   return {
     windowRef: resolveWindowRef(options.windowRef),
     nativeActionBridgeRuntime: {
       findNativeCardBySeriesId: requireFunction<NativeActionBridgeRuntime['findNativeCardBySeriesId']>(
         'nativeActionBridgeRuntime.findNativeCardBySeriesId',
-        nativeActionBridgeRuntime?.findNativeCardBySeriesId,
+        nativeActionBridgeRuntimeRecord.findNativeCardBySeriesId,
       ),
     },
     selectorAdapterRuntime: options.selectorAdapterRuntime
@@ -139,10 +141,11 @@ function createNativeBridgePreviewContext(options: NativeBridgePreviewOptions = 
     ),
     previewHoverDelayMs: normalizePositiveNumber(options.previewHoverDelayMs, 220),
     previewContextsByThumbLink: new WeakMap<HTMLAnchorElement, PreviewContext>(),
+    previewContexts: new Set<PreviewContext>(),
   };
 }
 
-function contextNormalizeUrl(value: unknown): string {
+function contextNormalizeUrl(value: NativeBridgePreviewBoundaryValue): string {
   const normalized = getString(value);
   if (!normalized) {
     return '';
@@ -462,11 +465,11 @@ function queueCuratedPreviewSession(
 
 function installCuratedCardPreviewInternal(
   context: NativeBridgePreviewContext,
-  thumbLinkValue: unknown,
-  entryValue: unknown,
-  coverImageUrlValue: unknown,
-  hoverPreviewImageUrlValue: unknown,
-  thumbImageValue: unknown,
+  thumbLinkValue: NativeBridgePreviewBoundaryValue,
+  entryValue: NativeBridgePreviewBoundaryValue,
+  coverImageUrlValue: NativeBridgePreviewBoundaryValue,
+  hoverPreviewImageUrlValue: NativeBridgePreviewBoundaryValue,
+  thumbImageValue: NativeBridgePreviewBoundaryValue,
 ): void {
   const thumbLink = thumbLinkValue instanceof HTMLAnchorElement ? thumbLinkValue : null;
   if (!thumbLink) {
@@ -488,6 +491,7 @@ function installCuratedCardPreviewInternal(
 
   const previewContext = createCuratedPreviewContext(thumbLink, thumbImage, entry, coverImageUrl, hoverPreviewImageUrl);
   context.previewContextsByThumbLink.set(thumbLink, previewContext);
+  context.previewContexts.add(previewContext);
 
   const startPreview = (sessionId: number) => startCuratedPreviewSession(context, previewContext, sessionId);
   const stopPreview = () => {
@@ -495,35 +499,74 @@ function installCuratedCardPreviewInternal(
     stopCuratedPreview(context, previewContext);
   };
 
-  thumbLink.addEventListener('mouseenter', () => {
+  previewContext.onMouseEnter = () => {
     queueCuratedPreviewSession(context, previewContext, startPreview);
-  });
-  thumbLink.addEventListener('mouseleave', () => {
+  };
+  previewContext.onMouseLeave = () => {
     stopPreview();
-  });
-  thumbLink.addEventListener('blur', () => {
+  };
+  previewContext.onBlur = () => {
     stopPreview();
+  };
+
+  thumbLink.addEventListener('mouseenter', previewContext.onMouseEnter);
+  thumbLink.addEventListener('mouseleave', previewContext.onMouseLeave);
+  thumbLink.addEventListener('blur', previewContext.onBlur);
+}
+
+function disposeNativeBridgePreviewContextInternal(context: NativeBridgePreviewContext): void {
+  context.previewContexts.forEach((previewContext) => {
+    previewContext.previewSession += 1;
+    stopCuratedPreview(context, previewContext);
+    if (typeof previewContext.thumbLink.removeEventListener === 'function') {
+      if (previewContext.onMouseEnter) {
+        previewContext.thumbLink.removeEventListener('mouseenter', previewContext.onMouseEnter);
+      }
+      if (previewContext.onMouseLeave) {
+        previewContext.thumbLink.removeEventListener('mouseleave', previewContext.onMouseLeave);
+      }
+      if (previewContext.onBlur) {
+        previewContext.thumbLink.removeEventListener('blur', previewContext.onBlur);
+      }
+    }
+    delete previewContext.onMouseEnter;
+    delete previewContext.onMouseLeave;
+    delete previewContext.onBlur;
   });
+  context.previewContexts.clear();
+  context.previewContextsByThumbLink = new WeakMap<HTMLAnchorElement, PreviewContext>();
+}
+
+class NativeBridgePreviewOwner implements NativeBridgePreviewRuntime {
+  private readonly context: NativeBridgePreviewContext;
+  private disposed = false;
+
+  constructor(options: NativeBridgePreviewOptions = {}) {
+    this.context = createNativeBridgePreviewContext(options);
+  }
+
+  readonly installCuratedCardPreview = (
+    thumbLink: NativeBridgePreviewBoundaryValue,
+    entry: NativeBridgePreviewBoundaryValue,
+    coverImageUrl: NativeBridgePreviewBoundaryValue,
+    hoverPreviewImageUrl: NativeBridgePreviewBoundaryValue,
+    thumbImage: NativeBridgePreviewBoundaryValue,
+  ): void => {
+    if (this.disposed) {
+      return;
+    }
+    installCuratedCardPreviewInternal(this.context, thumbLink, entry, coverImageUrl, hoverPreviewImageUrl, thumbImage);
+  };
+
+  readonly dispose = (): void => {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
+    disposeNativeBridgePreviewContextInternal(this.context);
+  };
 }
 
 export function createNativeBridgePreviewRuntime(options: NativeBridgePreviewOptions = {}): NativeBridgePreviewRuntime {
-  const context = createNativeBridgePreviewContext(options);
-  return {
-    installCuratedCardPreview: (thumbLink, entry, coverImageUrl, hoverPreviewImageUrl, thumbImage) => {
-      installCuratedCardPreviewInternal(context, thumbLink, entry, coverImageUrl, hoverPreviewImageUrl, thumbImage);
-    },
-  };
+  return new NativeBridgePreviewOwner(options);
 }
-
-function registerNativeBridgePreviewRuntime(): void {
-  const root = (typeof window !== 'undefined' ? window : globalThis) as RuntimeGlobal;
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
-
-  root.__CW_WATCHLIST_CURATOR_MODULES__.runtimeNativeBridgePreview = {
-    createNativeBridgePreviewRuntime,
-  };
-}
-
-registerNativeBridgePreviewRuntime();

@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type NativeActionBridgeRuntime = {
   triggerNativeCardAction: (seriesId: unknown, actionType: unknown) => boolean;
@@ -9,17 +8,13 @@ type NativeActionBridgeRuntime = {
 };
 
 type NativeActionBridgeModule = {
-  runtimeNativeActionBridge: {
-    createNativeActionBridgeRuntime: (options: Record<string, unknown>) => NativeActionBridgeRuntime;
-  };
+  createNativeActionBridgeRuntime: (options: Record<string, unknown>) => NativeActionBridgeRuntime;
 };
 
 const nativeActionBridgeModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeActionBridge.ts'),
 ).href;
-const nativeCardSelectorAdapterModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeCardSelectorAdapter.ts'),
-).href;
+let nativeActionBridgeModule: NativeActionBridgeModule | null = null;
 
 class FakeElement {
   private readonly selectorAllMap = new Map<string, FakeElement[]>();
@@ -57,8 +52,10 @@ class FakeElement {
 }
 
 function getNativeActionBridgeModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as NativeActionBridgeModule;
-  return registry.runtimeNativeActionBridge;
+  if (!nativeActionBridgeModule) {
+    throw new Error('Native action bridge module was not initialized for test');
+  }
+  return nativeActionBridgeModule;
 }
 
 function createNativeActionBridgeRuntime(cards: FakeElement[]) {
@@ -82,17 +79,18 @@ describe('native-action-bridge runtime', () => {
   let originalHTMLAnchorElement: unknown;
 
   beforeEach(async () => {
+    vi.resetModules();
     originalHTMLElement = runtimeGlobal.HTMLElement;
     originalHTMLAnchorElement = runtimeGlobal.HTMLAnchorElement;
     runtimeGlobal.HTMLElement = FakeElement;
     runtimeGlobal.HTMLAnchorElement = FakeElement;
-    await loadRuntimeModules([nativeCardSelectorAdapterModuleUrl, nativeActionBridgeModuleUrl]);
+    nativeActionBridgeModule = (await import(nativeActionBridgeModuleUrl)) as NativeActionBridgeModule;
   });
 
   afterEach(() => {
     runtimeGlobal.HTMLElement = originalHTMLElement;
     runtimeGlobal.HTMLAnchorElement = originalHTMLAnchorElement;
-    clearRuntimeModulesRegistry();
+    nativeActionBridgeModule = null;
   });
 
   it('returns false for missing series id or unsupported action', () => {

@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type CuratedPanelGridTransitionsRuntime = {
   reorderCuratedGridChildren: (
@@ -12,9 +11,7 @@ type CuratedPanelGridTransitionsRuntime = {
 };
 
 type CuratedPanelGridTransitionsModule = {
-  runtimeCuratedPanelGridTransitions: {
-    createCuratedPanelGridTransitionsRuntime: () => CuratedPanelGridTransitionsRuntime;
-  };
+  createCuratedPanelGridTransitionsRuntime: () => CuratedPanelGridTransitionsRuntime;
 };
 
 type FakeElement = {
@@ -32,11 +29,13 @@ type FakeElement = {
 const curatedPanelGridTransitionsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridTransitions.ts'),
 ).href;
+let curatedPanelGridTransitionsModule: CuratedPanelGridTransitionsModule | null = null;
 
 function getCuratedPanelGridTransitionsModule() {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as CuratedPanelGridTransitionsModule;
-  return registry.runtimeCuratedPanelGridTransitions;
+  if (!curatedPanelGridTransitionsModule) {
+    throw new Error('Curated panel grid transitions runtime module was not initialized for test');
+  }
+  return curatedPanelGridTransitionsModule;
 }
 
 function createFakeElement(className = ''): FakeElement {
@@ -113,11 +112,14 @@ function createMeasurableCard(className: string, rectReadCounter: { value: numbe
 
 describe('curated-panel-grid-transitions runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([curatedPanelGridTransitionsModuleUrl]);
+    vi.resetModules();
+    curatedPanelGridTransitionsModule = (await import(
+      curatedPanelGridTransitionsModuleUrl
+    )) as CuratedPanelGridTransitionsModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    curatedPanelGridTransitionsModule = null;
   });
 
   it('reorders cards and removes overflow cards when animation prerequisites are unavailable', () => {

@@ -1,12 +1,10 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type BootstrapModulesRuntime = {
   runtimeStoreModule: unknown;
   runtimeTraceModule: unknown;
-  runtimeStateLoaderModule: unknown;
   runtimeLifecycleModule: unknown;
   runtimePreferredAudioModule: unknown;
   runtimeRenderableModule: unknown;
@@ -16,7 +14,6 @@ type BootstrapModulesRuntime = {
   runtimeCuratedInteractionsModule: unknown;
   runtimeInterfaceShellModule: unknown;
   runtimeDebugModule: unknown;
-  runtimeBootstrapHelpersModule: unknown;
   storageModule: unknown;
   apiContractsModule: unknown;
   authClientModule: unknown;
@@ -42,125 +39,78 @@ type BootstrapModulesRuntime = {
   defaultSettings: Record<string, unknown>;
 };
 
-type BootstrapModulesModule = {
-  runtimeBootstrapModules: {
-    createBootstrapModules: (options: Record<string, unknown>) => BootstrapModulesRuntime | null;
-  };
+type RuntimeBootstrapModulesModule = {
+  assertRuntimeMethods: (ownerLabel: string, instance: unknown, methodNames: string[]) => void;
+  createBootstrapModules: () => BootstrapModulesRuntime | null;
 };
 
 const bootstrapModulesModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'BootstrapModules.ts'),
 ).href;
 
-function getBootstrapModulesModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as BootstrapModulesModule;
-  return registry.runtimeBootstrapModules;
-}
+let runtimeBootstrapModulesModule: RuntimeBootstrapModulesModule | null = null;
 
-function seedRequiredModules(overrides: Record<string, unknown> = {}) {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
+function getBootstrapModulesModule(): RuntimeBootstrapModulesModule {
+  if (!runtimeBootstrapModulesModule) {
+    throw new Error('Bootstrap modules runtime module was not initialized for test');
+  }
 
-  registry.runtimeStore = { id: 'runtimeStore' };
-  registry.runtimeTrace = { id: 'runtimeTrace' };
-  registry.runtimeStateLoader = { id: 'runtimeStateLoader' };
-  registry.runtimeLifecycle = { id: 'runtimeLifecycle' };
-  registry.runtimePreferredAudio = { id: 'runtimePreferredAudio' };
-  registry.runtimeRenderable = { id: 'runtimeRenderable' };
-  registry.runtimeCuratedPanel = { id: 'runtimeCuratedPanel' };
-  registry.runtimeCuratedLoader = { id: 'runtimeCuratedLoader' };
-  registry.runtimeNativeBridge = { id: 'runtimeNativeBridge' };
-  registry.runtimeCuratedInteractions = { id: 'runtimeCuratedInteractions' };
-  registry.runtimeInterfaceShell = { id: 'runtimeInterfaceShell' };
-  registry.runtimeDebug = { id: 'runtimeDebug' };
-  registry.runtimeBootstrapHelpers = { id: 'runtimeBootstrapHelpers' };
-  registry.storage = { id: 'storage' };
-  registry.apiContracts = { id: 'apiContracts' };
-  registry.authClient = { id: 'authClient' };
-  registry.watchlistClient = { id: 'watchlistClient' };
-  registry.watchlistRepository = { id: 'watchlistRepository' };
-  registry.historyRepository = { id: 'historyRepository' };
-  registry.ratingsClient = { id: 'ratingsClient' };
-  registry.ratingsRepository = { id: 'ratingsRepository' };
-  registry.previewRepository = { id: 'previewRepository' };
-  registry.domain = {
-    corePrimitives: { id: 'corePrimitives' },
-    imageVariants: { id: 'imageVariants' },
-    entryNormalizer: { id: 'entryNormalizer' },
-    sortMetrics: { id: 'sortMetrics' },
-    entrySorting: { id: 'entrySorting' },
-  };
-  registry.ui = {
-    cardMetadata: { id: 'cardMetadata' },
-    controlsView: { id: 'controlsView' },
-    cardView: { id: 'cardView' },
-    cardShell: { id: 'cardShell' },
-  };
-  registry.runtimeBootstrapConfig = {
-    createBootstrapConfig: () => ({
-      defaultSortMode: 'rating_desc',
-      validSortModes: new Set(['none', 'rating_desc']),
-      sortModeControlOptions: [{ value: 'rating_desc', label: 'Rating' }],
-      runtimeConstants: {
-        settingsKey: 'cw_settings_v1',
-      },
-      defaultSettings: {
-        activeTab: 'curated',
-      },
-    }),
-  };
-
-  Object.assign(registry, overrides);
+  return runtimeBootstrapModulesModule;
 }
 
 describe('bootstrap-modules runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([bootstrapModulesModuleUrl]);
+    vi.resetModules();
+    const module = (await import(bootstrapModulesModuleUrl)) as {
+      createBootstrapModulesRuntime: () => object;
+    };
+    runtimeBootstrapModulesModule = module.createBootstrapModulesRuntime() as RuntimeBootstrapModulesModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    runtimeBootstrapModulesModule = null;
+    vi.restoreAllMocks();
   });
 
-  it('returns null when required modules are missing', () => {
-    const runtime = getBootstrapModulesModule().createBootstrapModules({
-      windowRef: globalThis,
-    });
-    expect(runtime).toBeNull();
+  it('resolves bootstrap modules from direct runtime factories', () => {
+    const runtime = getBootstrapModulesModule().createBootstrapModules();
+    expect(runtime).not.toBeNull();
   });
 
-  it('returns null when bootstrap config payload is invalid', () => {
-    seedRequiredModules({
-      runtimeBootstrapConfig: {
-        createBootstrapConfig: () => ({
-          defaultSortMode: 42,
-          validSortModes: [],
-          sortModeControlOptions: null,
-          defaultSettings: null,
-        }),
-      },
-    });
-
-    const runtime = getBootstrapModulesModule().createBootstrapModules({
-      windowRef: globalThis,
-    });
-    expect(runtime).toBeNull();
+  it('throws when required runtime methods are missing', () => {
+    const moduleRuntime = getBootstrapModulesModule();
+    expect(() => moduleRuntime.assertRuntimeMethods('runtime store module', {}, ['createRuntimeState'])).toThrow(
+      'Missing createRuntimeState runtime store module',
+    );
   });
 
   it('returns resolved modules and validated bootstrap config', () => {
-    seedRequiredModules();
-
-    const runtime = getBootstrapModulesModule().createBootstrapModules({
-      windowRef: globalThis,
-    });
+    const runtime = getBootstrapModulesModule().createBootstrapModules();
 
     expect(runtime).not.toBeNull();
-    expect(runtime?.runtimeStoreModule).toEqual({ id: 'runtimeStore' });
-    expect(runtime?.runtimeTraceModule).toEqual({ id: 'runtimeTrace' });
-    expect(runtime?.runtimeBootstrapHelpersModule).toEqual({ id: 'runtimeBootstrapHelpers' });
-    expect(runtime?.defaultSortMode).toBe('rating_desc');
+    expect(runtime?.runtimeStoreModule).toMatchObject({
+      createRuntimeState: expect.any(Function),
+      createWatchlistCacheSnapshot: expect.any(Function),
+      createEmptyWatchHistoryCache: expect.any(Function),
+    });
+    expect(runtime?.runtimeTraceModule).toMatchObject({
+      createRuntimeTrace: expect.any(Function),
+    });
+    expect(runtime?.storageModule).toMatchObject({
+      createStorageAdapter: expect.any(Function),
+    });
+    expect(runtime?.corePrimitivesModule).toMatchObject({
+      createCorePrimitives: expect.any(Function),
+    });
+    expect(runtime?.cardShellModule).toMatchObject({
+      createCardShell: expect.any(Function),
+    });
+    expect(typeof runtime?.defaultSortMode).toBe('string');
     expect(runtime?.validSortModes).toBeInstanceOf(Set);
-    expect(runtime?.sortModeControlOptions).toEqual([{ value: 'rating_desc', label: 'Rating' }]);
-    expect(runtime?.runtimeConstants).toEqual({ settingsKey: 'cw_settings_v1' });
-    expect(runtime?.defaultSettings).toEqual({ activeTab: 'curated' });
+    expect(runtime?.validSortModes.has(runtime?.defaultSortMode as string)).toBe(true);
+    expect(Array.isArray(runtime?.sortModeControlOptions)).toBe(true);
+    expect((runtime?.sortModeControlOptions as unknown[]).length).toBeGreaterThan(0);
+    expect(runtime?.runtimeConstants).toMatchObject({ settingsKey: 'cw_settings_v1' });
+    expect(runtime?.defaultSettings).toMatchObject({ activeTab: 'curated' });
   });
 });

@@ -1,3 +1,5 @@
+import { createContentRuntimeBootstrapHelpers } from './src/Runtime/ContentRuntimeBootstrapHelpers.js';
+
 (() => {
   const runtimeInstanceStartedAt = Date.now();
   const runtimeInstanceId = `cw-${runtimeInstanceStartedAt}-${Math.random().toString(36).slice(2, 10)}`;
@@ -49,36 +51,23 @@
     window.__CW_WATCHLIST_CURATOR_CONTROL__.activeInstanceId === runtimeInstanceId &&
     window.__CW_WATCHLIST_CURATOR_CONTROL__.active !== false;
 
-  const moduleRegistry = window.__CW_WATCHLIST_CURATOR_MODULES__ || {};
-  const runtimeContentRuntimeBootstrapHelpersModule = moduleRegistry.runtimeContentRuntimeBootstrapHelpers;
-  if (
-    !runtimeContentRuntimeBootstrapHelpersModule ||
-    typeof runtimeContentRuntimeBootstrapHelpersModule.createContentRuntimeBootstrapHelpers !== 'function'
-  ) {
-    // eslint-disable-next-line no-console
-    console.error('[CW] missing-content-runtime-bootstrap-helpers-module');
-    markRuntimeInactive('missing-content-runtime-bootstrap-helpers-module');
-    return;
-  }
-
-  const runtimeBootstrapHelpersRuntime =
-    runtimeContentRuntimeBootstrapHelpersModule.createContentRuntimeBootstrapHelpers({
-      windowRef: window,
-      consoleRef: console,
-      browserRef: typeof browser !== 'undefined' ? browser : undefined,
-      chromeRef: typeof chrome !== 'undefined' ? chrome : undefined,
-      runtimeControl,
-      setRuntimeControl,
-      runtimeInstanceId,
-      runtimeInstanceStartedAt,
-      domRuntimeLockOwnerAttribute,
-      domRuntimeLockTimestampAttribute,
-      domRuntimeLockStaleMs,
-      domRuntimeLockHeartbeatMs,
-      runtimeTakeoverRequestEventName,
-      isCurrentRuntimeOwner,
-      isCurrentRuntimeActive,
-    });
+  const runtimeBootstrapHelpersRuntime = createContentRuntimeBootstrapHelpers({
+    windowRef: window,
+    consoleRef: console,
+    browserRef: typeof browser !== 'undefined' ? browser : undefined,
+    chromeRef: typeof chrome !== 'undefined' ? chrome : undefined,
+    runtimeControl,
+    setRuntimeControl,
+    runtimeInstanceId,
+    runtimeInstanceStartedAt,
+    domRuntimeLockOwnerAttribute,
+    domRuntimeLockTimestampAttribute,
+    domRuntimeLockStaleMs,
+    domRuntimeLockHeartbeatMs,
+    runtimeTakeoverRequestEventName,
+    isCurrentRuntimeOwner,
+    isCurrentRuntimeActive,
+  });
 
   const setRuntimeSetupBindings = (runtimeSetupBindings) => {
     ({
@@ -153,7 +142,7 @@
     );
     if (!runtimeSetupResult || runtimeSetupResult.ok !== true) {
       bootstrapContext.setBootstrapIssue('runtime-module-initialization-failed', {
-        message: runtimeSetupResult?.message || 'unknown',
+        message: runtimeSetupResult?.message || 'unavailable',
       });
       runtimeBootstrapHelpersRuntime.clearStaleInjectedShell('runtime-module-initialization-failed');
       return null;
@@ -176,6 +165,8 @@
     });
     const hasValidBootstrapFinalizeRuntime = runtimeBootstrapHelpersRuntime.bindBootstrapFinalizeRuntimeMethods({
       bootstrapFinalizeRuntime,
+      disposeRuntimeSetup:
+        typeof runtimeSetupResult.dispose === 'function' ? runtimeSetupResult.dispose.bind(runtimeSetupResult) : null,
       setProcessWatchlist: runtimeBootstrapSession.setProcessWatchlist,
       setSyncRouteRuntime: runtimeBootstrapSession.setSyncRouteRuntime,
       setDestroyRuntime: runtimeBootstrapSession.setDestroyRuntime,

@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type WatchlistHealthRuntime = {
   runCheck: () => void;
@@ -10,9 +9,7 @@ type WatchlistHealthRuntime = {
 };
 
 type WatchlistHealthModule = {
-  runtimeWatchlistHealth: {
-    createWatchlistHealthRuntime: (options: Record<string, unknown>) => WatchlistHealthRuntime;
-  };
+  createWatchlistHealthRuntime: (options: Record<string, unknown>) => WatchlistHealthRuntime;
 };
 
 type FakeClassList = {
@@ -30,10 +27,13 @@ type FakeElement = {
 const watchlistHealthModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'WatchlistHealth.ts'),
 ).href;
+let watchlistHealthModule: WatchlistHealthModule | null = null;
 
 function getWatchlistHealthModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as WatchlistHealthModule;
-  return registry.runtimeWatchlistHealth;
+  if (!watchlistHealthModule) {
+    throw new Error('Watchlist health runtime module was not initialized for test');
+  }
+  return watchlistHealthModule;
 }
 
 function createSessionStorageRef() {
@@ -184,11 +184,12 @@ function createWatchlistHealthHarness(overrides: Record<string, unknown> = {}) {
 
 describe('watchlist-health runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([watchlistHealthModuleUrl]);
+    vi.resetModules();
+    watchlistHealthModule = (await import(watchlistHealthModuleUrl)) as WatchlistHealthModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    watchlistHealthModule = null;
     vi.restoreAllMocks();
   });
 

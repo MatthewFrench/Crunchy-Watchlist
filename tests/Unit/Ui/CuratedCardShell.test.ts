@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type FakeMouseEvent = {
   defaultPrevented: boolean;
@@ -62,21 +61,7 @@ type CardShellModule = {
 const cardShellModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardShell.ts'),
 ).href;
-const cardProgressComponentModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardProgressComponent.ts'),
-).href;
-const cardHeaderComponentModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardHeaderComponent.ts'),
-).href;
-const cardActionsComponentModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardActionsComponent.ts'),
-).href;
-const cardMetadataComponentModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardMetadataComponent.ts'),
-).href;
-const cardMediaComponentModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardMediaComponent.ts'),
-).href;
+let createCardShell: CardShellModule['createCardShell'] | null = null;
 
 function createFakeDocument(): FakeDocument {
   const createElement = (tagName: string): FakeElement => {
@@ -160,15 +145,11 @@ function createFakeDocument(): FakeDocument {
   };
 }
 
-function getCardShellModule(): CardShellModule {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    ui?: Record<string, unknown>;
-  };
-  const uiRegistry = registry.ui ?? {};
-  return uiRegistry.cardShell as CardShellModule;
-}
-
 function createCardShellRuntime(options: Partial<Record<string, unknown>> = {}) {
+  if (typeof createCardShell !== 'function') {
+    throw new Error('Card shell runtime was not initialized for test');
+  }
+
   const {
     createCuratedCardBody: createCuratedCardBodyOption,
     getCuratedCardBodyRefs: getCuratedCardBodyRefsOption,
@@ -210,7 +191,7 @@ function createCardShellRuntime(options: Partial<Record<string, unknown>> = {}) 
   const patchCuratedCardBody = vi.fn();
   const installCuratedCardPreview = vi.fn();
 
-  const runtime = getCardShellModule().createCardShell({
+  const runtime = createCardShell({
     documentRef,
     windowRef: {
       location: {
@@ -245,18 +226,15 @@ function createCardShellRuntime(options: Partial<Record<string, unknown>> = {}) 
 
 describe('curated-card-shell ui module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([
-      cardProgressComponentModuleUrl,
-      cardHeaderComponentModuleUrl,
-      cardActionsComponentModuleUrl,
-      cardMetadataComponentModuleUrl,
-      cardMediaComponentModuleUrl,
-      cardShellModuleUrl,
-    ]);
+    vi.resetModules();
+    const cardShellModule = (await import(cardShellModuleUrl)) as {
+      createCardShellRuntime: () => object;
+    };
+    createCardShell = (cardShellModule.createCardShellRuntime() as CardShellModule).createCardShell;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createCardShell = null;
   });
 
   it('selects cover images based on card layout with fallback', () => {

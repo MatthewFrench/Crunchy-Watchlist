@@ -2,7 +2,6 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type CuratedRenderableRuntime = {
   buildRenderableEntries: (
@@ -52,37 +51,20 @@ type FakeSelectElement = FakeElement & {
 const curatedRenderableModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedRenderable.ts'),
 ).href;
-const curatedRenderableListProcessingModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedRenderableListProcessing.ts'),
-).href;
-const curatedRenderableMergeSupportModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedRenderableMergeSupport.ts'),
-).href;
 const curatedPanelModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanel.ts'),
 ).href;
-const curatedPanelGridModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGrid.ts'),
-).href;
-const curatedPanelGridTransitionsModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridTransitions.ts'),
-).href;
-const curatedPanelGridSignatureModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridSignature.ts'),
-).href;
-const curatedPanelGridRenderPhasesModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridRenderPhases.ts'),
-).href;
-const curatedPanelLoadingIndicatorModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelLoadingIndicator.ts'),
-).href;
+let curatedRenderableModule: {
+  createCuratedRenderable: (options: Record<string, unknown>) => CuratedRenderableRuntime;
+} | null = null;
+let curatedPanelModule: {
+  createCuratedPanelRuntime: CuratedPanelRuntimeFactory;
+} | null = null;
 
 function getCuratedRenderableRuntime(): CuratedRenderableRuntime {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    runtimeRenderable: {
-      createCuratedRenderable: (options: Record<string, unknown>) => CuratedRenderableRuntime;
-    };
-  };
+  if (!curatedRenderableModule) {
+    throw new Error('Curated renderable runtime module was not initialized for test');
+  }
 
   const getCachedRating = vi.fn((seriesId: unknown) => ({
     rating: Number(String(seriesId || '').replace('series-', '')) % 5,
@@ -110,7 +92,7 @@ function getCuratedRenderableRuntime(): CuratedRenderableRuntime {
     return Number(leftRecord.sortOrder || 0) - Number(rightRecord.sortOrder || 0);
   };
 
-  const runtime = registry.runtimeRenderable.createCuratedRenderable({
+  const runtime = curatedRenderableModule.createCuratedRenderable({
     normalizeAudioLocale: (value: unknown) => (typeof value === 'string' ? value.toLowerCase() : null),
     getPreferredAudioLanguage: () => 'en-us',
     getCachedRating,
@@ -156,12 +138,10 @@ function getCuratedRenderableRuntime(): CuratedRenderableRuntime {
 }
 
 function getCuratedPanelRuntimeFactory(): CuratedPanelRuntimeFactory {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    runtimeCuratedPanel: {
-      createCuratedPanelRuntime: CuratedPanelRuntimeFactory;
-    };
-  };
-  return registry.runtimeCuratedPanel.createCuratedPanelRuntime;
+  if (!curatedPanelModule) {
+    throw new Error('Curated panel runtime module was not initialized for test');
+  }
+  return curatedPanelModule.createCuratedPanelRuntime;
 }
 
 function createFakeElement(): FakeElement {
@@ -331,21 +311,21 @@ function median(values: number[]): number {
 
 describe('curated perf budgets', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([
-      curatedRenderableListProcessingModuleUrl,
-      curatedRenderableMergeSupportModuleUrl,
-      curatedRenderableModuleUrl,
-      curatedPanelGridTransitionsModuleUrl,
-      curatedPanelGridSignatureModuleUrl,
-      curatedPanelGridRenderPhasesModuleUrl,
-      curatedPanelGridModuleUrl,
-      curatedPanelLoadingIndicatorModuleUrl,
-      curatedPanelModuleUrl,
-    ]);
+    vi.resetModules();
+    const curatedRenderableRuntimeModule = (await import(curatedRenderableModuleUrl)) as {
+      createRuntimeRenderableRuntime: () => object;
+    };
+    curatedRenderableModule =
+      curatedRenderableRuntimeModule.createRuntimeRenderableRuntime() as typeof curatedRenderableModule;
+    const curatedPanelRuntimeModule = (await import(curatedPanelModuleUrl)) as {
+      createRuntimeCuratedPanelRuntime: () => object;
+    };
+    curatedPanelModule = curatedPanelRuntimeModule.createRuntimeCuratedPanelRuntime() as typeof curatedPanelModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    curatedRenderableModule = null;
+    curatedPanelModule = null;
     vi.restoreAllMocks();
   });
 

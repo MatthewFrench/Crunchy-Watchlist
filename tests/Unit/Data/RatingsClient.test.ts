@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type TokenEntry = {
   accessToken?: string;
@@ -35,9 +34,7 @@ type RatingsClientRuntime = {
 };
 
 type RatingsClientModule = {
-  ratingsClient: {
-    createRatingsClient: (options: Record<string, unknown>) => RatingsClientRuntime;
-  };
+  createRatingsClient: (options: Record<string, unknown>) => RatingsClientRuntime;
 };
 
 type ResponseLike = {
@@ -50,11 +47,7 @@ type ResponseLike = {
 const ratingsClientModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'RatingsClient.ts'),
 ).href;
-
-function getRatingsClientModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as RatingsClientModule;
-  return registry.ratingsClient;
-}
+let createRatingsClientRuntimeFactory: RatingsClientModule['createRatingsClient'] | null = null;
 
 function createJsonResponse(payload: unknown, status = 200): ResponseLike {
   return {
@@ -75,6 +68,10 @@ function createTextResponse(body: string, status = 200): ResponseLike {
 }
 
 function createRatingsClientRuntime(overrides: Partial<Record<string, unknown>> = {}) {
+  if (typeof createRatingsClientRuntimeFactory !== 'function') {
+    throw new Error('Ratings client runtime was not initialized for test');
+  }
+
   const fetchWithResilience =
     vi.fn<
       (
@@ -116,7 +113,7 @@ function createRatingsClientRuntime(overrides: Partial<Record<string, unknown>> 
     };
   });
 
-  const runtime = getRatingsClientModule().createRatingsClient({
+  const runtime = createRatingsClientRuntimeFactory({
     fetchWithResilience,
     getAccessToken,
     createAuthRefreshHandler,
@@ -124,9 +121,12 @@ function createRatingsClientRuntime(overrides: Partial<Record<string, unknown>> 
     normalizeAudioLocale: (value: unknown) => (typeof value === 'string' ? value.toLowerCase() : ''),
     getPreferredAudioLanguage: () => 'en-us',
     getLocale: () => 'en-US',
-    requirePayloadDataArray: (_endpoint: string, payload: unknown) => {
+    parsePayloadDataEnvelope: (_endpoint: string, payload: unknown) => {
       const record = payload as Record<string, unknown>;
-      return Array.isArray(record.data) ? record.data : [];
+      return {
+        rows: Array.isArray(record.data) ? (record.data as Record<string, unknown>[]) : [],
+        total: typeof record.total === 'number' ? record.total : null,
+      };
     },
     auditCmsObjectContract: () => {},
     parseCmsObjectRecord,
@@ -167,11 +167,17 @@ function createRatingsClientRuntime(overrides: Partial<Record<string, unknown>> 
 
 describe('ratings-client module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([ratingsClientModuleUrl]);
+    vi.resetModules();
+    const module = (await import(ratingsClientModuleUrl)) as {
+      createRatingsClientRuntime: () => object;
+    };
+    createRatingsClientRuntimeFactory = (module.createRatingsClientRuntime() as RatingsClientModule)
+      .createRatingsClient;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createRatingsClientRuntimeFactory = null;
+    vi.restoreAllMocks();
   });
 
   it('fetchRatingsBatch returns normalized cms records with series ids', async () => {

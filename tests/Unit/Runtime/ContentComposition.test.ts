@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type ContentCompositionModule = {
   createContentComposition: (options: Record<string, unknown>) => Record<string, unknown>;
@@ -10,18 +9,14 @@ type ContentCompositionModule = {
 const contentCompositionModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentComposition.ts'),
 ).href;
-const contentCompositionBindingsModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentCompositionBindings.ts'),
-).href;
-const contentCompositionRuntimeBindingsModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentCompositionRuntimeBindings.ts'),
-).href;
+let contentCompositionModule: ContentCompositionModule | null = null;
 
 function getContentCompositionModule(): ContentCompositionModule {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    runtimeContentComposition?: ContentCompositionModule;
-  };
-  return registry.runtimeContentComposition as ContentCompositionModule;
+  if (!contentCompositionModule) {
+    throw new Error('Content composition module was not initialized for test');
+  }
+
+  return contentCompositionModule;
 }
 
 function createSortMetricsRuntime(): Record<string, unknown> {
@@ -73,20 +68,22 @@ function createCorePrimitivesRuntime(): Record<string, unknown> {
 
 describe('content composition runtime module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([
-      contentCompositionBindingsModuleUrl,
-      contentCompositionRuntimeBindingsModuleUrl,
-      contentCompositionModuleUrl,
-    ]);
+    vi.resetModules();
+    contentCompositionModule = (await import(contentCompositionModuleUrl)) as ContentCompositionModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    contentCompositionModule = null;
+    vi.restoreAllMocks();
   });
 
   it('wires deferred runtime callbacks for card actions and preview installation', () => {
     const createCuratedCardActions = vi.fn(() => ['favorite']);
     const installCuratedCardPreview = vi.fn(() => 'preview-installed');
+    const disposeCuratedPanel = vi.fn();
+    const disposeNativeBridge = vi.fn();
+    const disposeInteractions = vi.fn();
+    const disposeInterfaceShell = vi.fn();
     let cardShellOptions: Record<string, unknown> | null = null;
 
     const runtime = getContentCompositionModule().createContentComposition({
@@ -178,6 +175,7 @@ describe('content composition runtime module', () => {
           createCuratedPanelRuntime: () => ({
             renderCuratedPanel: () => undefined,
             refreshCuratedLoadingIndicator: () => undefined,
+            dispose: disposeCuratedPanel,
           }),
         },
         runtimeCuratedLoaderModule: {
@@ -190,12 +188,14 @@ describe('content composition runtime module', () => {
           createNativeBridgeRuntime: () => ({
             triggerNativeCardAction: async () => true,
             installCuratedCardPreview,
+            dispose: disposeNativeBridge,
           }),
         },
         runtimeCuratedInteractionsModule: {
           createCuratedInteractionsRuntime: () => ({
             createCuratedCardActions,
             bindCuratedInterfaceControls: () => undefined,
+            dispose: disposeInteractions,
           }),
         },
         runtimeInterfaceShellModule: {
@@ -205,6 +205,7 @@ describe('content composition runtime module', () => {
             applyTabUi: () => undefined,
             resetCuratedCachesForRefresh: () => undefined,
             ensureInterface: () => undefined,
+            dispose: disposeInterfaceShell,
           }),
         },
         runtimeDebugModule: {
@@ -263,5 +264,12 @@ describe('content composition runtime module', () => {
     expect(createCuratedCardActions).toHaveBeenCalledTimes(1);
     expect(installCuratedCardPreview).toHaveBeenCalledTimes(1);
     expect(cardShellOptions).toBeTruthy();
+
+    (runtime.dispose as () => void)();
+    (runtime.dispose as () => void)();
+    expect(disposeInterfaceShell).toHaveBeenCalledTimes(1);
+    expect(disposeInteractions).toHaveBeenCalledTimes(1);
+    expect(disposeCuratedPanel).toHaveBeenCalledTimes(1);
+    expect(disposeNativeBridge).toHaveBeenCalledTimes(1);
   });
 });

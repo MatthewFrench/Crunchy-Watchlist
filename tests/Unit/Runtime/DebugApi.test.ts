@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type SeriesCandidate = {
   seriesId: string;
@@ -25,16 +24,17 @@ type DebugApiRuntime = {
 };
 
 type DebugApiModule = {
-  runtimeDebug: {
-    createDebugApiRuntime: (options: Record<string, unknown>) => DebugApiRuntime;
-  };
+  createDebugApiRuntime: (options: Record<string, unknown>) => DebugApiRuntime;
 };
 
 const debugApiModuleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Runtime', 'DebugApi.ts')).href;
+let debugApiModule: DebugApiModule | null = null;
 
 function getDebugApiModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as DebugApiModule;
-  return registry.runtimeDebug;
+  if (!debugApiModule) {
+    throw new Error('Debug API runtime module was not initialized for test');
+  }
+  return debugApiModule;
 }
 
 function makeWatchlistRow(seriesId: string, seriesTitle: string): Record<string, unknown> {
@@ -149,11 +149,15 @@ function createHarness(overrides: Record<string, unknown> = {}) {
 
 describe('debug-api runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([debugApiModuleUrl]);
+    vi.resetModules();
+    const module = (await import(debugApiModuleUrl)) as {
+      createRuntimeDebugRuntime: () => object;
+    };
+    debugApiModule = module.createRuntimeDebugRuntime() as DebugApiModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    debugApiModule = null;
   });
 
   it('lists known series by merged cache/trace/runtime candidates', () => {

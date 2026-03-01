@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -25,6 +24,8 @@ type EntryNormalizerModule = {
 const entryNormalizerModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Domain', 'EntryNormalizer.ts'),
 ).href;
+
+let createEntryNormalizerFactory: EntryNormalizerModule['createEntryNormalizer'] | null = null;
 
 function sanitizePositiveInt(value: unknown): number | null {
   const numericValue = Number(value);
@@ -60,11 +61,11 @@ function toRecord(value: unknown): UnknownRecord {
 }
 
 function createEntryNormalizer(): EntryNormalizer {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
-  const domainRegistry = registry.domain as Record<string, unknown>;
-  const entryNormalizerModule = domainRegistry.entryNormalizer as EntryNormalizerModule;
+  if (typeof createEntryNormalizerFactory !== 'function') {
+    throw new Error('Entry normalizer runtime was not initialized for test');
+  }
 
-  return entryNormalizerModule.createEntryNormalizer({
+  return createEntryNormalizerFactory({
     sanitizePositiveInt,
     getAbsoluteEpisodeNumberFromEpisodeMetadata: (meta: UnknownRecord) =>
       sanitizePositiveInt(meta.sequence_number) ?? sanitizePositiveInt(meta.global_episode_number),
@@ -155,11 +156,17 @@ function createApiRow(
 
 describe('EntryNormalizer', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([entryNormalizerModuleUrl]);
+    vi.resetModules();
+    const entryNormalizerModule = (await import(entryNormalizerModuleUrl)) as {
+      createEntryNormalizerRuntime: () => object;
+    };
+    createEntryNormalizerFactory = (entryNormalizerModule.createEntryNormalizerRuntime() as EntryNormalizerModule)
+      .createEntryNormalizer;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createEntryNormalizerFactory = null;
+    vi.restoreAllMocks();
   });
 
   it('deduplicates series rows and merges audio-locale episode availability', () => {

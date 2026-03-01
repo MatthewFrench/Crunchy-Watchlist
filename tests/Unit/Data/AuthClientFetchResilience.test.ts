@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type AuthClientFetchResilienceRuntime = {
   fetchWithResilienceInternal: (
@@ -13,19 +12,22 @@ type AuthClientFetchResilienceRuntime = {
 };
 
 type AuthClientFetchResilienceModule = {
-  authClientFetchResilience: {
-    createAuthClientFetchResilienceRuntime: () => AuthClientFetchResilienceRuntime;
-  };
+  createAuthClientFetchResilienceRuntime: () => AuthClientFetchResilienceRuntime;
 };
 
 const authClientFetchResilienceModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'AuthClientFetchResilience.ts'),
 ).href;
+let createFetchResilienceRuntimeFactory:
+  | AuthClientFetchResilienceModule['createAuthClientFetchResilienceRuntime']
+  | null = null;
 
 function getFetchResilienceRuntime() {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as AuthClientFetchResilienceModule;
-  return registry.authClientFetchResilience.createAuthClientFetchResilienceRuntime();
+  if (typeof createFetchResilienceRuntimeFactory !== 'function') {
+    throw new Error('Auth client fetch resilience runtime was not initialized for test');
+  }
+
+  return createFetchResilienceRuntimeFactory();
 }
 
 function createContext(overrides: Record<string, unknown> = {}) {
@@ -47,11 +49,13 @@ function createContext(overrides: Record<string, unknown> = {}) {
 
 describe('auth client fetch resilience runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([authClientFetchResilienceModuleUrl]);
+    vi.resetModules();
+    const module = (await import(authClientFetchResilienceModuleUrl)) as AuthClientFetchResilienceModule;
+    createFetchResilienceRuntimeFactory = module.createAuthClientFetchResilienceRuntime;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createFetchResilienceRuntimeFactory = null;
     vi.restoreAllMocks();
   });
 

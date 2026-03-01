@@ -1,11 +1,14 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type ApiContractsRuntime = {
   computeFetchRetryDelayMs: (attemptNumber: unknown, response: unknown) => number;
   requirePayloadDataArray: (endpointName: string, payload: unknown) => Record<string, unknown>[];
+  parsePayloadDataEnvelope: (
+    endpointName: string,
+    payload: unknown,
+  ) => { rows: Record<string, unknown>[]; total: number | null };
   auditWatchlistRowsContract: (rows: unknown[]) => void;
   resolveApiHref: (href: unknown) => string;
   getLocale: () => string;
@@ -16,14 +19,14 @@ type ApiContractsModule = {
 };
 
 const moduleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Data', 'ApiContracts.ts')).href;
-
-function getApiContractsModule(): ApiContractsModule {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
-  return registry.apiContracts as ApiContractsModule;
-}
+let createApiContracts: ApiContractsModule['createApiContracts'] | null = null;
 
 function createApiContractsRuntime(runtimeEvent: ReturnType<typeof vi.fn>) {
-  return getApiContractsModule().createApiContracts({
+  if (typeof createApiContracts !== 'function') {
+    throw new Error('API contracts runtime was not initialized for test');
+  }
+
+  return createApiContracts({
     windowRef: {
       setTimeout: (callback: () => void) => {
         callback();
@@ -59,11 +62,16 @@ function createApiContractsRuntime(runtimeEvent: ReturnType<typeof vi.fn>) {
 
 describe('api-contracts data module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([moduleUrl]);
+    vi.resetModules();
+    const module = (await import(moduleUrl)) as {
+      createApiContractsRuntime: () => object;
+    };
+    createApiContracts = (module.createApiContractsRuntime() as ApiContractsModule).createApiContracts;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createApiContracts = null;
+    vi.restoreAllMocks();
   });
 
   it('parses retry-after headers and resolves API hrefs/locales', () => {
@@ -114,6 +122,29 @@ describe('api-contracts data module', () => {
         nonObjectCount: 3,
       }),
     );
+  });
+
+  it('parses payload envelope rows and nullable total', () => {
+    const runtimeEvent = vi.fn();
+    const runtime = createApiContractsRuntime(runtimeEvent);
+
+    const validEnvelope = runtime.parsePayloadDataEnvelope('watchlist', {
+      total: '12',
+      data: [{ id: 'row-1' }],
+    });
+    expect(validEnvelope).toEqual({
+      rows: [{ id: 'row-1' }],
+      total: 12,
+    });
+
+    const invalidTotalEnvelope = runtime.parsePayloadDataEnvelope('watchlist', {
+      total: 'bad',
+      data: [{ id: 'row-2' }],
+    });
+    expect(invalidTotalEnvelope).toEqual({
+      rows: [{ id: 'row-2' }],
+      total: null,
+    });
   });
 
   it('emits warnings when watchlist rows are missing required fields', () => {

@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type RouteLifecycleRuntime = {
   processWatchlist: () => Promise<void>;
@@ -11,18 +10,19 @@ type RouteLifecycleRuntime = {
 };
 
 type RouteLifecycleModule = {
-  runtimeLifecycle: {
-    createRouteLifecycle: (options: Record<string, unknown>) => RouteLifecycleRuntime;
-  };
+  createRouteLifecycle: (options: Record<string, unknown>) => RouteLifecycleRuntime;
 };
 
 const routeLifecycleModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'RouteLifecycle.ts'),
 ).href;
+let routeLifecycleModule: RouteLifecycleModule | null = null;
 
 function getRouteLifecycleModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as RouteLifecycleModule;
-  return registry.runtimeLifecycle;
+  if (!routeLifecycleModule) {
+    throw new Error('Route lifecycle runtime module was not initialized for test');
+  }
+  return routeLifecycleModule;
 }
 
 function setPathname(pathname: string) {
@@ -61,11 +61,15 @@ function createBaseState() {
 
 describe('runtime route-lifecycle', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([routeLifecycleModuleUrl]);
+    vi.resetModules();
+    const module = (await import(routeLifecycleModuleUrl)) as {
+      createRuntimeLifecycleRuntime: () => object;
+    };
+    routeLifecycleModule = module.createRuntimeLifecycleRuntime() as RouteLifecycleModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    routeLifecycleModule = null;
     delete (globalThis as Record<string, unknown>).location;
     delete (globalThis as Record<string, unknown>).document;
     delete (globalThis as Record<string, unknown>).history;

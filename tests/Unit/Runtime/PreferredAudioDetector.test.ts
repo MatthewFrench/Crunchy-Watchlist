@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type StorageStub = {
   getItem: (key: string) => string | null;
@@ -14,14 +13,13 @@ type PreferredAudioDetector = {
 };
 
 type PreferredAudioModule = {
-  runtimePreferredAudio: {
-    createPreferredAudioDetector: (options: Record<string, unknown>) => PreferredAudioDetector;
-  };
+  createPreferredAudioDetector: (options: Record<string, unknown>) => PreferredAudioDetector;
 };
 
 const preferredAudioDetectorModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'PreferredAudioDetector.ts'),
 ).href;
+let preferredAudioModule: PreferredAudioModule | null = null;
 
 function createStorageStub(entries: Record<string, string>): StorageStub {
   const keys = Object.keys(entries);
@@ -49,17 +47,23 @@ function normalizeAudioLocale(value: unknown): string | null {
 }
 
 function getDetector(options: Record<string, unknown>): PreferredAudioDetector {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as PreferredAudioModule;
-  return registry.runtimePreferredAudio.createPreferredAudioDetector(options);
+  if (!preferredAudioModule) {
+    throw new Error('Preferred audio runtime module was not initialized for test');
+  }
+  return preferredAudioModule.createPreferredAudioDetector(options);
 }
 
 describe('PreferredAudioDetector', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([preferredAudioDetectorModuleUrl]);
+    vi.resetModules();
+    const module = (await import(preferredAudioDetectorModuleUrl)) as {
+      createRuntimePreferredAudioRuntime: () => object;
+    };
+    preferredAudioModule = module.createRuntimePreferredAudioRuntime() as PreferredAudioModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    preferredAudioModule = null;
   });
 
   it('detects locale from direct storage keys', () => {

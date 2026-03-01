@@ -1,262 +1,267 @@
-let createBootstrapModulesRuntimeFactory: (() => object) | null = null;
+import { createApiContractsRuntime } from '../Data/ApiContracts.js';
+import { createAuthClientRuntime } from '../Data/AuthClient.js';
+import { createHistoryRepositoryRuntime } from '../Data/HistoryRepository.js';
+import { createPreviewRepositoryRuntime } from '../Data/PreviewRepository.js';
+import { createRatingsClientRuntime } from '../Data/RatingsClient.js';
+import { createRatingsRepositoryRuntime } from '../Data/RatingsRepository.js';
+import { createStorageRuntime } from '../Data/StorageAdapter.js';
+import { createWatchlistClientRuntime } from '../Data/WatchlistClient.js';
+import { createWatchlistRepositoryRuntime } from '../Data/WatchlistRepository.js';
+import { createCorePrimitivesRuntime } from '../Domain/CorePrimitives.js';
+import { createEntryNormalizerRuntime } from '../Domain/EntryNormalizer.js';
+import { createEntrySortingRuntime } from '../Domain/EntrySorting.js';
+import { createImageVariantsRuntime } from '../Domain/ImageVariants.js';
+import { createSortMetricsRuntime } from '../Domain/SortMetrics.js';
+import { createCardMetadataRuntime } from '../Ui/CardMetadata.js';
+import { createControlsViewRuntime } from '../Ui/ControlsView.js';
+import { createCardShellRuntime } from '../Ui/CuratedCardShell.js';
+import { createCardViewRuntime } from '../Ui/CuratedCardView.js';
+import { createRuntimeBootstrapConfigRuntime } from './BootstrapConfig.js';
+import { createRuntimeCuratedInteractionsRuntime } from './CuratedInteractions.js';
+import { createRuntimeCuratedLoaderRuntime } from './CuratedLoader.js';
+import { createRuntimeCuratedPanelRuntime } from './CuratedPanel.js';
+import { createRuntimeRenderableRuntime } from './CuratedRenderable.js';
+import { createRuntimeDebugRuntime } from './DebugApi.js';
+import { createRuntimeInterfaceShellRuntime } from './InterfaceShell.js';
+import { createNativeBridgeRuntime } from './NativeBridge.js';
+import { createRuntimePreferredAudioRuntime } from './PreferredAudioDetector.js';
+import { createRuntimeLifecycleRuntime } from './RouteLifecycle.js';
+import { createRuntimeStoreRuntime } from './RuntimeStore.js';
+import { createRuntimeTraceRuntime } from './RuntimeTrace.js';
 
-(() => {
-  type BootstrapConfig = {
-    defaultSortMode: string;
-    validSortModes: Set<string>;
-    sortModeControlOptions: unknown[];
-    runtimeConstants: Record<string, unknown>;
-    defaultSettings: Record<string, unknown>;
-  };
+type BoundaryValue = CwBoundaryValue;
+type BoundaryArray = BoundaryValue[];
+type BoundaryRecord = Record<string, BoundaryValue>;
+type ModuleReference = BoundaryRecord;
 
-  type BootstrapModulesRuntime = {
-    runtimeStoreModule: unknown;
-    runtimeTraceModule: unknown;
-    runtimeStateLoaderModule: unknown;
-    runtimeLifecycleModule: unknown;
-    runtimePreferredAudioModule: unknown;
-    runtimeRenderableModule: unknown;
-    runtimeCuratedPanelModule: unknown;
-    runtimeCuratedLoaderModule: unknown;
-    runtimeNativeBridgeModule: unknown;
-    runtimeCuratedInteractionsModule: unknown;
-    runtimeInterfaceShellModule: unknown;
-    runtimeDebugModule: unknown;
-    runtimeBootstrapHelpersModule: unknown;
-    storageModule: unknown;
-    apiContractsModule: unknown;
-    authClientModule: unknown;
-    watchlistClientModule: unknown;
-    watchlistRepositoryModule: unknown;
-    historyRepositoryModule: unknown;
-    ratingsClientModule: unknown;
-    ratingsRepositoryModule: unknown;
-    previewRepositoryModule: unknown;
-    corePrimitivesModule: unknown;
-    imageVariantsModule: unknown;
-    entryNormalizerModule: unknown;
-    sortMetricsModule: unknown;
-    entrySortingModule: unknown;
-    cardMetadataModule: unknown;
-    controlsViewModule: unknown;
-    cardViewModule: unknown;
-    cardShellModule: unknown;
-    defaultSortMode: string;
-    validSortModes: Set<string>;
-    sortModeControlOptions: unknown[];
-    runtimeConstants: Record<string, unknown>;
-    defaultSettings: Record<string, unknown>;
-  };
+type BootstrapConfig = {
+  defaultSortMode: string;
+  validSortModes: Set<string>;
+  sortModeControlOptions: BoundaryArray;
+  runtimeConstants: BoundaryRecord;
+  defaultSettings: BoundaryRecord;
+};
 
-  type BootstrapModulesOptions = {
-    windowRef?: unknown;
-  };
+type BootstrapModulesRuntime = {
+  runtimeStoreModule: ModuleReference;
+  runtimeTraceModule: ModuleReference;
+  runtimeLifecycleModule: ModuleReference;
+  runtimePreferredAudioModule: ModuleReference;
+  runtimeRenderableModule: ModuleReference;
+  runtimeCuratedPanelModule: ModuleReference;
+  runtimeCuratedLoaderModule: ModuleReference;
+  runtimeNativeBridgeModule: ModuleReference;
+  runtimeCuratedInteractionsModule: ModuleReference;
+  runtimeInterfaceShellModule: ModuleReference;
+  runtimeDebugModule: ModuleReference;
+  storageModule: ModuleReference;
+  apiContractsModule: ModuleReference;
+  authClientModule: ModuleReference;
+  watchlistClientModule: ModuleReference;
+  watchlistRepositoryModule: ModuleReference;
+  historyRepositoryModule: ModuleReference;
+  ratingsClientModule: ModuleReference;
+  ratingsRepositoryModule: ModuleReference;
+  previewRepositoryModule: ModuleReference;
+  corePrimitivesModule: ModuleReference;
+  imageVariantsModule: ModuleReference;
+  entryNormalizerModule: ModuleReference;
+  sortMetricsModule: ModuleReference;
+  entrySortingModule: ModuleReference;
+  cardMetadataModule: ModuleReference;
+  controlsViewModule: ModuleReference;
+  cardViewModule: ModuleReference;
+  cardShellModule: ModuleReference;
+  defaultSortMode: string;
+  validSortModes: Set<string>;
+  sortModeControlOptions: BoundaryArray;
+  runtimeConstants: BoundaryRecord;
+  defaultSettings: BoundaryRecord;
+};
 
-  type RuntimeModuleReferences = {
-    runtimeStoreModule: unknown;
-    runtimeTraceModule: unknown;
-    runtimeStateLoaderModule: unknown;
-    runtimeLifecycleModule: unknown;
-    runtimePreferredAudioModule: unknown;
-    runtimeRenderableModule: unknown;
-    runtimeCuratedPanelModule: unknown;
-    runtimeCuratedLoaderModule: unknown;
-    runtimeNativeBridgeModule: unknown;
-    runtimeCuratedInteractionsModule: unknown;
-    runtimeInterfaceShellModule: unknown;
-    runtimeDebugModule: unknown;
-    runtimeBootstrapHelpersModule: unknown;
-  };
+type RuntimeModuleReferences = {
+  runtimeStoreModule: ModuleReference;
+  runtimeTraceModule: ModuleReference;
+  runtimeLifecycleModule: ModuleReference;
+  runtimePreferredAudioModule: ModuleReference;
+  runtimeRenderableModule: ModuleReference;
+  runtimeCuratedPanelModule: ModuleReference;
+  runtimeCuratedLoaderModule: ModuleReference;
+  runtimeNativeBridgeModule: ModuleReference;
+  runtimeCuratedInteractionsModule: ModuleReference;
+  runtimeInterfaceShellModule: ModuleReference;
+  runtimeDebugModule: ModuleReference;
+};
 
-  type DataModuleReferences = {
-    storageModule: unknown;
-    apiContractsModule: unknown;
-    authClientModule: unknown;
-    watchlistClientModule: unknown;
-    watchlistRepositoryModule: unknown;
-    historyRepositoryModule: unknown;
-    ratingsClientModule: unknown;
-    ratingsRepositoryModule: unknown;
-    previewRepositoryModule: unknown;
-  };
+type DataModuleReferences = {
+  storageModule: ModuleReference;
+  apiContractsModule: ModuleReference;
+  authClientModule: ModuleReference;
+  watchlistClientModule: ModuleReference;
+  watchlistRepositoryModule: ModuleReference;
+  historyRepositoryModule: ModuleReference;
+  ratingsClientModule: ModuleReference;
+  ratingsRepositoryModule: ModuleReference;
+  previewRepositoryModule: ModuleReference;
+};
 
-  type DomainUiModuleReferences = {
-    corePrimitivesModule: unknown;
-    imageVariantsModule: unknown;
-    entryNormalizerModule: unknown;
-    sortMetricsModule: unknown;
-    entrySortingModule: unknown;
-    cardMetadataModule: unknown;
-    controlsViewModule: unknown;
-    cardViewModule: unknown;
-    cardShellModule: unknown;
-  };
+type DomainUiModuleReferences = {
+  corePrimitivesModule: ModuleReference;
+  imageVariantsModule: ModuleReference;
+  entryNormalizerModule: ModuleReference;
+  sortMetricsModule: ModuleReference;
+  entrySortingModule: ModuleReference;
+  cardMetadataModule: ModuleReference;
+  controlsViewModule: ModuleReference;
+  cardViewModule: ModuleReference;
+  cardShellModule: ModuleReference;
+};
 
-  type WindowWithRegistry = Window &
-    typeof globalThis & {
-      __CW_WATCHLIST_CURATOR_MODULES__?: Record<string, unknown>;
-    };
-
-  const root = (typeof window !== 'undefined' ? window : globalThis) as WindowWithRegistry;
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
+function toRecord(value: BoundaryValue): ModuleReference {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
+  return value as ModuleReference;
+}
 
-  function resolveWindowRef(value: unknown): WindowWithRegistry {
-    if (!value || typeof value !== 'object') {
-      throw new Error('[CW] Missing bootstrap modules windowRef');
-    }
-
-    const record = value as Record<string, unknown>;
-    if (!record.__CW_WATCHLIST_CURATOR_MODULES__ || typeof record.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-      record.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-    }
-
-    return value as WindowWithRegistry;
-  }
-
-  function toRecord(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return {};
-    }
-    return value as Record<string, unknown>;
-  }
-
-  function isBootstrapConfig(value: unknown): value is BootstrapConfig {
-    if (!value || typeof value !== 'object') {
-      return false;
-    }
-
-    const record = value as Record<string, unknown>;
-    return (
-      typeof record.defaultSortMode === 'string' &&
-      record.validSortModes instanceof Set &&
-      Array.isArray(record.sortModeControlOptions) &&
-      Boolean(record.runtimeConstants) &&
-      typeof record.runtimeConstants === 'object' &&
-      Boolean(record.defaultSettings) &&
-      typeof record.defaultSettings === 'object'
-    );
+function isBootstrapConfig(value: BoundaryValue): value is BootstrapConfig {
+  if (!value || typeof value !== 'object') {
+    return false;
   }
 
-  function assertRuntimeMethods(ownerLabel: string, instance: unknown, methodNames: string[]): void {
-    if (!instance || typeof instance !== 'object') {
-      throw new Error(`[CW] Missing ${ownerLabel}`);
-    }
-    for (const methodName of methodNames) {
-      if (typeof (instance as Record<string, unknown>)[methodName] !== 'function') {
-        throw new Error(`[CW] Missing ${methodName} ${ownerLabel}`);
-      }
+  const record = value as BoundaryRecord;
+  return (
+    typeof record.defaultSortMode === 'string' &&
+    record.validSortModes instanceof Set &&
+    Array.isArray(record.sortModeControlOptions) &&
+    Boolean(record.runtimeConstants) &&
+    typeof record.runtimeConstants === 'object' &&
+    Boolean(record.defaultSettings) &&
+    typeof record.defaultSettings === 'object'
+  );
+}
+
+function assertRuntimeMethods(ownerLabel: string, instance: BoundaryValue, methodNames: string[]): void {
+  if (!instance || typeof instance !== 'object') {
+    throw new Error(`[CW] Missing ${ownerLabel}`);
+  }
+  const record = instance as ModuleReference;
+  for (const methodName of methodNames) {
+    if (typeof record[methodName] !== 'function') {
+      throw new Error(`[CW] Missing ${methodName} ${ownerLabel}`);
     }
   }
+}
 
-  function areModulesDefined(values: unknown[]): boolean {
-    return values.every((value) => Boolean(value));
-  }
+function areModulesDefined(values: BoundaryArray): boolean {
+  return values.every((value) => Boolean(value));
+}
 
-  function resolveRuntimeModuleReferences(registry: Record<string, unknown>): RuntimeModuleReferences | null {
+function resolveRuntimeModuleReferences(): RuntimeModuleReferences | null {
+  try {
     const moduleReferences: RuntimeModuleReferences = {
-      runtimeStoreModule: registry.runtimeStore,
-      runtimeTraceModule: registry.runtimeTrace,
-      runtimeStateLoaderModule: registry.runtimeStateLoader,
-      runtimeLifecycleModule: registry.runtimeLifecycle,
-      runtimePreferredAudioModule: registry.runtimePreferredAudio,
-      runtimeRenderableModule: registry.runtimeRenderable,
-      runtimeCuratedPanelModule: registry.runtimeCuratedPanel,
-      runtimeCuratedLoaderModule: registry.runtimeCuratedLoader,
-      runtimeNativeBridgeModule: registry.runtimeNativeBridge,
-      runtimeCuratedInteractionsModule: registry.runtimeCuratedInteractions,
-      runtimeInterfaceShellModule: registry.runtimeInterfaceShell,
-      runtimeDebugModule: registry.runtimeDebug,
-      runtimeBootstrapHelpersModule: registry.runtimeBootstrapHelpers,
+      runtimeStoreModule: toRecord(createRuntimeStoreRuntime()),
+      runtimeTraceModule: toRecord(createRuntimeTraceRuntime()),
+      runtimeLifecycleModule: toRecord(createRuntimeLifecycleRuntime()),
+      runtimePreferredAudioModule: toRecord(createRuntimePreferredAudioRuntime()),
+      runtimeRenderableModule: toRecord(createRuntimeRenderableRuntime()),
+      runtimeCuratedPanelModule: toRecord(createRuntimeCuratedPanelRuntime()),
+      runtimeCuratedLoaderModule: toRecord(createRuntimeCuratedLoaderRuntime()),
+      runtimeNativeBridgeModule: {
+        createNativeBridgeRuntime,
+      },
+      runtimeCuratedInteractionsModule: toRecord(createRuntimeCuratedInteractionsRuntime()),
+      runtimeInterfaceShellModule: toRecord(createRuntimeInterfaceShellRuntime()),
+      runtimeDebugModule: toRecord(createRuntimeDebugRuntime()),
     };
 
     return areModulesDefined(Object.values(moduleReferences)) ? moduleReferences : null;
+  } catch {
+    return null;
   }
+}
 
-  function resolveDataModuleReferences(registry: Record<string, unknown>): DataModuleReferences | null {
+function resolveDataModuleReferences(): DataModuleReferences | null {
+  try {
     const moduleReferences: DataModuleReferences = {
-      storageModule: registry.storage,
-      apiContractsModule: registry.apiContracts,
-      authClientModule: registry.authClient,
-      watchlistClientModule: registry.watchlistClient,
-      watchlistRepositoryModule: registry.watchlistRepository,
-      historyRepositoryModule: registry.historyRepository,
-      ratingsClientModule: registry.ratingsClient,
-      ratingsRepositoryModule: registry.ratingsRepository,
-      previewRepositoryModule: registry.previewRepository,
+      storageModule: toRecord(createStorageRuntime()),
+      apiContractsModule: toRecord(createApiContractsRuntime()),
+      authClientModule: toRecord(createAuthClientRuntime()),
+      watchlistClientModule: toRecord(createWatchlistClientRuntime()),
+      watchlistRepositoryModule: toRecord(createWatchlistRepositoryRuntime()),
+      historyRepositoryModule: toRecord(createHistoryRepositoryRuntime()),
+      ratingsClientModule: toRecord(createRatingsClientRuntime()),
+      ratingsRepositoryModule: toRecord(createRatingsRepositoryRuntime()),
+      previewRepositoryModule: toRecord(createPreviewRepositoryRuntime()),
     };
 
     return areModulesDefined(Object.values(moduleReferences)) ? moduleReferences : null;
+  } catch {
+    return null;
   }
+}
 
-  function resolveDomainUiModuleReferences(registry: Record<string, unknown>): DomainUiModuleReferences | null {
-    const domainModule = toRecord(registry.domain);
-    const uiModule = toRecord(registry.ui);
+function resolveDomainUiModuleReferences(): DomainUiModuleReferences | null {
+  try {
     const moduleReferences: DomainUiModuleReferences = {
-      corePrimitivesModule: domainModule.corePrimitives,
-      imageVariantsModule: domainModule.imageVariants,
-      entryNormalizerModule: domainModule.entryNormalizer,
-      sortMetricsModule: domainModule.sortMetrics,
-      entrySortingModule: domainModule.entrySorting,
-      cardMetadataModule: uiModule.cardMetadata,
-      controlsViewModule: uiModule.controlsView,
-      cardViewModule: uiModule.cardView,
-      cardShellModule: uiModule.cardShell,
+      corePrimitivesModule: toRecord(createCorePrimitivesRuntime()),
+      imageVariantsModule: toRecord(createImageVariantsRuntime()),
+      entryNormalizerModule: toRecord(createEntryNormalizerRuntime()),
+      sortMetricsModule: toRecord(createSortMetricsRuntime()),
+      entrySortingModule: toRecord(createEntrySortingRuntime()),
+      cardMetadataModule: toRecord(createCardMetadataRuntime()),
+      controlsViewModule: toRecord(createControlsViewRuntime()),
+      cardViewModule: toRecord(createCardViewRuntime()),
+      cardShellModule: toRecord(createCardShellRuntime()),
     };
 
     return areModulesDefined(Object.values(moduleReferences)) ? moduleReferences : null;
+  } catch {
+    return null;
   }
+}
 
-  function resolveBootstrapConfig(registry: Record<string, unknown>): BootstrapConfig | null {
-    const bootstrapConfigFactory = (
-      registry.runtimeBootstrapConfig as {
-        createBootstrapConfig?: () => unknown;
-      }
-    )?.createBootstrapConfig;
-    if (typeof bootstrapConfigFactory !== 'function') {
-      return null;
+function resolveBootstrapConfig(): BootstrapConfig | null {
+  const runtimeBootstrapConfigModule = toRecord(createRuntimeBootstrapConfigRuntime());
+  const bootstrapConfigFactory = (
+    runtimeBootstrapConfigModule as {
+      createBootstrapConfig?: () => BoundaryValue;
     }
-
-    const bootstrapConfig = bootstrapConfigFactory();
-    return isBootstrapConfig(bootstrapConfig) ? bootstrapConfig : null;
+  ).createBootstrapConfig;
+  if (typeof bootstrapConfigFactory !== 'function') {
+    return null;
   }
 
-  function createBootstrapModules(options: BootstrapModulesOptions = {}): BootstrapModulesRuntime | null {
-    const windowRef = resolveWindowRef(options.windowRef);
-    const registry = windowRef.__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
-    const runtimeModuleReferences = resolveRuntimeModuleReferences(registry);
-    const dataModuleReferences = resolveDataModuleReferences(registry);
-    const domainUiModuleReferences = resolveDomainUiModuleReferences(registry);
-    const bootstrapConfig = resolveBootstrapConfig(registry);
-    if (!runtimeModuleReferences || !dataModuleReferences || !domainUiModuleReferences || !bootstrapConfig) {
-      return null;
-    }
+  const bootstrapConfig = bootstrapConfigFactory();
+  return isBootstrapConfig(bootstrapConfig) ? bootstrapConfig : null;
+}
 
-    return {
-      ...runtimeModuleReferences,
-      ...dataModuleReferences,
-      ...domainUiModuleReferences,
-      defaultSortMode: bootstrapConfig.defaultSortMode,
-      validSortModes: bootstrapConfig.validSortModes,
-      sortModeControlOptions: bootstrapConfig.sortModeControlOptions,
-      runtimeConstants: bootstrapConfig.runtimeConstants,
-      defaultSettings: bootstrapConfig.defaultSettings,
-    };
+function createBootstrapModules(): BootstrapModulesRuntime | null {
+  const runtimeModuleReferences = resolveRuntimeModuleReferences();
+  const dataModuleReferences = resolveDataModuleReferences();
+  const domainUiModuleReferences = resolveDomainUiModuleReferences();
+  const bootstrapConfig = resolveBootstrapConfig();
+  if (!runtimeModuleReferences || !dataModuleReferences || !domainUiModuleReferences || !bootstrapConfig) {
+    return null;
   }
 
-  const runtimeBootstrapModules = {
-    createBootstrapModules,
-    assertRuntimeMethods,
+  return {
+    ...runtimeModuleReferences,
+    ...dataModuleReferences,
+    ...domainUiModuleReferences,
+    defaultSortMode: bootstrapConfig.defaultSortMode,
+    validSortModes: bootstrapConfig.validSortModes,
+    sortModeControlOptions: bootstrapConfig.sortModeControlOptions,
+    runtimeConstants: bootstrapConfig.runtimeConstants,
+    defaultSettings: bootstrapConfig.defaultSettings,
   };
-  createBootstrapModulesRuntimeFactory = () => runtimeBootstrapModules;
-  moduleRegistry.runtimeBootstrapModules = runtimeBootstrapModules;
-})();
+}
+
+const runtimeBootstrapModules = {
+  createBootstrapModules,
+  assertRuntimeMethods,
+};
 
 export function createBootstrapModulesRuntime(): object {
-  if (typeof createBootstrapModulesRuntimeFactory !== 'function') {
-    throw new Error('[CW] Bootstrap modules runtime factory was not initialized.');
-  }
-  return createBootstrapModulesRuntimeFactory();
+  return runtimeBootstrapModules;
 }

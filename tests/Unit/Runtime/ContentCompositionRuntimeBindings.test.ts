@@ -1,19 +1,16 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type ContentCompositionRuntimeBindingsModule = {
-  runtimeContentCompositionRuntimeBindings: {
-    createContentCompositionRuntimeBindingsRuntime: () => {
-      createCuratedRuntime: (
-        options: Record<string, unknown>,
-        sortRuntime: Record<string, unknown>,
-        cardRuntime: Record<string, unknown>,
-        normalizeEntriesFromApiRows: (rows: unknown[]) => unknown[],
-      ) => {
-        buildRenderableEntries: () => unknown;
-      };
+  createContentCompositionRuntimeBindingsRuntime: () => {
+    createCuratedRuntime: (
+      options: Record<string, unknown>,
+      sortRuntime: Record<string, unknown>,
+      cardRuntime: Record<string, unknown>,
+      normalizeEntriesFromApiRows: (rows: unknown[]) => unknown[],
+    ) => {
+      buildRenderableEntries: () => unknown;
     };
   };
 };
@@ -22,10 +19,8 @@ const contentCompositionRuntimeBindingsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentCompositionRuntimeBindings.ts'),
 ).href;
 
-function getRuntimeBindingsModule() {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as ContentCompositionRuntimeBindingsModule;
-  return registry.runtimeContentCompositionRuntimeBindings;
+async function getRuntimeBindingsModule(): Promise<ContentCompositionRuntimeBindingsModule> {
+  return (await import(contentCompositionRuntimeBindingsModuleUrl)) as ContentCompositionRuntimeBindingsModule;
 }
 
 function createRuntimeOptions(buildRenderableEntries: (entries: unknown[], settings: unknown) => unknown) {
@@ -132,18 +127,18 @@ function createRuntimeOptions(buildRenderableEntries: (entries: unknown[], setti
 }
 
 describe('content-composition-runtime-bindings runtime', () => {
-  beforeEach(async () => {
-    await loadRuntimeModules([contentCompositionRuntimeBindingsModuleUrl]);
+  beforeEach(() => {
+    vi.resetModules();
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    vi.restoreAllMocks();
   });
 
-  it('memoizes buildRenderableEntries without JSON stringification and recomputes on signature changes', () => {
+  it('memoizes buildRenderableEntries without JSON stringification and recomputes on signature changes', async () => {
     const buildRenderableEntries = vi.fn(() => ({ visible: [], total: 0 }));
     const options = createRuntimeOptions(buildRenderableEntries);
-    const runtime = getRuntimeBindingsModule().createContentCompositionRuntimeBindingsRuntime();
+    const runtime = (await getRuntimeBindingsModule()).createContentCompositionRuntimeBindingsRuntime();
     const curatedRuntime = runtime.createCuratedRuntime(
       options as unknown as Record<string, unknown>,
       {

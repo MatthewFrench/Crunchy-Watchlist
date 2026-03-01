@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type BootstrapConfig = {
   defaultSortMode: string;
@@ -26,32 +25,29 @@ type BootstrapConfig = {
 };
 
 type RuntimeBootstrapConfigModule = {
-  runtimeBootstrapConfig: {
-    createBootstrapConfig: () => BootstrapConfig;
-  };
+  createRuntimeBootstrapConfigRuntime: () => { createBootstrapConfig: () => BootstrapConfig };
 };
 
 const bootstrapConfigModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'BootstrapConfig.ts'),
 ).href;
 
-function getBootstrapConfigModule() {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as RuntimeBootstrapConfigModule;
-  return registry.runtimeBootstrapConfig;
+async function getBootstrapConfig(): Promise<BootstrapConfig> {
+  const module = (await import(bootstrapConfigModuleUrl)) as RuntimeBootstrapConfigModule;
+  return module.createRuntimeBootstrapConfigRuntime().createBootstrapConfig();
 }
 
 describe('bootstrap-config runtime module', () => {
-  beforeEach(async () => {
-    await loadRuntimeModules([bootstrapConfigModuleUrl]);
+  beforeEach(() => {
+    vi.resetModules();
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    vi.restoreAllMocks();
   });
 
-  it('exposes expected default sort and settings values', () => {
-    const config = getBootstrapConfigModule().createBootstrapConfig();
+  it('exposes expected default sort and settings values', async () => {
+    const config = await getBootstrapConfig();
 
     expect(config.defaultSortMode).toBe('consensus_quality_desc');
     expect(config.defaultSettings.sortMode).toBe('consensus_quality_desc');
@@ -66,9 +62,9 @@ describe('bootstrap-config runtime module', () => {
     expect(config.runtimeConstants.watchHistoryCacheVersion).toBe(3);
   });
 
-  it('returns independent option arrays between calls', () => {
-    const first = getBootstrapConfigModule().createBootstrapConfig();
-    const second = getBootstrapConfigModule().createBootstrapConfig();
+  it('returns independent option arrays between calls', async () => {
+    const first = await getBootstrapConfig();
+    const second = await getBootstrapConfig();
 
     const firstOption = first.sortModeControlOptions[0];
     const secondOption = second.sortModeControlOptions[0];

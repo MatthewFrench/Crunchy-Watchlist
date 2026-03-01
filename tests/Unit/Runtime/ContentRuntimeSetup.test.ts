@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type ContentRuntimeSetupResult = {
   ok: boolean;
@@ -9,32 +8,27 @@ type ContentRuntimeSetupResult = {
 };
 
 type ContentRuntimeSetupModule = {
-  runtimeContentRuntimeSetup: {
-    createContentRuntimeSetup: (options?: Record<string, unknown>) => ContentRuntimeSetupResult;
-  };
+  createContentRuntimeSetup: (options?: Record<string, unknown>) => ContentRuntimeSetupResult;
 };
 
 const contentRuntimeSetupModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentRuntimeSetup.ts'),
 ).href;
 
-function getContentRuntimeSetupModule() {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as ContentRuntimeSetupModule;
-  return registry.runtimeContentRuntimeSetup;
+async function getContentRuntimeSetupModule(): Promise<ContentRuntimeSetupModule> {
+  return (await import(contentRuntimeSetupModuleUrl)) as ContentRuntimeSetupModule;
 }
 
 describe('content-runtime-setup runtime', () => {
-  beforeEach(async () => {
-    await loadRuntimeModules([contentRuntimeSetupModuleUrl]);
+  beforeEach(() => {
+    vi.resetModules();
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
     vi.restoreAllMocks();
   });
 
-  it('uses extracted data-initialization runtime and setup-composition runtime in the expected sequence', () => {
+  it('uses extracted data-initialization runtime and setup-composition runtime in the expected sequence', async () => {
     const executionOrder: string[] = [];
     const storageSet = vi.fn();
     const initializeCompositionBinding = vi.fn(() => {
@@ -79,7 +73,8 @@ describe('content-runtime-setup runtime', () => {
       initializeWatchlistHistoryAndPreview,
     }));
 
-    const result = getContentRuntimeSetupModule().createContentRuntimeSetup({
+    const runtimeSetupModule = await getContentRuntimeSetupModule();
+    const result = runtimeSetupModule.createContentRuntimeSetup({
       windowRef: {
         document: {},
       },
@@ -128,8 +123,9 @@ describe('content-runtime-setup runtime', () => {
     ]);
   });
 
-  it('fails fast when setup composition module dependency is missing', () => {
-    const result = getContentRuntimeSetupModule().createContentRuntimeSetup({
+  it('fails fast when setup composition module dependency is missing', async () => {
+    const runtimeSetupModule = await getContentRuntimeSetupModule();
+    const result = runtimeSetupModule.createContentRuntimeSetup({
       windowRef: {
         document: {},
       },
@@ -155,8 +151,9 @@ describe('content-runtime-setup runtime', () => {
     );
   });
 
-  it('fails fast when data initialization module dependency is missing', () => {
-    const result = getContentRuntimeSetupModule().createContentRuntimeSetup({
+  it('fails fast when data initialization module dependency is missing', async () => {
+    const runtimeSetupModule = await getContentRuntimeSetupModule();
+    const result = runtimeSetupModule.createContentRuntimeSetup({
       windowRef: {
         document: {},
       },

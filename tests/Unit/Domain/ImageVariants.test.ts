@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type ImageVariantsRuntime = {
   normalizeImageUrlCandidate: (value: unknown) => string;
@@ -21,19 +20,19 @@ const imageVariantsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Domain', 'ImageVariants.ts'),
 ).href;
 
+let createImageVariants: ImageVariantsModule['createImageVariants'] | null = null;
+
 function sanitizePositiveInt(value: unknown): number | null {
   const numericValue = Number(value);
   return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : null;
 }
 
-function getImageVariantsModule(): ImageVariantsModule {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
-  const domainRegistry = registry.domain as Record<string, unknown>;
-  return domainRegistry.imageVariants as ImageVariantsModule;
-}
-
 function createImageVariantsRuntime(): ImageVariantsRuntime {
-  return getImageVariantsModule().createImageVariants({
+  if (typeof createImageVariants !== 'function') {
+    throw new Error('Image variants runtime was not initialized for test');
+  }
+
+  return createImageVariants({
     sanitizePositiveInt,
     resolveApiHref: (href: string) => {
       if (href.startsWith('/')) {
@@ -46,11 +45,16 @@ function createImageVariantsRuntime(): ImageVariantsRuntime {
 
 describe('image-variants domain module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([imageVariantsModuleUrl]);
+    vi.resetModules();
+    const imageVariantsModule = (await import(imageVariantsModuleUrl)) as {
+      createImageVariantsRuntime: () => ImageVariantsModule;
+    };
+    createImageVariants = imageVariantsModule.createImageVariantsRuntime().createImageVariants;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createImageVariants = null;
+    vi.restoreAllMocks();
   });
 
   it('normalizes image URL candidates through the API href resolver', () => {

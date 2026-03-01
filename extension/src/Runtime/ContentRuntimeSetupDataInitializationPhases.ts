@@ -1,9 +1,31 @@
 import { createBootstrapFinalizeRuntimeModule } from './BootstrapFinalize.js';
+import { createRuntimeBootstrapHelpersRuntime } from './BootstrapHelpers.js';
 import { initializeWatchlistHistoryAndPreviewRuntime } from './ContentRuntimeSetupDataInitializationWatchlistHistory.js';
 
-export type UnknownFn = (...args: unknown[]) => unknown;
-export type LooseRecord = Record<string, unknown>;
-export type RequireFunction = <T>(name: string, value: unknown) => T;
+type RuntimeBoundaryValue = CwBoundaryValue;
+type RuntimeCallback = (...args: RuntimeBoundaryValue[]) => RuntimeBoundaryValue;
+export type UnknownFn = RuntimeCallback;
+export type LooseRecord = Record<string, RuntimeBoundaryValue>;
+export type RequireFunction = <T>(name: string, value: RuntimeBoundaryValue) => T;
+type EntryList = RuntimeBoundaryValue[];
+type MaybeAudioLocale = string | null;
+type TokenEntry = LooseRecord;
+type NormalizeAudioLocaleFn = (value: RuntimeBoundaryValue) => MaybeAudioLocale;
+type DetectPreferredAudioLanguageFn = () => MaybeAudioLocale;
+type IsLocalizedDataMissingFn = (entries: EntryList, audioLocale: MaybeAudioLocale) => boolean;
+type GetAccessTokenFn = (forceRefresh?: boolean) => Promise<TokenEntry | null>;
+type PreloadRatingsForEntriesFn = (
+  entries: EntryList,
+  tokenEntry: TokenEntry,
+  preferredAudioLanguage?: MaybeAudioLocale,
+) => Promise<void>;
+type PreloadWatchHistoryForEntriesFn = (
+  entries: EntryList,
+  tokenEntry: TokenEntry,
+  force?: boolean,
+  preferredAudioLanguage?: MaybeAudioLocale,
+) => Promise<void>;
+type StorageSetFn = (key: string, value: RuntimeBoundaryValue) => RuntimeBoundaryValue;
 
 export type TraceContractsRuntime = {
   corePrimitives: LooseRecord;
@@ -11,7 +33,7 @@ export type TraceContractsRuntime = {
 };
 
 export type StorageRuntime = {
-  storageSet: (key: string, value: unknown) => unknown;
+  storageSet: StorageSetFn;
 };
 
 export type DataInitializationRuntime = {
@@ -35,7 +57,19 @@ export type DataInitializationRuntime = {
 
 type AssertRuntimeMethods = (owner: string, runtime: LooseRecord, requiredMethods: string[]) => void;
 
-function toRecord(value: unknown): LooseRecord {
+export type DataInitializationDependencyOptions = {
+  runtimeBootstrapFinalizeModule?: RuntimeBoundaryValue;
+  runtimeBootstrapHelpersModule?: RuntimeBoundaryValue;
+  createBootstrapFinalizeRuntimeModule?: () => RuntimeBoundaryValue;
+  createRuntimeBootstrapHelpersRuntime?: () => RuntimeBoundaryValue;
+};
+
+type DataInitializationResolvedDependencies = {
+  runtimeBootstrapFinalizeModule: LooseRecord;
+  runtimeBootstrapHelpersModule: LooseRecord;
+};
+
+function toRecord(value: RuntimeBoundaryValue): LooseRecord {
   if (!value || typeof value !== 'object') {
     return {};
   }
@@ -54,15 +88,45 @@ function resolveAssertRuntimeMethods(context: LooseRecord): AssertRuntimeMethods
   return requireRecordFunction<AssertRuntimeMethods>('runtime setup context', context, 'assertRuntimeMethods');
 }
 
-function resolveBootstrapFinalizeModule(context: LooseRecord): LooseRecord {
-  const overrideModule = toRecord(context.runtimeBootstrapFinalizeModule);
-  if (
-    typeof overrideModule.safeJsonParse === 'function' &&
-    typeof overrideModule.createStorageAccessors === 'function'
-  ) {
+function hasMethods(value: LooseRecord, methodNames: string[]): boolean {
+  return methodNames.every((methodName) => typeof value[methodName] === 'function');
+}
+
+function resolveBootstrapFinalizeModuleFromOptions(options: DataInitializationDependencyOptions): LooseRecord {
+  const overrideModule = toRecord(options.runtimeBootstrapFinalizeModule);
+  if (hasMethods(overrideModule, ['safeJsonParse', 'createStorageAccessors'])) {
     return overrideModule;
   }
-  return toRecord(createBootstrapFinalizeRuntimeModule());
+
+  const bootstrapFinalizeModuleFactory =
+    typeof options.createBootstrapFinalizeRuntimeModule === 'function'
+      ? options.createBootstrapFinalizeRuntimeModule
+      : createBootstrapFinalizeRuntimeModule;
+
+  return toRecord(bootstrapFinalizeModuleFactory());
+}
+
+function resolveBootstrapHelpersModuleFromOptions(options: DataInitializationDependencyOptions): LooseRecord {
+  const overrideModule = toRecord(options.runtimeBootstrapHelpersModule);
+  if (hasMethods(overrideModule, ['createBootstrapHelpersRuntime'])) {
+    return overrideModule;
+  }
+
+  const bootstrapHelpersModuleFactory =
+    typeof options.createRuntimeBootstrapHelpersRuntime === 'function'
+      ? options.createRuntimeBootstrapHelpersRuntime
+      : createRuntimeBootstrapHelpersRuntime;
+
+  return toRecord(bootstrapHelpersModuleFactory());
+}
+
+function resolveDataInitializationDependencies(
+  options: DataInitializationDependencyOptions,
+): DataInitializationResolvedDependencies {
+  return {
+    runtimeBootstrapFinalizeModule: resolveBootstrapFinalizeModuleFromOptions(options),
+    runtimeBootstrapHelpersModule: resolveBootstrapHelpersModuleFromOptions(options),
+  };
 }
 
 function requireRecordFunction<T>(owner: string, value: LooseRecord, name: string): T {
@@ -73,26 +137,21 @@ function requireRecordFunction<T>(owner: string, value: LooseRecord, name: strin
   return candidate as T;
 }
 
-function createDeferredBindingFunction<T extends UnknownFn>(owner: string, bindings: LooseRecord, name: string): T {
-  return ((...args: unknown[]) => {
-    const callback = requireRecordFunction<UnknownFn>(owner, bindings, name);
+function createDeferredBindingFunction<T>(owner: string, bindings: LooseRecord, name: string): T {
+  return ((...args: RuntimeBoundaryValue[]) => {
+    const callback = requireRecordFunction<RuntimeCallback>(owner, bindings, name);
     return callback(...args);
   }) as T;
 }
 
 type BootstrapHelperDependencyFns = {
-  normalizeAudioLocale: (value: unknown) => unknown;
-  detectPreferredAudioLanguage: () => unknown;
-  isLocalizedRatingDataMissingForEntries: (entries: unknown, audioLocale: unknown) => unknown;
-  isLocalizedWatchHistoryDataMissingForEntries: (entries: unknown, audioLocale: unknown) => unknown;
-  getAccessToken: (forceRefresh?: unknown) => unknown;
-  preloadRatingsForEntries: (entries: unknown, tokenEntry: unknown, preferredAudioLanguage: unknown) => unknown;
-  preloadWatchHistoryForEntries: (
-    entries: unknown,
-    tokenEntry: unknown,
-    force: unknown,
-    preferredAudioLanguage: unknown,
-  ) => unknown;
+  normalizeAudioLocale: NormalizeAudioLocaleFn;
+  detectPreferredAudioLanguage: DetectPreferredAudioLanguageFn;
+  isLocalizedRatingDataMissingForEntries: IsLocalizedDataMissingFn;
+  isLocalizedWatchHistoryDataMissingForEntries: IsLocalizedDataMissingFn;
+  getAccessToken: GetAccessTokenFn;
+  preloadRatingsForEntries: PreloadRatingsForEntriesFn;
+  preloadWatchHistoryForEntries: PreloadWatchHistoryForEntriesFn;
 };
 
 function resolveBootstrapHelperDependencyFns(
@@ -101,33 +160,41 @@ function resolveBootstrapHelperDependencyFns(
 ): BootstrapHelperDependencyFns {
   const corePrimitives = traceContractsRuntime.corePrimitives;
   return {
-    normalizeAudioLocale: requireRecordFunction<(value: unknown) => unknown>(
+    normalizeAudioLocale: requireRecordFunction<NormalizeAudioLocaleFn>(
       'core primitives',
       corePrimitives,
       'normalizeAudioLocale',
     ),
-    detectPreferredAudioLanguage: requireRecordFunction<() => unknown>(
+    detectPreferredAudioLanguage: requireRecordFunction<DetectPreferredAudioLanguageFn>(
       'content runtime setup bindings',
       bindings,
       'detectPreferredAudioLanguage',
     ),
-    isLocalizedRatingDataMissingForEntries: createDeferredBindingFunction<
-      (entries: unknown, audioLocale: unknown) => unknown
-    >('content runtime setup bindings', bindings, 'isLocalizedRatingDataMissingForEntries'),
-    isLocalizedWatchHistoryDataMissingForEntries: createDeferredBindingFunction<
-      (entries: unknown, audioLocale: unknown) => unknown
-    >('content runtime setup bindings', bindings, 'isLocalizedWatchHistoryDataMissingForEntries'),
-    getAccessToken: createDeferredBindingFunction<(forceRefresh?: unknown) => unknown>(
+    isLocalizedRatingDataMissingForEntries: createDeferredBindingFunction<IsLocalizedDataMissingFn>(
+      'content runtime setup bindings',
+      bindings,
+      'isLocalizedRatingDataMissingForEntries',
+    ),
+    isLocalizedWatchHistoryDataMissingForEntries: createDeferredBindingFunction<IsLocalizedDataMissingFn>(
+      'content runtime setup bindings',
+      bindings,
+      'isLocalizedWatchHistoryDataMissingForEntries',
+    ),
+    getAccessToken: createDeferredBindingFunction<GetAccessTokenFn>(
       'content runtime setup bindings',
       bindings,
       'getAccessToken',
     ),
-    preloadRatingsForEntries: createDeferredBindingFunction<
-      (entries: unknown, tokenEntry: unknown, preferredAudioLanguage: unknown) => unknown
-    >('content runtime setup bindings', bindings, 'preloadRatingsForEntries'),
-    preloadWatchHistoryForEntries: createDeferredBindingFunction<
-      (entries: unknown, tokenEntry: unknown, force: unknown, preferredAudioLanguage: unknown) => unknown
-    >('content runtime setup bindings', bindings, 'preloadWatchHistoryForEntries'),
+    preloadRatingsForEntries: createDeferredBindingFunction<PreloadRatingsForEntriesFn>(
+      'content runtime setup bindings',
+      bindings,
+      'preloadRatingsForEntries',
+    ),
+    preloadWatchHistoryForEntries: createDeferredBindingFunction<PreloadWatchHistoryForEntriesFn>(
+      'content runtime setup bindings',
+      bindings,
+      'preloadWatchHistoryForEntries',
+    ),
   };
 }
 
@@ -151,14 +218,14 @@ function bindBootstrapHelpersRuntime(
   context: LooseRecord,
   bindings: LooseRecord,
   traceContractsRuntime: TraceContractsRuntime,
-  storageSet: (key: string, value: unknown) => unknown,
+  storageSet: StorageSetFn,
+  runtimeBootstrapHelpersModule: LooseRecord,
   requireFn: RequireFunction,
 ): void {
   const assertRuntimeMethods = resolveAssertRuntimeMethods(context);
   const dependencyFns = resolveBootstrapHelperDependencyFns(traceContractsRuntime, bindings);
-  const runtimeBootstrapHelpersModule = toRecord(context.runtimeBootstrapHelpersModule);
   const runtimeConstants = toRecord(context.runtimeConstants);
-  const createBootstrapHelpersRuntime = requireFn<UnknownFn>(
+  const createBootstrapHelpersRuntime = requireFn<RuntimeCallback>(
     'createBootstrapHelpersRuntime',
     runtimeBootstrapHelpersModule.createBootstrapHelpersRuntime,
   );
@@ -167,7 +234,7 @@ function bindBootstrapHelpersRuntime(
       state: context.state,
       windowRef: context.windowRef,
       runtimeEvent: bindings.runtimeEvent,
-      storageSet: (key: string, value: unknown) => storageSet(key, value),
+      storageSet: (key: string, value: RuntimeBoundaryValue) => storageSet(key, value),
       settingsKey: runtimeConstants.settingsKey,
       ratingCacheKey: runtimeConstants.ratingCacheKey,
       watchHistoryCacheKey: runtimeConstants.watchHistoryCacheKey,
@@ -180,10 +247,10 @@ function bindBootstrapHelpersRuntime(
       getAccessToken: (forceRefresh = false) => dependencyFns.getAccessToken(forceRefresh),
       preloadRatingsForEntries: dependencyFns.preloadRatingsForEntries,
       preloadWatchHistoryForEntries: (
-        entries: unknown,
-        tokenEntry: unknown,
-        force: unknown,
-        preferredAudioLanguage: unknown,
+        entries: EntryList,
+        tokenEntry: TokenEntry,
+        force = false,
+        preferredAudioLanguage: MaybeAudioLocale = null,
       ) => dependencyFns.preloadWatchHistoryForEntries(entries, tokenEntry, force, preferredAudioLanguage),
     }),
   );
@@ -219,7 +286,7 @@ function initializeTraceAndContracts(
   const apiContractsModule = toRecord(context.apiContractsModule);
   const windowRef = resolveWindowRef(context);
 
-  const createRuntimeTrace = requireFn<UnknownFn>('createRuntimeTrace', runtimeTraceModule.createRuntimeTrace);
+  const createRuntimeTrace = requireFn<RuntimeCallback>('createRuntimeTrace', runtimeTraceModule.createRuntimeTrace);
   const runtimeTrace = toRecord(
     createRuntimeTrace({
       windowRef,
@@ -231,14 +298,15 @@ function initializeTraceAndContracts(
   bindings.runtimeEvent = runtimeTrace.runtimeEvent;
   bindings.pushApiTrace = runtimeTrace.pushApiTrace;
 
-  const createCorePrimitives = requireFn<UnknownFn>('createCorePrimitives', corePrimitivesModule.createCorePrimitives);
+  const createCorePrimitives = requireFn<RuntimeCallback>(
+    'createCorePrimitives',
+    corePrimitivesModule.createCorePrimitives,
+  );
   const corePrimitives = toRecord(
     createCorePrimitives({
-      extractCoverImagesFromApiImages: createDeferredBindingFunction<(images: unknown) => unknown>(
-        'content runtime setup bindings',
-        bindings,
-        'extractCoverImagesFromApiImages',
-      ),
+      extractCoverImagesFromApiImages: createDeferredBindingFunction<
+        (images: RuntimeBoundaryValue) => RuntimeBoundaryValue
+      >('content runtime setup bindings', bindings, 'extractCoverImagesFromApiImages'),
     }),
   );
   assertRuntimeMethods('core primitives', corePrimitives, [
@@ -246,23 +314,23 @@ function initializeTraceAndContracts(
     'parseCmsObjectRecord',
     'deriveDisplayStatusBase',
   ]);
-  const parseDateMs = requireRecordFunction<(value: unknown) => unknown>(
+  const parseDateMs = requireRecordFunction<(value: RuntimeBoundaryValue) => number | null>(
     'core primitives',
     corePrimitives,
     'parseDateMs',
   );
-  const getWatchlistSeriesId = requireRecordFunction<(entry: unknown) => unknown>(
+  const getWatchlistSeriesId = requireRecordFunction<(entry: RuntimeBoundaryValue) => string | null>(
     'core primitives',
     corePrimitives,
     'getWatchlistSeriesId',
   );
-  const getWatchHistorySeriesId = requireRecordFunction<(entry: unknown) => unknown>(
+  const getWatchHistorySeriesId = requireRecordFunction<(entry: RuntimeBoundaryValue) => string | null>(
     'core primitives',
     corePrimitives,
     'getWatchHistorySeriesId',
   );
 
-  const createApiContracts = requireFn<UnknownFn>('createApiContracts', apiContractsModule.createApiContracts);
+  const createApiContracts = requireFn<RuntimeCallback>('createApiContracts', apiContractsModule.createApiContracts);
   const apiContracts = toRecord(
     createApiContracts({
       windowRef,
@@ -278,6 +346,7 @@ function initializeTraceAndContracts(
   assertRuntimeMethods('api contracts', apiContracts, [
     'shouldRetryStatus',
     'requirePayloadDataArray',
+    'parsePayloadDataEnvelope',
     'resolveApiHref',
   ]);
 
@@ -289,25 +358,27 @@ function initializePreferredAudioAndStorage(
   context: LooseRecord,
   bindings: LooseRecord,
   traceContractsRuntime: TraceContractsRuntime,
+  dependencies: DataInitializationResolvedDependencies,
   requireFn: RequireFunction,
 ): StorageRuntime {
   const assertRuntimeMethods = resolveAssertRuntimeMethods(context);
   const corePrimitives = traceContractsRuntime.corePrimitives;
   const runtimeConstants = toRecord(context.runtimeConstants);
   const runtimePreferredAudioModule = toRecord(context.runtimePreferredAudioModule);
-  const runtimeBootstrapFinalizeModule = resolveBootstrapFinalizeModule(context);
+  const runtimeBootstrapFinalizeModule = dependencies.runtimeBootstrapFinalizeModule;
   const storageModule = toRecord(context.storageModule);
   const windowRef = resolveWindowRef(context);
-  const normalizeAudioLocale = requireRecordFunction<(value: unknown) => unknown>(
+  const normalizeAudioLocale = requireRecordFunction<NormalizeAudioLocaleFn>(
     'core primitives',
     corePrimitives,
     'normalizeAudioLocale',
   );
 
-  const safeJsonParseImpl = requireFn<UnknownFn>('safeJsonParse', runtimeBootstrapFinalizeModule.safeJsonParse);
-  const safeJsonParse = (value: unknown, fallback: unknown) => safeJsonParseImpl(value, fallback);
+  const safeJsonParseImpl = requireFn<RuntimeCallback>('safeJsonParse', runtimeBootstrapFinalizeModule.safeJsonParse);
+  const safeJsonParse = (value: RuntimeBoundaryValue, fallback: RuntimeBoundaryValue) =>
+    safeJsonParseImpl(value, fallback);
 
-  const createPreferredAudioDetector = requireFn<UnknownFn>(
+  const createPreferredAudioDetector = requireFn<RuntimeCallback>(
     'createPreferredAudioDetector',
     runtimePreferredAudioModule.createPreferredAudioDetector,
   );
@@ -323,21 +394,21 @@ function initializePreferredAudioAndStorage(
     }),
   );
   assertRuntimeMethods('preferred audio detector', preferredAudioDetector, ['detectPreferredAudioLanguage']);
-  const detectPreferredAudioLanguage = requireRecordFunction<() => unknown>(
+  const detectPreferredAudioLanguage = requireRecordFunction<DetectPreferredAudioLanguageFn>(
     'preferred audio detector',
     preferredAudioDetector,
     'detectPreferredAudioLanguage',
   );
-  bindings.detectPreferredAudioLanguage = () => detectPreferredAudioLanguage() as string;
+  bindings.detectPreferredAudioLanguage = () => detectPreferredAudioLanguage();
 
-  const createStorageAdapter = requireFn<UnknownFn>('createStorageAdapter', storageModule.createStorageAdapter);
+  const createStorageAdapter = requireFn<RuntimeCallback>('createStorageAdapter', storageModule.createStorageAdapter);
   const storageAdapter = createStorageAdapter({
     storageArea: context.storageLocalArea,
     parseJson: safeJsonParse,
     localStorageRef: windowRef.localStorage,
     timeoutMs: 1500,
   });
-  const createStorageAccessors = requireFn<UnknownFn>(
+  const createStorageAccessors = requireFn<RuntimeCallback>(
     'createStorageAccessors',
     runtimeBootstrapFinalizeModule.createStorageAccessors,
   );
@@ -346,13 +417,16 @@ function initializePreferredAudioAndStorage(
       storageAdapter,
     }),
   );
-  const storageSet = requireRecordFunction<(key: string, value: unknown) => unknown>(
-    'storage accessors',
-    storageAccessors,
-    'storageSet',
-  );
+  const storageSet = requireRecordFunction<StorageSetFn>('storage accessors', storageAccessors, 'storageSet');
 
-  bindBootstrapHelpersRuntime(context, bindings, traceContractsRuntime, storageSet, requireFn);
+  bindBootstrapHelpersRuntime(
+    context,
+    bindings,
+    traceContractsRuntime,
+    storageSet,
+    dependencies.runtimeBootstrapHelpersModule,
+    requireFn,
+  );
   return { storageSet };
 }
 
@@ -369,20 +443,20 @@ function initializeAuthAndImageRuntime(
   const authClientModule = toRecord(context.authClientModule);
   const imageVariantsModule = toRecord(context.imageVariantsModule);
   const windowRef = resolveWindowRef(context);
-  const sanitizePositiveInt = requireRecordFunction<UnknownFn>(
+  const sanitizePositiveInt = requireRecordFunction<RuntimeCallback>(
     'core primitives',
     corePrimitives,
     'sanitizePositiveInt',
   );
-  const shouldRetryStatus = requireRecordFunction<UnknownFn>('api contracts', apiContracts, 'shouldRetryStatus');
-  const computeFetchRetryDelayMs = requireRecordFunction<UnknownFn>(
+  const shouldRetryStatus = requireRecordFunction<RuntimeCallback>('api contracts', apiContracts, 'shouldRetryStatus');
+  const computeFetchRetryDelayMs = requireRecordFunction<RuntimeCallback>(
     'api contracts',
     apiContracts,
     'computeFetchRetryDelayMs',
   );
-  const sleep = requireRecordFunction<UnknownFn>('api contracts', apiContracts, 'sleep');
+  const sleep = requireRecordFunction<RuntimeCallback>('api contracts', apiContracts, 'sleep');
 
-  const createAuthClient = requireFn<UnknownFn>('createAuthClient', authClientModule.createAuthClient);
+  const createAuthClient = requireFn<RuntimeCallback>('createAuthClient', authClientModule.createAuthClient);
   const authClient = toRecord(
     createAuthClient({
       state: context.state,
@@ -413,7 +487,10 @@ function initializeAuthAndImageRuntime(
   bindings.getAccessToken = authClient.getAccessToken;
   bindings.createAuthRefreshHandler = authClient.createAuthRefreshHandler;
 
-  const createImageVariants = requireFn<UnknownFn>('createImageVariants', imageVariantsModule.createImageVariants);
+  const createImageVariants = requireFn<RuntimeCallback>(
+    'createImageVariants',
+    imageVariantsModule.createImageVariants,
+  );
   const imageVariants = toRecord(
     createImageVariants({
       sanitizePositiveInt,
@@ -431,20 +508,20 @@ function initializeAuthAndImageRuntime(
 }
 
 type RatingsRuntimeDependencyFns = {
-  normalizeAudioLocale: UnknownFn;
-  normalizeAudioLocales: UnknownFn;
-  sanitizePositiveInt: UnknownFn;
-  normalizeTagList: UnknownFn;
-  getAudioLocaleCountFromMap: UnknownFn;
-  mergeAudioLocaleCountMap: UnknownFn;
-  chunkArray: UnknownFn;
-  parseCmsObjectRecord: UnknownFn;
-  parseRatingPayload: UnknownFn;
-  sanitizeRating: UnknownFn;
-  sanitizeVotes: UnknownFn;
-  getLocale: UnknownFn;
-  requirePayloadDataArray: UnknownFn;
-  auditCmsObjectContract: UnknownFn;
+  normalizeAudioLocale: RuntimeCallback;
+  normalizeAudioLocales: RuntimeCallback;
+  sanitizePositiveInt: RuntimeCallback;
+  normalizeTagList: RuntimeCallback;
+  getAudioLocaleCountFromMap: RuntimeCallback;
+  mergeAudioLocaleCountMap: RuntimeCallback;
+  chunkArray: RuntimeCallback;
+  parseCmsObjectRecord: RuntimeCallback;
+  parseRatingPayload: RuntimeCallback;
+  sanitizeRating: RuntimeCallback;
+  sanitizeVotes: RuntimeCallback;
+  getLocale: RuntimeCallback;
+  parsePayloadDataEnvelope: RuntimeCallback;
+  auditCmsObjectContract: RuntimeCallback;
 };
 
 function resolveRatingsRuntimeDependencyFns(
@@ -452,28 +529,52 @@ function resolveRatingsRuntimeDependencyFns(
   apiContracts: LooseRecord,
 ): RatingsRuntimeDependencyFns {
   return {
-    normalizeAudioLocale: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'normalizeAudioLocale'),
-    normalizeAudioLocales: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'normalizeAudioLocales'),
-    sanitizePositiveInt: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'sanitizePositiveInt'),
-    normalizeTagList: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'normalizeTagList'),
-    getAudioLocaleCountFromMap: requireRecordFunction<UnknownFn>(
+    normalizeAudioLocale: requireRecordFunction<RuntimeCallback>(
+      'core primitives',
+      corePrimitives,
+      'normalizeAudioLocale',
+    ),
+    normalizeAudioLocales: requireRecordFunction<RuntimeCallback>(
+      'core primitives',
+      corePrimitives,
+      'normalizeAudioLocales',
+    ),
+    sanitizePositiveInt: requireRecordFunction<RuntimeCallback>(
+      'core primitives',
+      corePrimitives,
+      'sanitizePositiveInt',
+    ),
+    normalizeTagList: requireRecordFunction<RuntimeCallback>('core primitives', corePrimitives, 'normalizeTagList'),
+    getAudioLocaleCountFromMap: requireRecordFunction<RuntimeCallback>(
       'core primitives',
       corePrimitives,
       'getAudioLocaleCountFromMap',
     ),
-    mergeAudioLocaleCountMap: requireRecordFunction<UnknownFn>(
+    mergeAudioLocaleCountMap: requireRecordFunction<RuntimeCallback>(
       'core primitives',
       corePrimitives,
       'mergeAudioLocaleCountMap',
     ),
-    chunkArray: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'chunkArray'),
-    parseCmsObjectRecord: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'parseCmsObjectRecord'),
-    parseRatingPayload: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'parseRatingPayload'),
-    sanitizeRating: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'sanitizeRating'),
-    sanitizeVotes: requireRecordFunction<UnknownFn>('core primitives', corePrimitives, 'sanitizeVotes'),
-    getLocale: requireRecordFunction<UnknownFn>('api contracts', apiContracts, 'getLocale'),
-    requirePayloadDataArray: requireRecordFunction<UnknownFn>('api contracts', apiContracts, 'requirePayloadDataArray'),
-    auditCmsObjectContract: requireRecordFunction<UnknownFn>('api contracts', apiContracts, 'auditCmsObjectContract'),
+    chunkArray: requireRecordFunction<RuntimeCallback>('core primitives', corePrimitives, 'chunkArray'),
+    parseCmsObjectRecord: requireRecordFunction<RuntimeCallback>(
+      'core primitives',
+      corePrimitives,
+      'parseCmsObjectRecord',
+    ),
+    parseRatingPayload: requireRecordFunction<RuntimeCallback>('core primitives', corePrimitives, 'parseRatingPayload'),
+    sanitizeRating: requireRecordFunction<RuntimeCallback>('core primitives', corePrimitives, 'sanitizeRating'),
+    sanitizeVotes: requireRecordFunction<RuntimeCallback>('core primitives', corePrimitives, 'sanitizeVotes'),
+    getLocale: requireRecordFunction<RuntimeCallback>('api contracts', apiContracts, 'getLocale'),
+    parsePayloadDataEnvelope: requireRecordFunction<RuntimeCallback>(
+      'api contracts',
+      apiContracts,
+      'parsePayloadDataEnvelope',
+    ),
+    auditCmsObjectContract: requireRecordFunction<RuntimeCallback>(
+      'api contracts',
+      apiContracts,
+      'auditCmsObjectContract',
+    ),
   };
 }
 
@@ -491,7 +592,10 @@ function initializeRatingsRuntime(
   const ratingsRepositoryModule = toRecord(context.ratingsRepositoryModule);
   const ratingsDependencyFns = resolveRatingsRuntimeDependencyFns(corePrimitives, apiContracts);
 
-  const createRatingsClient = requireFn<UnknownFn>('createRatingsClient', ratingsClientModule.createRatingsClient);
+  const createRatingsClient = requireFn<RuntimeCallback>(
+    'createRatingsClient',
+    ratingsClientModule.createRatingsClient,
+  );
   const ratingsClient = toRecord(
     createRatingsClient({
       fetchWithResilience: bindings.fetchWithResilience,
@@ -501,7 +605,7 @@ function initializeRatingsRuntime(
       normalizeAudioLocale: ratingsDependencyFns.normalizeAudioLocale,
       getPreferredAudioLanguage: bindings.getPreferredAudioLanguage,
       getLocale: ratingsDependencyFns.getLocale,
-      requirePayloadDataArray: ratingsDependencyFns.requirePayloadDataArray,
+      parsePayloadDataEnvelope: ratingsDependencyFns.parsePayloadDataEnvelope,
       auditCmsObjectContract: ratingsDependencyFns.auditCmsObjectContract,
       parseCmsObjectRecord: ratingsDependencyFns.parseCmsObjectRecord,
       parseRatingPayload: ratingsDependencyFns.parseRatingPayload,
@@ -514,7 +618,7 @@ function initializeRatingsRuntime(
   bindings.fetchRatingsBatch = ratingsClient.fetchRatingsBatch;
   bindings.fetchRating = ratingsClient.fetchRating;
 
-  const createRatingsRepository = requireFn<UnknownFn>(
+  const createRatingsRepository = requireFn<RuntimeCallback>(
     'createRatingsRepository',
     ratingsRepositoryModule.createRatingsRepository,
   );
@@ -562,7 +666,10 @@ function initializeAuthImageAndRatings(
 
 export function createContentRuntimeSetupDataInitializationPhases(
   requireFn: RequireFunction,
+  dependencyOptions: DataInitializationDependencyOptions = {},
 ): DataInitializationRuntime {
+  const dependencies = resolveDataInitializationDependencies(dependencyOptions);
+
   return {
     initializeTraceAndContracts: (context: LooseRecord, bindings: LooseRecord) =>
       initializeTraceAndContracts(context, bindings, requireFn),
@@ -570,7 +677,7 @@ export function createContentRuntimeSetupDataInitializationPhases(
       context: LooseRecord,
       bindings: LooseRecord,
       traceContractsRuntime: TraceContractsRuntime,
-    ) => initializePreferredAudioAndStorage(context, bindings, traceContractsRuntime, requireFn),
+    ) => initializePreferredAudioAndStorage(context, bindings, traceContractsRuntime, dependencies, requireFn),
     initializeAuthImageAndRatings: (
       context: LooseRecord,
       bindings: LooseRecord,

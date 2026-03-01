@@ -1,79 +1,97 @@
-type AnyFn = (...args: unknown[]) => unknown;
-type LooseRecord = Record<string, unknown>;
+type RuntimeBoundaryValue = CwBoundaryValue;
+type LooseRecord = Record<string, RuntimeBoundaryValue>;
 
 type RuntimeWindow = Window & typeof globalThis;
 
+type RuntimeEventHandler = (event: string, payload?: RuntimeBoundaryValue) => void;
+type ProcessWatchlistHandler = () => RuntimeBoundaryValue;
+type DestroyRuntimeHandler = (payload?: RuntimeBoundaryValue) => void;
+type SyncRouteRuntimeHandler = () => void;
+type WatchlistHealthRuntime = LooseRecord & {
+  start?: () => void;
+  stop?: () => void;
+  runCheck?: () => void;
+};
+
 type RuntimeBootstrapHelpersContextLike = {
   windowRef: RuntimeWindow;
-  browserRef: unknown;
-  chromeRef: unknown;
+  browserRef: RuntimeBoundaryValue;
+  chromeRef: RuntimeBoundaryValue;
 };
 
 type RuntimeBootstrapMutableAccessors = {
-  setRuntimeEvent: (nextRuntimeEvent: AnyFn) => void;
-  setProcessWatchlist: (nextProcessWatchlist: AnyFn) => void;
-  setDestroyRuntime: (nextDestroyRuntime: AnyFn) => void;
-  setSyncRouteRuntime: (nextSyncRouteRuntime: AnyFn) => void;
-  setWatchlistHealthRuntime: (nextWatchlistHealthRuntime: LooseRecord) => void;
-  getRuntimeEvent: () => AnyFn;
-  getProcessWatchlist: () => AnyFn;
-  getDestroyRuntime: () => AnyFn;
-  getSyncRouteRuntime: () => AnyFn;
-  getWatchlistHealthRuntime: () => LooseRecord;
+  setRuntimeEvent: (nextRuntimeEvent: RuntimeEventHandler) => void;
+  setProcessWatchlist: (nextProcessWatchlist: ProcessWatchlistHandler) => void;
+  setDestroyRuntime: (nextDestroyRuntime: DestroyRuntimeHandler) => void;
+  setSyncRouteRuntime: (nextSyncRouteRuntime: SyncRouteRuntimeHandler) => void;
+  setWatchlistHealthRuntime: (nextWatchlistHealthRuntime: WatchlistHealthRuntime) => void;
+  getRuntimeEvent: () => RuntimeEventHandler;
+  getProcessWatchlist: () => ProcessWatchlistHandler;
+  getDestroyRuntime: () => DestroyRuntimeHandler;
+  getSyncRouteRuntime: () => SyncRouteRuntimeHandler;
+  getWatchlistHealthRuntime: () => WatchlistHealthRuntime;
 };
 
 type RuntimeBootstrapSessionSupportRuntime = {
   createRuntimeBootstrapMutableAccessors: () => RuntimeBootstrapMutableAccessors;
-  resolveStorageLocalArea: (context: RuntimeBootstrapHelpersContextLike) => unknown;
+  resolveStorageLocalArea: (context: RuntimeBootstrapHelpersContextLike) => RuntimeBoundaryValue;
   createDebounceProcess: (options: {
     context: RuntimeBootstrapHelpersContextLike;
     state: LooseRecord;
     runtimeConstants: LooseRecord;
-    getProcessWatchlist: () => AnyFn;
+    getProcessWatchlist: () => ProcessWatchlistHandler;
   }) => () => void;
   startWatchlistHealthRuntime: (accessors: RuntimeBootstrapMutableAccessors) => void;
 };
 
-const root = (typeof window !== 'undefined' ? window : globalThis) as RuntimeWindow & {
-  __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
-};
-if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-  root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-}
-const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
-
-function toRecord(value: unknown): LooseRecord {
+function toRecord(value: RuntimeBoundaryValue): LooseRecord {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
   }
   return value as LooseRecord;
 }
 
+function toTimeoutHandle(value: RuntimeBoundaryValue): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function toDebounceDelayMs(value: RuntimeBoundaryValue): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+  return parsed;
+}
+
+function isPromiseLike(value: RuntimeBoundaryValue): value is PromiseLike<RuntimeBoundaryValue> {
+  return Boolean(value) && typeof (value as PromiseLike<RuntimeBoundaryValue>).then === 'function';
+}
+
 function createRuntimeBootstrapMutableAccessors(): RuntimeBootstrapMutableAccessors {
-  let processWatchlist: AnyFn = async () => {};
-  let runtimeEvent: AnyFn = () => {};
-  let destroyRuntime: AnyFn = () => {};
-  let syncRouteRuntime: AnyFn = () => {};
-  let watchlistHealthRuntime: LooseRecord = {
+  let processWatchlist: ProcessWatchlistHandler = () => {};
+  let runtimeEvent: RuntimeEventHandler = () => {};
+  let destroyRuntime: DestroyRuntimeHandler = () => {};
+  let syncRouteRuntime: SyncRouteRuntimeHandler = () => {};
+  let watchlistHealthRuntime: WatchlistHealthRuntime = {
     start: () => {},
     stop: () => {},
     runCheck: () => {},
   };
 
   return {
-    setRuntimeEvent: (nextRuntimeEvent: AnyFn) => {
+    setRuntimeEvent: (nextRuntimeEvent: RuntimeEventHandler) => {
       runtimeEvent = typeof nextRuntimeEvent === 'function' ? nextRuntimeEvent : () => {};
     },
-    setProcessWatchlist: (nextProcessWatchlist: AnyFn) => {
-      processWatchlist = typeof nextProcessWatchlist === 'function' ? nextProcessWatchlist : async () => {};
+    setProcessWatchlist: (nextProcessWatchlist: ProcessWatchlistHandler) => {
+      processWatchlist = typeof nextProcessWatchlist === 'function' ? nextProcessWatchlist : () => {};
     },
-    setDestroyRuntime: (nextDestroyRuntime: AnyFn) => {
+    setDestroyRuntime: (nextDestroyRuntime: DestroyRuntimeHandler) => {
       destroyRuntime = typeof nextDestroyRuntime === 'function' ? nextDestroyRuntime : () => {};
     },
-    setSyncRouteRuntime: (nextSyncRouteRuntime: AnyFn) => {
+    setSyncRouteRuntime: (nextSyncRouteRuntime: SyncRouteRuntimeHandler) => {
       syncRouteRuntime = typeof nextSyncRouteRuntime === 'function' ? nextSyncRouteRuntime : () => {};
     },
-    setWatchlistHealthRuntime: (nextWatchlistHealthRuntime: LooseRecord) => {
+    setWatchlistHealthRuntime: (nextWatchlistHealthRuntime: WatchlistHealthRuntime) => {
       watchlistHealthRuntime = toRecord(nextWatchlistHealthRuntime);
     },
     getRuntimeEvent: () => runtimeEvent,
@@ -84,7 +102,7 @@ function createRuntimeBootstrapMutableAccessors(): RuntimeBootstrapMutableAccess
   };
 }
 
-function resolveStorageLocalArea(context: RuntimeBootstrapHelpersContextLike): unknown {
+function resolveStorageLocalArea(context: RuntimeBootstrapHelpersContextLike): RuntimeBoundaryValue {
   return (
     toRecord(toRecord(context.browserRef).storage).local || toRecord(toRecord(context.chromeRef).storage).local || null
   );
@@ -99,15 +117,22 @@ function createDebounceProcess({
   context: RuntimeBootstrapHelpersContextLike;
   state: LooseRecord;
   runtimeConstants: LooseRecord;
-  getProcessWatchlist: () => AnyFn;
+  getProcessWatchlist: () => ProcessWatchlistHandler;
 }): () => void {
   return () => {
-    context.windowRef.clearTimeout(state.processTimer as number);
+    const activeTimer = toTimeoutHandle(state.processTimer);
+    if (activeTimer != null) {
+      context.windowRef.clearTimeout(activeTimer);
+    }
+
     state.processTimer = context.windowRef.setTimeout(() => {
-      (getProcessWatchlist()() as Promise<unknown>).catch(() => {
-        // no-op
-      });
-    }, runtimeConstants.processDebounceMs as number);
+      const result = getProcessWatchlist()();
+      if (isPromiseLike(result)) {
+        void Promise.resolve(result).catch(() => {
+          // no-op
+        });
+      }
+    }, toDebounceDelayMs(runtimeConstants.processDebounceMs));
   };
 }
 
@@ -126,11 +151,3 @@ export function createContentRuntimeBootstrapSessionSupportRuntime(): RuntimeBoo
     startWatchlistHealthRuntime: (accessors) => startWatchlistHealthRuntime(accessors),
   };
 }
-
-function registerContentRuntimeBootstrapSessionSupportRuntime(): void {
-  moduleRegistry.runtimeContentRuntimeBootstrapSessionSupport = {
-    createContentRuntimeBootstrapSessionSupportRuntime,
-  };
-}
-
-registerContentRuntimeBootstrapSessionSupportRuntime();

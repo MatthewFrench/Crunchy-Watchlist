@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type RuntimeBootstrapSessionRuntime = {
   createRuntimeBootstrapSession: (options: {
@@ -11,40 +10,41 @@ type RuntimeBootstrapSessionRuntime = {
 };
 
 type RuntimeBootstrapSessionModule = {
-  runtimeContentRuntimeBootstrapSession: {
-    createContentRuntimeBootstrapSessionRuntime: (options: {
-      context: Record<string, unknown>;
-      clearStaleInjectedShell: (reason: string) => void;
-      createRuntimeLockLifecycleControl: (options: Record<string, unknown>) => {
-        startDomRuntimeLockHeartbeat: () => void;
-        startRuntimeTakeoverRequestListener: () => void;
-        shutdownRuntime: (payload?: Record<string, unknown>) => void;
-      };
-    }) => RuntimeBootstrapSessionRuntime;
-  };
+  createContentRuntimeBootstrapSessionRuntime: (options: {
+    context: Record<string, unknown>;
+    clearStaleInjectedShell: (reason: string) => void;
+    createRuntimeLockLifecycleControl: (options: Record<string, unknown>) => {
+      startDomRuntimeLockHeartbeat: () => void;
+      startRuntimeTakeoverRequestListener: () => void;
+      shutdownRuntime: (payload?: Record<string, unknown>) => void;
+    };
+  }) => RuntimeBootstrapSessionRuntime;
 };
 
 const contentRuntimeBootstrapSessionModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentRuntimeBootstrapSession.ts'),
 ).href;
+let bootstrapSessionModule: RuntimeBootstrapSessionModule | null = null;
 
 function getBootstrapSessionModule() {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as RuntimeBootstrapSessionModule;
-  return registry.runtimeContentRuntimeBootstrapSession;
+  if (!bootstrapSessionModule) {
+    throw new Error('Bootstrap session module was not initialized for test');
+  }
+  return bootstrapSessionModule;
 }
 
 describe('content-runtime-bootstrap-session runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([contentRuntimeBootstrapSessionModuleUrl]);
+    vi.resetModules();
+    bootstrapSessionModule = (await import(contentRuntimeBootstrapSessionModuleUrl)) as RuntimeBootstrapSessionModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    bootstrapSessionModule = null;
     vi.restoreAllMocks();
   });
 
-  it('builds bootstrap-finalize runtime options with lifecycle and state-loader ownership', () => {
+  it('builds bootstrap-finalize runtime options with lifecycle and state-load callback ownership', async () => {
     const createRuntimeLockLifecycleControl = vi.fn(() => ({
       startDomRuntimeLockHeartbeat: vi.fn(),
       startRuntimeTakeoverRequestListener: vi.fn(),
@@ -66,18 +66,25 @@ describe('content-runtime-bootstrap-session runtime', () => {
       clearStaleInjectedShell: vi.fn(),
       createRuntimeLockLifecycleControl,
     });
+    const runtimeEvent = vi.fn();
+    const storageGet = vi.fn(async (_key: string, fallback: unknown) => fallback);
 
     const runtimeOptions = runtime.createBootstrapFinalizeRuntimeOptions({
       windowRef: {},
-      runtimeEvent: vi.fn(),
+      runtimeEvent,
       runtimeLifecycleModule: {
         marker: 'runtime-lifecycle',
       },
-      runtimeStateLoaderModule: {
-        marker: 'runtime-state-loader',
-      },
       state: {
-        mounted: false,
+        settings: {},
+        ratingCache: {},
+        watchHistoryCache: null,
+        watchHistoryStatus: 'idle',
+        watchlistCache: null,
+        authToken: null,
+        curatedEntries: [],
+        curatedSource: 'network',
+        curatedLastRevalidateAt: 0,
       },
       isWatchlistPath: vi.fn((pathname: string) => pathname.endsWith('/watchlist')),
       ensureInterface: vi.fn(),
@@ -87,7 +94,7 @@ describe('content-runtime-bootstrap-session runtime', () => {
       setNativeVisibility: vi.fn(),
       clearRootFrame: vi.fn(),
       debounceProcess: vi.fn(),
-      storageGet: vi.fn(),
+      storageGet,
       getAccessToken: vi.fn(),
       normalizeStoredWatchHistoryCache: vi.fn(),
       isWatchHistoryCacheValid: vi.fn(),
@@ -114,23 +121,25 @@ describe('content-runtime-bootstrap-session runtime', () => {
     expect(runtimeOptions.runtimeLifecycleModule).toEqual({
       marker: 'runtime-lifecycle',
     });
-    expect(runtimeOptions.runtimeStateLoaderModule).toEqual({
-      marker: 'runtime-state-loader',
-    });
     expect(runtimeOptions.runtimeLifecycleOptions).toEqual(
       expect.objectContaining({
         ensureInterface: expect.any(Function),
         renderCuratedPanel: expect.any(Function),
       }),
     );
-    expect(runtimeOptions.runtimeStateLoaderOptions).toEqual(
-      expect.objectContaining({
-        settingsKey: 'settings',
-        ratingCacheKey: 'ratings',
-        watchHistoryCacheKey: 'history',
-        watchlistCacheKey: 'watchlist',
-      }),
-    );
+    expect(runtimeOptions.loadInitialState).toBeTypeOf('function');
+
+    await (runtimeOptions.loadInitialState as () => Promise<void>)();
+    expect(storageGet).toHaveBeenNthCalledWith(1, 'settings', {
+      cardLayout: 'portrait',
+    });
+    expect(storageGet).toHaveBeenNthCalledWith(2, 'ratings', {});
+    expect(storageGet).toHaveBeenNthCalledWith(3, 'history', null);
+    expect(storageGet).toHaveBeenNthCalledWith(4, 'watchlist', null);
+    expect(runtimeEvent).toHaveBeenCalledWith('state-load-done', {
+      tab: undefined,
+      cachedCurated: 0,
+    });
   });
 
   it('creates runtime bootstrap session and attaches control/watchlist-health runtime ownership', () => {
@@ -191,14 +200,8 @@ describe('content-runtime-bootstrap-session runtime', () => {
             createEmptyWatchHistoryCache,
             createWatchlistCacheSnapshot,
           },
-          runtimeStateLoaderModule: {
-            marker: 'state-loader',
-          },
           runtimeLifecycleModule: {
             marker: 'lifecycle',
-          },
-          runtimeBootstrapHelpersModule: {
-            marker: 'helpers',
           },
           storageModule: {
             marker: 'storage',

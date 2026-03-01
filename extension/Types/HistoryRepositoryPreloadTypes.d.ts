@@ -78,13 +78,6 @@ type HistoryRepositoryPreloadContext = {
     getPreferredAudioLanguage: () => string;
     normalizeAudioLocale: (value: unknown) => string;
   }) => WatchHistoryPreloadPlan;
-  getHistoryPayloadTotal: (options: {
-    payload: unknown;
-    fallback: number;
-    pageNumber: number;
-    requestUrl: string;
-    runtimeEvent: (event: string, payload?: unknown) => void;
-  }) => number;
   collectWatchHistoryUpdateBuckets: (options: {
     tokenEntry: TokenEntry;
     effectivePreferredAudioLanguage: string;
@@ -97,7 +90,7 @@ type HistoryRepositoryPreloadContext = {
       tokenEntry: TokenEntry,
       pageNumber: number,
       preferredAudioLanguage?: unknown,
-    ) => Promise<{ rows: LooseRecord[]; total: number }>;
+    ) => Promise<{ rows: LooseRecord[]; totalRows: number | null }>;
     normalizeAudioLocale: (value: unknown) => string;
     sanitizePositiveInt: (value: unknown) => number | null;
     parseDateMs: (value: unknown) => number | null;
@@ -111,7 +104,7 @@ type HistoryRepositoryPreloadContext = {
   resolveApiHref: (value: string) => string;
   fetchWithResilience: (url: string, init: RequestInit, options: LooseRecord) => Promise<Response>;
   createAuthRefreshHandler: (tokenEntry: TokenEntry) => unknown;
-  requirePayloadDataArray: (name: string, payload: unknown) => LooseRecord[];
+  parsePayloadDataEnvelope: (name: string, payload: unknown) => { rows: LooseRecord[]; total: number | null };
   auditWatchHistoryRowsContract: (rows: LooseRecord[]) => void;
   normalizeStoredWatchHistoryCache: (raw: unknown) => WatchHistoryCache;
   normalizeStoredWatchHistoryBySeriesAudioLocale: (raw: unknown) => Record<string, WatchHistoryLocaleMap>;
@@ -147,7 +140,7 @@ type HistoryRepositoryPreloadOptions = {
   resolveApiHref?: unknown;
   fetchWithResilience?: unknown;
   createAuthRefreshHandler?: unknown;
-  requirePayloadDataArray?: unknown;
+  parsePayloadDataEnvelope?: unknown;
   auditWatchHistoryRowsContract?: unknown;
   normalizeStoredWatchHistoryCache?: unknown;
   normalizeStoredWatchHistoryBySeriesAudioLocale?: unknown;

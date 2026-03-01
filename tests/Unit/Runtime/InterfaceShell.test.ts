@@ -1,24 +1,23 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type InterfaceShellRuntime = {
   ensureInterface: () => void;
   applyTabUi: () => void;
   setNativeVisibility: (showNative: boolean) => void;
   resetCuratedCachesForRefresh: () => Promise<void>;
+  dispose: () => void;
 };
 
 type InterfaceShellModule = {
-  runtimeInterfaceShell: {
-    createInterfaceShellRuntime: (options: Record<string, unknown>) => InterfaceShellRuntime;
-  };
+  createInterfaceShellRuntime: (options: Record<string, unknown>) => InterfaceShellRuntime;
 };
 
 const interfaceShellModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'InterfaceShell.ts'),
 ).href;
+let interfaceShellModule: InterfaceShellModule | null = null;
 
 type InterfaceShellTestState = {
   framedRootEl: unknown | null;
@@ -85,8 +84,10 @@ function createBaseState(): InterfaceShellTestState {
 }
 
 function getInterfaceShellModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as InterfaceShellModule;
-  return registry.runtimeInterfaceShell;
+  if (!interfaceShellModule) {
+    throw new Error('Interface shell module was not initialized for test');
+  }
+  return interfaceShellModule;
 }
 
 class FakeClassList {
@@ -294,11 +295,15 @@ function createFakeDocumentRef() {
 
 describe('interface-shell runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([interfaceShellModuleUrl]);
+    vi.resetModules();
+    const interfaceShellRuntimeModule = (await import(interfaceShellModuleUrl)) as {
+      createRuntimeInterfaceShellRuntime: () => object;
+    };
+    interfaceShellModule = interfaceShellRuntimeModule.createRuntimeInterfaceShellRuntime() as InterfaceShellModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    interfaceShellModule = null;
   });
 
   it('emits ui-missing-watchlist-structure when root/header are unavailable', () => {
@@ -643,5 +648,53 @@ describe('interface-shell runtime', () => {
     expect(curatedHostChildren).toHaveLength(1);
     expect(curatedHostChildren[0]).toBe(state.hostEl);
     expect(orphanHost.isConnected).toBe(false);
+  });
+
+  it('disposes interface shell idempotently and restores native visibility', () => {
+    const state = createBaseState();
+    const rootElement = new FakeElement('section');
+    rootElement.setConnected(true);
+    const headerElement = new FakeElement('header');
+    rootElement.appendChild(headerElement);
+    const runtime = getInterfaceShellModule().createInterfaceShellRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      windowRef: {
+        requestAnimationFrame: () => 0,
+        dispatchEvent: () => true,
+      },
+      getWatchlistRoot: () => rootElement,
+      getWatchlistHeader: () => headerElement,
+      runtimeEvent: () => {},
+      withMutedObserver: (work: () => void) => {
+        work();
+      },
+      persistSettings: async () => null,
+      applyCardLayoutUi: () => {},
+      createCuratedInterfaceControls: () => ({
+        controls: new FakeElement('div'),
+        loadingIndicator: new FakeElement('span'),
+        audioFilterControl: { select: new FakeElement('select') },
+        genreFilterControl: { select: new FakeElement('select') },
+        stats: new FakeElement('span'),
+      }),
+      bindCuratedInterfaceControls: () => {},
+      ensureCuratedDataLoad: async () => null,
+      renderCuratedPanel: () => {},
+      debounceProcess: () => {},
+      createEmptyWatchHistoryCache: () => ({}),
+      storageSet: async () => null,
+      ratingCacheKey: 'cw_rating_cache_v2',
+      watchHistoryCacheKey: 'cw_watch_history_cache_v1',
+    });
+
+    runtime.ensureInterface();
+    expect(state.hostEl).not.toBeNull();
+
+    runtime.dispose();
+    runtime.dispose();
+
+    expect(state.hostEl).toBeNull();
+    expect(state.gridEl).toBeNull();
   });
 });

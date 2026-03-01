@@ -1,51 +1,54 @@
 import {
   createContentRuntimeSetupDataInitializationPhases,
+  type DataInitializationDependencyOptions,
   type DataInitializationRuntime,
-  type LooseRecord,
   type RequireFunction,
 } from './ContentRuntimeSetupDataInitializationPhases.js';
 
-let createContentRuntimeSetupDataInitializationRuntimeFactory:
-  | ((options?: LooseRecord) => DataInitializationRuntime)
-  | null = null;
+type DataInitializationRuntimeOptions = DataInitializationDependencyOptions & {
+  requireFunction?: RequireFunction;
+};
 
-(() => {
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
-    typeof globalThis & {
-      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
-    };
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
+type RuntimeBoundaryValue = LooseRecord[string];
+
+function requireFunction<T>(name: string, value: RuntimeBoundaryValue): T {
+  if (typeof value !== 'function') {
+    throw new Error(`[CW] Missing content runtime setup data initialization dependency: ${name}`);
   }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
+  return value as T;
+}
 
-  function requireFunction<T>(name: string, value: unknown): T {
-    if (typeof value !== 'function') {
-      throw new Error(`[CW] Missing content runtime setup data initialization dependency: ${name}`);
-    }
-    return value as T;
+function toRuntimeOptions(value: RuntimeBoundaryValue): DataInitializationRuntimeOptions {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
   }
 
-  /**
-   * Splits setup-time data owner wiring out of `ContentRuntimeSetup` so bootstrap orchestration
-   * remains focused on sequencing while this module owns all auth/API/storage/repository bindings.
-   */
-  function createContentRuntimeSetupDataInitializationRuntime(options: LooseRecord = {}): DataInitializationRuntime {
-    const requireFn = (options.requireFunction as RequireFunction | undefined) ?? requireFunction;
-    return createContentRuntimeSetupDataInitializationPhases(requireFn);
+  return value as DataInitializationRuntimeOptions;
+}
+
+function resolveDependencyOptions(options: DataInitializationRuntimeOptions): DataInitializationDependencyOptions {
+  const dependencyOptions: DataInitializationDependencyOptions = {};
+
+  if ('runtimeBootstrapFinalizeModule' in options) {
+    dependencyOptions.runtimeBootstrapFinalizeModule = options.runtimeBootstrapFinalizeModule;
+  }
+  if ('runtimeBootstrapHelpersModule' in options) {
+    dependencyOptions.runtimeBootstrapHelpersModule = options.runtimeBootstrapHelpersModule;
+  }
+  if (typeof options.createBootstrapFinalizeRuntimeModule === 'function') {
+    dependencyOptions.createBootstrapFinalizeRuntimeModule = options.createBootstrapFinalizeRuntimeModule;
+  }
+  if (typeof options.createRuntimeBootstrapHelpersRuntime === 'function') {
+    dependencyOptions.createRuntimeBootstrapHelpersRuntime = options.createRuntimeBootstrapHelpersRuntime;
   }
 
-  createContentRuntimeSetupDataInitializationRuntimeFactory = createContentRuntimeSetupDataInitializationRuntime;
-  moduleRegistry.runtimeContentRuntimeSetupDataInitialization = {
-    createContentRuntimeSetupDataInitializationRuntime,
-  };
-})();
+  return dependencyOptions;
+}
 
 export function createContentRuntimeSetupDataInitializationRuntime(
-  options: LooseRecord = {},
+  options: RuntimeBoundaryValue = {},
 ): DataInitializationRuntime {
-  if (typeof createContentRuntimeSetupDataInitializationRuntimeFactory !== 'function') {
-    throw new Error('[CW] Content runtime setup data-initialization factory was not initialized.');
-  }
-  return createContentRuntimeSetupDataInitializationRuntimeFactory(options);
+  const runtimeOptions = toRuntimeOptions(options);
+  const requireFn = runtimeOptions.requireFunction ?? requireFunction;
+  return createContentRuntimeSetupDataInitializationPhases(requireFn, resolveDependencyOptions(runtimeOptions));
 }

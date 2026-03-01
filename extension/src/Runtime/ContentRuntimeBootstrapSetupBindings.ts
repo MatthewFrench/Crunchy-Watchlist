@@ -1,16 +1,5 @@
-type AnyFn = (...args: unknown[]) => unknown;
-type LooseRecord = Record<string, unknown>;
-
-type RuntimeSetupBindingsConfig = {
-  runtimeSetupResult: LooseRecord;
-  setRuntimeEvent: (nextRuntimeEvent: AnyFn) => void;
-  setRuntimeSetupBindings: (runtimeSetupBindings: LooseRecord) => void;
-};
-
-type RuntimeSetupBindingsRuntime = {
-  createRuntimeSetupOptions: (options: LooseRecord) => LooseRecord;
-  applyRuntimeSetupBindings: (options: RuntimeSetupBindingsConfig) => void;
-};
+type RuntimeBoundaryValue = CwBoundaryValue;
+type RuntimeCallback = (...args: RuntimeBoundaryValue[]) => RuntimeBoundaryValue;
 
 const runtimeSetupBindingKeys = [
   'runtimeEvent',
@@ -60,47 +49,112 @@ const runtimeSetupBindingKeys = [
   'applyCardLayoutUi',
   'persistSettings',
   'printSeriesApiData',
+  'dispose',
   'setWatchlistCacheRows',
-];
+] as const;
 
-function toRecord(value: unknown): LooseRecord {
+const setupModuleBindingKeys = [
+  'runtimeTraceModule',
+  'runtimePreferredAudioModule',
+  'storageModule',
+  'apiContractsModule',
+  'authClientModule',
+  'watchlistClientModule',
+  'watchlistRepositoryModule',
+  'historyRepositoryModule',
+  'ratingsClientModule',
+  'ratingsRepositoryModule',
+  'previewRepositoryModule',
+  'corePrimitivesModule',
+  'imageVariantsModule',
+  'entryNormalizerModule',
+  'sortMetricsModule',
+  'entrySortingModule',
+  'cardMetadataModule',
+  'controlsViewModule',
+  'cardViewModule',
+  'cardShellModule',
+  'runtimeRenderableModule',
+  'runtimeCuratedPanelModule',
+  'runtimeCuratedLoaderModule',
+  'runtimeNativeBridgeModule',
+  'runtimeCuratedInteractionsModule',
+  'runtimeInterfaceShellModule',
+  'runtimeDebugModule',
+] as const;
+
+type RuntimeSetupBindingKey = (typeof runtimeSetupBindingKeys)[number];
+type SetupModuleBindingKey = (typeof setupModuleBindingKeys)[number];
+type RuntimeSetupResult = Partial<Record<RuntimeSetupBindingKey, RuntimeBoundaryValue>>;
+type RuntimeSetupBindings = RuntimeSetupResult;
+type RuntimeSetupModules = Partial<Record<SetupModuleBindingKey, RuntimeBoundaryValue>>;
+
+type RuntimeSetupBindingsConfig = {
+  runtimeSetupResult: RuntimeSetupResult;
+  setRuntimeEvent: (nextRuntimeEvent: RuntimeCallback) => void;
+  setRuntimeSetupBindings: (runtimeSetupBindings: RuntimeSetupBindings) => void;
+};
+
+type CreateRuntimeSetupOptionsInput = {
+  windowRef: RuntimeBoundaryValue;
+  state: RuntimeBoundaryValue;
+  runtimeConstants: RuntimeBoundaryValue;
+  assertRuntimeMethods: RuntimeBoundaryValue;
+  defaultSettings: RuntimeBoundaryValue;
+  defaultSortMode: RuntimeBoundaryValue;
+  validSortModes: RuntimeBoundaryValue;
+  sortModeControlOptions: RuntimeBoundaryValue;
+  storageLocalArea: RuntimeBoundaryValue;
+  isWatchlistPath: RuntimeBoundaryValue;
+  getWatchlistRoot: RuntimeBoundaryValue;
+  getWatchlistHeader: RuntimeBoundaryValue;
+  debounceProcess: RuntimeBoundaryValue;
+  createEmptyWatchHistoryCache: RuntimeBoundaryValue;
+  createWatchlistCacheSnapshot: RuntimeBoundaryValue;
+  bootstrapModulesRuntime: RuntimeBoundaryValue;
+};
+
+type RuntimeSetupOptions = RuntimeSetupModules & {
+  windowRef: RuntimeBoundaryValue;
+  state: RuntimeBoundaryValue;
+  runtimeConstants: RuntimeBoundaryValue;
+  assertRuntimeMethods: RuntimeBoundaryValue;
+  defaultSettings: RuntimeBoundaryValue;
+  defaultSortMode: RuntimeBoundaryValue;
+  validSortModes: RuntimeBoundaryValue;
+  sortModeControlOptions: RuntimeBoundaryValue;
+  storageLocalArea: RuntimeBoundaryValue;
+  isWatchlistPath: RuntimeBoundaryValue;
+  getWatchlistRoot: RuntimeBoundaryValue;
+  getWatchlistHeader: RuntimeBoundaryValue;
+  debounceProcess: RuntimeBoundaryValue;
+  createEmptyWatchHistoryCache: RuntimeBoundaryValue;
+  createWatchlistCacheSnapshot: RuntimeBoundaryValue;
+};
+
+type RuntimeSetupBindingsRuntime = {
+  createRuntimeSetupOptions: (options: CreateRuntimeSetupOptionsInput) => RuntimeSetupOptions;
+  applyRuntimeSetupBindings: (options: RuntimeSetupBindingsConfig) => void;
+};
+
+const noopRuntimeCallback: RuntimeCallback = () => undefined;
+
+function toRecord(value: RuntimeBoundaryValue): Record<string, RuntimeBoundaryValue> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
   }
-  return value as LooseRecord;
+  return value as Record<string, RuntimeBoundaryValue>;
 }
 
-function createRuntimeSetupModuleOptions(bootstrapModulesRuntime: unknown): LooseRecord {
+function createRuntimeSetupModuleOptions(bootstrapModulesRuntime: RuntimeBoundaryValue): RuntimeSetupModules {
   const modulesRuntime = toRecord(bootstrapModulesRuntime);
-  return {
-    runtimeTraceModule: modulesRuntime.runtimeTraceModule,
-    runtimePreferredAudioModule: modulesRuntime.runtimePreferredAudioModule,
-    storageModule: modulesRuntime.storageModule,
-    apiContractsModule: modulesRuntime.apiContractsModule,
-    authClientModule: modulesRuntime.authClientModule,
-    watchlistClientModule: modulesRuntime.watchlistClientModule,
-    watchlistRepositoryModule: modulesRuntime.watchlistRepositoryModule,
-    historyRepositoryModule: modulesRuntime.historyRepositoryModule,
-    ratingsClientModule: modulesRuntime.ratingsClientModule,
-    ratingsRepositoryModule: modulesRuntime.ratingsRepositoryModule,
-    previewRepositoryModule: modulesRuntime.previewRepositoryModule,
-    corePrimitivesModule: modulesRuntime.corePrimitivesModule,
-    imageVariantsModule: modulesRuntime.imageVariantsModule,
-    entryNormalizerModule: modulesRuntime.entryNormalizerModule,
-    sortMetricsModule: modulesRuntime.sortMetricsModule,
-    entrySortingModule: modulesRuntime.entrySortingModule,
-    cardMetadataModule: modulesRuntime.cardMetadataModule,
-    controlsViewModule: modulesRuntime.controlsViewModule,
-    cardViewModule: modulesRuntime.cardViewModule,
-    cardShellModule: modulesRuntime.cardShellModule,
-    runtimeRenderableModule: modulesRuntime.runtimeRenderableModule,
-    runtimeCuratedPanelModule: modulesRuntime.runtimeCuratedPanelModule,
-    runtimeCuratedLoaderModule: modulesRuntime.runtimeCuratedLoaderModule,
-    runtimeNativeBridgeModule: modulesRuntime.runtimeNativeBridgeModule,
-    runtimeCuratedInteractionsModule: modulesRuntime.runtimeCuratedInteractionsModule,
-    runtimeInterfaceShellModule: modulesRuntime.runtimeInterfaceShellModule,
-    runtimeDebugModule: modulesRuntime.runtimeDebugModule,
-  };
+  const runtimeSetupModules: RuntimeSetupModules = {};
+
+  for (const moduleKey of setupModuleBindingKeys) {
+    runtimeSetupModules[moduleKey] = modulesRuntime[moduleKey];
+  }
+
+  return runtimeSetupModules;
 }
 
 function createRuntimeSetupOptions({
@@ -108,7 +162,6 @@ function createRuntimeSetupOptions({
   state,
   runtimeConstants,
   assertRuntimeMethods,
-  runtimeBootstrapHelpersModule,
   defaultSettings,
   defaultSortMode,
   validSortModes,
@@ -121,14 +174,13 @@ function createRuntimeSetupOptions({
   createEmptyWatchHistoryCache,
   createWatchlistCacheSnapshot,
   bootstrapModulesRuntime,
-}: LooseRecord): LooseRecord {
+}: CreateRuntimeSetupOptionsInput): RuntimeSetupOptions {
   return {
     ...createRuntimeSetupModuleOptions(bootstrapModulesRuntime),
     windowRef,
     state,
     runtimeConstants,
     assertRuntimeMethods,
-    runtimeBootstrapHelpersModule,
     defaultSettings,
     defaultSortMode,
     validSortModes,
@@ -143,8 +195,8 @@ function createRuntimeSetupOptions({
   };
 }
 
-function extractRuntimeSetupBindings(runtimeSetupResult: LooseRecord): LooseRecord {
-  return runtimeSetupBindingKeys.reduce<LooseRecord>((bindings, key) => {
+function extractRuntimeSetupBindings(runtimeSetupResult: RuntimeSetupResult): RuntimeSetupBindings {
+  return runtimeSetupBindingKeys.reduce<RuntimeSetupBindings>((bindings, key) => {
     bindings[key] = runtimeSetupResult[key];
     return bindings;
   }, {});
@@ -156,7 +208,11 @@ function applyRuntimeSetupBindings({
   setRuntimeSetupBindings,
 }: RuntimeSetupBindingsConfig): void {
   const runtimeSetupBindings = extractRuntimeSetupBindings(runtimeSetupResult);
-  setRuntimeEvent(runtimeSetupBindings.runtimeEvent as AnyFn);
+  const runtimeEvent =
+    typeof runtimeSetupBindings.runtimeEvent === 'function'
+      ? (runtimeSetupBindings.runtimeEvent as RuntimeCallback)
+      : noopRuntimeCallback;
+  setRuntimeEvent(runtimeEvent);
   setRuntimeSetupBindings(runtimeSetupBindings);
 }
 
@@ -166,25 +222,3 @@ export function createContentRuntimeBootstrapSetupBindingsRuntime(): RuntimeSetu
     applyRuntimeSetupBindings,
   };
 }
-
-function registerContentRuntimeBootstrapSetupBindingsRuntime(): void {
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
-    typeof globalThis & {
-      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
-    };
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__ as LooseRecord;
-
-  let runtimeRegistry = moduleRegistry.runtimeContentRuntimeBootstrapSetupBindings;
-  if (!runtimeRegistry || typeof runtimeRegistry !== 'object') {
-    runtimeRegistry = {};
-    moduleRegistry.runtimeContentRuntimeBootstrapSetupBindings = runtimeRegistry;
-  }
-
-  (runtimeRegistry as LooseRecord).createContentRuntimeBootstrapSetupBindingsRuntime =
-    createContentRuntimeBootstrapSetupBindingsRuntime;
-}
-
-registerContentRuntimeBootstrapSetupBindingsRuntime();

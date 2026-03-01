@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type AuthTokenEntry = {
   accessToken: string;
@@ -16,20 +15,11 @@ type AuthClientRuntime = {
 };
 
 type AuthClientModule = {
-  authClient: {
-    createAuthClient: (options: Record<string, unknown>) => AuthClientRuntime;
-  };
+  createAuthClient: (options: Record<string, unknown>) => AuthClientRuntime;
 };
 
 const authClientModuleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Data', 'AuthClient.ts')).href;
-const authClientFetchResilienceModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Data', 'AuthClientFetchResilience.ts'),
-).href;
-
-function getAuthClientModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as AuthClientModule;
-  return registry.authClient;
-}
+let createAuthClientRuntimeFactory: AuthClientModule['createAuthClient'] | null = null;
 
 function createLocalStorageMock() {
   const storage = new Map<string, string>();
@@ -45,13 +35,17 @@ function createAuthClient(
   fetchImpl: (url: string, init: RequestInit) => Promise<Response>,
   stateOverrides: Record<string, unknown> = {},
 ) {
+  if (typeof createAuthClientRuntimeFactory !== 'function') {
+    throw new Error('Auth client runtime was not initialized for test');
+  }
+
   const state = {
     authToken: null as AuthTokenEntry | null,
     authTokenInflight: null as Promise<AuthTokenEntry | null> | null,
     ...stateOverrides,
   };
 
-  return getAuthClientModule().createAuthClient({
+  return createAuthClientRuntimeFactory({
     state,
     fetchImpl,
     runtimeEvent: vi.fn(),
@@ -80,11 +74,16 @@ function createAuthClient(
 
 describe('auth-client runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([authClientFetchResilienceModuleUrl, authClientModuleUrl]);
+    vi.resetModules();
+    const module = (await import(authClientModuleUrl)) as {
+      createAuthClientRuntime: () => object;
+    };
+    createAuthClientRuntimeFactory = (module.createAuthClientRuntime() as AuthClientModule).createAuthClient;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createAuthClientRuntimeFactory = null;
+    vi.restoreAllMocks();
   });
 
   it('returns valid cached token without network call', async () => {

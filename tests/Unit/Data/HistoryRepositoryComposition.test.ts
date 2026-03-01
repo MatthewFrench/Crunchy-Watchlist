@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type WatchHistoryEntry = {
   seriesId: string;
@@ -56,18 +55,6 @@ type HistoryRepositoryModule = {
   createHistoryRepository: (options: Record<string, unknown>) => HistoryRepository;
 };
 
-const cacheModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryCache.ts'),
-).href;
-const planningModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreloadPlanning.ts'),
-).href;
-const collectorModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreloadCollector.ts'),
-).href;
-const preloadModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreload.ts'),
-).href;
 const repositoryModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepository.ts'),
 ).href;
@@ -138,29 +125,32 @@ function createHistoryState(): WatchHistoryState {
   };
 }
 
-afterEach(() => {
-  clearRuntimeModulesRegistry();
+beforeEach(() => {
+  vi.resetModules();
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+async function loadHistoryRepositoryModule(): Promise<HistoryRepositoryModule> {
+  const repositoryModule = (await import(repositoryModuleUrl)) as {
+    createHistoryRepositoryRuntime: () => object;
+  };
+  return repositoryModule.createHistoryRepositoryRuntime() as HistoryRepositoryModule;
+}
+
 describe('history-repository composition root', () => {
-  it('fails with a clear dependency error when cache/preload modules are not loaded', async () => {
-    const registry = await loadRuntimeModules([repositoryModuleUrl]);
-    const historyRepositoryModule = registry.historyRepository as HistoryRepositoryModule;
+  it('fails with a clear dependency error when required dependencies are missing', async () => {
+    const historyRepositoryModule = await loadHistoryRepositoryModule();
 
     expect(() => historyRepositoryModule.createHistoryRepository({ state: createHistoryState() })).toThrow(
-      /createHistoryRepositoryCache/,
+      /Missing history repository dependency: createHistoryRepositoryCache/,
     );
   });
 
   it('wires cache and preload owners through the composition root', async () => {
-    const registry = await loadRuntimeModules([
-      cacheModuleUrl,
-      planningModuleUrl,
-      collectorModuleUrl,
-      preloadModuleUrl,
-      repositoryModuleUrl,
-    ]);
-    const historyRepositoryModule = registry.historyRepository as HistoryRepositoryModule;
+    const historyRepositoryModule = await loadHistoryRepositoryModule();
 
     const state = createHistoryState();
     state.watchHistoryCache.bySeriesId['series-a'] = {
@@ -193,9 +183,14 @@ describe('history-repository composition root', () => {
       resolveApiHref: (value: string) => `https://api.example.test${value}`,
       fetchWithResilience: async () => new Response(JSON.stringify({ data: [], total: 0 }), { status: 200 }),
       createAuthRefreshHandler: () => () => undefined,
-      requirePayloadDataArray: (_name: string, payload: unknown) => {
+      parsePayloadDataEnvelope: (_name: string, payload: unknown) => {
         const payloadRecord = payload as { data?: unknown };
-        return Array.isArray(payloadRecord.data) ? (payloadRecord.data as Record<string, unknown>[]) : [];
+        const rows = Array.isArray(payloadRecord.data) ? (payloadRecord.data as Record<string, unknown>[]) : [];
+        const totalValue = Number((payload as { total?: unknown }).total);
+        return {
+          rows,
+          total: Number.isFinite(totalValue) && totalValue >= 0 ? totalValue : null,
+        };
       },
       auditWatchHistoryRowsContract: () => {},
       createEmptyWatchHistoryCache,

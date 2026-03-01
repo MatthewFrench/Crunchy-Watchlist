@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type FakeClassList = {
   add: (...tokens: string[]) => void;
@@ -33,6 +32,7 @@ type ControlsViewModule = {
 };
 
 const controlsViewModuleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Ui', 'ControlsView.ts')).href;
+let createControlsView: ControlsViewModule['createControlsView'] | null = null;
 
 function createFakeDocument() {
   return {
@@ -73,29 +73,29 @@ function createFakeDocument() {
   };
 }
 
-function getControlsViewModule(): ControlsViewModule {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    ui?: Record<string, unknown>;
-  };
-  return registry.ui?.controlsView as ControlsViewModule;
-}
-
 describe('controls-view ui module', () => {
   const previousDocument = (globalThis as Record<string, unknown>).document;
 
   beforeEach(async () => {
+    vi.resetModules();
     (globalThis as Record<string, unknown>).document = createFakeDocument();
-    await loadRuntimeModules([controlsViewModuleUrl]);
+    const controlsViewModule = (await import(controlsViewModuleUrl)) as {
+      createControlsViewRuntime: () => object;
+    };
+    createControlsView = (controlsViewModule.createControlsViewRuntime() as ControlsViewModule).createControlsView;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createControlsView = null;
     (globalThis as Record<string, unknown>).document = previousDocument;
   });
 
   it('creates a secondary sort control with an explicit disabled option', () => {
+    if (typeof createControlsView !== 'function') {
+      throw new Error('Controls view runtime was not initialized for test');
+    }
     const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
-    const runtime = getControlsViewModule().createControlsView({
+    const runtime = createControlsView({
       documentRef,
     });
     const controls = runtime.createCuratedInterfaceControls(
@@ -115,8 +115,11 @@ describe('controls-view ui module', () => {
   });
 
   it('includes hide-not-started mode in watch-ready filter options', () => {
+    if (typeof createControlsView !== 'function') {
+      throw new Error('Controls view runtime was not initialized for test');
+    }
     const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
-    const runtime = getControlsViewModule().createControlsView({
+    const runtime = createControlsView({
       documentRef,
     });
     const controls = runtime.createCuratedInterfaceControls(
@@ -135,8 +138,11 @@ describe('controls-view ui module', () => {
   });
 
   it('includes favorites in genre filter options', () => {
+    if (typeof createControlsView !== 'function') {
+      throw new Error('Controls view runtime was not initialized for test');
+    }
     const documentRef = globalThis.document as ReturnType<typeof createFakeDocument>;
-    const runtime = getControlsViewModule().createControlsView({
+    const runtime = createControlsView({
       documentRef,
     });
     const controls = runtime.createCuratedInterfaceControls(

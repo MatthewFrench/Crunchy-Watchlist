@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type HistoryRepositoryPreloadPlanningModule = {
   resolveHistoryPreloadPlan: (options: {
@@ -26,23 +25,33 @@ type HistoryRepositoryPreloadPlanningModule = {
 const planningModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreloadPlanning.ts'),
 ).href;
+let planningModule: HistoryRepositoryPreloadPlanningModule | null = null;
 
 function normalizeAudioLocale(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
-async function loadPlanningModule(): Promise<HistoryRepositoryPreloadPlanningModule> {
-  const registry = await loadRuntimeModules([planningModuleUrl]);
-  return registry.historyRepositoryPreloadPlanning as HistoryRepositoryPreloadPlanningModule;
-}
+beforeEach(async () => {
+  vi.resetModules();
+  planningModule = (await import(planningModuleUrl)) as HistoryRepositoryPreloadPlanningModule;
+});
 
 afterEach(() => {
-  clearRuntimeModulesRegistry();
+  planningModule = null;
+  vi.restoreAllMocks();
 });
+
+function getPlanningModule(): HistoryRepositoryPreloadPlanningModule {
+  if (!planningModule) {
+    throw new Error('History preload planning module was not initialized for test');
+  }
+
+  return planningModule;
+}
 
 describe('HistoryRepositoryPreloadPlanning', () => {
   it('builds preferred audio preload plan with candidate filtering and dedupe', async () => {
-    const planningModule = await loadPlanningModule();
+    const planningModule = getPlanningModule();
 
     const plan = planningModule.resolveHistoryPreloadPlan({
       entries: [
@@ -62,7 +71,7 @@ describe('HistoryRepositoryPreloadPlanning', () => {
   });
 
   it('falls back to default preferred audio when selected locale is invalid', async () => {
-    const planningModule = await loadPlanningModule();
+    const planningModule = getPlanningModule();
 
     const plan = planningModule.resolveHistoryPreloadPlan({
       entries: [],
@@ -77,7 +86,7 @@ describe('HistoryRepositoryPreloadPlanning', () => {
   });
 
   it('falls back to row count and emits a contract warning for invalid total values', async () => {
-    const planningModule = await loadPlanningModule();
+    const planningModule = getPlanningModule();
     const runtimeEvent = vi.fn();
 
     const total = planningModule.getHistoryPayloadTotal({

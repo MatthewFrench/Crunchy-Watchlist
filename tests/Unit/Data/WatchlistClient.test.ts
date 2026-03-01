@@ -1,26 +1,19 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type WatchlistClientRuntime = {
   fetchAllWatchlistRows: (tokenEntry: unknown) => Promise<Record<string, unknown>[]>;
 };
 
 type WatchlistClientModule = {
-  watchlistClient: {
-    createWatchlistClient: (options: Record<string, unknown>) => WatchlistClientRuntime;
-  };
+  createWatchlistClient: (options: Record<string, unknown>) => WatchlistClientRuntime;
 };
 
 const watchlistClientModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'WatchlistClient.ts'),
 ).href;
-
-function getWatchlistClientModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as WatchlistClientModule;
-  return registry.watchlistClient;
-}
+let createWatchlistClientRuntimeFactory: WatchlistClientModule['createWatchlistClient'] | null = null;
 
 function createWatchlistRow(seriesId: string): Record<string, unknown> {
   return {
@@ -34,6 +27,10 @@ function createWatchlistRow(seriesId: string): Record<string, unknown> {
 }
 
 function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
+  if (typeof createWatchlistClientRuntimeFactory !== 'function') {
+    throw new Error('Watchlist client runtime was not initialized for test');
+  }
+
   const fetchWithResilience =
     vi.fn<
       (
@@ -51,16 +48,20 @@ function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
   const pushApiTrace = vi.fn();
   const runtimeEvent = vi.fn();
 
-  const runtime = getWatchlistClientModule().createWatchlistClient({
+  const runtime = createWatchlistClientRuntimeFactory({
     fetchWithResilience,
     createAuthRefreshHandler,
     resolveApiHref: (pathWithQuery: string) => `https://api.example.test${pathWithQuery}`,
-    requirePayloadDataArray: (_endpoint: string, payload: unknown) => {
+    parsePayloadDataEnvelope: (_endpoint: string, payload: unknown) => {
       const record = payload as Record<string, unknown>;
       if (!Array.isArray(record.data)) {
         throw new Error('invalid payload data');
       }
-      return record.data as Record<string, unknown>[];
+      const totalRaw = Number(record.total);
+      return {
+        rows: record.data as Record<string, unknown>[],
+        total: Number.isFinite(totalRaw) && totalRaw >= 0 ? Math.round(totalRaw) : null,
+      };
     },
     auditWatchlistRowsContract,
     getPreferredAudioLanguage: () => 'en-us',
@@ -90,11 +91,17 @@ function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
 
 describe('watchlist-client module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([watchlistClientModuleUrl]);
+    vi.resetModules();
+    const module = (await import(watchlistClientModuleUrl)) as {
+      createWatchlistClientRuntime: () => object;
+    };
+    createWatchlistClientRuntimeFactory = (module.createWatchlistClientRuntime() as WatchlistClientModule)
+      .createWatchlistClient;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createWatchlistClientRuntimeFactory = null;
+    vi.restoreAllMocks();
   });
 
   it('emits contract warning and falls back to row count when payload total is invalid', async () => {

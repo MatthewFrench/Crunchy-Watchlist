@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type FakeEvent = {
   preventDefault?: () => void;
@@ -32,12 +31,11 @@ type FakeElement = {
 type CuratedInteractionsRuntime = {
   createCuratedCardActions: (entry: unknown) => FakeElement;
   bindCuratedInterfaceControls: (context: unknown) => void;
+  dispose: () => void;
 };
 
 type CuratedInteractionsModule = {
-  runtimeCuratedInteractions: {
-    createCuratedInteractionsRuntime: (options: Record<string, unknown>) => CuratedInteractionsRuntime;
-  };
+  createCuratedInteractionsRuntime: (options: Record<string, unknown>) => CuratedInteractionsRuntime;
 };
 
 type Deferred<T> = {
@@ -49,9 +47,7 @@ type Deferred<T> = {
 const curatedInteractionsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedInteractions.ts'),
 ).href;
-const curatedInteractionsControlsModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedInteractionsControls.ts'),
-).href;
+let curatedInteractionsModule: CuratedInteractionsModule | null = null;
 
 function createFakeElement(): FakeElement {
   return {
@@ -114,18 +110,24 @@ async function flushMicrotasks(iterations = 6): Promise<void> {
 }
 
 function getCuratedInteractionsModule() {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as CuratedInteractionsModule;
-  return registry.runtimeCuratedInteractions;
+  if (!curatedInteractionsModule) {
+    throw new Error('Curated interactions module was not initialized for test');
+  }
+  return curatedInteractionsModule;
 }
 
 describe('curated-interactions runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([curatedInteractionsControlsModuleUrl, curatedInteractionsModuleUrl]);
+    vi.resetModules();
+    const curatedInteractionsRuntimeModule = (await import(curatedInteractionsModuleUrl)) as {
+      createRuntimeCuratedInteractionsRuntime: () => object;
+    };
+    curatedInteractionsModule =
+      curatedInteractionsRuntimeModule.createRuntimeCuratedInteractionsRuntime() as CuratedInteractionsModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    curatedInteractionsModule = null;
   });
 
   it('creates card action controls and forwards favorite/remove interactions', async () => {
@@ -282,7 +284,7 @@ describe('curated-interactions runtime', () => {
     const cardLayoutInput = createFakeElement();
     cardLayoutInput.checked = true;
     const audioSelect = createFakeElement();
-    audioSelect.value = 'ja-JP';
+    audioSelect.value = ' ja-JP ';
     const genreSelect = createFakeElement();
     genreSelect.value = 'action';
     const sortSelect = createFakeElement();
@@ -319,8 +321,8 @@ describe('curated-interactions runtime', () => {
     expect(state.settings.sortMode).toBe('rating_desc');
     expect(state.settings.secondarySortMode).toBe('votes_desc');
     expect(persistSettings).toHaveBeenCalledTimes(6);
-    expect(preloadRatingsForSelectedAudioLocale).toHaveBeenCalledWith('ja-JP');
-    expect(preloadWatchHistoryForSelectedAudioLocale).toHaveBeenCalledWith('ja-JP');
+    expect(preloadRatingsForSelectedAudioLocale).not.toHaveBeenCalled();
+    expect(preloadWatchHistoryForSelectedAudioLocale).not.toHaveBeenCalled();
     expect(resetCuratedCachesForRefresh).toHaveBeenCalledTimes(1);
     expect(ensureCuratedDataLoad).toHaveBeenCalledWith(true);
     expect(debounceProcess).toHaveBeenCalledTimes(1);
@@ -405,6 +407,64 @@ describe('curated-interactions runtime', () => {
     expect(preloadWatchHistoryForSelectedAudioLocale).not.toHaveBeenCalled();
   });
 
+  it('does not trigger selected-locale metadata preload when audio filter changes to any', async () => {
+    const state = {
+      mounted: true,
+      settings: {
+        watchReadyFilterMode: 'hide',
+        cardLayout: 'portrait',
+        audioLocaleFilter: 'ja-JP',
+        genreFilter: 'any',
+        sortMode: 'consensus_quality_desc',
+        secondarySortMode: 'none',
+      },
+    };
+
+    const persistSettings = vi.fn(async () => null);
+    const renderCuratedPanel = vi.fn();
+    const preloadRatingsForSelectedAudioLocale = vi.fn(async () => null);
+    const preloadWatchHistoryForSelectedAudioLocale = vi.fn(async () => null);
+
+    const runtime = getCuratedInteractionsModule().createCuratedInteractionsRuntime({
+      documentRef: {
+        createElement: () => createFakeElement(),
+      },
+      alertRef: vi.fn(),
+      confirmRef: vi.fn(() => true),
+      triggerNativeCardAction: vi.fn(async () => true),
+      toggleCuratedFavorite: vi.fn(),
+      removeCuratedSeries: vi.fn(),
+      renderCuratedPanel,
+      state,
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      persistSettings,
+      normalizeAudioLocale: vi.fn((value: unknown) => String(value || '').trim() || null),
+      preloadRatingsForSelectedAudioLocale,
+      preloadWatchHistoryForSelectedAudioLocale,
+      isWatchlistPath: vi.fn(() => true),
+      resetCuratedCachesForRefresh: vi.fn(async () => null),
+      ensureCuratedDataLoad: vi.fn(async () => null),
+      debounceProcess: vi.fn(),
+    });
+
+    const audioSelect = createFakeElement();
+    audioSelect.value = 'any';
+    runtime.bindCuratedInterfaceControls({
+      audioFilterControl: { select: audioSelect },
+    });
+
+    await audioSelect.dispatch('change');
+    await flushMicrotasks();
+
+    expect(state.settings.audioLocaleFilter).toBe('any');
+    expect(persistSettings).toHaveBeenCalledTimes(1);
+    expect(renderCuratedPanel).toHaveBeenCalledTimes(1);
+    expect(preloadRatingsForSelectedAudioLocale).not.toHaveBeenCalled();
+    expect(preloadWatchHistoryForSelectedAudioLocale).not.toHaveBeenCalled();
+  });
+
   it('prevents overlapping manual refresh actions while a refresh is in flight', async () => {
     const state = {
       mounted: true,
@@ -466,5 +526,36 @@ describe('curated-interactions runtime', () => {
 
     expect(refreshButton.disabled).toBe(false);
     expect(refreshButton.getAttribute('aria-busy')).toBe('false');
+  });
+
+  it('stops binding and action creation once disposed', () => {
+    const runtime = getCuratedInteractionsModule().createCuratedInteractionsRuntime({
+      documentRef: {
+        createElement: () => createFakeElement(),
+      },
+      alertRef: vi.fn(),
+      confirmRef: vi.fn(() => true),
+      triggerNativeCardAction: vi.fn(async () => true),
+      toggleCuratedFavorite: vi.fn(),
+      removeCuratedSeries: vi.fn(),
+      renderCuratedPanel: vi.fn(),
+      state: {
+        mounted: true,
+        settings: {},
+      },
+      persistSettings: vi.fn(async () => null),
+      resetCuratedCachesForRefresh: vi.fn(async () => null),
+      ensureCuratedDataLoad: vi.fn(async () => null),
+      debounceProcess: vi.fn(),
+    });
+
+    runtime.dispose();
+    runtime.dispose();
+    runtime.bindCuratedInterfaceControls({
+      refreshButton: createFakeElement(),
+    });
+
+    const actions = runtime.createCuratedCardActions({ seriesId: 'series-1', title: 'Series 1' });
+    expect(actions.children).toHaveLength(0);
   });
 });

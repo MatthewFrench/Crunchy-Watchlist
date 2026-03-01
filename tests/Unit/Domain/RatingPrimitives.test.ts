@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type RatingPrimitivesRuntime = {
   parseRatingPayload: (payload: Record<string, unknown> | null | undefined) => {
@@ -18,17 +17,14 @@ type RatingPrimitivesModule = {
 const ratingPrimitivesModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Domain', 'RatingPrimitives.ts'),
 ).href;
-
-function getRatingPrimitivesModule(): RatingPrimitivesModule {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    domain?: Record<string, unknown>;
-  };
-  const domainRegistry = registry.domain ?? {};
-  return domainRegistry.ratingPrimitives as RatingPrimitivesModule;
-}
+let createRatingPrimitives: RatingPrimitivesModule['createRatingPrimitives'] | null = null;
 
 function createRatingPrimitivesRuntime(): RatingPrimitivesRuntime {
-  return getRatingPrimitivesModule().createRatingPrimitives({
+  if (typeof createRatingPrimitives !== 'function') {
+    throw new Error('Rating primitives runtime was not initialized for test');
+  }
+
+  return createRatingPrimitives({
     sanitizeRating: (value: unknown) => {
       const number = Number(value);
       if (!Number.isFinite(number) || number <= 0 || number > 5) {
@@ -102,11 +98,17 @@ function createRatingPrimitivesRuntime(): RatingPrimitivesRuntime {
 
 describe('rating-primitives domain module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([ratingPrimitivesModuleUrl]);
+    vi.resetModules();
+    const ratingPrimitivesModule = (await import(ratingPrimitivesModuleUrl)) as {
+      createRatingPrimitivesRuntime: () => object;
+    };
+    createRatingPrimitives = (ratingPrimitivesModule.createRatingPrimitivesRuntime() as RatingPrimitivesModule)
+      .createRatingPrimitives;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createRatingPrimitives = null;
+    vi.restoreAllMocks();
   });
 
   it('parses fallback serialized rating and vote values', () => {

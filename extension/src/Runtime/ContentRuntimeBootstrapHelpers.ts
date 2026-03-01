@@ -1,13 +1,26 @@
 import { createContentRuntimeBootstrapDomLockRuntime } from './ContentRuntimeBootstrapDomLock.js';
 import { createContentRuntimeBootstrapSessionRuntime } from './ContentRuntimeBootstrapSession.js';
 
-type AnyFn = (...args: unknown[]) => unknown;
-type LooseRecord = Record<string, unknown>;
+type RuntimeBoundaryValue = LooseRecord[string];
+type SortModeControlOption = {
+  optionValue: string;
+  title: string;
+};
+type RuntimeEventHandler = (event: string, payload?: RuntimeBoundaryValue) => void;
+type ProcessWatchlistHandler = () => void | Promise<void>;
+type DestroyRuntimeHandler = (payload?: LooseRecord) => void;
+type SyncRouteRuntimeHandler = () => void;
+type AssertRuntimeMethods = (owner: string, runtime: LooseRecord, requiredMethods: string[]) => void;
+type WatchlistHealthRuntime = LooseRecord & {
+  runCheck?: () => void;
+  start?: () => void;
+  stop?: () => void;
+};
 
 type RuntimeControl = LooseRecord & {
   active?: boolean;
   activeInstanceId?: string | null;
-  shutdown?: (payload?: unknown) => void;
+  shutdown?: (payload?: RuntimeBoundaryValue) => void;
 };
 
 type RuntimeWindow = Window &
@@ -16,7 +29,6 @@ type RuntimeWindow = Window &
     __CW_WATCHLIST_CURATOR_LOADED__?: {
       version?: string;
     };
-    __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
   };
 
 type RuntimeLockLifecycleControl = {
@@ -26,58 +38,58 @@ type RuntimeLockLifecycleControl = {
 };
 
 type BootstrapRuntimeSession = {
-  runtimeStateLoaderModule: LooseRecord;
   runtimeLifecycleModule: LooseRecord;
-  runtimeBootstrapHelpersModule: LooseRecord;
   storageModule: LooseRecord;
-  assertRuntimeMethods: AnyFn;
-  defaultSortMode: unknown;
-  validSortModes: unknown;
-  sortModeControlOptions: unknown[];
+  assertRuntimeMethods: AssertRuntimeMethods;
+  defaultSortMode: RuntimeBoundaryValue;
+  validSortModes: RuntimeBoundaryValue;
+  sortModeControlOptions: SortModeControlOption[];
   defaultSettings: LooseRecord;
   runtimeConstants: LooseRecord;
   state: LooseRecord;
-  storageLocalArea: unknown;
+  storageLocalArea: RuntimeBoundaryValue;
   isWatchlistPath: (pathname: string) => boolean;
   getWatchlistRoot: (documentRef: Document) => Element | null;
   getWatchlistHeader: (documentRef: Document) => Element | null;
   debounceProcess: () => void;
-  createEmptyWatchHistoryCache: AnyFn;
-  createWatchlistCacheSnapshot: AnyFn;
+  createEmptyWatchHistoryCache: (watchHistoryCacheVersion: RuntimeBoundaryValue) => RuntimeBoundaryValue;
+  createWatchlistCacheSnapshot: (...args: RuntimeBoundaryValue[]) => RuntimeBoundaryValue;
   bootstrapModulesRuntime: LooseRecord;
-  setRuntimeEvent: (nextRuntimeEvent: AnyFn) => void;
-  setProcessWatchlist: (nextProcessWatchlist: AnyFn) => void;
-  setDestroyRuntime: (nextDestroyRuntime: AnyFn) => void;
-  setSyncRouteRuntime: (nextSyncRouteRuntime: AnyFn) => void;
-  getRuntimeEvent: () => AnyFn;
+  setRuntimeEvent: (nextRuntimeEvent: RuntimeEventHandler) => void;
+  setProcessWatchlist: (nextProcessWatchlist: ProcessWatchlistHandler) => void;
+  setDestroyRuntime: (nextDestroyRuntime: DestroyRuntimeHandler) => void;
+  setSyncRouteRuntime: (nextSyncRouteRuntime: SyncRouteRuntimeHandler) => void;
+  getRuntimeEvent: () => RuntimeEventHandler;
   startDomRuntimeLockHeartbeat: () => void;
-  shutdownRuntime: (payload?: LooseRecord) => void;
+  shutdownRuntime: DestroyRuntimeHandler;
   startWatchlistHealthRuntime: () => void;
 };
 
 export type ContentRuntimeBootstrapHelpersOptions = {
-  windowRef?: unknown;
-  consoleRef?: unknown;
-  browserRef?: unknown;
-  chromeRef?: unknown;
-  runtimeControl?: unknown;
-  setRuntimeControl?: unknown;
-  runtimeInstanceId?: unknown;
-  runtimeInstanceStartedAt?: unknown;
-  domRuntimeLockOwnerAttribute?: unknown;
-  domRuntimeLockTimestampAttribute?: unknown;
-  domRuntimeLockStaleMs?: unknown;
-  domRuntimeLockHeartbeatMs?: unknown;
-  runtimeTakeoverRequestEventName?: unknown;
-  isCurrentRuntimeOwner?: unknown;
-  isCurrentRuntimeActive?: unknown;
+  windowRef?: RuntimeBoundaryValue;
+  consoleRef?: RuntimeBoundaryValue;
+  browserRef?: RuntimeBoundaryValue;
+  chromeRef?: RuntimeBoundaryValue;
+  runtimeControl?: RuntimeBoundaryValue;
+  setRuntimeControl?: RuntimeBoundaryValue;
+  runtimeInstanceId?: RuntimeBoundaryValue;
+  runtimeInstanceStartedAt?: RuntimeBoundaryValue;
+  domRuntimeLockOwnerAttribute?: RuntimeBoundaryValue;
+  domRuntimeLockTimestampAttribute?: RuntimeBoundaryValue;
+  domRuntimeLockStaleMs?: RuntimeBoundaryValue;
+  domRuntimeLockHeartbeatMs?: RuntimeBoundaryValue;
+  runtimeTakeoverRequestEventName?: RuntimeBoundaryValue;
+  isCurrentRuntimeOwner?: RuntimeBoundaryValue;
+  isCurrentRuntimeActive?: RuntimeBoundaryValue;
+  createDomLockRuntimeFactory?: RuntimeBoundaryValue;
+  createSessionRuntimeFactory?: RuntimeBoundaryValue;
 };
 
 type RuntimeBootstrapHelpersContext = {
   windowRef: RuntimeWindow;
   consoleRef: Console;
-  browserRef: unknown;
-  chromeRef: unknown;
+  browserRef: RuntimeBoundaryValue;
+  chromeRef: RuntimeBoundaryValue;
   runtimeControl: RuntimeControl;
   setRuntimeControl: (patch: LooseRecord) => void;
   runtimeInstanceId: string;
@@ -89,13 +101,19 @@ type RuntimeBootstrapHelpersContext = {
   runtimeTakeoverRequestEventName: string;
   isCurrentRuntimeOwner: () => boolean;
   isCurrentRuntimeActive: () => boolean;
+  createDomLockRuntimeFactory: (options: { context: RuntimeBootstrapHelpersContext }) => RuntimeBoundaryValue;
+  createSessionRuntimeFactory: (options: {
+    context: RuntimeBootstrapHelpersContext;
+    clearStaleInjectedShell: (reason: string) => void;
+    createRuntimeLockLifecycleControl: (options: RuntimeLockLifecycleOptions) => RuntimeLockLifecycleControl;
+  }) => RuntimeBoundaryValue;
 };
 
 type RuntimeLockLifecycleOptions = {
   state: LooseRecord;
-  getRuntimeEvent: () => AnyFn;
-  getDestroyRuntime: () => AnyFn;
-  getWatchlistHealthRuntime: () => LooseRecord;
+  getRuntimeEvent: () => RuntimeEventHandler;
+  getDestroyRuntime: () => DestroyRuntimeHandler;
+  getWatchlistHealthRuntime: () => WatchlistHealthRuntime;
 };
 
 type RuntimeBootstrapDomLockRuntime = {
@@ -113,7 +131,7 @@ type RuntimeBootstrapSessionRuntime = {
   createRuntimeSetupOptions: (options: LooseRecord) => LooseRecord;
   applyRuntimeSetupBindings: (options: {
     runtimeSetupResult: LooseRecord;
-    setRuntimeEvent: (nextRuntimeEvent: AnyFn) => void;
+    setRuntimeEvent: (nextRuntimeEvent: RuntimeEventHandler) => void;
     setRuntimeSetupBindings: (runtimeSetupBindings: LooseRecord) => void;
   }) => void;
   createRuntimeBootstrapSession: ({
@@ -126,12 +144,13 @@ type RuntimeBootstrapSessionRuntime = {
     windowRef: RuntimeWindow;
     runtimeSetupResult: LooseRecord;
     runtimeBootstrapSession: BootstrapRuntimeSession;
-  }) => unknown;
+  }) => RuntimeBoundaryValue;
   bindBootstrapFinalizeRuntimeMethods: (options: {
     bootstrapFinalizeRuntime: LooseRecord;
-    setProcessWatchlist: (nextProcessWatchlist: AnyFn) => void;
-    setSyncRouteRuntime: (nextSyncRouteRuntime: AnyFn) => void;
-    setDestroyRuntime: (nextDestroyRuntime: AnyFn) => void;
+    disposeRuntimeSetup?: (() => void) | null;
+    setProcessWatchlist: (nextProcessWatchlist: ProcessWatchlistHandler) => void;
+    setSyncRouteRuntime: (nextSyncRouteRuntime: SyncRouteRuntimeHandler) => void;
+    setDestroyRuntime: (nextDestroyRuntime: DestroyRuntimeHandler) => void;
     setBootstrapIssue: (reason: string, payload?: LooseRecord) => void;
   }) => boolean;
   runBootstrapFinalizeInitFlow: (options: {
@@ -147,14 +166,14 @@ type RuntimeBootstrapSessionRuntime = {
 
 const root = (typeof window !== 'undefined' ? window : globalThis) as RuntimeWindow;
 
-function toRecord(value: unknown): LooseRecord {
+function toRecord(value: RuntimeBoundaryValue): LooseRecord {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
   }
   return value as LooseRecord;
 }
 
-function requireFunction<T>(name: string, value: unknown): T {
+function requireFunction<T>(name: string, value: RuntimeBoundaryValue): T {
   if (typeof value !== 'function') {
     throw new Error(`[CW] Missing content-runtime-bootstrap-helpers dependency: ${name}`);
   }
@@ -162,29 +181,29 @@ function requireFunction<T>(name: string, value: unknown): T {
   return value as T;
 }
 
-function toRuntimeWindow(value: unknown): RuntimeWindow {
+function toRuntimeWindow(value: RuntimeBoundaryValue): RuntimeWindow {
   if (value && typeof value === 'object') {
     return value as RuntimeWindow;
   }
   return root;
 }
 
-function toConsole(value: unknown): Console {
+function toConsole(value: RuntimeBoundaryValue): Console {
   if (value && typeof value === 'object') {
     return value as Console;
   }
   return console;
 }
 
-function toFunction<T>(value: unknown, fallback: T): T {
+function toFunction<T>(value: RuntimeBoundaryValue, fallback: T): T {
   return typeof value === 'function' ? (value as T) : fallback;
 }
 
-function toStringValue(value: unknown, fallback = ''): string {
+function toStringValue(value: RuntimeBoundaryValue, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
 }
 
-function toPositiveNumber(value: unknown, fallback: number): number {
+function toPositiveNumber(value: RuntimeBoundaryValue, fallback: number): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return fallback;
@@ -192,7 +211,7 @@ function toPositiveNumber(value: unknown, fallback: number): number {
   return parsed;
 }
 
-function resolveRuntimeControl(value: unknown, windowRef: RuntimeWindow): RuntimeControl {
+function resolveRuntimeControl(value: RuntimeBoundaryValue, windowRef: RuntimeWindow): RuntimeControl {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as RuntimeControl;
   }
@@ -256,10 +275,29 @@ function createRuntimeBootstrapHelpersContext(
         windowRef.__CW_WATCHLIST_CURATOR_CONTROL__?.activeInstanceId === runtimeInstanceId &&
         windowRef.__CW_WATCHLIST_CURATOR_CONTROL__?.active !== false,
     ),
+    createDomLockRuntimeFactory: toFunction<RuntimeBootstrapHelpersContext['createDomLockRuntimeFactory']>(
+      options.createDomLockRuntimeFactory,
+      createContentRuntimeBootstrapDomLockRuntime as RuntimeBootstrapHelpersContext['createDomLockRuntimeFactory'],
+    ),
+    createSessionRuntimeFactory: toFunction<RuntimeBootstrapHelpersContext['createSessionRuntimeFactory']>(
+      options.createSessionRuntimeFactory,
+      createContentRuntimeBootstrapSessionRuntime as RuntimeBootstrapHelpersContext['createSessionRuntimeFactory'],
+    ),
   };
 }
 
 function markRuntimeUnavailable(context: RuntimeBootstrapHelpersContext, reason: string): void {
+  const activeInstanceId = toStringValue(context.runtimeControl.activeInstanceId);
+  if (activeInstanceId && activeInstanceId !== context.runtimeInstanceId) {
+    context.setRuntimeControl({
+      lastShutdownAt: Date.now(),
+      lastShutdownPayload: {
+        reason,
+      },
+    });
+    return;
+  }
+
   context.setRuntimeControl({
     active: false,
     activeInstanceId: null,
@@ -275,7 +313,7 @@ function createDomLockRuntimeForContext(
 ): RuntimeBootstrapDomLockRuntime | null {
   try {
     const runtimeRecord = toRecord(
-      createContentRuntimeBootstrapDomLockRuntime({
+      context.createDomLockRuntimeFactory({
         context,
       }),
     );
@@ -320,7 +358,7 @@ function createSessionRuntimeForContext(
 ): RuntimeBootstrapSessionRuntime | null {
   try {
     const runtimeRecord = toRecord(
-      createContentRuntimeBootstrapSessionRuntime({
+      context.createSessionRuntimeFactory({
         context,
         clearStaleInjectedShell: domLockRuntime.clearStaleInjectedShell,
         createRuntimeLockLifecycleControl: domLockRuntime.createRuntimeLockLifecycleControl,
@@ -454,9 +492,10 @@ function createBoundContentRuntimeBootstrapHelpers(context: RuntimeBootstrapHelp
       }),
     bindBootstrapFinalizeRuntimeMethods: (options: {
       bootstrapFinalizeRuntime: LooseRecord;
-      setProcessWatchlist: (nextProcessWatchlist: AnyFn) => void;
-      setSyncRouteRuntime: (nextSyncRouteRuntime: AnyFn) => void;
-      setDestroyRuntime: (nextDestroyRuntime: AnyFn) => void;
+      disposeRuntimeSetup?: (() => void) | null;
+      setProcessWatchlist: (nextProcessWatchlist: ProcessWatchlistHandler) => void;
+      setSyncRouteRuntime: (nextSyncRouteRuntime: SyncRouteRuntimeHandler) => void;
+      setDestroyRuntime: (nextDestroyRuntime: DestroyRuntimeHandler) => void;
       setBootstrapIssue: (reason: string, payload?: LooseRecord) => void;
     }) => sessionRuntime.bindBootstrapFinalizeRuntimeMethods(options),
     runBootstrapFinalizeInitFlow: (options: {
@@ -475,15 +514,3 @@ export function createContentRuntimeBootstrapHelpers(options: ContentRuntimeBoot
   const context = createRuntimeBootstrapHelpersContext(options);
   return createBoundContentRuntimeBootstrapHelpers(context);
 }
-
-function registerContentRuntimeBootstrapHelpers(): void {
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
-
-  root.__CW_WATCHLIST_CURATOR_MODULES__.runtimeContentRuntimeBootstrapHelpers = {
-    createContentRuntimeBootstrapHelpers,
-  };
-}
-
-registerContentRuntimeBootstrapHelpers();

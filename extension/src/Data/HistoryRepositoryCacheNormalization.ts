@@ -1,5 +1,7 @@
+type BoundaryValue = CwBoundaryValue;
+
 export type LooseRecord = {
-  [key: string]: unknown;
+  [key: string]: BoundaryValue;
   panel?: LooseRecord;
   episode_metadata?: LooseRecord;
   series_metadata?: LooseRecord;
@@ -41,11 +43,11 @@ export type WatchHistoryState = {
 
 export type HistoryRepositoryCacheContext = {
   state: WatchHistoryState;
-  normalizeAudioLocale: (value: unknown) => string;
-  sanitizePositiveInt: (value: unknown) => number | null;
-  parseDateMs: (value: unknown) => number | null;
+  normalizeAudioLocale: (value: BoundaryValue) => string;
+  sanitizePositiveInt: (value: BoundaryValue) => number | null;
+  parseDateMs: (value: BoundaryValue) => number | null;
   pickFirstPositiveInt: (values: Array<number | null | undefined>) => number | null;
-  deriveCanonicalEpisodeKeyFromEpisodeMetadata: (metadata: LooseRecord, seriesId?: unknown) => string;
+  deriveCanonicalEpisodeKeyFromEpisodeMetadata: (metadata: LooseRecord, seriesId?: BoundaryValue) => string;
   createEmptyWatchHistoryCache: () => WatchHistoryCache;
   watchHistoryCacheVersion: number;
   watchHistoryCacheTtlMs: number;
@@ -53,8 +55,8 @@ export type HistoryRepositoryCacheContext = {
 
 export function isWatchHistoryCacheValid(
   context: HistoryRepositoryCacheContext,
-  cache: unknown = context.state.watchHistoryCache,
-  accountId?: unknown,
+  cache: BoundaryValue = context.state.watchHistoryCache,
+  accountId?: BoundaryValue,
 ): boolean {
   if (!cache || typeof cache !== 'object') {
     return false;
@@ -238,7 +240,7 @@ export function normalizeWatchHistoryEntry(
 
 export function normalizeStoredWatchHistoryBySeriesAudioLocale(
   context: HistoryRepositoryCacheContext,
-  raw: unknown,
+  raw: BoundaryValue,
 ): Record<string, WatchHistoryLocaleMap> {
   if (!raw || typeof raw !== 'object') {
     return {};
@@ -284,7 +286,7 @@ export function normalizeStoredWatchHistoryBySeriesAudioLocale(
 
 export function normalizeStoredWatchHistoryCache(
   context: HistoryRepositoryCacheContext,
-  raw: unknown,
+  raw: BoundaryValue,
 ): WatchHistoryCache {
   if (!raw || typeof raw !== 'object') {
     return context.createEmptyWatchHistoryCache();
@@ -345,8 +347,8 @@ function getCachedWatchHistoryFromBuckets(
   context: HistoryRepositoryCacheContext,
   seriesBucket: Record<string, WatchHistoryEntry>,
   seriesByLocaleBucket: Record<string, WatchHistoryLocaleMap> | null | undefined,
-  seriesId: unknown,
-  audioLocale: unknown = null,
+  seriesId: BoundaryValue,
+  audioLocale: BoundaryValue = null,
   allowSeriesFallback = true,
 ): WatchHistoryEntry | null {
   if (typeof seriesId !== 'string' || !seriesId || !seriesBucket || typeof seriesBucket !== 'object') {
@@ -386,8 +388,8 @@ function getCachedWatchHistoryFromBuckets(
 
 export function getCachedWatchHistory(
   context: HistoryRepositoryCacheContext,
-  seriesId: unknown,
-  audioLocale: unknown = null,
+  seriesId: BoundaryValue,
+  audioLocale: BoundaryValue = null,
   allowSeriesFallback = true,
 ): WatchHistoryEntry | null {
   if (
@@ -417,8 +419,8 @@ export function getCachedWatchHistory(
 
 export function getCachedWatchHistoryProgress(
   context: HistoryRepositoryCacheContext,
-  seriesId: unknown,
-  audioLocale: unknown = null,
+  seriesId: BoundaryValue,
+  audioLocale: BoundaryValue = null,
   allowSeriesFallback = true,
 ): WatchHistoryEntry | null {
   if (

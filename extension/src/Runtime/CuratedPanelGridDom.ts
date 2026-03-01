@@ -1,5 +1,5 @@
 export function getElementDataAttribute(element: Element, datasetKey: string, attributeName: string): string {
-  const datasetValue = (element as Element & { dataset?: Record<string, unknown> }).dataset?.[datasetKey];
+  const datasetValue = (element as Element & { dataset?: DOMStringMap }).dataset?.[datasetKey];
   if (typeof datasetValue === 'string') {
     return datasetValue;
   }
@@ -17,7 +17,7 @@ export function setElementDataAttribute(
   attributeName: string,
   value: string,
 ): void {
-  const dataset = (element as Element & { dataset?: Record<string, unknown> }).dataset;
+  const dataset = (element as Element & { dataset?: DOMStringMap }).dataset;
   if (dataset && typeof dataset === 'object') {
     dataset[datasetKey] = value;
     return;

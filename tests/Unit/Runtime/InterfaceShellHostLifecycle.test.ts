@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type InterfaceShellHostLifecycleRuntime = {
   setNativeVisibility: (context: Record<string, unknown>, showNative: boolean) => void;
@@ -9,14 +8,13 @@ type InterfaceShellHostLifecycleRuntime = {
 };
 
 type InterfaceShellHostLifecycleModule = {
-  runtimeInterfaceShellHostLifecycle: {
-    createInterfaceShellHostLifecycleRuntime: () => InterfaceShellHostLifecycleRuntime;
-  };
+  createInterfaceShellHostLifecycleRuntime: () => InterfaceShellHostLifecycleRuntime;
 };
 
 const interfaceShellHostLifecycleModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'InterfaceShellHostLifecycle.ts'),
 ).href;
+let interfaceShellHostLifecycleModule: InterfaceShellHostLifecycleModule | null = null;
 
 class FakeClassList {
   private readonly tokens = new Set<string>();
@@ -132,9 +130,10 @@ class FakeWindow {
 }
 
 function getHostLifecycleRuntime(): InterfaceShellHostLifecycleRuntime {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as InterfaceShellHostLifecycleModule;
-  return registry.runtimeInterfaceShellHostLifecycle.createInterfaceShellHostLifecycleRuntime();
+  if (!interfaceShellHostLifecycleModule) {
+    throw new Error('Interface shell host lifecycle runtime module was not initialized for test');
+  }
+  return interfaceShellHostLifecycleModule.createInterfaceShellHostLifecycleRuntime();
 }
 
 function createState(hostEl: FakeElement | null = null) {
@@ -158,11 +157,14 @@ function createState(hostEl: FakeElement | null = null) {
 
 describe('interface-shell-host-lifecycle runtime', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([interfaceShellHostLifecycleModuleUrl]);
+    vi.resetModules();
+    interfaceShellHostLifecycleModule = (await import(
+      interfaceShellHostLifecycleModuleUrl
+    )) as InterfaceShellHostLifecycleModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    interfaceShellHostLifecycleModule = null;
   });
 
   it('keeps native visibility toggles idempotent without duplicating hidden-node tracking', () => {

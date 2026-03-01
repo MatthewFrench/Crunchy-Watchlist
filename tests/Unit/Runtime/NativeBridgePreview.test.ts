@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type NativeBridgePreviewRuntime = {
   installCuratedCardPreview: (
@@ -11,20 +10,17 @@ type NativeBridgePreviewRuntime = {
     hoverPreviewImageUrl: unknown,
     thumbImage: unknown,
   ) => void;
+  dispose: () => void;
 };
 
 type NativeBridgePreviewModule = {
-  runtimeNativeBridgePreview: {
-    createNativeBridgePreviewRuntime: (options: Record<string, unknown>) => NativeBridgePreviewRuntime;
-  };
+  createNativeBridgePreviewRuntime: (options: Record<string, unknown>) => NativeBridgePreviewRuntime;
 };
 
 const nativeBridgePreviewModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeBridgePreview.ts'),
 ).href;
-const nativeCardSelectorAdapterModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeCardSelectorAdapter.ts'),
-).href;
+let nativeBridgePreviewModule: NativeBridgePreviewModule | null = null;
 
 async function flushMicrotasks(iterations = 6): Promise<void> {
   for (let index = 0; index < iterations; index += 1) {
@@ -106,6 +102,14 @@ class FakeElement {
     const existing = this.listeners.get(eventType) ?? [];
     existing.push(listener);
     this.listeners.set(eventType, existing);
+  }
+
+  removeEventListener(eventType: string, listener: (event: FakeEvent) => void): void {
+    const existing = this.listeners.get(eventType) ?? [];
+    this.listeners.set(
+      eventType,
+      existing.filter((candidate) => candidate !== listener),
+    );
   }
 
   dispatchEvent(event: FakeEvent): boolean {
@@ -198,9 +202,10 @@ class FakeWindow {
 }
 
 function getNativeBridgePreviewModule() {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as NativeBridgePreviewModule;
-  return registry.runtimeNativeBridgePreview;
+  if (!nativeBridgePreviewModule) {
+    throw new Error('Native bridge preview module was not initialized for test');
+  }
+  return nativeBridgePreviewModule;
 }
 
 function createNativeBridgePreviewRuntime(overrides: Record<string, unknown> = {}) {
@@ -238,6 +243,7 @@ describe('native-bridge-preview runtime', () => {
   let originalMouseEvent: unknown;
 
   beforeEach(async () => {
+    vi.resetModules();
     originalHTMLElement = runtimeGlobal.HTMLElement;
     originalHTMLAnchorElement = runtimeGlobal.HTMLAnchorElement;
     originalHTMLImageElement = runtimeGlobal.HTMLImageElement;
@@ -248,7 +254,7 @@ describe('native-bridge-preview runtime', () => {
     runtimeGlobal.HTMLImageElement = FakeImage;
     runtimeGlobal.HTMLVideoElement = FakeVideo;
     runtimeGlobal.MouseEvent = FakeMouseEvent;
-    await loadRuntimeModules([nativeCardSelectorAdapterModuleUrl, nativeBridgePreviewModuleUrl]);
+    nativeBridgePreviewModule = (await import(nativeBridgePreviewModuleUrl)) as NativeBridgePreviewModule;
   });
 
   afterEach(() => {
@@ -257,7 +263,7 @@ describe('native-bridge-preview runtime', () => {
     runtimeGlobal.HTMLImageElement = originalHTMLImageElement;
     runtimeGlobal.HTMLVideoElement = originalHTMLVideoElement;
     runtimeGlobal.MouseEvent = originalMouseEvent;
-    clearRuntimeModulesRegistry();
+    nativeBridgePreviewModule = null;
   });
 
   it('ignores preview installation for non-anchor links', () => {
@@ -420,5 +426,39 @@ describe('native-bridge-preview runtime', () => {
     expect(previewVideo.currentTime).toBe(0);
     expect(previewVideo.style.display).toBe('none');
     expect(thumbImage.style.opacity).toBe('');
+  });
+
+  it('disposes listener/timer ownership idempotently', async () => {
+    const { runtime, windowRef } = createNativeBridgePreviewRuntime();
+    const ownerDocument = new FakeDocument();
+    const thumbLink = new FakeAnchor(ownerDocument);
+    const thumbImage = new FakeImage(ownerDocument);
+
+    runtime.installCuratedCardPreview(
+      thumbLink,
+      { seriesId: 'series-1', streamsLink: '' },
+      'cover-a.jpg',
+      'hover-a.jpg',
+      thumbImage,
+    );
+
+    thumbLink.dispatchEvent(new FakeMouseEvent('mouseenter'));
+    expect(windowRef.pendingTimeoutCount()).toBe(1);
+
+    runtime.dispose();
+    runtime.dispose();
+    expect(windowRef.pendingTimeoutCount()).toBe(0);
+    expect(thumbLink.getListenerCount('mouseenter')).toBe(0);
+    expect(thumbLink.getListenerCount('mouseleave')).toBe(0);
+    expect(thumbLink.getListenerCount('blur')).toBe(0);
+
+    runtime.installCuratedCardPreview(
+      thumbLink,
+      { seriesId: 'series-1', streamsLink: '' },
+      'cover-b.jpg',
+      'hover-b.jpg',
+      thumbImage,
+    );
+    expect(thumbLink.getListenerCount('mouseenter')).toBe(0);
   });
 });

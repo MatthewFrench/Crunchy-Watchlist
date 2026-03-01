@@ -1,4 +1,5 @@
-type LooseRecord = Record<string, unknown>;
+type BoundaryValue = CwBoundaryValue;
+type LooseRecord = Record<string, BoundaryValue>;
 
 type RuntimeStateLike = {
   framedRootEl: Element | null;
@@ -24,7 +25,7 @@ type InterfaceShellHostLifecycleContextLike = {
 };
 
 export type InterfaceShellHostLifecycleRuntime = {
-  isConnectedElement: (value: unknown) => value is Element;
+  isConnectedElement: (value: BoundaryValue) => value is Element;
   clearInterfaceReferences: (context: InterfaceShellHostLifecycleContextLike) => void;
   resetInterfaceShell: (context: InterfaceShellHostLifecycleContextLike, removeHost: boolean) => void;
   isInterfaceShellIntact: (context: InterfaceShellHostLifecycleContextLike) => boolean;
@@ -35,14 +36,14 @@ export type InterfaceShellHostLifecycleRuntime = {
   removeOrphanCuratedHosts: (context: InterfaceShellHostLifecycleContextLike, rootElement: Element) => void;
 };
 
-function asRecord(value: unknown): LooseRecord {
+function asRecord(value: BoundaryValue): LooseRecord {
   if (!value || typeof value !== 'object') {
     return {};
   }
   return value as LooseRecord;
 }
 
-function isElementWithDisplayState(value: unknown): value is HTMLElement {
+function isElementWithDisplayState(value: BoundaryValue): value is HTMLElement {
   if (!value || typeof value !== 'object') {
     return false;
   }
@@ -56,7 +57,7 @@ function isElementWithDisplayState(value: unknown): value is HTMLElement {
   );
 }
 
-function isCuratedHostElement(value: unknown): boolean {
+function isCuratedHostElement(value: BoundaryValue): boolean {
   if (!value || typeof value !== 'object') {
     return false;
   }
@@ -79,8 +80,8 @@ function clearPreviousDisplayMarker(node: Element): void {
 
 function isConnectedHostDescendant(
   host: Element,
-  candidate: unknown,
-  isConnectedElement: (value: unknown) => value is Element,
+  candidate: BoundaryValue,
+  isConnectedElement: (value: BoundaryValue) => value is Element,
 ): boolean {
   if (!isConnectedElement(candidate)) {
     return false;
@@ -92,7 +93,7 @@ function isConnectedHostDescendant(
 }
 
 class InterfaceShellHostLifecycleController implements InterfaceShellHostLifecycleRuntime {
-  isConnectedElement(value: unknown): value is Element {
+  isConnectedElement(value: BoundaryValue): value is Element {
     return Boolean(value && typeof value === 'object' && asRecord(value).isConnected === true);
   }
 
@@ -257,19 +258,3 @@ class InterfaceShellHostLifecycleController implements InterfaceShellHostLifecyc
 export function createInterfaceShellHostLifecycleRuntime(): InterfaceShellHostLifecycleRuntime {
   return new InterfaceShellHostLifecycleController();
 }
-
-function registerInterfaceShellHostLifecycleRuntime(): void {
-  const root = (typeof window !== 'undefined' ? window : globalThis) as Window &
-    typeof globalThis & {
-      __CW_WATCHLIST_CURATOR_MODULES__?: LooseRecord;
-    };
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
-
-  root.__CW_WATCHLIST_CURATOR_MODULES__.runtimeInterfaceShellHostLifecycle = {
-    createInterfaceShellHostLifecycleRuntime,
-  };
-}
-
-registerInterfaceShellHostLifecycleRuntime();

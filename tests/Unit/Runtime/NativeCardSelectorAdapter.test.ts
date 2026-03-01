@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type NativeCardSelectorAdapterRuntime = {
   findNativeCards: (documentRef: unknown) => FakeElement[];
@@ -16,14 +15,13 @@ type NativeCardSelectorAdapterRuntime = {
 };
 
 type NativeCardSelectorAdapterModule = {
-  runtimeNativeCardSelectorAdapter: {
-    createNativeCardSelectorAdapterRuntime: (options?: Record<string, unknown>) => NativeCardSelectorAdapterRuntime;
-  };
+  createNativeCardSelectorAdapterRuntime: (options?: Record<string, unknown>) => NativeCardSelectorAdapterRuntime;
 };
 
 const nativeCardSelectorAdapterModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'NativeCardSelectorAdapter.ts'),
 ).href;
+let nativeCardSelectorAdapterModule: NativeCardSelectorAdapterModule | null = null;
 
 class FakeElement {
   private readonly selectorAllMap = new Map<string, FakeElement[]>();
@@ -58,9 +56,10 @@ class FakeElement {
 class FakeAnchorElement extends FakeElement {}
 
 function getNativeCardSelectorAdapterModule() {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as NativeCardSelectorAdapterModule;
-  return registry.runtimeNativeCardSelectorAdapter;
+  if (!nativeCardSelectorAdapterModule) {
+    throw new Error('Native card selector adapter module was not initialized for test');
+  }
+  return nativeCardSelectorAdapterModule;
 }
 
 describe('native-card-selector-adapter runtime', () => {
@@ -69,17 +68,20 @@ describe('native-card-selector-adapter runtime', () => {
   let originalHTMLAnchorElement: unknown;
 
   beforeEach(async () => {
+    vi.resetModules();
     originalHTMLElement = runtimeGlobal.HTMLElement;
     originalHTMLAnchorElement = runtimeGlobal.HTMLAnchorElement;
     runtimeGlobal.HTMLElement = FakeElement;
     runtimeGlobal.HTMLAnchorElement = FakeAnchorElement;
-    await loadRuntimeModules([nativeCardSelectorAdapterModuleUrl]);
+    nativeCardSelectorAdapterModule = (await import(
+      nativeCardSelectorAdapterModuleUrl
+    )) as NativeCardSelectorAdapterModule;
   });
 
   afterEach(() => {
     runtimeGlobal.HTMLElement = originalHTMLElement;
     runtimeGlobal.HTMLAnchorElement = originalHTMLAnchorElement;
-    clearRuntimeModulesRegistry();
+    nativeCardSelectorAdapterModule = null;
   });
 
   it('queries native watchlist cards via the canonical root selector', () => {

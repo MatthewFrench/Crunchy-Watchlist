@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type WatchlistRow = Record<string, unknown>;
 
@@ -35,6 +34,7 @@ type WatchlistRepositoryModule = {
 const watchlistRepositoryModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'WatchlistRepository.ts'),
 ).href;
+let createWatchlistRepositoryRuntimeFactory: WatchlistRepositoryModule['createWatchlistRepository'] | null = null;
 
 function createWatchlistCacheSnapshot(
   accountId: unknown = '',
@@ -50,11 +50,6 @@ function createWatchlistCacheSnapshot(
   };
 }
 
-function getRepositoryModule(): WatchlistRepositoryModule {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
-  return registry.watchlistRepository as WatchlistRepositoryModule;
-}
-
 function createRepository(
   state: WatchlistRepositoryState,
   overrides: {
@@ -62,7 +57,11 @@ function createRepository(
     watchlistCacheTtlMs?: number;
   } = {},
 ): WatchlistRepository {
-  return getRepositoryModule().createWatchlistRepository({
+  if (typeof createWatchlistRepositoryRuntimeFactory !== 'function') {
+    throw new Error('Watchlist repository runtime was not initialized for test');
+  }
+
+  return createWatchlistRepositoryRuntimeFactory({
     state,
     createWatchlistCacheSnapshot,
     scheduleSaveWatchlistCache: overrides.scheduleSaveWatchlistCache ?? (() => {}),
@@ -72,20 +71,29 @@ function createRepository(
 
 describe('WatchlistRepository', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([watchlistRepositoryModuleUrl]);
+    vi.resetModules();
+    const module = (await import(watchlistRepositoryModuleUrl)) as {
+      createWatchlistRepositoryRuntime: () => object;
+    };
+    createWatchlistRepositoryRuntimeFactory = (module.createWatchlistRepositoryRuntime() as WatchlistRepositoryModule)
+      .createWatchlistRepository;
   });
 
   afterEach(() => {
     vi.useRealTimers();
-    clearRuntimeModulesRegistry();
+    createWatchlistRepositoryRuntimeFactory = null;
+    vi.restoreAllMocks();
   });
 
   it('fails with explicit dependency errors when required inputs are missing', () => {
-    const repositoryModule = getRepositoryModule();
+    if (typeof createWatchlistRepositoryRuntimeFactory !== 'function') {
+      throw new Error('Watchlist repository runtime was not initialized for test');
+    }
+    const createWatchlistRepository = createWatchlistRepositoryRuntimeFactory;
 
-    expect(() => repositoryModule.createWatchlistRepository({})).toThrow('[CW] Missing watchlist repository state');
+    expect(() => createWatchlistRepository({})).toThrow('[CW] Missing watchlist repository state');
     expect(() =>
-      repositoryModule.createWatchlistRepository({
+      createWatchlistRepository({
         state: { watchlistCache: createWatchlistCacheSnapshot() },
       }),
     ).toThrow('[CW] Missing watchlist repository dependency: createWatchlistCacheSnapshot');

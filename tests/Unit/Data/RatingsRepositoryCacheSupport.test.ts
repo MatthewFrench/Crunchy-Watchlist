@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type RatingCacheEntry = {
   rating: number | null;
@@ -56,20 +55,15 @@ type RatingsRepositoryCacheSupportRuntime = {
 };
 
 type RatingsRepositoryCacheSupportModule = {
-  ratingsRepositoryCacheSupport: {
-    createRatingsRepositoryCacheSupportRuntime: () => RatingsRepositoryCacheSupportRuntime;
-  };
+  createRatingsRepositoryCacheSupportRuntime: () => RatingsRepositoryCacheSupportRuntime;
 };
 
 const ratingsRepositoryCacheSupportModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'RatingsRepositoryCacheSupport.ts'),
 ).href;
-
-function getRatingsRepositoryCacheSupportModule() {
-  const registry = (globalThis as Record<string, unknown>)
-    .__CW_WATCHLIST_CURATOR_MODULES__ as RatingsRepositoryCacheSupportModule;
-  return registry.ratingsRepositoryCacheSupport;
-}
+let createCacheSupportRuntimeFactory:
+  | RatingsRepositoryCacheSupportModule['createRatingsRepositoryCacheSupportRuntime']
+  | null = null;
 
 function createContext(): RatingsRepositoryCacheSupportContext {
   const normalizeAudioLocale = (value: unknown): string =>
@@ -125,15 +119,21 @@ function createContext(): RatingsRepositoryCacheSupportContext {
 
 describe('ratings-repository-cache-support module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([ratingsRepositoryCacheSupportModuleUrl]);
+    vi.resetModules();
+    const module = (await import(ratingsRepositoryCacheSupportModuleUrl)) as RatingsRepositoryCacheSupportModule;
+    createCacheSupportRuntimeFactory = module.createRatingsRepositoryCacheSupportRuntime;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createCacheSupportRuntimeFactory = null;
+    vi.restoreAllMocks();
   });
 
   it('merges normalized rating data and updates cache revision', () => {
-    const runtime = getRatingsRepositoryCacheSupportModule().createRatingsRepositoryCacheSupportRuntime();
+    if (typeof createCacheSupportRuntimeFactory !== 'function') {
+      throw new Error('Ratings repository cache support runtime was not initialized for test');
+    }
+    const runtime = createCacheSupportRuntimeFactory();
     const context = createContext();
 
     const normalized = runtime.normalizeRatingUpdate(context, {
@@ -163,7 +163,10 @@ describe('ratings-repository-cache-support module', () => {
   });
 
   it('validates cache TTL and locale-specific episode count availability', () => {
-    const runtime = getRatingsRepositoryCacheSupportModule().createRatingsRepositoryCacheSupportRuntime();
+    if (typeof createCacheSupportRuntimeFactory !== 'function') {
+      throw new Error('Ratings repository cache support runtime was not initialized for test');
+    }
+    const runtime = createCacheSupportRuntimeFactory();
     const context = createContext();
 
     const freshEntry: RatingCacheEntry = {
@@ -193,7 +196,10 @@ describe('ratings-repository-cache-support module', () => {
   });
 
   it('normalizes malformed rating updates into safe cache payloads', () => {
-    const runtime = getRatingsRepositoryCacheSupportModule().createRatingsRepositoryCacheSupportRuntime();
+    if (typeof createCacheSupportRuntimeFactory !== 'function') {
+      throw new Error('Ratings repository cache support runtime was not initialized for test');
+    }
+    const runtime = createCacheSupportRuntimeFactory();
     const context = createContext();
 
     const normalized = runtime.normalizeRatingUpdate(

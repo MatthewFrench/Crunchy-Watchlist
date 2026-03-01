@@ -3,18 +3,15 @@ import {
   createCuratedCardProgressComponent,
 } from './CuratedCardProgressComponent.js';
 
-type RuntimeModuleRegistry = Record<string, unknown>;
-
-type RuntimeGlobal = typeof globalThis & {
-  __CW_WATCHLIST_CURATOR_MODULES__?: RuntimeModuleRegistry;
-};
+type BoundaryValue = CwBoundaryValue;
+type BoundaryRecord = Record<string, BoundaryValue>;
 
 export type CuratedCardMediaEntry = {
   seriesId?: string | number | null;
   title?: string | null;
   hoverPreviewImageUrl?: string | null;
   episodeWatchProgressRatio?: number | null;
-} & Record<string, unknown>;
+} & BoundaryRecord;
 
 export type CuratedCardMediaComponentRefs = {
   media: HTMLElement;
@@ -36,7 +33,7 @@ export type CuratedCardMediaComponentOptions = {
   entry?: CuratedCardMediaEntry;
   resolveCardThumbHref?: (entry: CuratedCardMediaEntry) => string;
   getCardCoverImage?: (entry: CuratedCardMediaEntry) => string;
-  normalizeImageUrlCandidate?: (value: unknown) => string;
+  normalizeImageUrlCandidate?: (value: BoundaryValue) => string;
   installCuratedCardPreview?: (
     thumbLink: HTMLAnchorElement,
     entry: CuratedCardMediaEntry,
@@ -53,7 +50,7 @@ export type CuratedCardMediaComponentOptions = {
 type CuratedCardMediaDependencies = {
   resolveCardThumbHref: (entry: CuratedCardMediaEntry) => string;
   getCardCoverImage: (entry: CuratedCardMediaEntry) => string;
-  normalizeImageUrlCandidate: (value: unknown) => string;
+  normalizeImageUrlCandidate: (value: BoundaryValue) => string;
   installCuratedCardPreview: (
     thumbLink: HTMLAnchorElement,
     entry: CuratedCardMediaEntry,
@@ -86,7 +83,7 @@ function requireDocumentRef(value: Document | undefined): Document {
   return value;
 }
 
-function toEntry(value: CuratedCardMediaEntry | unknown): CuratedCardMediaEntry {
+function toEntry(value: CuratedCardMediaEntry | BoundaryValue): CuratedCardMediaEntry {
   if (!value || typeof value !== 'object') {
     return {};
   }
@@ -106,7 +103,7 @@ function getEntryString(entry: CuratedCardMediaEntry, key: keyof CuratedCardMedi
   return String(value);
 }
 
-function sanitizeEpisodeProgressRatio(value: unknown): number | null {
+function sanitizeEpisodeProgressRatio(value: BoundaryValue): number | null {
   const normalized = Number(value);
   if (!Number.isFinite(normalized) || normalized <= 0 || normalized >= 1) {
     return null;
@@ -332,7 +329,7 @@ class CuratedCardMediaController {
   constructor(
     private readonly documentRef: Document,
     private readonly dependencies: CuratedCardMediaDependencies,
-    initialEntry: CuratedCardMediaEntry | unknown,
+    initialEntry: CuratedCardMediaEntry | BoundaryValue,
   ) {
     const media = this.documentRef.createElement('div');
     media.className = 'cw-curated-card__media';
@@ -353,7 +350,7 @@ class CuratedCardMediaController {
     this.patchEntry(initialEntry);
   }
 
-  patchEntry(entryValue: CuratedCardMediaEntry | unknown): void {
+  patchEntry(entryValue: CuratedCardMediaEntry | BoundaryValue): void {
     const entry = toEntry(entryValue);
     const { coverImageUrl, hoverPreviewImageUrl } = patchCardThumbMediaInternal(
       this.documentRef,
@@ -395,23 +392,3 @@ export function createCuratedCardMediaComponent(
     },
   };
 }
-
-function registerCardMediaComponentRuntime(): void {
-  const root = (typeof window !== 'undefined' ? window : globalThis) as RuntimeGlobal;
-  if (!root.__CW_WATCHLIST_CURATOR_MODULES__ || typeof root.__CW_WATCHLIST_CURATOR_MODULES__ !== 'object') {
-    root.__CW_WATCHLIST_CURATOR_MODULES__ = {};
-  }
-
-  const moduleRegistry = root.__CW_WATCHLIST_CURATOR_MODULES__;
-  let uiRegistry = moduleRegistry.ui;
-  if (!uiRegistry || typeof uiRegistry !== 'object') {
-    uiRegistry = {};
-    moduleRegistry.ui = uiRegistry;
-  }
-
-  (uiRegistry as Record<string, unknown>).cardMediaComponent = {
-    createCuratedCardMediaComponent,
-  };
-}
-
-registerCardMediaComponentRuntime();

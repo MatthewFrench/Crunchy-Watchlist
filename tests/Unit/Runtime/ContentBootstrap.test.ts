@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
 
 type ContentBootstrapPrelude = {
   ok: boolean;
@@ -21,19 +20,19 @@ type ContentBootstrapModule = {
     runtimeBootstrapDiagnosticsModule?: unknown;
     runtimeBootstrapGateModule?: unknown;
     runtimeBootstrapModulesModule?: unknown;
-    runtimeBootstrapFinalizeModule?: unknown;
   }) => ContentBootstrapPrelude;
 };
 
 const contentBootstrapModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentBootstrap.ts'),
 ).href;
+let contentBootstrapModule: ContentBootstrapModule | null = null;
 
 function getContentBootstrapModule(): ContentBootstrapModule {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    runtimeContentBootstrap?: ContentBootstrapModule;
-  };
-  return registry.runtimeContentBootstrap as ContentBootstrapModule;
+  if (!contentBootstrapModule) {
+    throw new Error('Content bootstrap module was not initialized for test');
+  }
+  return contentBootstrapModule;
 }
 
 function createWindowRef(pathname = '/watchlist'): Window & typeof globalThis {
@@ -46,11 +45,12 @@ function createWindowRef(pathname = '/watchlist'): Window & typeof globalThis {
 
 describe('content-bootstrap runtime module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([contentBootstrapModuleUrl]);
+    vi.resetModules();
+    contentBootstrapModule = (await import(contentBootstrapModuleUrl)) as ContentBootstrapModule;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    contentBootstrapModule = null;
   });
 
   it('returns not-ok when route gate denies execution and emits gated diagnostics', () => {
@@ -72,19 +72,12 @@ describe('content-bootstrap runtime module', () => {
       createBootstrapModules: () => ({}),
       assertRuntimeMethods: () => {},
     };
-    const runtimeBootstrapFinalizeModule = {
-      createBootstrapFinalizeRuntime: () => ({}),
-      createStorageAccessors: () => ({}),
-      safeJsonParse: () => ({}),
-    };
-
     const prelude = getContentBootstrapModule().createContentBootstrapPrelude({
       windowRef: createWindowRef('/browse'),
       consoleRef: console,
       runtimeBootstrapDiagnosticsModule,
       runtimeBootstrapGateModule,
       runtimeBootstrapModulesModule,
-      runtimeBootstrapFinalizeModule,
     });
 
     expect(prelude.ok).toBe(false);
@@ -110,11 +103,6 @@ describe('content-bootstrap runtime module', () => {
       createBootstrapModules: () => ({ runtimeStoreModule: {} }),
       assertRuntimeMethods: () => {},
     };
-    const finalizeModule = {
-      createBootstrapFinalizeRuntime: () => ({}),
-      createStorageAccessors: () => ({}),
-      safeJsonParse: () => ({}),
-    };
     const diagnosticsModule = {
       createBootstrapDiagnostics: () => ({
         updateDiagnostics,
@@ -128,7 +116,6 @@ describe('content-bootstrap runtime module', () => {
       runtimeBootstrapDiagnosticsModule: diagnosticsModule,
       runtimeBootstrapGateModule: gateModule,
       runtimeBootstrapModulesModule: modulesModule,
-      runtimeBootstrapFinalizeModule: finalizeModule,
     });
 
     expect(prelude.ok).toBe(true);

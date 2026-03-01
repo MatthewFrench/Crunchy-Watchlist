@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type EntrySortingRuntime = {
   compareRenderableEntries: (left: unknown, right: unknown, sortMode: unknown) => number;
@@ -14,6 +13,8 @@ type EntrySortingModule = {
 const entrySortingModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Domain', 'EntrySorting.ts'),
 ).href;
+
+let createEntrySorting: EntrySortingModule['createEntrySorting'] | null = null;
 
 function sanitizeVotes(value: unknown): number | null {
   const number = Number(value);
@@ -67,10 +68,11 @@ function asNumeric(value: unknown): number | null {
 }
 
 function createEntrySortingRuntime(): EntrySortingRuntime {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>;
-  const domainRegistry = registry.domain as Record<string, unknown>;
-  const entrySortingModule = domainRegistry.entrySorting as EntrySortingModule;
-  return entrySortingModule.createEntrySorting({
+  if (typeof createEntrySorting !== 'function') {
+    throw new Error('Entry sorting runtime was not initialized for test');
+  }
+
+  return createEntrySorting({
     sanitizeVotes,
     sanitizePositiveInt,
     parseDateMs,
@@ -94,11 +96,16 @@ function createEntrySortingRuntime(): EntrySortingRuntime {
 
 describe('entry-sorting domain module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([entrySortingModuleUrl]);
+    vi.resetModules();
+    const entrySortingModule = (await import(entrySortingModuleUrl)) as {
+      createEntrySortingRuntime: () => object;
+    };
+    createEntrySorting = (entrySortingModule.createEntrySortingRuntime() as EntrySortingModule).createEntrySorting;
   });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry();
+    createEntrySorting = null;
+    vi.restoreAllMocks();
   });
 
   it('compares rating sort modes with original-index tiebreaks', () => {
