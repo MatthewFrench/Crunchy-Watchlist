@@ -30,6 +30,7 @@ type CuratedPanelGridParkingManager = {
   parkUnusedControllersForReuse: (
     documentRef: FakeDocumentRef,
     visibleSeriesIds: Set<string>,
+    retainedSeriesIds?: Set<string>,
     handlers?: ParkingLifecycleHandlers,
   ) => void;
   parkCardForReuse: (documentRef: FakeDocumentRef, card: FakeElement, handlers?: ParkingLifecycleHandlers) => void;
@@ -345,7 +346,7 @@ describe('curated-panel-grid parking manager', () => {
     manager.setController(createFakeController('SERIES-B', cardB));
 
     let parkedCount = 0;
-    manager.parkUnusedControllersForReuse(documentRef, new Set<string>(['SERIES-B']), {
+    manager.parkUnusedControllersForReuse(documentRef, new Set<string>(['SERIES-B']), new Set<string>(), {
       onParked: () => {
         parkedCount += 1;
       },

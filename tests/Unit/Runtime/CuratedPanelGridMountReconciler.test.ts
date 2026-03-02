@@ -18,7 +18,7 @@ type CuratedPanelGridMountReconcilerOwner = {
     total: number;
     loading: boolean;
     parkGridCardsForReuse: (gridElement: FakeElement) => void;
-    parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => void;
+    parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>, retainedSeriesIds?: Set<string>) => void;
     createCuratedGridEmptyElement: (
       documentRef: { createElement: (tagName: string) => FakeElement },
       total: number,
@@ -29,13 +29,14 @@ type CuratedPanelGridMountReconcilerOwner = {
     gridEl: FakeElement;
     nextCards: FakeElement[];
     visibleSeriesIds: Set<string>;
+    loadedSeriesIds: Set<string>;
     reorderCuratedGridChildren: (
       gridElement: FakeElement,
       nextCards: FakeElement[],
       options?: { onCardRemoved?: ((card: FakeElement) => void) | null },
     ) => void;
     parkCardForReuse: (card: FakeElement) => void;
-    parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => void;
+    parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>, retainedSeriesIds?: Set<string>) => void;
     trimParkedCardsForReuse: () => void;
   }) => void;
 };
@@ -143,6 +144,8 @@ describe('curated-panel-grid mount reconciler owner', () => {
     const removed = createFakeElement('article');
     const cardA = createFakeElement('article');
     const cardB = createFakeElement('article');
+    const visibleSeriesIds = new Set<string>(['SERIES-A', 'SERIES-B']);
+    const loadedSeriesIds = new Set<string>(['SERIES-A', 'SERIES-B']);
     const parkCardForReuse = vi.fn();
     const parkUnusedControllersForReuse = vi.fn();
     const trimParkedCardsForReuse = vi.fn();
@@ -150,7 +153,8 @@ describe('curated-panel-grid mount reconciler owner', () => {
     reconciler.renderVisibleState({
       gridEl: grid,
       nextCards: [cardA, cardB],
-      visibleSeriesIds: new Set<string>(['SERIES-A', 'SERIES-B']),
+      visibleSeriesIds,
+      loadedSeriesIds,
       reorderCuratedGridChildren: (gridElement, nextCardsValue, options) => {
         expect(gridElement).toBe(grid);
         expect(nextCardsValue).toEqual([cardA, cardB]);
@@ -162,7 +166,7 @@ describe('curated-panel-grid mount reconciler owner', () => {
     });
 
     expect(parkCardForReuse).toHaveBeenCalledWith(removed);
-    expect(parkUnusedControllersForReuse).toHaveBeenCalledWith(new Set<string>(['SERIES-A', 'SERIES-B']));
+    expect(parkUnusedControllersForReuse).toHaveBeenCalledWith(visibleSeriesIds, loadedSeriesIds);
     expect(trimParkedCardsForReuse).toHaveBeenCalledTimes(1);
   });
 });
