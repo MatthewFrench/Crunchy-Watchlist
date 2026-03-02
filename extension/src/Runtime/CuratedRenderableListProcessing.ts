@@ -49,7 +49,9 @@ function isFavoritesGenreFilter(value: string, favoritesGenreFilterValue: string
   return value.trim().toLowerCase() === favoritesGenreFilterValue.trim().toLowerCase();
 }
 
-// "Hide not watched / not started" removes cold-start cards that have no playhead, progress, or watch-history activity.
+// "Hide not watch-ready / not started" treats hide_not_started as:
+// - hide any not-watch-ready entry, and
+// - hide additional cold-start cards with no watch-history/progress footprint.
 function isEntryNotWatchedAndNotStartedInternal(entry: LooseRecord): boolean {
   const statusBase = String(entry.statusBase || '')
     .trim()
@@ -98,30 +100,57 @@ function applyRenderableEntryFiltersInternal({
   watchReadyFilterMode: string;
   favoritesGenreFilterValue: string;
 }): LooseRecord[] {
-  const { effectiveAudioFilter, effectiveGenreFilter } = filterContext;
-  let filtered = mergedEntries.slice();
+  const normalizedAudioFilter = filterContext.effectiveAudioFilter.toLowerCase();
+  const normalizedGenreFilter = filterContext.effectiveGenreFilter.toLowerCase();
+  const filterByAudio = normalizedAudioFilter !== 'any';
+  const filterByGenre = normalizedGenreFilter !== 'any';
+  const filterByFavorites = filterByGenre && isFavoritesGenreFilter(normalizedGenreFilter, favoritesGenreFilterValue);
+  const hideNotReady = watchReadyFilterMode === 'hide' || watchReadyFilterMode === 'hide_not_started';
+  const hideNotStarted = watchReadyFilterMode === 'hide_not_started';
+  const filtered: LooseRecord[] = [];
 
-  if (effectiveAudioFilter !== 'any') {
-    filtered = filtered.filter((entry) =>
-      asArray(entry.audioLocales).some((locale) => String(locale).toLowerCase() === effectiveAudioFilter.toLowerCase()),
-    );
-  }
-
-  if (effectiveGenreFilter !== 'any') {
-    if (isFavoritesGenreFilter(effectiveGenreFilter, favoritesGenreFilterValue)) {
-      filtered = filtered.filter((entry) => Boolean(entry.isFavorite));
-    } else {
-      filtered = filtered.filter((entry) =>
-        asArray(entry.genreTags).some((tag) => String(tag).toLowerCase() === effectiveGenreFilter.toLowerCase()),
-      );
+  for (const entry of mergedEntries) {
+    if (filterByAudio) {
+      let audioMatch = false;
+      for (const locale of asArray(entry.audioLocales)) {
+        if (String(locale).toLowerCase() === normalizedAudioFilter) {
+          audioMatch = true;
+          break;
+        }
+      }
+      if (!audioMatch) {
+        continue;
+      }
     }
-  }
 
-  if (watchReadyFilterMode === 'hide') {
-    filtered = filtered.filter((entry) => Boolean(entry.watchReady));
-  }
-  if (watchReadyFilterMode === 'hide_not_started') {
-    filtered = filtered.filter((entry) => !isEntryNotWatchedAndNotStartedInternal(entry));
+    if (filterByGenre) {
+      if (filterByFavorites) {
+        if (!entry.isFavorite) {
+          continue;
+        }
+      } else {
+        let genreMatch = false;
+        for (const tag of asArray(entry.genreTags)) {
+          if (String(tag).toLowerCase() === normalizedGenreFilter) {
+            genreMatch = true;
+            break;
+          }
+        }
+        if (!genreMatch) {
+          continue;
+        }
+      }
+    }
+
+    if (hideNotReady && !entry.watchReady) {
+      continue;
+    }
+
+    if (hideNotStarted && isEntryNotWatchedAndNotStartedInternal(entry)) {
+      continue;
+    }
+
+    filtered.push(entry);
   }
 
   return filtered;

@@ -13,6 +13,7 @@ type RuntimeControlOwnedRefs = {
   curatedPanelEl?: Element | null;
   gridEl?: Element | null;
   loadingIndicatorEl?: Element | null;
+  controlsLoadingIndicatorEl?: Element | null;
 };
 
 type RuntimeControl = {
@@ -34,6 +35,7 @@ type RuntimeState = {
   controlsEl: Element | null;
   loadingBoxEl: Element | null;
   loadingIndicatorEl: Element | null;
+  controlsLoadingIndicatorEl: Element | null;
   audioFilterSelectEl: Element | null;
   genreFilterSelectEl: Element | null;
   statsEl: Element | null;
@@ -61,6 +63,7 @@ type SelectControl = {
 type ControlsContext = {
   controls: Element;
   loadingIndicator: Element;
+  topLoadingIndicator: Element;
   audioFilterControl: SelectControl;
   genreFilterControl: SelectControl;
   stats: Element;
@@ -303,6 +306,7 @@ function syncRuntimeControlOwnedRefs(context: InterfaceShellContext): void {
     curatedPanelEl: context.state.curatedPanelEl,
     gridEl: context.state.gridEl,
     loadingIndicatorEl: context.state.loadingIndicatorEl,
+    controlsLoadingIndicatorEl: context.state.controlsLoadingIndicatorEl,
   };
   context.windowRef.__CW_WATCHLIST_CURATOR_CONTROL__ = runtimeControl;
 }
@@ -496,6 +500,18 @@ type MountedInterfaceShell = {
   grid: HTMLElement;
 };
 
+function triggerHostFadeInInternal(host: HTMLElement): void {
+  if (!host.style) {
+    return;
+  }
+  host.style.opacity = '0.5';
+  const getBoundingClientRect = (host as HTMLElement & { getBoundingClientRect?: () => DOMRect }).getBoundingClientRect;
+  if (typeof getBoundingClientRect === 'function') {
+    getBoundingClientRect.call(host);
+  }
+  host.style.opacity = '1';
+}
+
 function mountInterfaceShellInternal(
   context: InterfaceShellContext,
   hostLifecycleRuntime: InterfaceShellHostLifecycleRuntime,
@@ -517,12 +533,6 @@ function mountInterfaceShellInternal(
   if (loadingBox.style) {
     loadingBox.style.display = 'none';
     loadingBox.style.margin = '0';
-    loadingBox.style.position = 'absolute';
-    loadingBox.style.left = '0';
-    loadingBox.style.right = '0';
-    loadingBox.style.top = '0';
-    loadingBox.style.zIndex = '2';
-    loadingBox.style.pointerEvents = 'none';
   }
 
   const loadingBoxTitle = context.documentRef.createElement('div');
@@ -541,6 +551,7 @@ function mountInterfaceShellInternal(
   host.appendChild(tabs);
   host.appendChild(panel);
   headerElement.insertAdjacentElement('beforebegin', host);
+  triggerHostFadeInInternal(host);
 
   return {
     host,
@@ -566,6 +577,7 @@ function applyMountedInterfaceShellToStateInternal(
   context.state.controlsEl = mountedShell.controls.controls;
   context.state.loadingBoxEl = mountedShell.loadingBox;
   context.state.loadingIndicatorEl = mountedShell.controls.loadingIndicator;
+  context.state.controlsLoadingIndicatorEl = mountedShell.controls.topLoadingIndicator;
   context.state.audioFilterSelectEl = mountedShell.controls.audioFilterControl.select;
   context.state.genreFilterSelectEl = mountedShell.controls.genreFilterControl.select;
   context.state.statsEl = mountedShell.controls.stats;

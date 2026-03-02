@@ -48,6 +48,7 @@ function createBaseState() {
     controlsEl: {},
     loadingBoxEl: {},
     loadingIndicatorEl: {},
+    controlsLoadingIndicatorEl: {},
     audioFilterSelectEl: {},
     genreFilterSelectEl: {},
     statsEl: {},

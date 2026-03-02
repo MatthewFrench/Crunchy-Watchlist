@@ -89,6 +89,12 @@ function runHandledAsync(work: () => Promise<void>): void {
   });
 }
 
+function persistSettingsInBackground(context: CuratedInteractionsControlsContext): void {
+  void context.persistSettings().catch(() => {
+    // no-op
+  });
+}
+
 function bindWatchReadyFilterInternal(
   context: CuratedInteractionsControlsContext,
   watchReadyFilterControl: BoundaryRecord,
@@ -105,8 +111,8 @@ function bindWatchReadyFilterInternal(
         return;
       }
       context.state.settings.watchReadyFilterMode = nextWatchReadyMode;
-      await context.persistSettings();
       context.renderCuratedPanel();
+      persistSettingsInBackground(context);
     });
   });
 }
@@ -127,8 +133,8 @@ function bindCardLayoutFilterInternal(
         return;
       }
       context.state.settings.cardLayout = nextCardLayout;
-      await context.persistSettings();
       context.renderCuratedPanel();
+      persistSettingsInBackground(context);
     });
   });
 }
@@ -154,8 +160,8 @@ function bindAudioFilterInternal(
       }
 
       context.state.settings.audioLocaleFilter = nextAudioFilter;
-      await context.persistSettings();
       context.renderCuratedPanel();
+      persistSettingsInBackground(context);
     });
   });
 }
@@ -176,8 +182,8 @@ function bindGenreFilterInternal(
         return;
       }
       context.state.settings.genreFilter = nextGenreFilter;
-      await context.persistSettings();
       context.renderCuratedPanel();
+      persistSettingsInBackground(context);
     });
   });
 }
@@ -195,8 +201,8 @@ function bindSortFilterInternal(context: CuratedInteractionsControlsContext, sor
         return;
       }
       context.state.settings.sortMode = nextSortMode;
-      await context.persistSettings();
       context.renderCuratedPanel();
+      persistSettingsInBackground(context);
     });
   });
 }
@@ -217,8 +223,8 @@ function bindSecondarySortFilterInternal(
         return;
       }
       context.state.settings.secondarySortMode = nextSecondarySortMode;
-      await context.persistSettings();
       context.renderCuratedPanel();
+      persistSettingsInBackground(context);
     });
   });
 }

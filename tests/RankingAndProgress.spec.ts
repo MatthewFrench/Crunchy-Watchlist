@@ -317,11 +317,11 @@ test.describe('Ranking, Filtering, and Progress', () => {
     await expect(page.locator('.cw-curated-card[data-cw-curated-title="Low Rated Show"]')).toHaveCount(1);
 
     await page.selectOption('#cw-audio-filter', 'en-US');
-    await expect(page.locator('.cw-curated-card[data-cw-curated-title="Low Rated Show"]')).toHaveCount(0);
+    await expect(page.locator('.cw-curated-card[data-cw-curated-title="Low Rated Show"]')).toBeHidden();
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 2 of 4');
 
     await page.selectOption('#cw-genre-filter', 'action');
-    await expect(page.locator('.cw-curated-card')).toHaveCount(1);
+    await expect(page.locator('.cw-curated-card:visible')).toHaveCount(1);
     await expect(page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"]')).toHaveCount(1);
   });
 
@@ -332,9 +332,9 @@ test.describe('Ranking, Filtering, and Progress', () => {
     await expect(page.locator('.cw-curated-card[data-cw-curated-title="Low Rated Show"]')).toHaveCount(1);
 
     await page.selectOption('#cw-genre-filter', '__favorites__');
-    await expect(page.locator('.cw-curated-card')).toHaveCount(1);
+    await expect(page.locator('.cw-curated-card:visible')).toHaveCount(1);
     await expect(page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"]')).toHaveCount(1);
-    await expect(page.locator('.cw-curated-card[data-cw-curated-title="Low Rated Show"]')).toHaveCount(0);
+    await expect(page.locator('.cw-curated-card[data-cw-curated-title="Low Rated Show"]')).toBeHidden();
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 1 of 4');
   });
 

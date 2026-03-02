@@ -94,10 +94,11 @@ export class CuratedPanelGridParkingManager {
   parkUnusedControllersForReuse(
     documentRef: Document,
     visibleSeriesIds: Set<string>,
+    retainedSeriesIds: Set<string> = new Set<string>(),
     handlers?: CuratedPanelGridParkingLifecycleHandlers,
   ): void {
     this.cardControllersBySeriesId.forEach((controller, seriesId) => {
-      if (visibleSeriesIds.has(seriesId) || controller.parkedAt != null) {
+      if (visibleSeriesIds.has(seriesId) || retainedSeriesIds.has(seriesId) || controller.parkedAt != null) {
         return;
       }
       this.parkControllerForReuse(documentRef, controller, handlers);

@@ -63,6 +63,27 @@ function getString(value: BoundaryValue): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function resolvePriorityEntryCountInternal(
+  context: CuratedLoaderDeferredMetadataContext,
+  totalEntryCount: number,
+): number {
+  const configuredPriorityCount = Math.max(1, Number(context.metadataPriorityEntryCount) || 1);
+  if (totalEntryCount <= configuredPriorityCount) {
+    return totalEntryCount;
+  }
+
+  // Keep first-load metadata work bounded for very large lists so curated-load-done
+  // is not dominated by enrichment of dozens of offscreen cards.
+  if (totalEntryCount >= 240) {
+    return Math.min(configuredPriorityCount, 12);
+  }
+  if (totalEntryCount >= 120) {
+    return Math.min(configuredPriorityCount, 18);
+  }
+
+  return configuredPriorityCount;
+}
+
 /**
  * Prioritize a bounded subset for first-paint metadata so the panel can stabilize quickly.
  * Remaining entries continue loading in the background and progressively enrich card details.
@@ -71,7 +92,8 @@ function splitMetadataPreloadEntriesInternal(
   context: CuratedLoaderDeferredMetadataContext,
   entries: BoundaryList,
 ): { priorityEntries: BoundaryList; deferredEntries: BoundaryList } {
-  if (entries.length <= context.metadataPriorityEntryCount) {
+  const priorityEntryCount = resolvePriorityEntryCountInternal(context, entries.length);
+  if (entries.length <= priorityEntryCount) {
     return {
       priorityEntries: entries,
       deferredEntries: [],
@@ -79,8 +101,8 @@ function splitMetadataPreloadEntriesInternal(
   }
 
   return {
-    priorityEntries: entries.slice(0, context.metadataPriorityEntryCount),
-    deferredEntries: entries.slice(context.metadataPriorityEntryCount),
+    priorityEntries: entries.slice(0, priorityEntryCount),
+    deferredEntries: entries.slice(priorityEntryCount),
   };
 }
 

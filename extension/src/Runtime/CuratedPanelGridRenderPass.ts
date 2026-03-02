@@ -4,6 +4,7 @@ type CuratedElementPredicate = (value: CuratedBoundaryValue) => boolean;
 
 export type CuratedGridReorderOptions = {
   onCardRemoved?: ((card: Element) => void) | null;
+  shouldRetainCardInGrid?: ((card: Element) => boolean) | null;
 };
 
 export type CuratedPanelGridTransitionsRuntime = {
@@ -29,13 +30,14 @@ export type RenderEmptyCuratedGridStateOptions = {
   total: number;
   loading: boolean;
   parkGridCardsForReuse: (gridElement: Element) => void;
-  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => void;
+  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>, retainedSeriesIds?: Set<string>) => void;
   createCuratedGridEmptyElement: (documentRef: Document, total: number) => Element;
   trimParkedCardsForReuse: () => void;
 };
 
 export type RenderVisibleCuratedGridStateOptions = {
   visible: CuratedGridEntry[];
+  loadedSeriesIds: Set<string>;
   metadataLoading: boolean;
   gridEl: Element;
   createOrReuseCuratedCard: (
@@ -48,8 +50,9 @@ export type RenderVisibleCuratedGridStateOptions = {
   setCardParkedState: (card: Element, parked: boolean) => void;
   isRenderableEntryMetadataLoading: (entry: CuratedGridEntry) => boolean;
   reorderCuratedGridChildren: (gridElement: Element, nextCards: Element[], options?: CuratedGridReorderOptions) => void;
+  shouldRetainCardInGrid: (card: Element) => boolean;
   parkCardForReuse: (card: Element) => void;
-  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => void;
+  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>, retainedSeriesIds?: Set<string>) => void;
   trimParkedCardsForReuse: () => void;
 };
 
@@ -63,6 +66,7 @@ export type CuratedGridRenderContext = {
   stateRenderSignature: string;
   gridRenderSignature: string;
   visible: CuratedGridEntry[];
+  loadedSeriesIds: Set<string>;
   total: number;
   loading: boolean;
   metadataLoading: boolean;
@@ -76,7 +80,7 @@ export type CuratedGridRenderContext = {
   isRenderableEntryMetadataLoading: (entry: CuratedGridEntry) => boolean;
   setCardParkedState: (card: Element, parked: boolean) => void;
   parkGridCardsForReuse: (gridElement: Element) => void;
-  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => void;
+  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>, retainedSeriesIds?: Set<string>) => void;
   createCuratedGridEmptyElement: (documentRef: Document, total: number) => Element;
   trimParkedCardsForReuse: () => void;
   createOrReuseCuratedCard: (
@@ -86,6 +90,7 @@ export type CuratedGridRenderContext = {
   ) => Element;
   markCardControllerActive: (seriesId: string) => void;
   parkCardForReuse: (card: Element) => void;
+  shouldRetainCardInGrid: (card: Element) => boolean;
   documentRef: Document;
 };
 
@@ -120,6 +125,7 @@ function renderEmptyCuratedGridPass(context: CuratedGridRenderContext): void {
 function renderVisibleCuratedGridPass(context: CuratedGridRenderContext): void {
   context.renderPhasesRuntime.renderVisibleCuratedGridState({
     visible: context.visible,
+    loadedSeriesIds: context.loadedSeriesIds,
     metadataLoading: context.metadataLoading,
     gridEl: context.gridEl,
     createOrReuseCuratedCard: context.createOrReuseCuratedCard,
@@ -134,6 +140,7 @@ function renderVisibleCuratedGridPass(context: CuratedGridRenderContext): void {
     ) => {
       context.transitionsRuntime.reorderCuratedGridChildren(gridElement, nextCards, reorderOptions);
     },
+    shouldRetainCardInGrid: context.shouldRetainCardInGrid,
     parkCardForReuse: context.parkCardForReuse,
     parkUnusedControllersForReuse: context.parkUnusedControllersForReuse,
     trimParkedCardsForReuse: context.trimParkedCardsForReuse,
@@ -142,6 +149,10 @@ function renderVisibleCuratedGridPass(context: CuratedGridRenderContext): void {
 
 export function renderCuratedGridPass(context: CuratedGridRenderContext): void {
   if (!context.visible.length) {
+    if (context.total > 0) {
+      renderVisibleCuratedGridPass(context);
+      return;
+    }
     renderEmptyCuratedGridPass(context);
     return;
   }

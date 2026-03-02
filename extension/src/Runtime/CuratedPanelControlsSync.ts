@@ -11,6 +11,12 @@ type SelectLike = Element & {
   appendChild: (child: Element) => void;
 };
 
+type DisplayableElement = Element & {
+  style?: {
+    display?: string;
+  };
+};
+
 type SelectOption = {
   optionValue: string;
   title: string;
@@ -84,6 +90,21 @@ export class CuratedPanelControlsSyncOwner {
     loading: boolean,
   ): void => {
     statsEl.textContent = this.resolveCuratedStatsText(watchReadyFilterMode, total, visibleCount, loading);
+  };
+
+  readonly updateLoadingIndicatorVisibility = (loadingIndicatorEl: CuratedBoundaryValue, loading: boolean): void => {
+    if (!loadingIndicatorEl || typeof loadingIndicatorEl !== 'object') {
+      return;
+    }
+    const style = (loadingIndicatorEl as DisplayableElement).style;
+    if (!style) {
+      return;
+    }
+    const nextDisplay = loading ? 'inline-flex' : 'none';
+    if (style.display === nextDisplay) {
+      return;
+    }
+    style.display = nextDisplay;
   };
 
   private readonly setSelectOptions = (

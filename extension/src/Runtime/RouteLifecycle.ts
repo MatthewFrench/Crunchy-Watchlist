@@ -19,6 +19,7 @@ type RuntimeState = {
   controlsEl: Element | null;
   loadingBoxEl: Element | null;
   loadingIndicatorEl: Element | null;
+  controlsLoadingIndicatorEl: Element | null;
   audioFilterSelectEl: Element | null;
   genreFilterSelectEl: Element | null;
   statsEl: Element | null;
@@ -244,6 +245,7 @@ function unmountInternal(context: RouteLifecycleContext): void {
   context.state.controlsEl = null;
   context.state.loadingBoxEl = null;
   context.state.loadingIndicatorEl = null;
+  context.state.controlsLoadingIndicatorEl = null;
   context.state.audioFilterSelectEl = null;
   context.state.genreFilterSelectEl = null;
   context.state.statsEl = null;

@@ -11,6 +11,7 @@ type RuntimeStateLike = {
   controlsEl: Element | null;
   loadingBoxEl: Element | null;
   loadingIndicatorEl: Element | null;
+  controlsLoadingIndicatorEl: Element | null;
   audioFilterSelectEl: Element | null;
   genreFilterSelectEl: Element | null;
   statsEl: Element | null;
@@ -105,6 +106,7 @@ class InterfaceShellHostLifecycleController implements InterfaceShellHostLifecyc
     context.state.controlsEl = null;
     context.state.loadingBoxEl = null;
     context.state.loadingIndicatorEl = null;
+    context.state.controlsLoadingIndicatorEl = null;
     context.state.audioFilterSelectEl = null;
     context.state.genreFilterSelectEl = null;
     context.state.statsEl = null;
@@ -132,6 +134,7 @@ class InterfaceShellHostLifecycleController implements InterfaceShellHostLifecyc
       isConnectedHostDescendant(hostElement, context.state.controlsEl, this.isConnectedElement) &&
       isConnectedHostDescendant(hostElement, context.state.loadingBoxEl, this.isConnectedElement) &&
       isConnectedHostDescendant(hostElement, context.state.loadingIndicatorEl, this.isConnectedElement) &&
+      isConnectedHostDescendant(hostElement, context.state.controlsLoadingIndicatorEl, this.isConnectedElement) &&
       isConnectedHostDescendant(hostElement, context.state.audioFilterSelectEl, this.isConnectedElement) &&
       isConnectedHostDescendant(hostElement, context.state.genreFilterSelectEl, this.isConnectedElement) &&
       isConnectedHostDescendant(hostElement, context.state.statsEl, this.isConnectedElement) &&

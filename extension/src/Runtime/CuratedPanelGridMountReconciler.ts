@@ -1,5 +1,6 @@
 type CuratedGridReorderOptions = {
   onCardRemoved?: ((card: Element) => void) | null;
+  shouldRetainCardInGrid?: ((card: Element) => boolean) | null;
 };
 
 export type RenderEmptyCuratedGridStateOptions = {
@@ -8,7 +9,7 @@ export type RenderEmptyCuratedGridStateOptions = {
   total: number;
   loading: boolean;
   parkGridCardsForReuse: (gridElement: Element) => void;
-  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => void;
+  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>, retainedSeriesIds?: Set<string>) => void;
   createCuratedGridEmptyElement: (documentRef: Document, total: number) => Element;
   trimParkedCardsForReuse: () => void;
 };
@@ -17,9 +18,11 @@ export type RenderVisibleCuratedGridStateOptions = {
   gridEl: Element;
   nextCards: Element[];
   visibleSeriesIds: Set<string>;
+  loadedSeriesIds: Set<string>;
   reorderCuratedGridChildren: (gridElement: Element, nextCards: Element[], options?: CuratedGridReorderOptions) => void;
+  shouldRetainCardInGrid: (card: Element) => boolean;
   parkCardForReuse: (card: Element) => void;
-  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => void;
+  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>, retainedSeriesIds?: Set<string>) => void;
   trimParkedCardsForReuse: () => void;
 };
 
@@ -40,6 +43,10 @@ export class CuratedPanelGridMountReconcilerOwner {
     parkGridCardsForReuse(gridEl);
     parkUnusedControllersForReuse(visibleSeriesIds);
     gridEl.textContent = '';
+    const gridStyle = (gridEl as Element & { style?: Record<string, string> }).style;
+    if (gridStyle) {
+      gridStyle.height = '';
+    }
     if (!(loading && total === 0)) {
       gridEl.appendChild(createCuratedGridEmptyElement(documentRef, total));
     }
@@ -51,7 +58,9 @@ export class CuratedPanelGridMountReconcilerOwner {
       gridEl,
       nextCards,
       visibleSeriesIds,
+      loadedSeriesIds,
       reorderCuratedGridChildren,
+      shouldRetainCardInGrid,
       parkCardForReuse,
       parkUnusedControllersForReuse,
       trimParkedCardsForReuse,
@@ -61,9 +70,10 @@ export class CuratedPanelGridMountReconcilerOwner {
       onCardRemoved: (removedCard) => {
         parkCardForReuse(removedCard);
       },
+      shouldRetainCardInGrid,
     });
 
-    parkUnusedControllersForReuse(visibleSeriesIds);
+    parkUnusedControllersForReuse(visibleSeriesIds, loadedSeriesIds);
     trimParkedCardsForReuse();
   };
 }

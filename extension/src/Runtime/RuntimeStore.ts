@@ -97,6 +97,7 @@ type RuntimeState = {
   controlsEl: Element | null;
   loadingBoxEl: Element | null;
   loadingIndicatorEl: Element | null;
+  controlsLoadingIndicatorEl: Element | null;
   audioFilterSelectEl: Element | null;
   genreFilterSelectEl: Element | null;
   statsEl: Element | null;
@@ -245,6 +246,7 @@ function createRuntimeState(options: RuntimeStateOptions = {}): RuntimeState {
     controlsEl: null,
     loadingBoxEl: null,
     loadingIndicatorEl: null,
+    controlsLoadingIndicatorEl: null,
     audioFilterSelectEl: null,
     genreFilterSelectEl: null,
     statsEl: null,

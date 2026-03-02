@@ -23,6 +23,7 @@ type CuratedCardPatchFn = (card: Element, entry: CuratedGridEntry) => void;
 
 type CuratedPanelGridState = {
   curatedError: CuratedBoundaryValue;
+  curatedEntries?: CuratedBoundaryValue;
   curatedGridRenderSignature: string;
   gridEl: (Element & { textContent: string | null }) | null;
   settings: CuratedBoundaryRecord;
@@ -66,6 +67,7 @@ type CuratedGridRenderContextOptions = {
   gridEl: Element;
   documentRef: Document;
   visible: CuratedGridEntry[];
+  loadedSeriesIds: Set<string>;
   total: number;
   loading: boolean;
   metadataLoading: boolean;
@@ -79,6 +81,7 @@ type CuratedGridRenderContextOptions = {
 };
 
 let cachedSignatureRuntime: CuratedPanelGridSignatureRuntime | null = null;
+const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
 
 function toNonNegativeInt(value: CuratedBoundaryValue): number {
   const normalizedValue = Number(value);
@@ -361,9 +364,33 @@ function isCuratedGridEmptyElement(value: CuratedBoundaryValue): boolean {
   return getElementDataAttribute(value as Element, 'cwGridEmpty', 'data-cw-grid-empty') === 'true';
 }
 
+function hasClassNameToken(className: string, token: string): boolean {
+  return className
+    .split(' ')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .includes(token);
+}
+
+function queueCardEnterTransition(card: Element & { className?: string }): void {
+  const removeEnterClass = () => {
+    card.className = toggleClassNameToken(card.className || '', 'cw-curated-card--entering', false);
+  };
+
+  if (typeof root.requestAnimationFrame === 'function') {
+    root.requestAnimationFrame(() => {
+      root.requestAnimationFrame(removeEnterClass);
+    });
+    return;
+  }
+
+  setTimeout(removeEnterClass, 0);
+}
+
 function setCardParkedState(card: Element, parked: boolean): void {
   const cardElement = card as Element & { className?: string };
   const currentClassName = cardElement.className || '';
+  const hadParkedClass = hasClassNameToken(currentClassName, 'cw-curated-card--parked');
   const nextWithParked = toggleClassNameToken(currentClassName, 'cw-curated-card--parked', parked);
   const nextClassName = parked
     ? toggleClassNameToken(nextWithParked, 'cw-curated-card--entering', false)
@@ -371,6 +398,13 @@ function setCardParkedState(card: Element, parked: boolean): void {
   if (nextClassName === currentClassName) {
     return;
   }
+
+  if (!parked && hadParkedClass) {
+    cardElement.className = toggleClassNameToken(nextClassName, 'cw-curated-card--entering', true);
+    queueCardEnterTransition(cardElement);
+    return;
+  }
+
   cardElement.className = nextClassName;
 }
 
@@ -417,12 +451,42 @@ function createParkingLifecycleHandlers(state: CuratedPanelGridState): CuratedPa
   };
 }
 
+function resolveLoadedSeriesIds(value: CuratedBoundaryValue): Set<string> {
+  if (!Array.isArray(value)) {
+    return new Set<string>();
+  }
+
+  const seriesIds = new Set<string>();
+  value.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return;
+    }
+    const seriesId = getEntrySeriesId(entry as CuratedGridEntry);
+    if (!seriesId) {
+      return;
+    }
+    seriesIds.add(seriesId);
+  });
+  return seriesIds;
+}
+
+function createShouldRetainCardInGrid(loadedSeriesIds: Set<string>): (card: Element) => boolean {
+  return (card: Element): boolean => {
+    if (!isCuratedCardElement(card)) {
+      return false;
+    }
+    const seriesId = getElementDataAttribute(card, 'cwSeriesId', 'data-cw-series-id');
+    return Boolean(seriesId && loadedSeriesIds.has(seriesId));
+  };
+}
+
 function createCuratedGridRenderContext(options: CuratedGridRenderContextOptions): CuratedGridRenderContext {
   const {
     state,
     gridEl,
     documentRef,
     visible,
+    loadedSeriesIds,
     total,
     loading,
     metadataLoading,
@@ -440,6 +504,7 @@ function createCuratedGridRenderContext(options: CuratedGridRenderContextOptions
     gridRenderSignature,
     documentRef,
     visible,
+    loadedSeriesIds,
     total,
     loading,
     metadataLoading,
@@ -455,8 +520,13 @@ function createCuratedGridRenderContext(options: CuratedGridRenderContextOptions
     parkGridCardsForReuse: (gridElement: Element) => {
       parkingManager.parkGridCardsForReuse(documentRef, gridElement, parkingLifecycleHandlers);
     },
-    parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => {
-      parkingManager.parkUnusedControllersForReuse(documentRef, visibleSeriesIds, parkingLifecycleHandlers);
+    parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>, retainedSeriesIds?: Set<string>) => {
+      parkingManager.parkUnusedControllersForReuse(
+        documentRef,
+        visibleSeriesIds,
+        retainedSeriesIds,
+        parkingLifecycleHandlers,
+      );
     },
     createCuratedGridEmptyElement: (nextDocumentRef: Document, nextTotal: number) =>
       createCuratedGridEmptyElement(nextDocumentRef, state, nextTotal),
@@ -480,6 +550,7 @@ function createCuratedGridRenderContext(options: CuratedGridRenderContextOptions
     parkCardForReuse: (card: Element) => {
       parkingManager.parkCardForReuse(documentRef, card, parkingLifecycleHandlers);
     },
+    shouldRetainCardInGrid: createShouldRetainCardInGrid(loadedSeriesIds),
   };
 }
 
@@ -506,11 +577,13 @@ function renderCuratedGridIfNeeded(
   }
 
   const parkingLifecycleHandlers = createParkingLifecycleHandlers(state);
+  const loadedSeriesIds = resolveLoadedSeriesIds(state.curatedEntries);
   const renderContext = createCuratedGridRenderContext({
     state,
     gridEl,
     documentRef,
     visible,
+    loadedSeriesIds,
     total,
     loading,
     metadataLoading,

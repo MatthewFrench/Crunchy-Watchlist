@@ -465,6 +465,59 @@ describe('curated-interactions runtime', () => {
     expect(preloadWatchHistoryForSelectedAudioLocale).not.toHaveBeenCalled();
   });
 
+  it('renders immediately for genre changes before settings persistence resolves', async () => {
+    const state = {
+      mounted: true,
+      settings: {
+        genreFilter: 'any',
+      },
+    };
+
+    const persistDeferred = createDeferred<unknown>();
+    const persistSettings = vi.fn(() => persistDeferred.promise);
+    const renderCuratedPanel = vi.fn();
+
+    const runtime = getCuratedInteractionsModule().createCuratedInteractionsRuntime({
+      documentRef: {
+        createElement: () => createFakeElement(),
+      },
+      alertRef: vi.fn(),
+      confirmRef: vi.fn(() => true),
+      triggerNativeCardAction: vi.fn(async () => true),
+      toggleCuratedFavorite: vi.fn(),
+      removeCuratedSeries: vi.fn(),
+      renderCuratedPanel,
+      state,
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      persistSettings,
+      normalizeAudioLocale: vi.fn((value: unknown) => String(value || '').trim() || null),
+      preloadRatingsForSelectedAudioLocale: vi.fn(async () => null),
+      preloadWatchHistoryForSelectedAudioLocale: vi.fn(async () => null),
+      isWatchlistPath: vi.fn(() => true),
+      resetCuratedCachesForRefresh: vi.fn(async () => null),
+      ensureCuratedDataLoad: vi.fn(async () => null),
+      debounceProcess: vi.fn(),
+    });
+
+    const genreSelect = createFakeElement();
+    genreSelect.value = 'action';
+    runtime.bindCuratedInterfaceControls({
+      genreFilterControl: { select: genreSelect },
+    });
+
+    await genreSelect.dispatch('change');
+    await flushMicrotasks();
+
+    expect(state.settings.genreFilter).toBe('action');
+    expect(persistSettings).toHaveBeenCalledTimes(1);
+    expect(renderCuratedPanel).toHaveBeenCalledTimes(1);
+
+    persistDeferred.resolve(null);
+    await flushMicrotasks();
+  });
+
   it('prevents overlapping manual refresh actions while a refresh is in flight', async () => {
     const state = {
       mounted: true,

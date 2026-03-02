@@ -147,6 +147,7 @@ function createState(hostEl: FakeElement | null = null) {
     controlsEl: hostEl,
     loadingBoxEl: hostEl,
     loadingIndicatorEl: hostEl,
+    controlsLoadingIndicatorEl: hostEl,
     audioFilterSelectEl: hostEl,
     genreFilterSelectEl: hostEl,
     statsEl: hostEl,
@@ -223,6 +224,7 @@ describe('interface-shell-host-lifecycle runtime', () => {
     expect(state.curatedPanelEl).toBeNull();
     expect(state.controlsEl).toBeNull();
     expect(state.loadingIndicatorEl).toBeNull();
+    expect(state.controlsLoadingIndicatorEl).toBeNull();
     expect(state.audioFilterSelectEl).toBeNull();
     expect(state.genreFilterSelectEl).toBeNull();
     expect(state.statsEl).toBeNull();

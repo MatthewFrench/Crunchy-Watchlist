@@ -6,6 +6,7 @@ type BoundaryRecord = Record<string, BoundaryValue>;
 
 type CuratedGridReorderOptions = {
   onCardRemoved?: ((card: Element) => void) | null;
+  shouldRetainCardInGrid?: ((card: Element) => boolean) | null;
 };
 
 type ShouldSkipCuratedGridRenderOptions = {
@@ -27,13 +28,14 @@ type RenderEmptyCuratedGridStateOptions = {
   total: number;
   loading: boolean;
   parkGridCardsForReuse: (gridElement: Element) => void;
-  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => void;
+  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>, retainedSeriesIds?: Set<string>) => void;
   createCuratedGridEmptyElement: (documentRef: Document, total: number) => Element;
   trimParkedCardsForReuse: () => void;
 };
 
 type RenderVisibleCuratedGridStateOptions = {
   visible: BoundaryRecord[];
+  loadedSeriesIds: Set<string>;
   metadataLoading: boolean;
   gridEl: Element;
   createOrReuseCuratedCard: (entry: BoundaryRecord, detailsLoading: boolean, visibleSeriesIds: Set<string>) => Element;
@@ -42,8 +44,9 @@ type RenderVisibleCuratedGridStateOptions = {
   setCardParkedState: (card: Element, parked: boolean) => void;
   isRenderableEntryMetadataLoading: (entry: BoundaryRecord) => boolean;
   reorderCuratedGridChildren: (gridElement: Element, nextCards: Element[], options?: CuratedGridReorderOptions) => void;
+  shouldRetainCardInGrid: (card: Element) => boolean;
   parkCardForReuse: (card: Element) => void;
-  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>) => void;
+  parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>, retainedSeriesIds?: Set<string>) => void;
   trimParkedCardsForReuse: () => void;
 };
 
@@ -89,6 +92,10 @@ function shouldSkipCuratedGridRender(options: ShouldSkipCuratedGridRenderOptions
     );
   }
 
+  if (total > 0) {
+    return children.every((child) => isCuratedCardElement(child));
+  }
+
   const firstChild = children[0];
   if (loading && total === 0 && children.length === 0) {
     return true;
@@ -112,6 +119,7 @@ class CuratedPanelGridRenderPhasesOwner implements CuratedPanelGridRenderPhasesR
   readonly renderVisibleCuratedGridState = (options: RenderVisibleCuratedGridStateOptions): void => {
     const {
       visible,
+      loadedSeriesIds,
       metadataLoading,
       createOrReuseCuratedCard,
       getEntrySeriesId,
@@ -120,6 +128,7 @@ class CuratedPanelGridRenderPhasesOwner implements CuratedPanelGridRenderPhasesR
       isRenderableEntryMetadataLoading,
       gridEl,
       reorderCuratedGridChildren,
+      shouldRetainCardInGrid,
       parkCardForReuse,
       parkUnusedControllersForReuse,
       trimParkedCardsForReuse,
@@ -139,7 +148,9 @@ class CuratedPanelGridRenderPhasesOwner implements CuratedPanelGridRenderPhasesR
       gridEl,
       nextCards: orderPlan.nextCards,
       visibleSeriesIds: orderPlan.visibleSeriesIds,
+      loadedSeriesIds,
       reorderCuratedGridChildren,
+      shouldRetainCardInGrid,
       parkCardForReuse,
       parkUnusedControllersForReuse,
       trimParkedCardsForReuse,

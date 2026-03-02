@@ -41,6 +41,7 @@ type RuntimeState = {
   statsEl: (Element & { textContent: string | null }) | null;
   loadingBoxEl: Element | null;
   loadingIndicatorEl: (Element & { style?: Record<string, string> }) | null;
+  controlsLoadingIndicatorEl: Element | null;
   audioFilterSelectEl: Element | null;
   genreFilterSelectEl: Element | null;
   settings: CuratedBoundaryRecord;
@@ -72,6 +73,7 @@ type CuratedPanelLoadingIndicatorRuntime = {
     documentRef: Document;
     loadingIndicatorEl: Element;
     loadingBoxEl?: Element | null;
+    gridEl?: Element | null;
     loading: boolean;
     firstLoadInFlight: boolean;
     pendingRequests: string[];

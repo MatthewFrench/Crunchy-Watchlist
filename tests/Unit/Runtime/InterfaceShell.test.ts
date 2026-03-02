@@ -29,6 +29,7 @@ type InterfaceShellTestState = {
   controlsEl: unknown | null;
   loadingBoxEl: unknown | null;
   loadingIndicatorEl: unknown | null;
+  controlsLoadingIndicatorEl: unknown | null;
   audioFilterSelectEl: unknown | null;
   genreFilterSelectEl: unknown | null;
   statsEl: unknown | null;
@@ -60,6 +61,7 @@ function createBaseState(): InterfaceShellTestState {
     controlsEl: null,
     loadingBoxEl: null,
     loadingIndicatorEl: null,
+    controlsLoadingIndicatorEl: null,
     audioFilterSelectEl: null,
     genreFilterSelectEl: null,
     statsEl: null,
@@ -330,6 +332,7 @@ describe('interface-shell runtime', () => {
       createCuratedInterfaceControls: () => ({
         controls: {},
         loadingIndicator: {},
+        topLoadingIndicator: {},
         audioFilterControl: { select: {} },
         genreFilterControl: { select: {} },
         stats: {},
@@ -375,6 +378,7 @@ describe('interface-shell runtime', () => {
       createCuratedInterfaceControls: () => ({
         controls: {},
         loadingIndicator: {},
+        topLoadingIndicator: {},
         audioFilterControl: { select: {} },
         genreFilterControl: { select: {} },
         stats: {},
@@ -432,6 +436,7 @@ describe('interface-shell runtime', () => {
       createCuratedInterfaceControls: () => ({
         controls,
         loadingIndicator,
+        topLoadingIndicator: new FakeElement('span'),
         audioFilterControl: { select: new FakeElement('select') },
         genreFilterControl: { select: new FakeElement('select') },
         stats: new FakeElement('span'),
@@ -501,6 +506,7 @@ describe('interface-shell runtime', () => {
       createCuratedInterfaceControls: () => ({
         controls: new FakeElement('div'),
         loadingIndicator: new FakeElement('span'),
+        topLoadingIndicator: new FakeElement('span'),
         audioFilterControl: { select: new FakeElement('select') },
         genreFilterControl: { select: new FakeElement('select') },
         stats: new FakeElement('span'),
@@ -575,6 +581,7 @@ describe('interface-shell runtime', () => {
       createCuratedInterfaceControls: () => ({
         controls: new FakeElement('div'),
         loadingIndicator: new FakeElement('span'),
+        topLoadingIndicator: new FakeElement('span'),
         audioFilterControl: { select: new FakeElement('select') },
         genreFilterControl: { select: new FakeElement('select') },
         stats: new FakeElement('span'),
@@ -628,6 +635,7 @@ describe('interface-shell runtime', () => {
       createCuratedInterfaceControls: () => ({
         controls: new FakeElement('div'),
         loadingIndicator: new FakeElement('span'),
+        topLoadingIndicator: new FakeElement('span'),
         audioFilterControl: { select: new FakeElement('select') },
         genreFilterControl: { select: new FakeElement('select') },
         stats: new FakeElement('span'),
@@ -674,6 +682,7 @@ describe('interface-shell runtime', () => {
       createCuratedInterfaceControls: () => ({
         controls: new FakeElement('div'),
         loadingIndicator: new FakeElement('span'),
+        topLoadingIndicator: new FakeElement('span'),
         audioFilterControl: { select: new FakeElement('select') },
         genreFilterControl: { select: new FakeElement('select') },
         stats: new FakeElement('span'),

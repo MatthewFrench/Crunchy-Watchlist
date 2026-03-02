@@ -161,6 +161,7 @@ test.describe('UI Behavior', () => {
 
     await injectExtension(page, { activeTab: 'curated' }, { waitForLoaded: false });
     await expect(page.locator('.cw-controls .cw-loading-indicator')).toHaveCount(0);
+    await expect(page.locator('.cw-controls .cw-controls-loading-indicator')).toBeVisible();
     await expect(page.locator('.cw-panel > .cw-loading-box')).toBeVisible();
     await expect(page.locator('.cw-panel > .cw-loading-box .cw-loading-box__title')).toHaveText(
       'Loading watchlist results...',
@@ -183,6 +184,7 @@ test.describe('UI Behavior', () => {
 
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
     await expect(page.locator('.cw-panel > .cw-loading-box')).toBeHidden();
+    await expect(page.locator('.cw-controls .cw-controls-loading-indicator')).toBeHidden();
   });
 
   test('renders watchlist cards before metadata requests finish and updates details in place', async ({ page }) => {
@@ -202,9 +204,11 @@ test.describe('UI Behavior', () => {
     await expect(page.locator('.cw-curated-grid > .cw-empty')).toHaveCount(0);
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
     await expect(page.locator('.cw-controls__stats')).toContainText('(refreshing...)');
+    await expect(page.locator('.cw-controls .cw-controls-loading-indicator')).toBeVisible();
     await expect(page.locator('.cw-curated-card[data-cw-loading-details="true"]')).toHaveCount(3);
 
     await expect(page.locator('.cw-panel > .cw-loading-box')).toBeHidden();
+    await expect(page.locator('.cw-controls .cw-controls-loading-indicator')).toBeHidden();
     await expect(page.locator('.cw-curated-card[data-cw-loading-details="true"]')).toHaveCount(0);
   });
 
@@ -230,6 +234,23 @@ test.describe('UI Behavior', () => {
 
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
     await expect(page.locator('.cw-controls__stats')).not.toContainText('(refreshing...)');
+  });
+
+  test('keeps curated cards visible after loading completes and remains idle', async ({ page }) => {
+    await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
+      await page.waitForTimeout(700);
+      await route.continue();
+    });
+
+    await injectExtension(page, { activeTab: 'curated' }, { waitForLoaded: false });
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3);
+    await expect(page.locator('.cw-panel > .cw-loading-box')).toBeHidden();
+
+    await page.waitForTimeout(2000);
+
+    await expect(page.locator('.cw-curated-card')).toHaveCount(3);
+    await expect(page.locator('.cw-curated-grid')).toBeVisible();
+    await expect(page.locator('.cw-curated-card').first()).toBeVisible();
   });
 
   test('disables refresh button while manual refresh is running', async ({ page }) => {

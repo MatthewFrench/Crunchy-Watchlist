@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { type Page, expect, test } from '@playwright/test';
 import { gotoFixture, injectExtension } from './Helpers/ExtensionFixture';
 import {
   installCardContentMutationProbe,
@@ -19,9 +19,132 @@ type LayoutShiftProbeResult = {
   entryCount: number;
 };
 
+type InteractionLatencyExpectation = 'order' | 'count-or-order';
+
+type ControlInteractionLatencyMeasurement = {
+  elapsedMs: number;
+  baselineOrder: string;
+  finalOrder: string;
+  baselineCount: number;
+  finalCount: number;
+};
+
+async function measureControlInteractionLatency(
+  page: Page,
+  options: {
+    selector: string;
+    nextValue: string;
+    expectation: InteractionLatencyExpectation;
+    maxWaitMs?: number;
+  },
+): Promise<ControlInteractionLatencyMeasurement> {
+  return await page.evaluate(async ({ selector, nextValue, expectation, maxWaitMs }) => {
+    const select = document.querySelector(selector);
+    if (!(select instanceof HTMLSelectElement)) {
+      throw new Error(`Control not found: ${selector}`);
+    }
+    const grid = document.querySelector('.cw-curated-grid');
+    if (!(grid instanceof HTMLElement)) {
+      throw new Error('Curated grid not found for latency probe');
+    }
+
+    const readOrder = (): string =>
+      Array.from(grid.querySelectorAll<HTMLElement>('.cw-curated-card'))
+        .map((card) => String(card.dataset.cwSeriesId || '').trim())
+        .filter(Boolean)
+        .join('|');
+    const readCount = (): number => grid.querySelectorAll('.cw-curated-card').length;
+    const hasChanged = (baselineOrder: string, baselineCount: number): boolean => {
+      const currentOrder = readOrder();
+      const currentCount = readCount();
+      if (expectation === 'order') {
+        return currentOrder !== baselineOrder;
+      }
+      return currentCount !== baselineCount || currentOrder !== baselineOrder;
+    };
+
+    const baselineOrder = readOrder();
+    const baselineCount = readCount();
+    const startedAt = performance.now();
+
+    select.value = nextValue;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+
+    const waitBudgetMs = typeof maxWaitMs === 'number' && Number.isFinite(maxWaitMs) ? maxWaitMs : 2_000;
+    await new Promise<void>((resolve, reject) => {
+      const deadline = startedAt + waitBudgetMs;
+      const poll = (): void => {
+        const now = performance.now();
+        if (hasChanged(baselineOrder, baselineCount)) {
+          resolve();
+          return;
+        }
+        if (now >= deadline) {
+          reject(
+            new Error(
+              `Timed out waiting for visible grid change after control update (${selector}=${nextValue}, expectation=${expectation})`,
+            ),
+          );
+          return;
+        }
+        requestAnimationFrame(poll);
+      };
+      requestAnimationFrame(poll);
+    });
+
+    return {
+      elapsedMs: performance.now() - startedAt,
+      baselineOrder,
+      finalOrder: readOrder(),
+      baselineCount,
+      finalCount: readCount(),
+    };
+  }, options);
+}
+
 test.describe('Render Stability Budget', () => {
   test.beforeEach(async ({ page }) => {
     await gotoFixture(page);
+  });
+
+  test('keeps sort and genre interaction latency within budget', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'Interaction-latency budget currently runs on Chromium only.');
+
+    await injectExtension(page);
+    await page.selectOption('#cw-watch-ready-mode', 'none');
+    await expect(page.locator('.cw-curated-card')).toHaveCount(4);
+
+    await page.selectOption('#cw-sort-mode', 'rating_asc');
+    await expect(page.locator('.cw-curated-card')).toHaveCount(4);
+
+    const sortMeasurement = await measureControlInteractionLatency(page, {
+      selector: '#cw-sort-mode',
+      nextValue: 'rating_desc',
+      expectation: 'order',
+      maxWaitMs: 2_000,
+    });
+    const genreMeasurement = await measureControlInteractionLatency(page, {
+      selector: '#cw-genre-filter',
+      nextValue: '__favorites__',
+      expectation: 'count-or-order',
+      maxWaitMs: 2_000,
+    });
+    const genreResetMeasurement = await measureControlInteractionLatency(page, {
+      selector: '#cw-genre-filter',
+      nextValue: 'any',
+      expectation: 'count-or-order',
+      maxWaitMs: 2_000,
+    });
+
+    const samples = [sortMeasurement.elapsedMs, genreMeasurement.elapsedMs, genreResetMeasurement.elapsedMs];
+    const maxLatencyMs = Math.max(...samples);
+    const averageLatencyMs = samples.reduce((sum, sample) => sum + sample, 0) / samples.length;
+
+    expect(sortMeasurement.finalOrder).not.toBe(sortMeasurement.baselineOrder);
+    expect(genreMeasurement.finalCount).toBe(1);
+    expect(genreResetMeasurement.finalCount).toBe(4);
+    expect(maxLatencyMs).toBeLessThan(650);
+    expect(averageLatencyMs).toBeLessThan(350);
   });
 
   test('keeps card patch count flat during sort-only churn', async ({ page }) => {

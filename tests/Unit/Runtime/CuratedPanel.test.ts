@@ -11,8 +11,10 @@ type FakeElement = {
   style: Record<string, string>;
   children: FakeElement[];
   parentNode: FakeElement | null;
+  clientWidth?: number;
   value?: string;
   title?: string;
+  getBoundingClientRect?: () => { left: number; top: number; width: number; height: number };
   appendChild: (child: FakeElement) => FakeElement;
   insertBefore: (child: FakeElement, reference: FakeElement | null) => FakeElement;
   removeChild: (child: FakeElement) => FakeElement;
@@ -235,12 +237,14 @@ describe('curated-panel runtime', () => {
 
   afterEach(() => {
     curatedPanelModule = null;
+    vi.unstubAllGlobals();
   });
 
   it('renders visible curated entries and updates panel status fields', () => {
     const gridEl = createFakeElement();
     const statsEl = createFakeElement();
     const loadingIndicatorEl = createFakeElement();
+    const controlsLoadingIndicatorEl = createFakeElement();
     const audioFilterSelectEl = createFakeSelectElement();
     const genreFilterSelectEl = createFakeSelectElement();
 
@@ -256,6 +260,7 @@ describe('curated-panel runtime', () => {
       gridEl,
       statsEl,
       loadingIndicatorEl,
+      controlsLoadingIndicatorEl,
       audioFilterSelectEl,
       genreFilterSelectEl,
       settings: {
@@ -310,6 +315,7 @@ describe('curated-panel runtime', () => {
     expect(state.curatedGridRenderSignature).not.toBe('');
     expect(statsEl.textContent).toBe('Showing 1 of 2');
     expect(loadingIndicatorEl.style.display).toBe('none');
+    expect(controlsLoadingIndicatorEl.style.display).toBe('none');
     expect(gridEl.children).toHaveLength(1);
   });
 
@@ -384,10 +390,191 @@ describe('curated-panel runtime', () => {
     expect(state.curatedGridRenderSignature.includes(uniqueDescription)).toBe(false);
   });
 
+  it('includes parent width in the render signature and updates it when width changes', () => {
+    const gridContainerEl = createFakeElement();
+    const gridEl = createFakeElement();
+    gridContainerEl.appendChild(gridEl);
+    const statsEl = createFakeElement();
+    const loadingIndicatorEl = createFakeElement();
+    let containerWidth = 960;
+    gridContainerEl.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: containerWidth,
+      height: 0,
+    });
+
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [],
+      curatedInflight: null,
+      curatedPendingRequests: [],
+      curatedPendingRequestStartedCount: 0,
+      curatedPendingRequestCompletedCount: 0,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    };
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: () => {
+        const card = createFakeElement();
+        card.className = 'cw-curated-card';
+        return card;
+      },
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => ({
+        mode: 'hide',
+        total: 1,
+        visible: [{ seriesId: 'series-1', title: 'Series 1' }],
+        audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+        genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+        selectedAudioFilter: 'any',
+        selectedGenreFilter: 'any',
+      }),
+      withMutedObserver: (work: () => void) => {
+        work();
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    });
+
+    runtime.renderCuratedPanel();
+    const firstSignature = state.curatedGridRenderSignature;
+    expect(firstSignature).toContain('grid:960');
+
+    containerWidth = 640;
+    runtime.renderCuratedPanel();
+
+    expect(state.curatedGridRenderSignature).toContain('grid:640');
+    expect(state.curatedGridRenderSignature).not.toBe(firstSignature);
+  });
+
+  it('requests a new render when observed parent width changes', async () => {
+    const gridContainerEl = createFakeElement();
+    const gridEl = createFakeElement();
+    gridContainerEl.appendChild(gridEl);
+    const statsEl = createFakeElement();
+    const loadingIndicatorEl = createFakeElement();
+    let containerWidth = 920;
+    gridContainerEl.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: containerWidth,
+      height: 0,
+    });
+
+    const resizeObserverCallbacks: Array<(...args: unknown[]) => void> = [];
+    const observedTargets: Element[] = [];
+    let disconnectCalls = 0;
+    class FakeResizeObserver {
+      constructor(callback: (...args: unknown[]) => void) {
+        resizeObserverCallbacks.push(callback);
+      }
+
+      observe(target: Element): void {
+        observedTargets.push(target);
+      }
+
+      unobserve(): void {}
+
+      disconnect(): void {
+        disconnectCalls += 1;
+      }
+    }
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+
+    let buildRenderableCalls = 0;
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [],
+      curatedInflight: null,
+      curatedPendingRequests: [],
+      curatedPendingRequestStartedCount: 0,
+      curatedPendingRequestCompletedCount: 0,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    };
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: () => {
+        const card = createFakeElement();
+        card.className = 'cw-curated-card';
+        return card;
+      },
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => {
+        buildRenderableCalls += 1;
+        return {
+          mode: 'hide',
+          total: 1,
+          visible: [{ seriesId: 'series-1', title: 'Series 1' }],
+          audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+          genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+          selectedAudioFilter: 'any',
+          selectedGenreFilter: 'any',
+        };
+      },
+      withMutedObserver: (work: () => void) => {
+        work();
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    });
+
+    runtime.renderCuratedPanel();
+    const initialSignature = state.curatedGridRenderSignature;
+    expect(observedTargets[observedTargets.length - 1]).toBe(gridContainerEl as unknown as Element);
+
+    containerWidth = 700;
+    resizeObserverCallbacks[0]?.();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(buildRenderableCalls).toBe(2);
+    expect(state.curatedGridRenderSignature).toContain('grid:700');
+    expect(state.curatedGridRenderSignature).not.toBe(initialSignature);
+
+    runtime.dispose();
+    expect(disconnectCalls).toBe(1);
+  });
+
   it('shows in-flight request labels in the shared panel loading indicator during empty first-load state', () => {
     const gridEl = createFakeElement();
     const statsEl = createFakeElement();
     const loadingIndicatorEl = createFakeElement();
+    const controlsLoadingIndicatorEl = createFakeElement();
 
     const state = {
       mounted: true,
@@ -405,6 +592,7 @@ describe('curated-panel runtime', () => {
       gridEl,
       statsEl,
       loadingIndicatorEl,
+      controlsLoadingIndicatorEl,
       audioFilterSelectEl: createFakeSelectElement(),
       genreFilterSelectEl: createFakeSelectElement(),
       settings: {
@@ -449,6 +637,7 @@ describe('curated-panel runtime', () => {
     expect(progressLine?.textContent).toBe('Completed 1 of 4 • In progress 3');
     expect(nestedGridLoading).toBeNull();
     expect(loadingIndicatorEl.style.display).toBe('flex');
+    expect(controlsLoadingIndicatorEl.style.display).toBe('inline-flex');
     expect(statsEl.textContent).toBe('');
   });
 
@@ -650,7 +839,87 @@ describe('curated-panel runtime', () => {
     runtime.renderCuratedPanel();
 
     expect(loadingIndicatorEl.style.display).toBe('flex');
-    expect(loadingBox.style.display).toBe('block');
+    expect(loadingBox.style.display).toBe('flex');
+  });
+
+  it('keeps the curated grid visible once shown even if first-load loading state reappears', () => {
+    const gridEl = createFakeElement();
+    const statsEl = createFakeElement();
+    const loadingIndicatorEl = createFakeElement();
+    loadingIndicatorEl.className = 'cw-loading cw-loading-indicator';
+    const loadingBox = createFakeElement();
+    loadingBox.className = 'cw-empty cw-loading-box';
+    loadingBox.appendChild(loadingIndicatorEl);
+
+    let renderVisibleEntries = true;
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [{ seriesId: 'series-1', title: 'Series 1' }],
+      curatedInflight: null as Promise<unknown[]> | null,
+      curatedInitialLoadDone: true,
+      curatedPendingRequests: [],
+      curatedPendingRequestStartedCount: 0,
+      curatedPendingRequestCompletedCount: 0,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    };
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: () => createFakeElement(),
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () =>
+        renderVisibleEntries
+          ? {
+              mode: 'hide',
+              total: 1,
+              visible: [{ seriesId: 'series-1', title: 'Series 1' }],
+              audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+              genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+              selectedAudioFilter: 'any',
+              selectedGenreFilter: 'any',
+            }
+          : {
+              mode: 'hide',
+              total: 0,
+              visible: [],
+              audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+              genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+              selectedAudioFilter: 'any',
+              selectedGenreFilter: 'any',
+            },
+      withMutedObserver: (work: () => void) => {
+        work();
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    });
+
+    runtime.renderCuratedPanel();
+    expect(gridEl.className).toContain('cw-curated-grid--visible');
+
+    renderVisibleEntries = false;
+    state.curatedEntries = [];
+    state.curatedInflight = Promise.resolve([]) as Promise<unknown[]> | null;
+    state.curatedInitialLoadDone = false;
+
+    runtime.renderCuratedPanel();
+    expect(gridEl.className).toContain('cw-curated-grid--visible');
   });
 
   it('shows filtered-count stats for hide_not_started mode', () => {

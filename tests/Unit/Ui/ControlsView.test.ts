@@ -133,7 +133,7 @@ describe('controls-view ui module', () => {
     const watchReadySelect = watchReadyFilterControl.select as FakeElement;
     expect(watchReadySelect.id).toBe('cw-watch-ready-mode');
     expect(watchReadySelect.children.map((child) => child.value)).toEqual(['none', 'dim', 'hide', 'hide_not_started']);
-    expect(watchReadySelect.children[3]?.textContent).toBe('Hide not watched / not started');
+    expect(watchReadySelect.children[3]?.textContent).toBe('Hide not watch-ready / not started');
     expect(watchReadySelect.children[3]?.selected).toBe(true);
   });
 

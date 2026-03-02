@@ -33,6 +33,7 @@ type ControlsParts = {
   sortControl: SelectFieldResult;
   secondarySortControl: SelectFieldResult;
   refreshButton: HTMLButtonElement;
+  topLoadingIndicator: HTMLElement;
   loadingIndicator: HTMLElement;
   stats: HTMLSpanElement;
 };
@@ -143,7 +144,7 @@ function createWatchReadyFilterControlInternal(
       { optionValue: 'none', title: 'None' },
       { optionValue: 'dim', title: 'Dim not watch-ready' },
       { optionValue: 'hide', title: 'Hide not watch-ready' },
-      { optionValue: 'hide_not_started', title: 'Hide not watched / not started' },
+      { optionValue: 'hide_not_started', title: 'Hide not watch-ready / not started' },
     ],
   );
 }
@@ -209,6 +210,7 @@ function appendControlsRowChildren(row: HTMLElement, parts: ControlsParts): void
   row.appendChild(parts.secondarySortControl.field);
   row.appendChild(parts.refreshButton);
   row.appendChild(parts.stats);
+  row.appendChild(parts.topLoadingIndicator);
 }
 
 function createCuratedInterfaceControlsInternal(
@@ -262,6 +264,9 @@ function createCuratedInterfaceControlsInternal(
   const loadingIndicator = createLoadingIndicatorInternal(context, 'Loading');
   loadingIndicator.classList.add('cw-loading-indicator');
   loadingIndicator.style.display = 'none';
+  const topLoadingIndicator = createLoadingIndicatorInternal(context, 'Loading');
+  topLoadingIndicator.classList.add('cw-controls-loading-indicator');
+  topLoadingIndicator.style.display = 'none';
 
   appendControlsRowChildren(controlsRow, {
     watchReadyFilterControl,
@@ -271,6 +276,7 @@ function createCuratedInterfaceControlsInternal(
     sortControl,
     secondarySortControl,
     refreshButton,
+    topLoadingIndicator,
     loadingIndicator,
     stats,
   });
@@ -287,6 +293,7 @@ function createCuratedInterfaceControlsInternal(
     secondarySortControl,
     refreshButton,
     stats,
+    topLoadingIndicator,
     loadingIndicator,
   };
 }

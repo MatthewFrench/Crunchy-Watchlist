@@ -39,6 +39,7 @@ type RuntimeState = {
   statsEl: (Element & { textContent: string | null }) | null;
   loadingBoxEl: Element | null;
   loadingIndicatorEl: (Element & { style?: Record<string, string> }) | null;
+  controlsLoadingIndicatorEl: Element | null;
   audioFilterSelectEl: Element | null;
   genreFilterSelectEl: Element | null;
   settings: CuratedBoundaryRecord;
@@ -63,6 +64,7 @@ type CuratedPanelLoadingIndicatorRuntime = {
     documentRef: Document;
     loadingIndicatorEl: Element;
     loadingBoxEl?: Element | null;
+    gridEl?: Element | null;
     loading: boolean;
     firstLoadInFlight: boolean;
     pendingRequests: string[];
@@ -86,6 +88,7 @@ type CuratedPanelControlsSyncOwner = {
     visibleCount: number,
     loading: boolean,
   ) => void;
+  updateLoadingIndicatorVisibility: (loadingIndicatorEl: CuratedBoundaryValue, loading: boolean) => void;
 };
 
 type CuratedPanelLocalizedPreloadCoordinator = {
@@ -149,6 +152,9 @@ function hashRevisionToken(hash: number, value: CuratedBoundaryValue): number {
 
 export class CuratedPanelRenderOrchestrator {
   private readonly context: CuratedPanelRenderOrchestratorOptions;
+  private readonly resizeObserver: ResizeObserver | null;
+  private observedResizeTarget: Element | null = null;
+  private observedGridAvailableWidthKey = '0';
   private renderQueued = false;
   private flushScheduled = false;
   private renderInProgress = false;
@@ -156,6 +162,9 @@ export class CuratedPanelRenderOrchestrator {
 
   constructor(options: CuratedPanelRenderOrchestratorOptions) {
     this.context = options;
+    const ResizeObserverCtor =
+      typeof root.ResizeObserver === 'function' ? (root.ResizeObserver as typeof ResizeObserver) : null;
+    this.resizeObserver = ResizeObserverCtor ? new ResizeObserverCtor(this.handleGridResizeObserved) : null;
   }
 
   readonly renderNow = (): void => {
@@ -196,6 +205,13 @@ export class CuratedPanelRenderOrchestrator {
 
     this.context.withMutedObserver(() => {
       this.syncLoadingIndicator();
+      const { state } = this.context;
+      const loading = Boolean(state.curatedInflight) || Boolean(state.curatedDeferredMetadataInFlight);
+      const pendingRequests = this.getPendingRequestItems(state.curatedPendingRequests);
+      this.context.controlsSyncOwner.updateLoadingIndicatorVisibility(
+        state.controlsLoadingIndicatorEl,
+        loading || pendingRequests.length > 0,
+      );
     });
   };
 
@@ -204,6 +220,14 @@ export class CuratedPanelRenderOrchestrator {
     this.renderQueued = false;
     this.flushScheduled = false;
     this.renderInProgress = false;
+    if (this.resizeObserver) {
+      if (this.observedResizeTarget) {
+        this.resizeObserver.unobserve(this.observedResizeTarget);
+      }
+      this.resizeObserver.disconnect();
+    }
+    this.observedResizeTarget = null;
+    this.observedGridAvailableWidthKey = '0';
   };
 
   private readonly runQueuedRender = (): void => {
@@ -231,6 +255,7 @@ export class CuratedPanelRenderOrchestrator {
 
   private readonly renderCuratedPanel = (): void => {
     const { state } = this.context;
+    this.syncGridResizeObservation(state.gridEl);
     if (!state.gridEl || !state.statsEl) {
       return;
     }
@@ -253,6 +278,8 @@ export class CuratedPanelRenderOrchestrator {
     const pendingRequests = this.getPendingRequestItems(state.curatedPendingRequests);
     const metadataLoading = loading || deferredMetadataLoading;
     const requestProgress = this.getPendingRequestProgress(pendingRequests);
+    const gridAvailableWidthKey = this.resolveGridAvailableWidthKey(state.gridEl);
+    this.observedGridAvailableWidthKey = gridAvailableWidthKey;
     const gridRenderSignature = this.buildCuratedGridRenderSignature(
       visible,
       total,
@@ -260,6 +287,7 @@ export class CuratedPanelRenderOrchestrator {
       metadataLoading,
       pendingRequests,
       requestProgress,
+      gridAvailableWidthKey,
     );
 
     this.context.withMutedObserver(() => {
@@ -286,6 +314,10 @@ export class CuratedPanelRenderOrchestrator {
         patchCuratedCard: this.context.patchCuratedCard,
       });
       this.context.controlsSyncOwner.updateStatsText(statsEl, watchReadyFilterMode, total, visible.length, loading);
+      this.context.controlsSyncOwner.updateLoadingIndicatorVisibility(
+        state.controlsLoadingIndicatorEl,
+        metadataLoading || pendingRequests.length > 0,
+      );
     });
 
     this.context.localizedPreloadCoordinator.queue(selectedAudioFilter, this.requestRender);
@@ -308,6 +340,7 @@ export class CuratedPanelRenderOrchestrator {
       documentRef: this.context.documentRef,
       loadingIndicatorEl,
       loadingBoxEl: state.loadingBoxEl,
+      gridEl: state.gridEl,
       loading,
       firstLoadInFlight,
       pendingRequests,
@@ -428,21 +461,111 @@ export class CuratedPanelRenderOrchestrator {
     metadataLoading: boolean,
     pendingRequests: string[],
     requestProgress: RequestProgress,
+    gridAvailableWidthKey: string,
   ): string => {
     const normalizedCardLayout = this.context.state.settings.cardLayout === 'landscape' ? 'landscape' : 'portrait';
     if (visible.length) {
-      return `layout:${normalizedCardLayout}|meta:${metadataLoading ? '1' : '0'}|visible:${this.buildVisibleRevisionSignature(
-        visible,
-      )}`;
+      return `layout:${normalizedCardLayout}|grid:${gridAvailableWidthKey}|meta:${
+        metadataLoading ? '1' : '0'
+      }|visible:${this.buildVisibleRevisionSignature(visible)}`;
     }
 
     const progress = loading ? requestProgress : { started: 0, completed: 0, inProgress: 0 };
     return [
       `layout:${normalizedCardLayout}`,
+      `grid:${gridAvailableWidthKey}`,
       `empty:${this.resolveCuratedGridEmptyStateKey(total, loading)}`,
       `pending:${loading ? pendingRequests.join('\u001f') : ''}`,
       `progress:${progress.started}/${progress.completed}/${progress.inProgress}`,
     ].join('|');
+  };
+
+  private readonly handleGridResizeObserved = (): void => {
+    if (this.disposed) {
+      return;
+    }
+
+    const nextGridElement = this.context.state.gridEl;
+    this.syncGridResizeObservation(nextGridElement);
+    if (!nextGridElement) {
+      return;
+    }
+
+    const nextWidthKey = this.resolveGridAvailableWidthKey(nextGridElement);
+    if (nextWidthKey === this.observedGridAvailableWidthKey) {
+      return;
+    }
+
+    this.observedGridAvailableWidthKey = nextWidthKey;
+    this.requestRender();
+  };
+
+  private readonly syncGridResizeObservation = (gridElement: Element | null): void => {
+    if (!this.resizeObserver) {
+      return;
+    }
+
+    const nextResizeTarget = this.resolveGridResizeTarget(gridElement);
+    const previousResizeTarget = this.observedResizeTarget;
+    if (previousResizeTarget && previousResizeTarget !== nextResizeTarget) {
+      this.resizeObserver.unobserve(previousResizeTarget);
+    }
+    if (nextResizeTarget && previousResizeTarget !== nextResizeTarget) {
+      this.resizeObserver.observe(nextResizeTarget);
+    }
+
+    this.observedResizeTarget = nextResizeTarget;
+  };
+
+  private readonly resolveGridResizeTarget = (gridElement: Element | null): Element | null => {
+    if (!gridElement) {
+      return null;
+    }
+
+    const parentElement = (gridElement as Element & { parentElement?: Element | null }).parentElement;
+    if (parentElement) {
+      return parentElement;
+    }
+
+    const parentNode = (gridElement as Element & { parentNode?: object | null }).parentNode;
+    if (parentNode && typeof parentNode === 'object') {
+      return parentNode as Element;
+    }
+
+    return gridElement;
+  };
+
+  private readonly resolveGridAvailableWidthKey = (gridElement: Element | null): string => {
+    if (!gridElement) {
+      return '0';
+    }
+
+    const resizeTarget = this.resolveGridResizeTarget(gridElement);
+    const widthPx = Math.max(this.resolveElementWidthPx(resizeTarget), this.resolveElementWidthPx(gridElement));
+    if (!Number.isFinite(widthPx) || widthPx <= 0) {
+      return '0';
+    }
+    return String(Math.round(widthPx));
+  };
+
+  private readonly resolveElementWidthPx = (element: Element | null): number => {
+    if (!element) {
+      return 0;
+    }
+
+    const measurableElement = element as Element & {
+      getBoundingClientRect?: () => { width?: number };
+      clientWidth?: number;
+    };
+    const rectWidth = Number(measurableElement.getBoundingClientRect?.().width) || 0;
+    if (rectWidth > 0) {
+      return rectWidth;
+    }
+    const clientWidth = Number(measurableElement.clientWidth) || 0;
+    if (clientWidth > 0) {
+      return clientWidth;
+    }
+    return 0;
   };
 
   private readonly queueMicrotask = (work: () => void): void => {

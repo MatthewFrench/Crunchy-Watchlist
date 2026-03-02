@@ -271,7 +271,7 @@ describe('curated-renderable runtime', () => {
     expect(result.visible[0]?.seriesId).toBe('series-1');
   });
 
-  it('hides cold-start entries when watch-ready mode is hide_not_started', () => {
+  it('hides not-watch-ready and cold-start entries when watch-ready mode is hide_not_started', () => {
     const runtime = createCuratedRenderableRuntime({
       deriveDisplayStatusBase: (entry: unknown) => String((entry as Record<string, unknown>).statusBase || 'Up Next'),
       isEntryWatchReady: (entry: unknown) => Boolean((entry as Record<string, unknown>).watchReadyHint),
@@ -330,10 +330,7 @@ describe('curated-renderable runtime', () => {
 
     expect(result.mode).toBe('hide_not_started');
     expect(result.total).toBe(4);
-    expect(result.visible.map((entry) => entry.seriesId)).toEqual([
-      'series-started',
-      'series-never-watched-but-progress',
-    ]);
+    expect(result.visible.map((entry) => entry.seriesId)).toEqual(['series-started']);
   });
 
   it('filters to hearted entries when genre filter is favorites', () => {
