@@ -45,6 +45,38 @@ function hasPlaybackProgress(value: RuntimeBoundaryValue): boolean {
   return Number.isFinite(number) && number > 0;
 }
 
+function sanitizePositiveInt(value: RuntimeBoundaryValue): number | null {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) {
+    return null;
+  }
+  return Math.round(number);
+}
+
+function resolveProgressRatio(value: RuntimeBoundaryValue): number | null {
+  const ratio = Number(value);
+  if (!Number.isFinite(ratio) || ratio <= 0 || ratio >= 1) {
+    return null;
+  }
+  return ratio;
+}
+
+function resolveEpisodeIndex(entry: LooseRecord): number | null {
+  return (
+    sanitizePositiveInt(entry.absoluteEpisodeNumber) ??
+    (sanitizePositiveInt(entry.seasonNumber) === 1 ? sanitizePositiveInt(entry.episodeNumber) : null)
+  );
+}
+
+function isFirstEpisodeLowProgressNotStarted(entry: LooseRecord): boolean {
+  const episodeIndex = resolveEpisodeIndex(entry);
+  if (episodeIndex !== 1) {
+    return false;
+  }
+  const progressRatio = resolveProgressRatio(entry.episodeWatchProgressRatio);
+  return progressRatio != null && progressRatio < 0.25;
+}
+
 function isFavoritesGenreFilter(value: string, favoritesGenreFilterValue: string): boolean {
   return value.trim().toLowerCase() === favoritesGenreFilterValue.trim().toLowerCase();
 }
@@ -57,6 +89,9 @@ function isEntryNotWatchedAndNotStartedInternal(entry: LooseRecord): boolean {
     .trim()
     .toLowerCase();
   if (statusBase === 'start watching') {
+    return true;
+  }
+  if (isFirstEpisodeLowProgressNotStarted(entry)) {
     return true;
   }
   if (!entry.neverWatched) {

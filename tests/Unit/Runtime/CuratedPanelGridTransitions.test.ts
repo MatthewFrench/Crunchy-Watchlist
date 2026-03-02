@@ -23,6 +23,9 @@ type FakeElement = {
   children: FakeElement[];
   parentNode: FakeElement | null;
   style?: Record<string, string>;
+  scrollHeight?: number;
+  clientHeight?: number;
+  offsetHeight?: number;
   appendChild: (child: FakeElement) => FakeElement;
   insertBefore: (child: FakeElement, reference: FakeElement | null) => FakeElement;
   removeChild: (child: FakeElement) => FakeElement;
@@ -126,7 +129,7 @@ describe('curated-panel-grid-transitions runtime', () => {
     curatedPanelGridTransitionsModule = null;
   });
 
-  it('reorders cards and removes overflow cards when animation prerequisites are unavailable', () => {
+  it('keeps dom order stable and removes overflow cards when absolute placement styles are unavailable', () => {
     const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const cardA = createFakeElement('cw-curated-card');
@@ -145,7 +148,7 @@ describe('curated-panel-grid-transitions runtime', () => {
       cardA as unknown as Element,
     ]);
 
-    expect(grid.children).toEqual([cardB, cardA]);
+    expect(grid.children).toEqual([cardA, cardB]);
     expect(cardC.parentNode).toBeNull();
   });
 
@@ -234,11 +237,74 @@ describe('curated-panel-grid-transitions runtime', () => {
     expect(grid.children).toEqual([cardA, cardB]);
     expect(cardA.style?.position).toBe('absolute');
     expect(cardB.style?.position).toBe('absolute');
-    expect(cardA.style?.height).toBe('420px');
-    expect(cardB.style?.height).toBe('420px');
-    expect(Number.parseFloat(String(grid.style?.height || '0'))).toBe(420);
+    expect(cardA.style?.height).toBe('360px');
+    expect(cardB.style?.height).toBe('360px');
+    expect(Number.parseFloat(String(grid.style?.height || '0'))).toBe(360);
     expect(Number.parseFloat(String(cardB.style?.left || '0'))).toBeGreaterThan(0);
     expect(rectReads.value).toBeGreaterThan(0);
+  });
+
+  it('keeps compact uniform height even when content is taller than the card box', () => {
+    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const grid = createFakeElement('cw-curated-grid');
+    const cardA = createFakeElement('cw-curated-card');
+    const cardB = createFakeElement('cw-curated-card');
+    cardA.dataset.cwSeriesId = 'series-a';
+    cardB.dataset.cwSeriesId = 'series-b';
+    grid.style = {};
+    cardA.style = {};
+    cardB.style = {};
+    grid.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 1000,
+      height: 0,
+    });
+    cardA.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 240,
+      height: 360,
+    });
+    cardB.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 240,
+      height: 420,
+    });
+
+    Object.defineProperties(cardA, {
+      scrollHeight: {
+        configurable: true,
+        get: () => 360,
+      },
+      clientHeight: {
+        configurable: true,
+        get: () => Number.parseFloat(String(cardA.style?.height || '0')) || 0,
+      },
+    });
+    Object.defineProperties(cardB, {
+      scrollHeight: {
+        configurable: true,
+        get: () => 420,
+      },
+      clientHeight: {
+        configurable: true,
+        get: () => Number.parseFloat(String(cardB.style?.height || '0')) || 0,
+      },
+    });
+
+    grid.appendChild(cardA);
+    grid.appendChild(cardB);
+
+    runtime.reorderCuratedGridChildren(grid as unknown as Element, [
+      cardA as unknown as Element,
+      cardB as unknown as Element,
+    ]);
+
+    expect(cardA.style?.height).toBe('360px');
+    expect(cardB.style?.height).toBe('360px');
+    expect(Number.parseFloat(String(grid.style?.height || '0'))).toBe(360);
   });
 
   it('uses parent container width to size cards during absolute placement', () => {
@@ -400,13 +466,21 @@ describe('curated-panel-grid-transitions runtime', () => {
     }
   });
 
-  it('animates pure reorders for medium-sized lists', () => {
+  it('updates absolute positions for medium-sized reorders without changing dom child order', () => {
     const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const rectReads = { value: 0 };
     const cards = Array.from({ length: 121 }, () => createMeasurableCard('cw-curated-card', rectReads));
+    grid.style = {};
+    grid.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 1200,
+      height: 0,
+    });
     cards.forEach((card, index) => {
       card.dataset.cwSeriesId = `series-${index + 1}`;
+      card.style = {};
     });
     cards.forEach((card) => {
       grid.appendChild(card);
@@ -417,18 +491,28 @@ describe('curated-panel-grid-transitions runtime', () => {
       [...cards].reverse().map((card) => card as unknown as Element),
     );
 
-    expect(grid.children[0]).toBe(cards[120]);
-    expect(grid.children[120]).toBe(cards[0]);
+    expect(grid.children[0]).toBe(cards[0]);
+    expect(grid.children[120]).toBe(cards[120]);
+    expect(Number.parseFloat(String(cards[0].style?.top || '0'))).toBeGreaterThan(0);
+    expect(Number.parseFloat(String(cards[120].style?.top || '0'))).toBe(0);
     expect(rectReads.value).toBeGreaterThan(0);
   });
 
-  it('animates pure reorders for large lists without an animation cap', () => {
+  it('updates absolute positions for large reorders without changing dom child order', () => {
     const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const rectReads = { value: 0 };
     const cards = Array.from({ length: 321 }, () => createMeasurableCard('cw-curated-card', rectReads));
+    grid.style = {};
+    grid.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 1200,
+      height: 0,
+    });
     cards.forEach((card, index) => {
       card.dataset.cwSeriesId = `series-${index + 1}`;
+      card.style = {};
     });
     cards.forEach((card) => {
       grid.appendChild(card);
@@ -439,36 +523,56 @@ describe('curated-panel-grid-transitions runtime', () => {
       [...cards].reverse().map((card) => card as unknown as Element),
     );
 
-    expect(grid.children[0]).toBe(cards[320]);
-    expect(grid.children[320]).toBe(cards[0]);
+    expect(grid.children[0]).toBe(cards[0]);
+    expect(grid.children[320]).toBe(cards[320]);
+    expect(Number.parseFloat(String(cards[0].style?.top || '0'))).toBeGreaterThan(0);
+    expect(Number.parseFloat(String(cards[320].style?.top || '0'))).toBe(0);
     expect(rectReads.value).toBeGreaterThan(0);
   });
 
   it('handles large overflow removals while preserving final order', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
-    const grid = createFakeElement('cw-curated-grid');
-    const rectReads = { value: 0 };
-    const cards = Array.from({ length: 60 }, () => createMeasurableCard('cw-curated-card', rectReads));
-    cards.forEach((card, index) => {
-      card.dataset.cwSeriesId = `series-${index + 1}`;
-      grid.appendChild(card);
-    });
+    vi.useFakeTimers();
+    try {
+      const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+      const grid = createFakeElement('cw-curated-grid');
+      const rectReads = { value: 0 };
+      const cards = Array.from({ length: 60 }, () => createMeasurableCard('cw-curated-card', rectReads));
+      grid.style = {};
+      grid.getBoundingClientRect = () => ({
+        left: 0,
+        top: 0,
+        width: 1200,
+        height: 0,
+      });
+      cards.forEach((card, index) => {
+        card.dataset.cwSeriesId = `series-${index + 1}`;
+        card.style = {};
+        grid.appendChild(card);
+      });
 
-    const removedCards: FakeElement[] = [];
-    const nextCards = cards.slice(0, 30);
-    runtime.reorderCuratedGridChildren(
-      grid as unknown as Element,
-      nextCards.map((card) => card as unknown as Element),
-      {
-        onCardRemoved: (card) => {
-          removedCards.push(card as unknown as FakeElement);
+      const removedCards: FakeElement[] = [];
+      const nextCards = cards.slice(0, 30);
+      runtime.reorderCuratedGridChildren(
+        grid as unknown as Element,
+        nextCards.map((card) => card as unknown as Element),
+        {
+          onCardRemoved: (card) => {
+            removedCards.push(card as unknown as FakeElement);
+          },
         },
-      },
-    );
+      );
 
-    expect(grid.children).toEqual(nextCards);
-    expect(removedCards).toHaveLength(30);
-    expect(rectReads.value).toBeGreaterThan(0);
+      expect(removedCards).toHaveLength(0);
+      expect(nextCards.every((card) => card.parentNode === grid)).toBe(true);
+      expect(rectReads.value).toBeGreaterThan(0);
+
+      vi.runAllTimers();
+
+      expect(grid.children).toEqual(nextCards);
+      expect(removedCards).toHaveLength(30);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps element identity stable under repeated reorder churn', () => {
@@ -480,6 +584,34 @@ describe('curated-panel-grid-transitions runtime', () => {
     cardA.dataset.cwSeriesId = 'series-a';
     cardB.dataset.cwSeriesId = 'series-b';
     cardC.dataset.cwSeriesId = 'series-c';
+    grid.style = {};
+    cardA.style = {};
+    cardB.style = {};
+    cardC.style = {};
+    grid.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 1200,
+      height: 0,
+    });
+    cardA.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 240,
+      height: 360,
+    });
+    cardB.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 240,
+      height: 360,
+    });
+    cardC.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 240,
+      height: 360,
+    });
 
     grid.appendChild(cardA);
     grid.appendChild(cardB);
@@ -493,10 +625,15 @@ describe('curated-panel-grid-transitions runtime', () => {
       );
     }
 
-    expect(grid.children).toEqual([cardC, cardA, cardB]);
-    expect(grid.children[0]).toBe(cardC);
-    expect(grid.children[1]).toBe(cardA);
-    expect(grid.children[2]).toBe(cardB);
+    expect(grid.children).toEqual([cardA, cardB, cardC]);
+    expect(grid.children[0]).toBe(cardA);
+    expect(grid.children[1]).toBe(cardB);
+    expect(grid.children[2]).toBe(cardC);
+    const cardALeft = Number.parseFloat(String(cardA.style?.left || '0'));
+    const cardBLeft = Number.parseFloat(String(cardB.style?.left || '0'));
+    const cardCLeft = Number.parseFloat(String(cardC.style?.left || '0'));
+    expect(cardCLeft).toBeLessThan(cardALeft);
+    expect(cardALeft).toBeLessThan(cardBLeft);
   });
 
   it('reports removed cards through onCardRemoved while ignoring non-card overflow nodes', () => {

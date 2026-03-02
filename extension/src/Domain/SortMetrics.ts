@@ -231,10 +231,15 @@ function estimateUnwatchedEpisodesLeftInternal(context: SortMetricsContext, entr
 
   const overrideNextEpisodeIndex =
     overrideEpisodeIndex != null ? overrideEpisodeIndex + (filteredProgressEntry?.fullyWatched ? 1 : 0) : null;
+  const entryNextEpisodeIndex = context.pickFirstPositiveInt([
+    entry.absoluteEpisodeNumber,
+    entry.seasonNumber === 1 ? entry.episodeNumber : null,
+  ]);
 
-  const nextEpisodeIndex =
-    overrideNextEpisodeIndex ??
-    context.pickFirstPositiveInt([entry.absoluteEpisodeNumber, entry.seasonNumber === 1 ? entry.episodeNumber : null]);
+  const nextEpisodeIndexCandidates = [overrideNextEpisodeIndex, entryNextEpisodeIndex].filter(
+    (value): value is number => value != null,
+  );
+  const nextEpisodeIndex = nextEpisodeIndexCandidates.length > 0 ? Math.max(...nextEpisodeIndexCandidates) : null;
 
   if (nextEpisodeIndex == null) {
     return null;

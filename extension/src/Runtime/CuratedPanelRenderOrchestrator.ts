@@ -155,6 +155,7 @@ export class CuratedPanelRenderOrchestrator {
   private readonly resizeObserver: ResizeObserver | null;
   private observedResizeTarget: Element | null = null;
   private observedGridAvailableWidthKey = '0';
+  private initialLoadingLatched = false;
   private renderQueued = false;
   private flushScheduled = false;
   private renderInProgress = false;
@@ -330,10 +331,25 @@ export class CuratedPanelRenderOrchestrator {
       return;
     }
 
-    const loading = Boolean(state.curatedInflight);
+    const loading = Boolean(state.curatedInflight) || Boolean(state.curatedDeferredMetadataInFlight);
     const hasNoCuratedEntries = !Array.isArray(state.curatedEntries) || state.curatedEntries.length === 0;
-    const firstLoadInFlight = loading && (state.curatedInitialLoadDone !== true || hasNoCuratedEntries);
     const pendingRequests = this.getPendingRequestItems(state.curatedPendingRequests);
+    const showFirstLoadByCurrentState = loading && (state.curatedInitialLoadDone !== true || hasNoCuratedEntries);
+    // Latch first-load visibility so the shared loading box stays mounted until
+    // all initial work (including deferred metadata) has fully settled.
+    if (state.curatedInitialLoadDone !== true && (loading || pendingRequests.length > 0 || hasNoCuratedEntries)) {
+      this.initialLoadingLatched = true;
+    }
+    if (
+      this.initialLoadingLatched &&
+      state.curatedInitialLoadDone === true &&
+      !loading &&
+      pendingRequests.length === 0
+    ) {
+      this.initialLoadingLatched = false;
+    }
+    const firstLoadInFlight =
+      showFirstLoadByCurrentState || (this.initialLoadingLatched && (loading || pendingRequests.length > 0));
     const requestProgress = this.getPendingRequestProgress(pendingRequests);
 
     this.context.curatedPanelLoadingIndicatorRuntime.syncLoadingIndicator({

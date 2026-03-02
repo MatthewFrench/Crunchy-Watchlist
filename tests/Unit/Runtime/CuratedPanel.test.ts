@@ -839,7 +839,85 @@ describe('curated-panel runtime', () => {
     runtime.renderCuratedPanel();
 
     expect(loadingIndicatorEl.style.display).toBe('flex');
-    expect(loadingBox.style.display).toBe('flex');
+    expect(loadingBox.style.display).toBe('block');
+  });
+
+  it('keeps the first-load loading box visible until deferred metadata settles', () => {
+    const gridEl = createFakeElement();
+    const statsEl = createFakeElement();
+    const loadingIndicatorEl = createFakeElement();
+    loadingIndicatorEl.className = 'cw-loading cw-loading-indicator';
+
+    const loadingBox = createFakeElement();
+    loadingBox.className = 'cw-loading-box';
+    loadingBox.appendChild(loadingIndicatorEl);
+
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [{ seriesId: 'series-1', title: 'Series 1' }],
+      curatedInflight: Promise.resolve([]) as Promise<unknown[]> | null,
+      curatedDeferredMetadataInFlight: false,
+      curatedInitialLoadDone: false,
+      curatedPendingRequests: ['Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)'],
+      curatedPendingRequestStartedCount: 1,
+      curatedPendingRequestCompletedCount: 0,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingBoxEl: loadingBox,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    };
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: () => createFakeElement(),
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => ({
+        mode: 'hide',
+        total: 1,
+        visible: [{ seriesId: 'series-1', title: 'Series 1' }],
+        audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+        genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+        selectedAudioFilter: 'any',
+        selectedGenreFilter: 'any',
+      }),
+      withMutedObserver: (work: () => void) => {
+        work();
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    });
+
+    runtime.renderCuratedPanel();
+    expect(loadingBox.style.display).toBe('block');
+
+    state.curatedInflight = null;
+    state.curatedInitialLoadDone = true;
+    state.curatedDeferredMetadataInFlight = true;
+    state.curatedPendingRequests = ['Fetching ratings (/content-reviews/v3/rating/series/{series_id})'];
+    state.curatedPendingRequestStartedCount = 2;
+    state.curatedPendingRequestCompletedCount = 1;
+    runtime.renderCuratedPanel();
+    expect(loadingBox.style.display).toBe('block');
+
+    state.curatedDeferredMetadataInFlight = false;
+    state.curatedPendingRequests = [];
+    state.curatedPendingRequestCompletedCount = 2;
+    runtime.renderCuratedPanel();
+    expect(loadingBox.style.display).toBe('none');
   });
 
   it('keeps the curated grid visible once shown even if first-load loading state reappears', () => {
@@ -978,7 +1056,7 @@ describe('curated-panel runtime', () => {
     expect(statsEl.textContent).toBe('Showing 2 of 5');
   });
 
-  it('reuses existing card nodes and reorders them when render order changes', () => {
+  it('reuses existing card nodes and keeps dom order stable when render order changes', () => {
     const gridEl = createFakeElement();
     const statsEl = createFakeElement();
     const loadingIndicatorEl = createFakeElement();
@@ -1058,7 +1136,7 @@ describe('curated-panel runtime', () => {
     runtime.renderCuratedPanel();
 
     expect(createdCards).toBe(3);
-    expect(gridEl.children).toEqual([firstRenderCards[2], firstRenderCards[0], firstRenderCards[1]]);
+    expect(gridEl.children).toEqual(firstRenderCards);
   });
 
   it('parks filtered cards and reuses the same nodes when they re-enter visibility', () => {
@@ -1870,6 +1948,158 @@ describe('curated-panel runtime', () => {
     expect(gridEl.children[0]).toBe(firstCard);
     expect(gridEl.children[0]?.dataset.cwLoadingDetails).toBe('false');
     expect(gridEl.children[0]?.dataset.cwPatchedDescription).toBe('Updated description');
+  });
+
+  it('keeps existing details visible during refresh while metadata revalidation is in flight', () => {
+    const gridEl = createFakeElement();
+    const statsEl = createFakeElement();
+    const loadingIndicatorEl = createFakeElement();
+    const renderables = [
+      [
+        {
+          seriesId: 'series-1',
+          title: 'Series 1',
+          description: 'Initial description',
+          rating: 4.2,
+          votes: 120,
+          distribution: { 5: 60 },
+          neverWatched: false,
+          lastWatchedMs: 1_710_000_000_000,
+          watchHistoryProgressEntry: {
+            playheadMs: 1200,
+          },
+        },
+      ],
+      [
+        {
+          seriesId: 'series-1',
+          title: 'Series 1',
+          description: 'Updated description',
+          rating: null,
+          votes: null,
+          distribution: null,
+          neverWatched: false,
+          lastWatchedMs: null,
+          watchHistoryProgressEntry: null,
+        },
+      ],
+      [
+        {
+          seriesId: 'series-1',
+          title: 'Series 1',
+          description: 'Updated description',
+          rating: 4.6,
+          votes: 380,
+          distribution: { 5: 78 },
+          neverWatched: false,
+          lastWatchedMs: 1_710_100_000_000,
+          watchHistoryProgressEntry: {
+            playheadMs: 2200,
+          },
+        },
+      ],
+    ];
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [],
+      curatedInflight: null as Promise<unknown[]> | null,
+      curatedPendingRequests: [],
+      curatedPendingRequestStartedCount: 0,
+      curatedPendingRequestCompletedCount: 0,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    };
+    let renderIndex = 0;
+    let createdCards = 0;
+    let patchedCards = 0;
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: (entry: Record<string, unknown>) => {
+        createdCards += 1;
+        const card = createFakeElement();
+        card.className = 'cw-curated-card';
+        card.dataset.cwSeriesId = String(entry.seriesId || '');
+        card.dataset.cwRenderedDescription = String(entry.description || '');
+        return card;
+      },
+      patchCuratedCard: (card: Record<string, unknown>, entry: Record<string, unknown>) => {
+        patchedCards += 1;
+        const dataset = (card.dataset && typeof card.dataset === 'object' ? card.dataset : {}) as Record<
+          string,
+          string
+        >;
+        dataset.cwRenderedDescription = String(entry.description || '');
+        card.dataset = dataset;
+      },
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => {
+        const visible = renderables[renderIndex] || [];
+        return {
+          mode: 'hide',
+          total: visible.length,
+          visible,
+          audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+          genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+          selectedAudioFilter: 'any',
+          selectedGenreFilter: 'any',
+        };
+      },
+      withMutedObserver: (work: () => void) => {
+        work();
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    });
+
+    runtime.renderCuratedPanel();
+    const firstCard = gridEl.children[0];
+    expect(firstCard?.dataset.cwLoadingDetails).toBe('false');
+    expect(firstCard?.dataset.cwRenderedDescription).toBe('Initial description');
+    expect(patchedCards).toBe(0);
+
+    renderIndex = 1;
+    state.curatedInflight = Promise.resolve([]) as Promise<unknown[]> | null;
+    state.curatedPendingRequests = ['Fetching ratings (/content-reviews/v3/rating/series/{series_id})'];
+    state.curatedPendingRequestStartedCount = 1;
+    state.curatedPendingRequestCompletedCount = 0;
+
+    runtime.renderCuratedPanel();
+
+    expect(createdCards).toBe(1);
+    expect(patchedCards).toBe(0);
+    expect(gridEl.children[0]).toBe(firstCard);
+    expect(gridEl.children[0]?.dataset.cwLoadingDetails).toBe('false');
+    expect(gridEl.children[0]?.dataset.cwRenderedDescription).toBe('Initial description');
+
+    renderIndex = 2;
+    state.curatedInflight = null;
+    state.curatedPendingRequests = [];
+    state.curatedPendingRequestStartedCount = 1;
+    state.curatedPendingRequestCompletedCount = 1;
+
+    runtime.renderCuratedPanel();
+
+    expect(createdCards).toBe(1);
+    expect(patchedCards).toBe(1);
+    expect(gridEl.children[0]).toBe(firstCard);
+    expect(gridEl.children[0]?.dataset.cwLoadingDetails).toBe('false');
+    expect(gridEl.children[0]?.dataset.cwRenderedDescription).toBe('Updated description');
   });
 
   it('patches the existing card when metadata loading settles even if entry content did not change', () => {

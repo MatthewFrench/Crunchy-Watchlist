@@ -529,18 +529,21 @@ function mountInterfaceShellInternal(
   const controls = context.createCuratedInterfaceControls();
   context.bindCuratedInterfaceControls(controls);
   const loadingBox = context.documentRef.createElement('div');
-  loadingBox.className = 'cw-empty cw-loading-box';
+  loadingBox.className = 'cw-loading-box';
   if (loadingBox.style) {
     loadingBox.style.display = 'none';
     loadingBox.style.margin = '0';
   }
+  const loadingBoxInner = context.documentRef.createElement('div');
+  loadingBoxInner.className = 'cw-empty cw-loading-box__inner';
 
   const loadingBoxTitle = context.documentRef.createElement('div');
   loadingBoxTitle.className = 'cw-loading-box__title';
   loadingBoxTitle.textContent = 'Loading watchlist results...';
 
-  loadingBox.appendChild(loadingBoxTitle);
-  loadingBox.appendChild(controls.loadingIndicator);
+  loadingBoxInner.appendChild(loadingBoxTitle);
+  loadingBoxInner.appendChild(controls.loadingIndicator);
+  loadingBox.appendChild(loadingBoxInner);
 
   const grid = context.documentRef.createElement('div');
   grid.className = 'cw-curated-grid';

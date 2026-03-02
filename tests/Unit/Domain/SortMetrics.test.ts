@@ -187,6 +187,16 @@ describe('sort-metrics domain module', () => {
         },
       }),
     ).toBe(0);
+    expect(
+      runtime.estimateUnwatchedEpisodesLeft({
+        episodeCount: 55,
+        absoluteEpisodeNumber: 50,
+        watchHistoryProgressEntry: {
+          absoluteEpisodeNumber: 24,
+          fullyWatched: false,
+        },
+      }),
+    ).toBe(6);
   });
 
   it('applies watch-ready penalties and watched-episode estimates for quick wins', () => {

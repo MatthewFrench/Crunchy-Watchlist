@@ -324,10 +324,13 @@ function createOrReuseCuratedCard(
   const hasMatchingSignature = previousSignature === contentSignature;
   const previousDetailsLoading =
     getElementDataAttribute(controller.card, 'cwLoadingDetails', 'data-cw-loading-details') === 'true';
-  const detailsLoadingResolved = previousDetailsLoading && !detailsLoading;
   // Preserve existing nodes while metadata is still enriching so skeleton shimmers don't reset.
   const canDeferContentRefresh =
     detailsLoading && Boolean(previousSignature) && controller.cardLayout === normalizedCardLayout;
+  // If we already have concrete details rendered, keep them visible while refresh metadata is in flight.
+  const preserveVisibleDetailsDuringRefresh = canDeferContentRefresh && !previousDetailsLoading;
+  const nextDetailsLoading = preserveVisibleDetailsDuringRefresh ? false : detailsLoading;
+  const detailsLoadingResolved = previousDetailsLoading && !nextDetailsLoading;
 
   const shouldPatchForContent = !hasMatchingSignature && !canDeferContentRefresh;
   // Patch in place only; do not replace existing card nodes on content churn.
@@ -346,7 +349,7 @@ function createOrReuseCuratedCard(
   }
 
   setCardClassToken(controller.card, 'cw-curated-card--not-watch-ready', Boolean(entry.dimNotWatchReady));
-  annotateCuratedCardElement(controller.card, seriesId, controller.contentSignature, detailsLoading);
+  annotateCuratedCardElement(controller.card, seriesId, controller.contentSignature, nextDetailsLoading);
   return controller.card;
 }
 

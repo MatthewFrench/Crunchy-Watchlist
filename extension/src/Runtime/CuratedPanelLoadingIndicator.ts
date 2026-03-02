@@ -44,7 +44,7 @@ type TimedRoot = {
   clearTimeout?: (id: number) => void;
 };
 
-const LOADING_BOX_TRANSITION_MS = 2_000;
+const LOADING_BOX_TRANSITION_MS = 3_000;
 const GRID_CONTAINER_TRANSITION_MS = 1_000;
 
 class CuratedPanelLoadingIndicatorController {
@@ -356,7 +356,7 @@ class CuratedPanelLoadingIndicatorController {
     const pendingEnterFrame = this.loadingBoxEnterFrameByElement.get(loadingBoxEl);
     this.loadingBoxVisibleByElement.set(loadingBoxEl, true);
     this.clearLoadingBoxExitTimeout(loadingBoxEl, documentRef);
-    this.setElementDisplayStyle(loadingBoxEl, 'flex');
+    this.setElementDisplayStyle(loadingBoxEl, 'block');
     this.setElementDisplayStyle(loadingIndicatorEl, 'flex');
 
     if (isClassVisible) {
@@ -399,7 +399,7 @@ class CuratedPanelLoadingIndicatorController {
       return;
     }
 
-    this.setElementDisplayStyle(loadingBoxEl, 'flex');
+    this.setElementDisplayStyle(loadingBoxEl, 'block');
     this.setElementDisplayStyle(loadingIndicatorEl, 'flex');
     this.setElementClassToken(loadingBoxEl, 'cw-loading-box--visible', true);
     this.setLoadingBoxHeight(loadingBoxEl, this.resolveExpandedLoadingBoxHeight(loadingBoxEl));

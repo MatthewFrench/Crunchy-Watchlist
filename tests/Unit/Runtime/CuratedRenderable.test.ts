@@ -333,6 +333,66 @@ describe('curated-renderable runtime', () => {
     expect(result.visible.map((entry) => entry.seriesId)).toEqual(['series-started']);
   });
 
+  it('treats low progress on episode 1 as not started for hide_not_started mode', () => {
+    const runtime = createCuratedRenderableRuntime({
+      deriveDisplayStatusBase: (entry: unknown) => String((entry as Record<string, unknown>).statusBase || 'Continue'),
+      isEntryWatchReady: () => true,
+    });
+
+    const result = runtime.buildRenderableEntries(
+      [
+        {
+          seriesId: 'series-episode-1-low-progress',
+          statusBase: 'Continue',
+          neverWatched: false,
+          absoluteEpisodeNumber: 1,
+          playheadMs: 24,
+          episodeDurationMs: 100,
+          audioLocales: ['en-US'],
+          genreTags: ['Action'],
+          sortOrder: 1,
+          watchReadyHint: true,
+        },
+        {
+          seriesId: 'series-episode-1-threshold',
+          statusBase: 'Continue',
+          neverWatched: false,
+          seasonNumber: 1,
+          episodeNumber: 1,
+          playheadMs: 25,
+          episodeDurationMs: 100,
+          audioLocales: ['en-US'],
+          genreTags: ['Action'],
+          sortOrder: 2,
+          watchReadyHint: true,
+        },
+        {
+          seriesId: 'series-episode-2-low-progress',
+          statusBase: 'Continue',
+          neverWatched: false,
+          absoluteEpisodeNumber: 2,
+          playheadMs: 10,
+          episodeDurationMs: 100,
+          audioLocales: ['en-US'],
+          genreTags: ['Action'],
+          sortOrder: 3,
+          watchReadyHint: true,
+        },
+      ],
+      {
+        audioLocaleFilter: 'any',
+        genreFilter: 'any',
+        watchReadyFilterMode: 'hide_not_started',
+      },
+    );
+
+    expect(result.mode).toBe('hide_not_started');
+    expect(result.visible.map((entry) => entry.seriesId)).toEqual([
+      'series-episode-1-threshold',
+      'series-episode-2-low-progress',
+    ]);
+  });
+
   it('filters to hearted entries when genre filter is favorites', () => {
     const runtime = createCuratedRenderableRuntime();
 

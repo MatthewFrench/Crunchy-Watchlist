@@ -4,6 +4,12 @@ import {
   isRetainedCardHiding,
   scheduleRetainedCardHide,
 } from './CuratedPanelGridRetainedCardVisibility.js';
+import {
+  applyUniformCardHeight,
+  resolveCompactUniformCardHeightPx,
+  roundCardHeightPx,
+} from './CuratedPanelGridAbsoluteHeight.js';
+import { toggleClassNameToken } from './CuratedPanelGridDom.js';
 
 type RectSnapshot = {
   left: number;
@@ -30,8 +36,6 @@ type CuratedPanelGridTransitionsRuntime = {
 const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
 const cardFadeDurationMs = 1000;
 const cardMoveDurationMs = cardFadeDurationMs;
-const cardReorderMoveDurationMs = 500;
-const cardMoveEasing = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const absoluteCardMoveDurationMs = 500;
 const absoluteGridDefaultGapPx = 12;
 const absoluteGridDefaultMinCardWidthPx = 320;
@@ -39,22 +43,6 @@ const absoluteGridDefaultMaxCardWidthPx = 420;
 const absoluteGridPreferredCardWidthPx = 370;
 const absoluteCardTopLeftTransition = `top ${absoluteCardMoveDurationMs}ms ease-in-out, left ${absoluteCardMoveDurationMs}ms ease-in-out, opacity ${cardFadeDurationMs}ms ease, border-color 180ms ease, background-color 180ms ease`;
 const leavingCardTimeoutByElement = new Map<Element, number>();
-const movingCardTimeoutByElement = new Map<Element, number>();
-
-function toggleClassNameToken(className: string, token: string, enabled: boolean): string {
-  const classTokens = className
-    .split(' ')
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const hasToken = classTokens.includes(token);
-  if (enabled && !hasToken) {
-    classTokens.push(token);
-  }
-  if (!enabled && hasToken) {
-    return classTokens.filter((item) => item !== token).join(' ');
-  }
-  return classTokens.join(' ');
-}
 
 function isTrackedCardElement(value: TransitionBoundaryValue): value is Element {
   if (!value || typeof value !== 'object') {
@@ -246,20 +234,14 @@ function clearLeavingCardStyles(card: Element): void {
   styledElement.className = toggleClassNameToken(styledElement.className || '', 'cw-curated-card--leaving', false);
 }
 
-function clearMovingCardStyles(card: Element): void {
-  const styledElement = card as Element & {
-    style?: Record<string, string>;
-  };
-  const style = styledElement.style;
-  if (!style) {
-    return;
-  }
-  style.transition = '';
-  style.transform = '';
-  style.willChange = '';
-}
-
-function applyCardAbsolutePosition(card: Element, leftPx: number, topPx: number, widthPx: number): void {
+function applyCardAbsolutePosition(
+  card: Element,
+  leftPx: number,
+  topPx: number,
+  widthPx: number,
+  initialLeftPx: number,
+  initialTopPx: number,
+): void {
   const style = getElementStyleRecord(card);
   if (!style) {
     return;
@@ -274,6 +256,9 @@ function applyCardAbsolutePosition(card: Element, leftPx: number, topPx: number,
   const nextLeft = `${Math.round(leftPx)}px`;
   const nextTop = `${Math.round(topPx)}px`;
   const nextWidth = `${Math.max(1, Math.round(widthPx))}px`;
+  const initialLeft = `${Math.round(initialLeftPx)}px`;
+  const initialTop = `${Math.round(initialTopPx)}px`;
+  const hasCenterIntroStaged = dataset?.cwCenterIntroStaged === 'true';
 
   style.position = 'absolute';
   style.margin = '0';
@@ -281,11 +266,24 @@ function applyCardAbsolutePosition(card: Element, leftPx: number, topPx: number,
   style.maxWidth = nextWidth;
   style.pointerEvents = '';
   style.zIndex = '';
+  style.transform = '';
 
   if (!hasPositionSeeded) {
+    if (hasCenterIntroStaged) {
+      style.transition = absoluteCardTopLeftTransition;
+      style.left = nextLeft;
+      style.top = nextTop;
+      if (dataset) {
+        dataset.cwAbsolutePositionSeeded = 'true';
+        delete dataset.cwCenterIntroStaged;
+      }
+      return;
+    }
+
     style.transition = 'none';
-    style.left = nextLeft;
-    style.top = nextTop;
+    style.left = initialLeft;
+    style.top = initialTop;
+    style.opacity = '0';
     if (typeof cardElement.getBoundingClientRect === 'function') {
       cardElement.getBoundingClientRect();
     }
@@ -293,12 +291,73 @@ function applyCardAbsolutePosition(card: Element, leftPx: number, topPx: number,
     if (dataset) {
       dataset.cwAbsolutePositionSeeded = 'true';
     }
+    const applyFinalPosition = () => {
+      style.left = nextLeft;
+      style.top = nextTop;
+      style.opacity = '';
+    };
+    if (typeof root.requestAnimationFrame === 'function') {
+      root.requestAnimationFrame(applyFinalPosition);
+      return;
+    }
+    applyFinalPosition();
     return;
   }
 
   style.transition = absoluteCardTopLeftTransition;
   style.left = nextLeft;
   style.top = nextTop;
+}
+
+function stageCardCenterIntro(gridElement: Element, card: Element): void {
+  const style = getElementStyleRecord(card);
+  if (!style) {
+    return;
+  }
+
+  const cardElement = card as Element & {
+    dataset?: Record<string, string>;
+    getBoundingClientRect?: () => DOMRect;
+  };
+  const dataset = cardElement.dataset || null;
+  if (dataset?.cwAbsolutePositionSeeded === 'true' || dataset?.cwCenterIntroStaged === 'true') {
+    return;
+  }
+
+  const gridWidthPx = resolveGridWidthPx(gridElement);
+  const measuredRect = getElementRectSnapshot(card);
+  const measuredWidthPx =
+    measuredRect && measuredRect.width > 0
+      ? measuredRect.width
+      : Number.parseFloat(style.width || '') || absoluteGridDefaultMinCardWidthPx;
+  const introWidthPx = Math.max(1, measuredWidthPx);
+  const introLeftPx = gridWidthPx > 0 ? Math.max(0, (gridWidthPx - introWidthPx) / 2) : 0;
+
+  style.position = 'absolute';
+  style.margin = '0';
+  style.width = `${Math.round(introWidthPx)}px`;
+  style.maxWidth = `${Math.round(introWidthPx)}px`;
+  style.left = gridWidthPx > 0 ? `${Math.round(introLeftPx)}px` : '50%';
+  style.top = '0px';
+  style.transform = gridWidthPx > 0 ? '' : 'translateX(-50%)';
+  style.opacity = '0';
+  style.transition = 'none';
+  if (typeof cardElement.getBoundingClientRect === 'function') {
+    cardElement.getBoundingClientRect();
+  }
+  style.transition = absoluteCardTopLeftTransition;
+  if (dataset) {
+    dataset.cwCenterIntroStaged = 'true';
+  }
+
+  const fadeIn = () => {
+    style.opacity = '';
+  };
+  if (typeof root.requestAnimationFrame === 'function') {
+    root.requestAnimationFrame(fadeIn);
+    return;
+  }
+  fadeIn();
 }
 
 function applyAbsoluteGridCardPlacement(gridElement: Element, nextCards: Element[]): boolean {
@@ -319,6 +378,8 @@ function applyAbsoluteGridCardPlacement(gridElement: Element, nextCards: Element
   const gapPx = resolveGridGapPx(gridElement);
   const columns = resolveAbsoluteGridColumnCount(gridWidthPx, gapPx);
   const cardWidthPx = Math.max(1, (gridWidthPx - gapPx * (columns - 1)) / columns);
+  const firstRowCenterLeftPx = Math.max(0, (gridWidthPx - cardWidthPx) / 2);
+  const firstRowCenterTopPx = 0;
 
   nextCards.forEach((card) => {
     const style = getElementStyleRecord(card);
@@ -343,9 +404,12 @@ function applyAbsoluteGridCardPlacement(gridElement: Element, nextCards: Element
     return false;
   }
 
-  const uniformCardHeightPx = Math.max(...cardHeights, 1);
+  const measurableCardHeights = cardHeights.filter((height) => height > 0);
+  const uniformCardHeightPx = resolveCompactUniformCardHeightPx(measurableCardHeights);
+  applyUniformCardHeight(nextCards, uniformCardHeightPx);
+  const roundedUniformCardHeightPx = roundCardHeightPx(uniformCardHeightPx);
   const rowCount = Math.ceil(nextCards.length / columns);
-  const gridHeight = rowCount > 0 ? Math.max(0, rowCount * uniformCardHeightPx + (rowCount - 1) * gapPx) : 0;
+  const gridHeight = rowCount > 0 ? Math.max(0, rowCount * roundedUniformCardHeightPx + (rowCount - 1) * gapPx) : 0;
 
   const gridStyle = getElementStyleRecord(gridElement);
   if (gridStyle) {
@@ -362,12 +426,8 @@ function applyAbsoluteGridCardPlacement(gridElement: Element, nextCards: Element
     const rowWidthPx = rowItemCount * cardWidthPx + Math.max(0, rowItemCount - 1) * gapPx;
     const rowLeftInsetPx = Math.max(0, (gridWidthPx - rowWidthPx) / 2);
     const leftPx = rowLeftInsetPx + columnIndex * (cardWidthPx + gapPx);
-    const topPx = rowIndex * (uniformCardHeightPx + gapPx);
-    const cardStyle = getElementStyleRecord(card);
-    if (cardStyle) {
-      cardStyle.height = `${Math.max(1, Math.round(uniformCardHeightPx))}px`;
-    }
-    applyCardAbsolutePosition(card, leftPx, topPx, cardWidthPx);
+    const topPx = rowIndex * (roundedUniformCardHeightPx + gapPx);
+    applyCardAbsolutePosition(card, leftPx, topPx, cardWidthPx, firstRowCenterLeftPx, firstRowCenterTopPx);
   });
 
   return true;
@@ -382,17 +442,6 @@ function cancelLeavingCardIfNeeded(card: Element): void {
   root.clearTimeout(existingTimeoutId);
   leavingCardTimeoutByElement.delete(card);
   clearLeavingCardStyles(card);
-}
-
-function cancelMovingCardIfNeeded(card: Element): void {
-  const existingTimeoutId = movingCardTimeoutByElement.get(card);
-  if (typeof existingTimeoutId !== 'number') {
-    return;
-  }
-
-  root.clearTimeout(existingTimeoutId);
-  movingCardTimeoutByElement.delete(card);
-  clearMovingCardStyles(card);
 }
 
 function shouldRetainCardInGrid(card: Element, options: ReorderCuratedGridChildrenBareOptions): boolean {
@@ -413,7 +462,6 @@ function startLeavingCard(
   if (leavingCardTimeoutByElement.has(card)) {
     return;
   }
-  cancelMovingCardIfNeeded(card);
   const styledCard = card as Element & {
     className?: string;
     style?: Record<string, string>;
@@ -455,18 +503,6 @@ function startLeavingCard(
   leavingCardTimeoutByElement.set(card, timeoutId);
 }
 
-function canAnimateCards(gridElement: Element, cards: Element[]): boolean {
-  if (!cards.length) {
-    return false;
-  }
-
-  if (typeof (gridElement as { appendChild?: (...nodes: Element[]) => Element }).appendChild !== 'function') {
-    return false;
-  }
-
-  return cards.every((card) => getElementRectSnapshot(card) != null);
-}
-
 function hasIdenticalChildOrder(gridElement: Element, nextCards: Element[]): boolean {
   const currentChildren = getActiveGridChildren(gridElement);
   if (currentChildren.length !== nextCards.length) {
@@ -475,29 +511,8 @@ function hasIdenticalChildOrder(gridElement: Element, nextCards: Element[]): boo
   return currentChildren.every((child, index) => child === nextCards[index]);
 }
 
-function canUseAbsolutePlacementForReorder(gridElement: Element, nextCards: Element[]): boolean {
-  if (typeof (gridElement as { appendChild?: (...nodes: Element[]) => Element }).appendChild !== 'function') {
-    return false;
-  }
-  if (!hasGridStylesForAbsolutePlacement(gridElement)) {
-    return false;
-  }
-  return nextCards.every((card) => hasCardStylesForAbsolutePlacement(card));
-}
-
 function shouldFadeInCard(nextCard: Element): boolean {
   return isParkedCardElement(nextCard) || isRetainedCardHiding(nextCard);
-}
-
-function captureCardRects(cards: Element[]): Map<Element, RectSnapshot> {
-  const snapshots = new Map<Element, RectSnapshot>();
-  cards.forEach((card) => {
-    const snapshot = getElementRectSnapshot(card);
-    if (snapshot) {
-      snapshots.set(card, snapshot);
-    }
-  });
-  return snapshots;
 }
 
 function markCardEntering(card: Element): void {
@@ -518,40 +533,6 @@ function markCardEntering(card: Element): void {
   setTimeout(removeEnterClass, 0);
 }
 
-function animateCardMove(card: Element, previousRect: RectSnapshot, currentRect: RectSnapshot): void {
-  const deltaX = previousRect.left - currentRect.left;
-  const deltaY = previousRect.top - currentRect.top;
-  if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) {
-    return;
-  }
-
-  const styledElement = card as Element & {
-    style?: Record<string, string>;
-    getBoundingClientRect?: () => DOMRect;
-  };
-  if (!styledElement.style) {
-    return;
-  }
-
-  cancelMovingCardIfNeeded(card);
-
-  const durationMs = cardReorderMoveDurationMs;
-  styledElement.style.transition = 'none';
-  styledElement.style.willChange = 'transform';
-  styledElement.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-  if (typeof styledElement.getBoundingClientRect === 'function') {
-    styledElement.getBoundingClientRect();
-  }
-  styledElement.style.transition = `transform ${durationMs}ms ${cardMoveEasing}`;
-  styledElement.style.transform = '';
-
-  const timeoutId = root.setTimeout(() => {
-    movingCardTimeoutByElement.delete(card);
-    clearMovingCardStyles(card);
-  }, durationMs + 32);
-  movingCardTimeoutByElement.set(card, timeoutId);
-}
-
 type ReorderCuratedGridChildrenBareOptions = {
   onCardRemoved: ((card: Element) => void) | null;
   animateRemovals: boolean;
@@ -564,7 +545,6 @@ function removeOverflowCard(
   onCardRemoved: ((card: Element) => void) | null,
 ): void {
   cancelRetainedCardHideIfNeeded(overflow);
-  cancelMovingCardIfNeeded(overflow);
   if (onCardRemoved && isTrackedCardElement(overflow)) {
     const parentNode = (overflow as Element & { parentNode?: Element | null }).parentNode;
     if (parentNode === gridElement) {
@@ -577,89 +557,30 @@ function removeOverflowCard(
   gridElement.removeChild(overflow);
 }
 
-function reorderCuratedGridChildrenBare(
-  gridElement: Element,
-  nextCards: Element[],
-  options: ReorderCuratedGridChildrenBareOptions,
-): void {
-  const { onCardRemoved, animateRemovals } = options;
-  nextCards.forEach((nextCard) => {
-    const shouldFadeIn = shouldFadeInCard(nextCard);
-    cancelLeavingCardIfNeeded(nextCard);
-    cancelRetainedCardHideIfNeeded(nextCard);
-    cancelMovingCardIfNeeded(nextCard);
-    if (shouldFadeIn) {
-      markCardEntering(nextCard);
-    }
-  });
-
-  nextCards.forEach((nextCard, index) => {
-    const currentChild = gridElement.children[index] || null;
-    if (currentChild === nextCard) {
-      return;
-    }
-    gridElement.insertBefore(nextCard, currentChild);
-  });
-
-  const activeChildren = getActiveGridChildren(gridElement);
-  const overflowChildren = activeChildren.slice(nextCards.length);
-  if (!overflowChildren.length) {
-    return;
-  }
-
-  const removableOverflow = overflowChildren.filter((overflow) => {
-    if (shouldRetainCardInGrid(overflow, options)) {
-      scheduleRetainedCardHide(overflow, cardMoveDurationMs);
-      return false;
-    }
-    return true;
-  });
-  if (!removableOverflow.length) {
-    return;
-  }
-
-  if (onCardRemoved && animateRemovals) {
-    const gridRect = getElementRectSnapshot(gridElement);
-    removableOverflow.forEach((overflow) => {
-      if (!isTrackedCardElement(overflow) || !gridRect) {
-        removeOverflowCard(gridElement, overflow, onCardRemoved);
-        return;
-      }
-      const cardRect = getElementRectSnapshot(overflow);
-      if (!cardRect) {
-        removeOverflowCard(gridElement, overflow, onCardRemoved);
-        return;
-      }
-      startLeavingCard(gridElement, overflow, gridRect, cardRect, onCardRemoved);
-    });
-    return;
-  }
-
-  removableOverflow.forEach((overflow) => {
-    removeOverflowCard(gridElement, overflow, onCardRemoved);
-  });
-}
-
 function reconcileCuratedGridChildrenForAbsolutePlacement(
   gridElement: Element,
   nextCards: Element[],
   options: ReorderCuratedGridChildrenBareOptions,
 ): void {
   const { onCardRemoved, animateRemovals } = options;
+  const mountedChildren = new Set(Array.from(gridElement.children));
   nextCards.forEach((nextCard) => {
     const shouldFadeIn = shouldFadeInCard(nextCard);
     cancelLeavingCardIfNeeded(nextCard);
     cancelRetainedCardHideIfNeeded(nextCard);
-    cancelMovingCardIfNeeded(nextCard);
     const parentNode = (nextCard as Element & { parentNode?: Element | null }).parentNode;
-    if (parentNode === gridElement) {
+    if (parentNode === gridElement && mountedChildren.has(nextCard)) {
       if (shouldFadeIn) {
         markCardEntering(nextCard);
       }
       return;
     }
     gridElement.appendChild(nextCard);
-    markCardEntering(nextCard);
+    mountedChildren.add(nextCard);
+    stageCardCenterIntro(gridElement, nextCard);
+    if (shouldFadeIn) {
+      markCardEntering(nextCard);
+    }
   });
 
   const nextCardsSet = new Set(nextCards);
@@ -729,60 +650,12 @@ function reorderCuratedGridChildren(
   ).length;
   const shouldAnimateRemovals = Boolean(onCardRemoved) && overflowCount > 0;
 
-  if (canUseAbsolutePlacementForReorder(gridElement, nextCards)) {
-    reconcileCuratedGridChildrenForAbsolutePlacement(gridElement, nextCards, {
-      onCardRemoved,
-      animateRemovals: shouldAnimateRemovals,
-      shouldRetainCardInGrid: shouldRetainHiddenCard,
-    });
-    if (applyAbsoluteGridCardPlacement(gridElement, nextCards) || !nextCards.length) {
-      return;
-    }
-  }
-
-  const fallbackActiveGridChildren = getActiveGridChildren(gridElement);
-  const fallbackOverflowCount = fallbackActiveGridChildren.filter(
-    (child) => !nextCardsSet.has(child) && !(shouldRetainHiddenCard?.(child) || false),
-  ).length;
-  const shouldAnimateFallbackRemovals = Boolean(onCardRemoved) && fallbackOverflowCount > 0;
-
-  const existingCards = fallbackActiveGridChildren.filter((child) => nextCardsSet.has(child));
-  const shouldAnimate = canAnimateCards(gridElement, existingCards);
-  if (!shouldAnimate) {
-    reorderCuratedGridChildrenBare(gridElement, nextCards, {
-      onCardRemoved,
-      animateRemovals: shouldAnimateFallbackRemovals,
-      shouldRetainCardInGrid: shouldRetainHiddenCard,
-    });
-    applyAbsoluteGridCardPlacement(gridElement, nextCards);
-    return;
-  }
-
-  const previousRectsByCard = captureCardRects(existingCards);
-  reorderCuratedGridChildrenBare(gridElement, nextCards, {
+  reconcileCuratedGridChildrenForAbsolutePlacement(gridElement, nextCards, {
     onCardRemoved,
-    animateRemovals: shouldAnimateFallbackRemovals,
+    animateRemovals: shouldAnimateRemovals,
     shouldRetainCardInGrid: shouldRetainHiddenCard,
   });
-
-  if (applyAbsoluteGridCardPlacement(gridElement, nextCards)) {
-    return;
-  }
-
-  nextCards.forEach((card) => {
-    const previousRect = previousRectsByCard.get(card) || null;
-    const currentRect = getElementRectSnapshot(card);
-    if (!currentRect) {
-      return;
-    }
-
-    if (!previousRect) {
-      markCardEntering(card);
-      return;
-    }
-
-    animateCardMove(card, previousRect, currentRect);
-  });
+  applyAbsoluteGridCardPlacement(gridElement, nextCards);
 }
 
 export function createCuratedPanelGridTransitionsRuntime(): CuratedPanelGridTransitionsRuntime {

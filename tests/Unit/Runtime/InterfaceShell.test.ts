@@ -455,9 +455,11 @@ describe('interface-shell runtime', () => {
 
     const panel = state.curatedPanelEl as FakeElement;
     const loadingBox = panel.children[1] as FakeElement;
+    const loadingBoxInner = loadingBox.children[0] as FakeElement;
     expect(panel.children[0]).toBe(controls);
     expect(loadingBox.className).toContain('cw-loading-box');
-    expect(loadingBox.children[1]).toBe(loadingIndicator);
+    expect(loadingBoxInner.className).toContain('cw-loading-box__inner');
+    expect(loadingBoxInner.children[1]).toBe(loadingIndicator);
     expect(panel.children[2]).toBe(state.gridEl);
     expect(controls.contains(loadingIndicator)).toBe(false);
   });
