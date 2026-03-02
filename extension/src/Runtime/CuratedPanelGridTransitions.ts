@@ -1,15 +1,15 @@
 import {
-  cancelRetainedCardHideIfNeeded,
-  isParkedCardElement,
-  isRetainedCardHiding,
-  scheduleRetainedCardHide,
-} from './CuratedPanelGridRetainedCardVisibility.js';
-import {
   applyUniformCardHeight,
   resolveCompactUniformCardHeightPx,
   roundCardHeightPx,
 } from './CuratedPanelGridAbsoluteHeight.js';
 import { toggleClassNameToken } from './CuratedPanelGridDom.js';
+import {
+  cancelRetainedCardHideIfNeeded,
+  isParkedCardElement,
+  isRetainedCardHiding,
+  scheduleRetainedCardHide,
+} from './CuratedPanelGridRetainedCardVisibility.js';
 
 type RectSnapshot = {
   left: number;
