@@ -145,10 +145,12 @@ describe('bootstrap-helpers runtime', () => {
 
   it('retries localized ratings preload for the same revision after access token is unavailable', async () => {
     const preloadRatingsForEntries = vi.fn(async () => undefined);
-    const getAccessToken = vi.fn(async (): Promise<{ accessToken: string; accountId: string } | null> => ({
-      accessToken: 'token',
-      accountId: 'account',
-    }));
+    const getAccessToken = vi.fn(
+      async (): Promise<{ accessToken: string; accountId: string } | null> => ({
+        accessToken: 'token',
+        accountId: 'account',
+      }),
+    );
     getAccessToken.mockResolvedValueOnce(null);
     const { runtime } = createRuntime({
       preloadRatingsForEntries,
@@ -179,10 +181,12 @@ describe('bootstrap-helpers runtime', () => {
 
   it('retries localized watch-history preload for the same revision after access token is unavailable', async () => {
     const preloadWatchHistoryForEntries = vi.fn(async () => undefined);
-    const getAccessToken = vi.fn(async (): Promise<{ accessToken: string; accountId: string } | null> => ({
-      accessToken: 'token',
-      accountId: 'account',
-    }));
+    const getAccessToken = vi.fn(
+      async (): Promise<{ accessToken: string; accountId: string } | null> => ({
+        accessToken: 'token',
+        accountId: 'account',
+      }),
+    );
     getAccessToken.mockResolvedValueOnce(null);
     const { runtime } = createRuntime({
       preloadWatchHistoryForEntries,
