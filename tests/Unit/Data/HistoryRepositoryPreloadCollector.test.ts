@@ -1,103 +1,116 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type HistoryUpdateBuckets = {
-  remainingSeriesIds: Set<string>
-  seriesUpdates: Record<string, Record<string, unknown>>
-  seriesProgressUpdates: Record<string, Record<string, unknown>>
-  localeUpdates: Record<string, Record<string, Record<string, unknown>>>
-  localeProgressUpdates: Record<string, Record<string, Record<string, unknown>>>
-  pages: number
-  totalRows: number | null
-  fetchedRows: number
-  noMatchPageStreak: number
-  seenRowKeys: Set<string>
-}
+  remainingSeriesIds: Set<string>;
+  seriesUpdates: Record<string, Record<string, unknown>>;
+  seriesProgressUpdates: Record<string, Record<string, unknown>>;
+  localeUpdates: Record<string, Record<string, Record<string, unknown>>>;
+  localeProgressUpdates: Record<string, Record<string, Record<string, unknown>>>;
+  pages: number;
+  totalRows: number | null;
+  fetchedRows: number;
+  noMatchPageStreak: number;
+  seenRowKeys: Set<string>;
+};
 
 type HistoryRepositoryPreloadCollectorModule = {
   collectWatchHistoryUpdateBuckets: (options: {
-    tokenEntry: Record<string, unknown>
-    effectivePreferredAudioLanguage: string
-    candidateSeriesIds: string[]
-    isDefaultPreferredAudio: boolean
-    watchHistoryMaxPages: number
-    watchHistoryPageSize: number
-    watchHistoryNoMatchPageLimit: number
+    tokenEntry: Record<string, unknown>;
+    effectivePreferredAudioLanguage: string;
+    candidateSeriesIds: string[];
+    isDefaultPreferredAudio: boolean;
+    watchHistoryMaxPages: number;
+    watchHistoryPageSize: number;
+    watchHistoryNoMatchPageLimit: number;
     fetchWatchHistoryPage: (
       tokenEntry: Record<string, unknown>,
       pageNumber: number,
       preferredAudioLanguage?: unknown,
-    ) => Promise<{ rows: Array<Record<string, unknown>>; total: number }>
-    normalizeAudioLocale: (value: unknown) => string
-    sanitizePositiveInt: (value: unknown) => number | null
-    parseDateMs: (value: unknown) => number | null
-    deriveCanonicalEpisodeKeyFromEpisodeMetadata: (metadata: Record<string, unknown>, seriesId?: unknown) => string
-    getAbsoluteEpisodeNumberFromEpisodeMetadata: (metadata: Record<string, unknown>) => number | null
+    ) => Promise<{ rows: Array<Record<string, unknown>>; totalRows: number | null }>;
+    normalizeAudioLocale: (value: unknown) => string;
+    sanitizePositiveInt: (value: unknown) => number | null;
+    parseDateMs: (value: unknown) => number | null;
+    deriveCanonicalEpisodeKeyFromEpisodeMetadata: (metadata: Record<string, unknown>, seriesId?: unknown) => string;
+    getAbsoluteEpisodeNumberFromEpisodeMetadata: (metadata: Record<string, unknown>) => number | null;
     shouldReplaceWatchHistoryProgress: (
       previous: Record<string, unknown> | null | undefined,
       next: Record<string, unknown> | null | undefined,
-    ) => boolean
-  }) => Promise<HistoryUpdateBuckets>
-}
+    ) => boolean;
+  }) => Promise<HistoryUpdateBuckets>;
+};
 
 const collectorModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreloadCollector.ts'),
-).href
+).href;
+let collectorModule: HistoryRepositoryPreloadCollectorModule | null = null;
 
 function normalizeAudioLocale(value: unknown): string {
-  return typeof value === 'string' ? value.trim().toLowerCase() : ''
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
 function sanitizePositiveInt(value: unknown): number | null {
-  const numericValue = Number(value)
-  return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : null
+  const numericValue = Number(value);
+  return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : null;
 }
 
 function parseDateMs(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return value
+    return value;
   }
   if (typeof value === 'string' && value.trim()) {
-    const parsedValue = Date.parse(value)
-    return Number.isFinite(parsedValue) ? parsedValue : null
+    const parsedValue = Date.parse(value);
+    return Number.isFinite(parsedValue) ? parsedValue : null;
   }
-  return null
+  return null;
 }
 
 function deriveCanonicalEpisodeKeyFromEpisodeMetadata(metadata: Record<string, unknown>, seriesId?: unknown): string {
-  const identifier = typeof metadata.identifier === 'string' ? metadata.identifier : ''
-  return `${typeof seriesId === 'string' ? seriesId : ''}|${identifier}|${String(metadata.sequence_number ?? '')}`
+  const identifier = typeof metadata.identifier === 'string' ? metadata.identifier : '';
+  return `${typeof seriesId === 'string' ? seriesId : ''}|${identifier}|${String(metadata.sequence_number ?? '')}`;
 }
 
 function getAbsoluteEpisodeNumberFromEpisodeMetadata(metadata: Record<string, unknown>): number | null {
-  return sanitizePositiveInt(metadata.sequence_number)
+  return sanitizePositiveInt(metadata.sequence_number);
 }
 
 function shouldReplaceWatchHistoryProgress(
   previous: Record<string, unknown> | null | undefined,
   next: Record<string, unknown> | null | undefined,
 ): boolean {
-  const previousPlayhead = Number(previous?.playhead || 0)
-  const nextPlayhead = Number(next?.playhead || 0)
-  return nextPlayhead >= previousPlayhead
+  const previousPlayhead = Number(previous?.playhead || 0);
+  const nextPlayhead = Number(next?.playhead || 0);
+  return nextPlayhead >= previousPlayhead;
 }
 
-async function loadCollectorModule(): Promise<HistoryRepositoryPreloadCollectorModule> {
-  const registry = await loadRuntimeModules([collectorModuleUrl])
-  return registry.historyRepositoryPreloadCollector as HistoryRepositoryPreloadCollectorModule
-}
+beforeEach(async () => {
+  vi.resetModules();
+  collectorModule = {
+    collectWatchHistoryUpdateBuckets: (await import(collectorModuleUrl)).collectWatchHistoryUpdateBuckets as (
+      options: Parameters<HistoryRepositoryPreloadCollectorModule['collectWatchHistoryUpdateBuckets']>[0],
+    ) => Promise<HistoryUpdateBuckets>,
+  };
+});
 
 afterEach(() => {
-  clearRuntimeModulesRegistry()
-})
+  collectorModule = null;
+  vi.restoreAllMocks();
+});
+
+function getCollectorModule(): HistoryRepositoryPreloadCollectorModule {
+  if (!collectorModule) {
+    throw new Error('History preload collector module was not initialized for test');
+  }
+
+  return collectorModule;
+}
 
 describe('HistoryRepositoryPreloadCollector', () => {
   it('collects candidate updates and dedupes repeated rows', async () => {
-    const collector = await loadCollectorModule()
+    const collector = getCollectorModule();
     const fetchWatchHistoryPage = vi.fn(async () => ({
-      total: 2,
+      totalRows: 2,
       rows: [
         {
           id: 'episode-1',
@@ -138,7 +151,7 @@ describe('HistoryRepositoryPreloadCollector', () => {
           },
         },
       ],
-    }))
+    }));
 
     const buckets = await collector.collectWatchHistoryUpdateBuckets({
       tokenEntry: { accountId: 'acct-1', accessToken: 'token-1' },
@@ -155,20 +168,20 @@ describe('HistoryRepositoryPreloadCollector', () => {
       deriveCanonicalEpisodeKeyFromEpisodeMetadata,
       getAbsoluteEpisodeNumberFromEpisodeMetadata,
       shouldReplaceWatchHistoryProgress,
-    })
+    });
 
-    expect(fetchWatchHistoryPage).toHaveBeenCalledTimes(1)
-    expect(buckets.pages).toBe(1)
-    expect(buckets.remainingSeriesIds.size).toBe(0)
-    expect(Object.keys(buckets.seriesUpdates)).toContain('series-a')
-    expect(buckets.seriesUpdates['series-a']?.episodeDurationMs).toBe(1_420_087)
-    expect(buckets.seenRowKeys.size).toBe(1)
-  })
+    expect(fetchWatchHistoryPage).toHaveBeenCalledTimes(1);
+    expect(buckets.pages).toBe(1);
+    expect(buckets.remainingSeriesIds.size).toBe(0);
+    expect(Object.keys(buckets.seriesUpdates)).toContain('series-a');
+    expect(buckets.seriesUpdates['series-a']?.episodeDurationMs).toBe(1_420_087);
+    expect(buckets.seenRowKeys.size).toBe(1);
+  });
 
   it('stops collection when no-match page streak reaches the configured limit', async () => {
-    const collector = await loadCollectorModule()
+    const collector = getCollectorModule();
     const fetchWatchHistoryPage = vi.fn(async () => ({
-      total: 10,
+      totalRows: 10,
       rows: [
         {
           id: `other-${fetchWatchHistoryPage.mock.calls.length + 1}`,
@@ -189,7 +202,7 @@ describe('HistoryRepositoryPreloadCollector', () => {
           },
         },
       ],
-    }))
+    }));
 
     const buckets = await collector.collectWatchHistoryUpdateBuckets({
       tokenEntry: { accountId: 'acct-1', accessToken: 'token-1' },
@@ -206,11 +219,11 @@ describe('HistoryRepositoryPreloadCollector', () => {
       deriveCanonicalEpisodeKeyFromEpisodeMetadata,
       getAbsoluteEpisodeNumberFromEpisodeMetadata,
       shouldReplaceWatchHistoryProgress,
-    })
+    });
 
-    expect(fetchWatchHistoryPage).toHaveBeenCalledTimes(2)
-    expect(buckets.pages).toBe(2)
-    expect(buckets.remainingSeriesIds.has('series-target')).toBe(true)
-    expect(buckets.noMatchPageStreak).toBe(2)
-  })
-})
+    expect(fetchWatchHistoryPage).toHaveBeenCalledTimes(2);
+    expect(buckets.pages).toBe(2);
+    expect(buckets.remainingSeriesIds.has('series-target')).toBe(true);
+    expect(buckets.noMatchPageStreak).toBe(2);
+  });
+});

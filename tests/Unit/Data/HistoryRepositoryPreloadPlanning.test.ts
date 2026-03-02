@@ -1,48 +1,57 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type HistoryRepositoryPreloadPlanningModule = {
   resolveHistoryPreloadPlan: (options: {
-    entries: Array<{ seriesId?: unknown; neverWatched?: unknown; playheadMs?: unknown }>
-    preferredAudioLanguage: unknown
-    getPreferredAudioLanguage: () => string
-    normalizeAudioLocale: (value: unknown) => string
+    entries: Array<{ seriesId?: unknown; neverWatched?: unknown; playheadMs?: unknown }>;
+    preferredAudioLanguage: unknown;
+    getPreferredAudioLanguage: () => string;
+    normalizeAudioLocale: (value: unknown) => string;
   }) => {
-    effectivePreferredAudioLanguage: string
-    isDefaultPreferredAudio: boolean
-    candidateSeriesIds: string[]
-  }
+    effectivePreferredAudioLanguage: string;
+    isDefaultPreferredAudio: boolean;
+    candidateSeriesIds: string[];
+  };
   getHistoryPayloadTotal: (options: {
-    payload: unknown
-    fallback: number
-    pageNumber: number
-    requestUrl: string
-    runtimeEvent: (event: string, payload?: unknown) => void
-  }) => number
-}
+    payload: unknown;
+    fallback: number;
+    pageNumber: number;
+    requestUrl: string;
+    runtimeEvent: (event: string, payload?: unknown) => void;
+  }) => number;
+};
 
 const planningModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreloadPlanning.ts'),
-).href
+).href;
+let planningModule: HistoryRepositoryPreloadPlanningModule | null = null;
 
 function normalizeAudioLocale(value: unknown): string {
-  return typeof value === 'string' ? value.trim().toLowerCase() : ''
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
-async function loadPlanningModule(): Promise<HistoryRepositoryPreloadPlanningModule> {
-  const registry = await loadRuntimeModules([planningModuleUrl])
-  return registry.historyRepositoryPreloadPlanning as HistoryRepositoryPreloadPlanningModule
-}
+beforeEach(async () => {
+  vi.resetModules();
+  planningModule = (await import(planningModuleUrl)) as HistoryRepositoryPreloadPlanningModule;
+});
 
 afterEach(() => {
-  clearRuntimeModulesRegistry()
-})
+  planningModule = null;
+  vi.restoreAllMocks();
+});
+
+function getPlanningModule(): HistoryRepositoryPreloadPlanningModule {
+  if (!planningModule) {
+    throw new Error('History preload planning module was not initialized for test');
+  }
+
+  return planningModule;
+}
 
 describe('HistoryRepositoryPreloadPlanning', () => {
   it('builds preferred audio preload plan with candidate filtering and dedupe', async () => {
-    const planningModule = await loadPlanningModule()
+    const planningModule = getPlanningModule();
 
     const plan = planningModule.resolveHistoryPreloadPlan({
       entries: [
@@ -54,31 +63,31 @@ describe('HistoryRepositoryPreloadPlanning', () => {
       preferredAudioLanguage: 'ja-jp',
       getPreferredAudioLanguage: () => 'en-us',
       normalizeAudioLocale,
-    })
+    });
 
-    expect(plan.effectivePreferredAudioLanguage).toBe('ja-jp')
-    expect(plan.isDefaultPreferredAudio).toBe(false)
-    expect(plan.candidateSeriesIds).toEqual(['series-a', 'series-c'])
-  })
+    expect(plan.effectivePreferredAudioLanguage).toBe('ja-jp');
+    expect(plan.isDefaultPreferredAudio).toBe(false);
+    expect(plan.candidateSeriesIds).toEqual(['series-a', 'series-c']);
+  });
 
   it('falls back to default preferred audio when selected locale is invalid', async () => {
-    const planningModule = await loadPlanningModule()
+    const planningModule = getPlanningModule();
 
     const plan = planningModule.resolveHistoryPreloadPlan({
       entries: [],
       preferredAudioLanguage: null,
       getPreferredAudioLanguage: () => 'en-us',
       normalizeAudioLocale,
-    })
+    });
 
-    expect(plan.effectivePreferredAudioLanguage).toBe('en-us')
-    expect(plan.isDefaultPreferredAudio).toBe(true)
-    expect(plan.candidateSeriesIds).toEqual([])
-  })
+    expect(plan.effectivePreferredAudioLanguage).toBe('en-us');
+    expect(plan.isDefaultPreferredAudio).toBe(true);
+    expect(plan.candidateSeriesIds).toEqual([]);
+  });
 
   it('falls back to row count and emits a contract warning for invalid total values', async () => {
-    const planningModule = await loadPlanningModule()
-    const runtimeEvent = vi.fn()
+    const planningModule = getPlanningModule();
+    const runtimeEvent = vi.fn();
 
     const total = planningModule.getHistoryPayloadTotal({
       payload: { total: 'not-a-number' },
@@ -86,9 +95,9 @@ describe('HistoryRepositoryPreloadPlanning', () => {
       pageNumber: 2,
       requestUrl: 'https://api.example.test/watch-history',
       runtimeEvent,
-    })
+    });
 
-    expect(total).toBe(5)
+    expect(total).toBe(5);
     expect(runtimeEvent).toHaveBeenCalledWith(
       'watch-history-contract-warning',
       expect.objectContaining({
@@ -96,6 +105,6 @@ describe('HistoryRepositoryPreloadPlanning', () => {
         fallbackTotal: 5,
         page: 2,
       }),
-    )
-  })
-})
+    );
+  });
+});

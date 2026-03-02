@@ -1,66 +1,70 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type StorageStub = {
-  getItem: (key: string) => string | null
-  key: (index: number) => string | null
-  length: number
-}
+  getItem: (key: string) => string | null;
+  key: (index: number) => string | null;
+  length: number;
+};
 
 type PreferredAudioDetector = {
-  detectPreferredAudioLanguage: () => string | null
-}
+  detectPreferredAudioLanguage: () => string | null;
+};
 
 type PreferredAudioModule = {
-  runtimePreferredAudio: {
-    createPreferredAudioDetector: (options: Record<string, unknown>) => PreferredAudioDetector
-  }
-}
+  createPreferredAudioDetector: (options: Record<string, unknown>) => PreferredAudioDetector;
+};
 
 const preferredAudioDetectorModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'PreferredAudioDetector.ts'),
-).href
+).href;
+let preferredAudioModule: PreferredAudioModule | null = null;
 
 function createStorageStub(entries: Record<string, string>): StorageStub {
-  const keys = Object.keys(entries)
+  const keys = Object.keys(entries);
   return {
     getItem: (key: string) => {
       if (!Object.hasOwn(entries, key)) {
-        return null
+        return null;
       }
-      const value = entries[key]
-      return typeof value === 'string' ? value : null
+      const value = entries[key];
+      return typeof value === 'string' ? value : null;
     },
     key: (index: number) => keys[index] ?? null,
     get length() {
-      return keys.length
+      return keys.length;
     },
-  }
+  };
 }
 
 function normalizeAudioLocale(value: unknown): string | null {
   if (typeof value !== 'string') {
-    return null
+    return null;
   }
-  const normalized = value.trim().toLowerCase()
-  return normalized || null
+  const normalized = value.trim().toLowerCase();
+  return normalized || null;
 }
 
 function getDetector(options: Record<string, unknown>): PreferredAudioDetector {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as PreferredAudioModule
-  return registry.runtimePreferredAudio.createPreferredAudioDetector(options)
+  if (!preferredAudioModule) {
+    throw new Error('Preferred audio runtime module was not initialized for test');
+  }
+  return preferredAudioModule.createPreferredAudioDetector(options);
 }
 
 describe('PreferredAudioDetector', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([preferredAudioDetectorModuleUrl])
-  })
+    vi.resetModules();
+    const module = (await import(preferredAudioDetectorModuleUrl)) as {
+      createRuntimePreferredAudioRuntime: () => object;
+    };
+    preferredAudioModule = module.createRuntimePreferredAudioRuntime() as PreferredAudioModule;
+  });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry()
-  })
+    preferredAudioModule = null;
+  });
 
   it('detects locale from direct storage keys', () => {
     const detector = getDetector({
@@ -71,10 +75,10 @@ describe('PreferredAudioDetector', () => {
       globalCandidates: [],
       navigatorRef: {},
       documentRef: {},
-    })
+    });
 
-    expect(detector.detectPreferredAudioLanguage()).toBe('ja-jp')
-  })
+    expect(detector.detectPreferredAudioLanguage()).toBe('ja-jp');
+  });
 
   it('detects locale from nested global candidates when storage has no match', () => {
     const detector = getDetector({
@@ -91,10 +95,10 @@ describe('PreferredAudioDetector', () => {
       ],
       navigatorRef: {},
       documentRef: {},
-    })
+    });
 
-    expect(detector.detectPreferredAudioLanguage()).toBe('en-us')
-  })
+    expect(detector.detectPreferredAudioLanguage()).toBe('en-us');
+  });
 
   it('falls back to browser language signals', () => {
     const detector = getDetector({
@@ -110,10 +114,10 @@ describe('PreferredAudioDetector', () => {
           lang: 'ja-JP',
         },
       },
-    })
+    });
 
-    expect(detector.detectPreferredAudioLanguage()).toBe('fr-fr')
-  })
+    expect(detector.detectPreferredAudioLanguage()).toBe('fr-fr');
+  });
 
   it('returns null when no candidate can be normalized to locale format', () => {
     const detector = getDetector({
@@ -131,8 +135,8 @@ describe('PreferredAudioDetector', () => {
           lang: '',
         },
       },
-    })
+    });
 
-    expect(detector.detectPreferredAudioLanguage()).toBe(null)
-  })
-})
+    expect(detector.detectPreferredAudioLanguage()).toBe(null);
+  });
+});

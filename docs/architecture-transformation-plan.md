@@ -1,6 +1,6 @@
 # Crunchy Watchlist Curator Architecture Transformation Plan
 
-Last updated: 2026-02-25
+Last updated: 2026-03-01
 
 This plan converts the current monolithic extension runtime into a layered, TypeScript-first architecture while preserving behavior and release readiness across Chromium, Firefox, WebKit, and Safari wrapper distribution.
 
@@ -14,7 +14,7 @@ This plan converts the current monolithic extension runtime into a layered, Type
 6. Introduce static typing and type-aware quality gates to reduce regression risk.
 7. Improve developer velocity with deterministic build, lint, and test workflows.
 
-## 2) Current Baseline (Reviewed 2026-02-25)
+## 2) Historical Baseline (Reviewed 2026-02-25)
 
 - `extension/Content.js`: 597 lines (strict target `<= 600` satisfied).
 - `extension/src/Runtime/ContentComposition.ts`: 568 lines (strict target `<= 600` satisfied).
@@ -134,10 +134,10 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - `npm run typecheck`: pass
   - `npm run lint`: pass
   - `npm run format:check`: pass
-  - `npm run test:unit`: pass (146 passed)
+  - `npm run test:unit`: pass (281 passed)
   - `npm run pw:live:smoke`: pass
   - `npm run lint:firefox`: pass
-  - `npm run test:e2e`: pass (81 passed)
+  - `npm run test:e2e`: pass (117 passed)
   - `npm run build:webext`: pass
   - `npm run build:safari`: pass
   - `npm run arch:metrics`: pass
@@ -168,6 +168,63 @@ This plan converts the current monolithic extension runtime into a layered, Type
   - curated loading diagnostics now include duplicate-preserving pending-request visibility and explicit completed/in-progress counters in empty-state loading views.
   - favorites filtering (`Genre: Favorites`) and status-line merge semantics (`Up Next: Sx Ey`, `Continue: Sx Ey`) are implemented with unit and Playwright coverage.
 
+## 2a) Current Reality Check (2026-02-27)
+
+Latest `npm run arch:metrics` shows architecture budgets are currently compliant at both file and function levels:
+
+- Warning/refactor file hotspots: `0`.
+- Function hotspots above warning budget (>70 lines): `0`.
+- Largest runtime functions are under warning thresholds (`<= 68` lines):
+  - `runCuratedLoadCycleInternal` (`68`)
+  - `ensureInterfaceInternal` (`67`)
+  - `resolveContentRuntimeSetupContext` (`63`)
+  - `preloadRatingsForEntriesInternal` (`63`)
+- Largest runtime owners are currently:
+  - `extension/src/Data/HistoryRepositoryCache.ts` (`574`)
+  - `extension/src/Runtime/ContentRuntimeSetupDataInitialization.ts` (`550`)
+  - `extension/src/Domain/CorePrimitives.ts` (`539`)
+- Previously largest compliant owners now have substantial headroom after seam extraction:
+  - `extension/src/Runtime/ContentRuntimeBootstrapSession.ts`: `599` -> `322`
+  - `extension/src/Runtime/ContentComposition.ts`: `595` -> `339`
+  - `extension/src/Data/AuthClient.ts`: `587` -> `419`
+
+Implication:
+
+- Transformation goals remain complete for documented budget-compliance scope.
+- Ongoing work is strict-size headroom optimization and release-confidence batching discipline.
+
+## 2b) Latest Strict-Size Pass (2026-02-27)
+
+Implemented and validated in this cycle:
+
+1. Extracted new runtime seams for the highest-maintenance compliant owners:
+   - `extension/src/Runtime/ContentRuntimeBootstrapSessionAssembly.ts`
+   - `extension/src/Runtime/ContentCompositionRuntimeBindings.ts`
+   - `extension/src/Data/AuthClientFetchResilience.ts`
+2. Rewired owning modules to delegate to extracted seams:
+   - `ContentRuntimeBootstrapSession.ts` delegates session assembly/runtime-control wiring.
+   - `ContentComposition.ts` delegates curated/interaction/interface binding ownership.
+   - `AuthClient.ts` delegates fetch retry/auth-refresh transport resilience ownership.
+3. File-size reductions delivered:
+   - `extension/src/Runtime/ContentRuntimeBootstrapSession.ts`: `599` -> `322`
+   - `extension/src/Runtime/ContentComposition.ts`: `595` -> `339`
+   - `extension/src/Data/AuthClient.ts`: `587` -> `419`
+4. Manifest/runtime ordering updated for dependency-parity loading:
+   - added `ContentCompositionRuntimeBindings.js`, `ContentRuntimeBootstrapSessionAssembly.js`, and `AuthClientFetchResilience.js` before dependent runtime modules in `extension/manifest.json`.
+5. Unit coverage expanded/updated for extracted seams:
+   - added `tests/Unit/Data/AuthClientFetchResilience.test.ts`
+   - updated `tests/Unit/Data/AuthClient.test.ts`, `tests/Unit/Runtime/ContentComposition.test.ts`, and `tests/Unit/Runtime/ContentRuntimeBootstrapSession.test.ts` to load new runtime seam modules in manifest-parity order.
+6. Quality gates re-run in this cycle:
+   - `npm run format:check`
+   - `npm run lint`
+   - `npm run typecheck`
+   - `npm run test:unit` (`224` passed)
+   - `npm run lint:firefox`
+   - `npm run build:webext`
+   - `npm run build:runtime:safari:checked`
+   - `npm run arch:metrics`
+7. By request, high-cost integration/release gates (`test:e2e`, signed/notarized `build:safari`) remain batched in the release-confidence workflow.
+
 ## 3) Target End-State
 
 ### Runtime source layout (target)
@@ -182,6 +239,9 @@ extension/
     Runtime/
       ContentBootstrap.ts
       ContentComposition.ts
+      ContentRuntimeSetup.ts
+      ContentRuntimeSetupComposition.ts
+      ContentRuntimeSetupDataInitialization.ts
       BootstrapConfig.ts
       BootstrapFinalize.ts
       BootstrapGate.ts
@@ -514,7 +574,7 @@ Use this section as a live tracker.
 | M4 | Completed | TBD | Domain/UI/runtime owner extraction is in place across `extension/src/**`; composition roots and extracted runtime owners are now reduced to strict-size targets (`Content.js` 597, `ContentComposition.ts` 568). |
 | M5 | Completed | TBD | Incremental `.ts` conversion for extracted owners is complete, including `extension/src/Data/HistoryRepository.ts`. |
 | M6 | Completed | TBD | TS-aware metrics plus CI `typecheck`/lint/formatter/unit/E2E/build gates are active and green. |
-| M7 | Completed | TBD | Cleanup and standards lock are complete for the active v1 transformation scope, including strict-size completion and full gate revalidation. |
+| M7 | Completed | TBD | Cleanup and standards lock restored: warning/refactor hotspots are `0`, key runtime owners are decomposed, and docs/workflows are synchronized with current architecture gates. |
 
 ## 9) Definition of Done for Transformation
 
@@ -528,7 +588,21 @@ Transformation is complete when all are true:
 6. TypeScript/lint/formatter/unit gates are active and green for migrated code paths.
 7. No warning-level structural hotspots remain in architecture metrics for the current cycle.
 
-## 10) Progress Update (2026-02-24)
+Current status (2026-02-27):
+
+- Complete for architecture-transformation scope. Remaining items are optimization and release-confidence cadence, not core architecture debt.
+
+## 10) Progress Update History
+
+Latest pass additions (2026-02-27):
+
+1. Completed strict-size decompositions for near-threshold owners by extracting `CuratedPanelGridTransitions` and `RatingsRepositoryCacheSupport`, reducing:
+   - `CuratedPanelGrid.ts`: `629 -> 399`
+   - `RatingsRepository.ts`: `599 -> 492`
+2. Kept prior seam ownership extractions in place (`CuratedRenderableMergeSupport`, `InterfaceShellHostLifecycle`, `ContentRuntimeBootstrapSessionSupport`) and aligned runtime delegation boundaries.
+3. Added focused seam-level unit coverage for `CuratedPanelGridTransitions` and `RatingsRepositoryCacheSupport`, and updated existing runtime/data tests to load extracted owners in manifest-parity order.
+4. Split CI verification lanes into fast default checks and a dedicated high-cost `release-confidence` workflow (manual + nightly).
+5. Re-ran architecture gates and metrics with full green status (`test:unit`, `typecheck`, `lint`, `format:check`, `lint:firefox`, `build:webext`, `build:runtime:safari:checked`, `arch:metrics`).
 
 Completed in this pass:
 
@@ -1577,17 +1651,88 @@ Completed in this pass:
    - workflow config now imports Developer ID certificate into an ephemeral keychain, wires signing/notary env vars, and cleans up keychain state after build.
 225. Updated release operational documentation for signed Safari distribution:
    - `docs/release-checklist.md` now includes required CI secret names and stapler/spctl validation checks for notarized app bundles.
+226. Implemented watchlist loading performance modernization:
+   - `extension/src/Data/WatchlistClient.ts` now fetches page 1 first, then fans out remaining pages with bounded parallelism (`watchlistParallelRequests`).
+227. Implemented staged metadata preload in curated loader:
+   - `extension/src/Runtime/CuratedLoader.ts` now preloads a priority entry slice first and defers remaining metadata to background completion.
+228. Added curated loading diagnostics for performance tuning:
+   - `curated-load-timing`
+   - `curated-load-background-metadata-start`
+   - `curated-load-background-metadata-done`
+   - `curated-load-background-metadata-failed`
+229. Added guarded auth token fast-path:
+   - curated load now attempts non-forced token reuse first, with forced refresh fallback when scope is missing or when cache-sourced revalidation needs authoritative profile scope.
+230. Added/updated coverage for new behavior:
+   - `tests/Unit/Data/WatchlistClient.test.ts` (parallel pagination behavior)
+   - `tests/Unit/Runtime/CuratedLoader.test.ts` (token fallback/force semantics + deferred metadata preload behavior)
+   - `tests/ResilienceContracts.spec.ts` locator hardening for loading-box + grid-empty coexistence.
+231. Re-verified full architecture/release-confidence gates after this pass:
+   - `npm run format:check`
+   - `npm run lint`
+   - `npm run typecheck`
+   - `npm run test:unit` (197 passed)
+   - `npm run test:e2e` (102 passed)
+   - `npm run lint:firefox`
+   - `npm run build:webext`
+   - `npm run build:safari`
+   - `npm run arch:metrics`
+232. Split previous runtime file hotspots into dedicated owner modules:
+   - `extension/src/Runtime/NativeBridgePreview.ts` extracted from `NativeBridge.ts`.
+   - `extension/src/Runtime/CuratedPanelGrid.ts` and `extension/src/Runtime/CuratedPanelLoadingIndicator.ts` extracted from `CuratedPanel.ts`.
+233. Split `extension/Content.js` responsibilities into dedicated runtime owners:
+   - `extension/src/Runtime/WatchlistHealth.ts` for blank-shell detection/recovery.
+   - `extension/src/Runtime/ContentRuntimeSetup.ts` for module wiring and runtime dependency assembly.
+234. Updated manifest/module wiring for newly extracted runtimes and added parity tests:
+   - `tests/Unit/Runtime/WatchlistHealth.test.ts`
+   - `tests/Unit/Runtime/NativeBridgePreview.test.ts`
+   - updated `tests/Unit/Runtime/CuratedPanel.test.ts` and `tests/Unit/Runtime/NativeBridge.test.ts`.
+235. Fixed strict TypeScript and exact-optional test typing regressions introduced during extraction while preserving runtime behavior.
+236. Re-ran full release-confidence gates post-fixes with clean results:
+   - `typecheck`, `lint`, `format:check`, `test:unit` (`197`), `lint:firefox`, `test:e2e` (`102`), `build:webext`, `build:safari`, `arch:metrics`.
+237. Completed remaining function hotspot decomposition and re-validated full release-confidence gates:
+   - reduced all warning-level runtime functions under the 70-line warning budget (`createBootstrapFinalizeRuntime`, `createCuratedCardActionsInternal`, `createCuratedLoaderContext`, `mergeRenderableEntryInternal`, `createCuratedCardThumbInternal`, `startRuntime`).
+   - re-ran `format:check`, `lint`, `typecheck`, `test:unit` (`204`), `lint:firefox`, `test:e2e` (`102`), `build:webext`, `build:safari`, and `arch:metrics` with green results.
+238. Extracted setup data-initialization ownership and added seam coverage:
+   - moved setup-time trace/contracts/auth/storage/repository initialization from `ContentRuntimeSetup.ts` into `ContentRuntimeSetupDataInitialization.ts`.
+   - rewired setup orchestration to consume `createContentRuntimeSetupDataInitializationRuntime`.
+   - added new runtime unit suites: `ContentRuntimeSetupDataInitialization.test.ts`, `ContentRuntimeSetup.test.ts`, and `ContentRuntimeBootstrapSession.test.ts`.
+   - this cycle validation: `format:check`, `lint`, `typecheck`, `test:unit` (`209`), `lint:firefox`, `build:webext`, `build:runtime:safari:checked`, and `arch:metrics`.
+   - deferred by request to release-candidate batch: `test:e2e`, full signed `build:safari`.
+239. Completed optimization-priority item 1 by extracting bootstrap finalize/session flow ownership:
+   - added `extension/src/Runtime/ContentRuntimeBootstrapFinalizeFlow.ts` and delegated finalize flow orchestration from `ContentRuntimeBootstrapSession.ts`.
+   - reduced `ContentRuntimeBootstrapSession.ts` from `789` to `636` lines.
+240. Completed optimization-priority item 3 with additional runtime-owner decomposition:
+   - added `extension/src/Runtime/CuratedRenderableListProcessing.ts` and delegated filter/sort/list processing from `CuratedRenderable.ts`.
+   - added `extension/src/Runtime/CuratedInteractionsControls.ts` and delegated controls binding from `CuratedInteractions.ts`.
+   - added `extension/src/Runtime/CuratedLoaderPendingRequests.ts` and `extension/src/Runtime/CuratedLoaderLoadCycle.ts`, delegating pending diagnostics and load-cycle/failure ownership from `CuratedLoader.ts`.
+   - reduced `CuratedLoader.ts` from `742` to `484` lines while keeping function budgets compliant.
+241. Updated runtime wiring and tests for manifest-parity owner loading:
+   - updated `extension/manifest.json` content-script order to load all new runtime owners before dependents.
+   - updated unit runtime loaders in `tests/Unit/Runtime/CuratedLoader.test.ts`, `tests/Unit/Runtime/CuratedRenderable.test.ts`, `tests/Unit/Runtime/CuratedInteractions.test.ts`, and `tests/Unit/Runtime/ContentRuntimeBootstrapSession.test.ts`.
+242. Re-verified architecture gates after this decomposition slice:
+   - `npm run format:check`
+   - `npm run lint`
+   - `npm run typecheck`
+   - `npm run test:unit` (`209` passed)
+   - `npm run lint:firefox`
+   - `npm run build:webext`
+   - `npm run build:runtime:safari:checked`
+   - `npm run arch:metrics`
+243. Completed another strict-size optimization slice for the three largest compliant owners from the prior cycle:
+   - added `ContentRuntimeBootstrapSessionAssembly.ts`, `ContentCompositionRuntimeBindings.ts`, and `AuthClientFetchResilience.ts`.
+   - reduced `ContentRuntimeBootstrapSession.ts` from `599` to `322`, `ContentComposition.ts` from `595` to `339`, and `AuthClient.ts` from `587` to `419`.
+   - updated `extension/manifest.json` script ordering and unit runtime loaders for manifest-parity module hydration.
+   - added `tests/Unit/Data/AuthClientFetchResilience.test.ts`; unit baseline is now `224` passing tests.
+   - re-ran `format:check`, `lint`, `typecheck`, `test:unit`, `lint:firefox`, `build:webext`, `build:runtime:safari:checked`, and `arch:metrics` with green results.
 
 Observed new/confirmed opportunities:
 
-1. Strict architecture size targets are now satisfied on the tracked runtime/style surfaces (`Content.js`, `ContentComposition.ts`, `HistoryRepositoryPreload.ts`, `Content.css`).
-2. Unit coverage now spans runtime/data/domain/UI owners with 149 passing unit tests, including native action bridge and bootstrap/composition/deferred-callback coverage.
-3. Metrics hotspot scanning still reports no warning-level structural opportunities; preserve this baseline with gate discipline.
-4. Safari build remains clean and successful with explicit arch destination + generated-runtime CI build path; keep pbxproj output declarations synchronized when script phases change.
-5. Dependency/toolchain hygiene is currently clean (`npm ci` + `npm audit` report `0` vulnerabilities), and CI now enforces an explicit moderate-level audit gate.
-6. Naming/order drift risk remains concentrated at composition roots (`manifest.json`, fixture loader, runtime smoke checks); keep these contracts validated.
-7. Full cross-browser + Safari verification remains high-cost; preserve explicit cadence discipline to avoid confidence drift.
-8. Signed/notarized Safari release artifacts now depend on correctly configured Apple CI secrets; keep secret rotation and validity checks explicit in release operations.
+1. Remaining structural work is strict-target optimization (`<= 600`), not warning-threshold remediation.
+2. Largest runtime owners to continue trending down are `HistoryRepositoryCache.ts` (`574`), `ContentRuntimeSetupDataInitialization.ts` (`550`), and `CorePrimitives.ts` (`539`).
+3. Unit baseline is green; keep adding seam-level tests as extraction continues.
+4. Firefox/webext packaging remains deterministic and green in this cycle; keep generated-runtime path discipline strict.
+5. Full gate cadence is robust but costly; keep batching strategy explicit for high-cost validations (`test:e2e`, signed/notarized `build:safari`).
+6. Architecture metrics remain the source-of-truth for status and should drive optimization priorities.
 
 ## 11) Research Inputs (2026-02-23)
 
@@ -1618,54 +1763,53 @@ Why this is the better fit for current architecture direction:
 
 ## 12) Immediate Next Priorities (Post-Completion Optimization Queue)
 
-1. Preserve dependency/toolchain hygiene (`npm ci` + `npm audit` currently clean) via controlled upgrades and full gate verification windows.
-2. Prevent regrowth in near-threshold owners (`Content.js`, `AuthClient.ts`, `ContentComposition.ts`, `HistoryRepositoryCache.ts`) under tightened warning/refactor guardrails.
-3. Preserve schema-first boundary enforcement and contract-warning telemetry as watchlist/history/ratings/preview surfaces evolve.
-4. Keep architecture gate discipline: `typecheck`, `lint`, `format:check`, `test:unit`, `arch:metrics` as baseline; run `lint:firefox` + `test:e2e` + `build:webext` + `build:safari` on release-affecting cycles.
-5. Keep architecture docs and progress logs synchronized in the same cycle as structural changes.
-6. Keep Safari CI/local composition deterministic (`npm run build:safari` generated-runtime path + arch-aware `xcodebuild` destination) to avoid packaging/runtime drift.
-7. Keep CI dependency-audit enforcement green (`npm audit --audit-level=moderate`) when updating toolchain dependencies.
-8. Keep Safari signing/notarization secrets valid and rotated without breaking release cadence.
+1. Run one full batched release-confidence lane (`test:e2e` + signed/notarized `build:safari`) and store logs/artifacts for traceability.
+2. Continue strict-size optimization for top compliant owners (`HistoryRepositoryCache.ts`, `ContentRuntimeSetupDataInitialization.ts`, `CorePrimitives.ts`) without changing user-visible behavior.
+3. Preserve progressive-loading semantics and startup behavior while optimizing runtime size.
+4. Keep `docs/architecture-standards.md`, `docs/architecture-progress.md`, and this plan in lockstep with each structural cycle.
 
-## 13) Prioritized Execution Queue (Reviewed 2026-02-25)
+## 13) Prioritized Execution Queue (Reviewed 2026-02-27)
 
 Use this order for the next implementation cycle:
 
-1. Priority 0: dependency hygiene hardening with controlled upgrades and full-gate parity.
-2. Priority 1: keep top owners under strict targets and avoid ownership regression into composition roots.
-3. Priority 1: preserve lockfile/install parity and deterministic build/runtime script behavior across CI/local paths.
-4. Priority 1: keep targeted integration and unit coverage for favorites filter, watch-ready filtering, blended sort, and loading diagnostics while maintaining current architecture boundaries.
-5. Priority 2: keep CI-runtime cost stable while preserving cross-browser confidence (parallel-safe generated-runtime paths and fixture-port isolation remain mandatory).
-6. Priority 2: keep baseline/status sections current and treat historical logs as append-only history.
+1. Priority 0: execute the batched `release-confidence` workflow and capture resulting artifact/signing evidence.
+2. Priority 1: reduce the largest compliant owners (`HistoryRepositoryCache.ts`, `ContentRuntimeSetupDataInitialization.ts`, `CorePrimitives.ts`) toward lower maintenance headroom.
+3. Priority 1: preserve progressive/stale-while-revalidate UX behavior while reducing size (no regressions).
+4. Priority 1: keep adding focused unit tests around every newly extracted seam before feature additions.
+5. Priority 2: keep metrics/docs synchronized after every structural cycle.
 
-## 14) Transformation Status Snapshot (2026-02-25)
+## 14) Transformation Status Snapshot (2026-02-27)
 
 Overall status indicator:
 
-1. **100% complete for architecture transformation scope** (strict-size budgets, layer ownership extraction, and release-confidence gates are all satisfied).
-2. **100% complete for ecosystem hardening** (dependency hygiene, lockfile parity, deterministic CI/runtime composition paths, and release-confidence gates are all currently satisfied).
+1. **Architecture transformation: 100% complete for the current defined scope**.
+2. **Tooling and release-confidence hardening: 99% complete for this cycle scope**.
 
 Completion breakdown:
 
-1. Runtime ownership extraction: `100%` complete for v1 scope (all major runtime/data/domain/UI ownership moved to typed owner modules).
-2. TypeScript/tooling modernization: `100%` complete for v1 scope (TS foundations + lint/format/typecheck + unit/E2E/build gates active).
-3. Architecture budget compliance: `100%` complete for strict targets (top runtime/style files are now `<= 600`; no warning/refactor-level hotspots in latest metrics).
-4. Verification confidence coverage: `100%` complete against active gate policy (`npm ci`, typecheck/lint/format, unit, cross-browser E2E, Firefox lint, webext/safari builds, metrics).
-5. Dependency/toolchain hygiene: `100%` complete (`npm ci` and `npm audit` are clean with controlled override hardening and lockfile parity preserved).
+1. Runtime ownership extraction: `100%`
+   - Runtime responsibilities are segmented by owner modules with composition-root orchestration boundaries.
+2. TypeScript/tooling modernization: `100%`
+   - TypeScript, Biome lint/format, unit/E2E gates, and build pipelines are active and green.
+3. Architecture budget compliance: `100%`
+   - No warning-level file or function hotspots remain in latest `npm run arch:metrics`.
+4. Verification confidence coverage: `99%`
+   - Current cycle gates passed:
+     - `format:check`, `lint`, `typecheck`, `test:unit`, `lint:firefox`, `build:webext`, `build:runtime:safari:checked`, `arch:metrics`.
+   - Deferred by request for release-candidate batch:
+     - `test:e2e`
+     - signed `build:safari`
+5. Dependency/toolchain hygiene: `100%` for current scope
+   - Install/build/test parity is green; ongoing upgrades remain operational maintenance work.
 
-Post-completion optimization backlog (not required for v1 completion):
+Gap-to-100% (what is still lacking):
 
-1. Keep dependency/audit hygiene clean while preserving `npm ci` parity and release-confidence gate stability after future upgrades.
-2. Keep top runtime owners below strict targets while feature work continues.
-3. Keep CI/runtime script composition deterministic (`npm run build:safari` generated-runtime path, arch-aware destination handling, race-safe generated-runtime outputs).
-4. Keep CI dependency-audit enforcement stable while dependency versions evolve (`npm audit --audit-level=moderate` remains green).
-5. Keep Safari signing/notarization credentials and pipeline validation healthy to avoid unsigned Gatekeeper-blocked release artifacts.
-6. Architecture docs baseline/status sections updated in the same cycle as structural changes.
+1. One verification gap remains in this cycle: deferred high-cost release-confidence checks (`test:e2e`, signed/notarized `build:safari`).
+2. Remaining architecture work is optimization/headroom, not baseline transformation debt.
 
 Current unresolved blockers and high-friction items:
 
 1. No hard blockers currently prevent execution.
-2. High-size owner drift risk remains in `Content.js` (`597`), `AuthClient.ts` (`578`), `ContentComposition.ts` (`568`), and `HistoryRepositoryCache.ts` (`566`) as features expand.
-3. Full cross-browser + Safari validation is reliable but expensive, so cadence discipline must stay explicit to avoid confidence drift.
-4. Xcode can still emit non-blocking metadata notices (for example AppIntents extraction warnings) depending on local toolchain/Xcode version, but destination-selection ambiguity is resolved.
-5. `main` Safari release builds now intentionally fail when required Apple signing/notarization secrets are missing or invalid.
+2. High-friction: high-cost release gates (`test:e2e`, signed/notarized `build:safari`) are time/infra intensive, so they should remain batched at release-confidence points.
+3. High-friction: aggregate `npm run test:e2e` can intermittently hit cross-project Playwright setup timeouts even when individual project suites pass (`chromium`/`firefox`/`webkit`); mitigation is to run projects sequentially in the release-confidence lane or lower aggregate concurrency.
+4. Non-blocking Xcode friction remains: AppIntents metadata notice (`No AppIntents.framework dependency found.`).

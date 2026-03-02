@@ -1,113 +1,100 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type WatchHistoryEntry = {
-  seriesId: string
-  datePlayedMs: number
-  datePlayed: string
-  seasonNumber: number | null
-  episodeNumber: number | null
-  absoluteEpisodeNumber: number | null
-  episodeId: string | null
-  identifier: string
-  canonicalEpisodeKey: string
-  episodeTitle: string
-  playhead: number
-  fullyWatched: boolean
-  audioLocale: string
-  audioLocaleInferred: boolean
-}
+  seriesId: string;
+  datePlayedMs: number;
+  datePlayed: string;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  absoluteEpisodeNumber: number | null;
+  episodeId: string | null;
+  identifier: string;
+  canonicalEpisodeKey: string;
+  episodeTitle: string;
+  playhead: number;
+  fullyWatched: boolean;
+  audioLocale: string;
+  audioLocaleInferred: boolean;
+};
 
-type WatchHistoryLocaleMap = Record<string, WatchHistoryEntry>
+type WatchHistoryLocaleMap = Record<string, WatchHistoryEntry>;
 
 type WatchHistoryCache = {
-  version: number
-  accountId: string
-  updatedAt: number
-  bySeriesId: Record<string, WatchHistoryEntry>
-  bySeriesIdAudioLocale: Record<string, WatchHistoryLocaleMap>
-  bySeriesIdProgress: Record<string, WatchHistoryEntry>
-  bySeriesIdAudioLocaleProgress: Record<string, WatchHistoryLocaleMap>
-}
+  version: number;
+  accountId: string;
+  updatedAt: number;
+  bySeriesId: Record<string, WatchHistoryEntry>;
+  bySeriesIdAudioLocale: Record<string, WatchHistoryLocaleMap>;
+  bySeriesIdProgress: Record<string, WatchHistoryEntry>;
+  bySeriesIdAudioLocaleProgress: Record<string, WatchHistoryLocaleMap>;
+};
 
 type WatchHistoryState = {
-  watchHistoryCache: WatchHistoryCache
-  watchHistoryStatus: string
-  watchHistoryInflight: Promise<unknown> | null
-}
+  watchHistoryCache: WatchHistoryCache;
+  watchHistoryStatus: string;
+  watchHistoryInflight: Promise<unknown> | null;
+};
 
 type HistoryRepository = {
   getCachedWatchHistory: (
     seriesId: unknown,
     audioLocale?: unknown,
     allowSeriesFallback?: boolean,
-  ) => WatchHistoryEntry | null
+  ) => WatchHistoryEntry | null;
   preloadWatchHistoryForEntries: (
     entries: unknown,
     tokenEntry: unknown,
     force?: boolean,
     preferredAudioLanguage?: unknown,
-  ) => Promise<unknown>
-}
+  ) => Promise<unknown>;
+};
 
 type HistoryRepositoryModule = {
-  createHistoryRepository: (options: Record<string, unknown>) => HistoryRepository
-}
+  createHistoryRepository: (options: Record<string, unknown>) => HistoryRepository;
+};
 
-const cacheModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryCache.ts'),
-).href
-const planningModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreloadPlanning.ts'),
-).href
-const collectorModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreloadCollector.ts'),
-).href
-const preloadModuleUrl = pathToFileURL(
-  path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryPreload.ts'),
-).href
 const repositoryModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepository.ts'),
-).href
+).href;
 
 function normalizeAudioLocale(value: unknown): string {
-  return typeof value === 'string' ? value.trim().toLowerCase() : ''
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
 function sanitizePositiveInt(value: unknown): number | null {
-  const numericValue = Number(value)
-  return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : null
+  const numericValue = Number(value);
+  return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : null;
 }
 
 function parseDateMs(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return value
+    return value;
   }
 
   if (typeof value === 'string' && value.trim()) {
-    const parsedValue = Date.parse(value)
-    return Number.isFinite(parsedValue) ? parsedValue : null
+    const parsedValue = Date.parse(value);
+    return Number.isFinite(parsedValue) ? parsedValue : null;
   }
 
-  return null
+  return null;
 }
 
 function pickFirstPositiveInt(values: Array<number | null | undefined>): number | null {
   for (const value of values) {
     if (value != null && value > 0) {
-      return value
+      return value;
     }
   }
-  return null
+  return null;
 }
 
 function deriveCanonicalEpisodeKeyFromEpisodeMetadata(metadata: Record<string, unknown>, seriesId?: unknown): string {
-  const identifier = typeof metadata.identifier === 'string' ? metadata.identifier : ''
-  const sequenceNumber = sanitizePositiveInt(metadata.sequence_number)
-  const resolvedSeriesId = typeof seriesId === 'string' ? seriesId : ''
-  return `${resolvedSeriesId}|${identifier}|${String(sequenceNumber ?? '')}`
+  const identifier = typeof metadata.identifier === 'string' ? metadata.identifier : '';
+  const sequenceNumber = sanitizePositiveInt(metadata.sequence_number);
+  const resolvedSeriesId = typeof seriesId === 'string' ? seriesId : '';
+  return `${resolvedSeriesId}|${identifier}|${String(sequenceNumber ?? '')}`;
 }
 
 function getAbsoluteEpisodeNumberFromEpisodeMetadata(metadata: Record<string, unknown>): number | null {
@@ -115,7 +102,7 @@ function getAbsoluteEpisodeNumberFromEpisodeMetadata(metadata: Record<string, un
     sanitizePositiveInt(metadata.sequence_number),
     sanitizePositiveInt(metadata.episode_sequence_number),
     sanitizePositiveInt(metadata.global_episode_number),
-  ])
+  ]);
 }
 
 function createEmptyWatchHistoryCache(version = 1): WatchHistoryCache {
@@ -127,7 +114,7 @@ function createEmptyWatchHistoryCache(version = 1): WatchHistoryCache {
     bySeriesIdAudioLocale: {},
     bySeriesIdProgress: {},
     bySeriesIdAudioLocaleProgress: {},
-  }
+  };
 }
 
 function createHistoryState(): WatchHistoryState {
@@ -135,34 +122,37 @@ function createHistoryState(): WatchHistoryState {
     watchHistoryCache: createEmptyWatchHistoryCache(1),
     watchHistoryStatus: 'idle',
     watchHistoryInflight: null,
-  }
+  };
 }
 
+beforeEach(() => {
+  vi.resetModules();
+});
+
 afterEach(() => {
-  clearRuntimeModulesRegistry()
-})
+  vi.restoreAllMocks();
+});
+
+async function loadHistoryRepositoryModule(): Promise<HistoryRepositoryModule> {
+  const repositoryModule = (await import(repositoryModuleUrl)) as {
+    createHistoryRepositoryRuntime: () => object;
+  };
+  return repositoryModule.createHistoryRepositoryRuntime() as HistoryRepositoryModule;
+}
 
 describe('history-repository composition root', () => {
-  it('fails with a clear dependency error when cache/preload modules are not loaded', async () => {
-    const registry = await loadRuntimeModules([repositoryModuleUrl])
-    const historyRepositoryModule = registry.historyRepository as HistoryRepositoryModule
+  it('fails with a clear dependency error when required dependencies are missing', async () => {
+    const historyRepositoryModule = await loadHistoryRepositoryModule();
 
     expect(() => historyRepositoryModule.createHistoryRepository({ state: createHistoryState() })).toThrow(
-      /createHistoryRepositoryCache/,
-    )
-  })
+      /Missing history repository dependency: createHistoryRepositoryCache/,
+    );
+  });
 
   it('wires cache and preload owners through the composition root', async () => {
-    const registry = await loadRuntimeModules([
-      cacheModuleUrl,
-      planningModuleUrl,
-      collectorModuleUrl,
-      preloadModuleUrl,
-      repositoryModuleUrl,
-    ])
-    const historyRepositoryModule = registry.historyRepository as HistoryRepositoryModule
+    const historyRepositoryModule = await loadHistoryRepositoryModule();
 
-    const state = createHistoryState()
+    const state = createHistoryState();
     state.watchHistoryCache.bySeriesId['series-a'] = {
       seriesId: 'series-a',
       datePlayedMs: Date.parse('2024-01-01T00:00:00.000Z'),
@@ -178,7 +168,7 @@ describe('history-repository composition root', () => {
       fullyWatched: false,
       audioLocale: '',
       audioLocaleInferred: false,
-    }
+    };
 
     const repository = historyRepositoryModule.createHistoryRepository({
       state,
@@ -193,9 +183,14 @@ describe('history-repository composition root', () => {
       resolveApiHref: (value: string) => `https://api.example.test${value}`,
       fetchWithResilience: async () => new Response(JSON.stringify({ data: [], total: 0 }), { status: 200 }),
       createAuthRefreshHandler: () => () => undefined,
-      requirePayloadDataArray: (_name: string, payload: unknown) => {
-        const payloadRecord = payload as { data?: unknown }
-        return Array.isArray(payloadRecord.data) ? (payloadRecord.data as Record<string, unknown>[]) : []
+      parsePayloadDataEnvelope: (_name: string, payload: unknown) => {
+        const payloadRecord = payload as { data?: unknown };
+        const rows = Array.isArray(payloadRecord.data) ? (payloadRecord.data as Record<string, unknown>[]) : [];
+        const totalValue = Number((payload as { total?: unknown }).total);
+        return {
+          rows,
+          total: Number.isFinite(totalValue) && totalValue >= 0 ? totalValue : null,
+        };
       },
       auditWatchHistoryRowsContract: () => {},
       createEmptyWatchHistoryCache,
@@ -207,16 +202,16 @@ describe('history-repository composition root', () => {
       watchHistoryPageSize: 100,
       watchHistoryMaxPages: 10,
       watchHistoryNoMatchPageLimit: 2,
-    })
+    });
 
-    expect(repository.getCachedWatchHistory('series-a')?.episodeId).toBe('episode-1')
+    expect(repository.getCachedWatchHistory('series-a')?.episodeId).toBe('episode-1');
 
     await repository.preloadWatchHistoryForEntries(
       [{ seriesId: 'series-a', playheadMs: 100 }],
       { accessToken: '', accountId: '' },
       false,
-    )
+    );
 
-    expect(state.watchHistoryStatus).toBe('unavailable')
-  })
-})
+    expect(state.watchHistoryStatus).toBe('unavailable');
+  });
+});

@@ -29,13 +29,24 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "style": {
+        "noParameterAssign": "error",
+        "noEnum": "error",
+        "noNamespace": "error"
+      },
+      "performance": {
+        "noNamespaceImport": "error"
+      },
+      "suspicious": {
+        "noImportCycles": "error"
+      }
     }
   },
   "javascript": {
     "formatter": {
       "quoteStyle": "single",
-      "semicolons": "asNeeded"
+      "semicolons": "always"
     }
   }
 }

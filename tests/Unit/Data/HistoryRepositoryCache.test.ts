@@ -1,100 +1,101 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type WatchHistoryEntry = {
-  seriesId: string
-  datePlayedMs: number
-  datePlayed: string
-  seasonNumber: number | null
-  episodeNumber: number | null
-  absoluteEpisodeNumber: number | null
-  episodeDurationMs?: number | null
-  episodeId: string | null
-  identifier: string
-  canonicalEpisodeKey: string
-  episodeTitle: string
-  playhead: number
-  fullyWatched: boolean
-  audioLocale: string
-  audioLocaleInferred: boolean
-}
+  seriesId: string;
+  datePlayedMs: number;
+  datePlayed: string;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+  absoluteEpisodeNumber: number | null;
+  episodeDurationMs?: number | null;
+  episodeId: string | null;
+  identifier: string;
+  canonicalEpisodeKey: string;
+  episodeTitle: string;
+  playhead: number;
+  fullyWatched: boolean;
+  audioLocale: string;
+  audioLocaleInferred: boolean;
+};
 
-type WatchHistoryLocaleMap = Record<string, WatchHistoryEntry>
+type WatchHistoryLocaleMap = Record<string, WatchHistoryEntry>;
 
 type WatchHistoryCache = {
-  version: number
-  accountId: string
-  updatedAt: number
-  bySeriesId: Record<string, WatchHistoryEntry>
-  bySeriesIdAudioLocale: Record<string, WatchHistoryLocaleMap>
-  bySeriesIdProgress: Record<string, WatchHistoryEntry>
-  bySeriesIdAudioLocaleProgress: Record<string, WatchHistoryLocaleMap>
-}
+  version: number;
+  accountId: string;
+  updatedAt: number;
+  bySeriesId: Record<string, WatchHistoryEntry>;
+  bySeriesIdAudioLocale: Record<string, WatchHistoryLocaleMap>;
+  bySeriesIdProgress: Record<string, WatchHistoryEntry>;
+  bySeriesIdAudioLocaleProgress: Record<string, WatchHistoryLocaleMap>;
+};
 
 type WatchHistoryState = {
-  watchHistoryCache: WatchHistoryCache
-}
+  watchHistoryCache: WatchHistoryCache;
+};
 
 type HistoryRepositoryCache = {
-  normalizeStoredWatchHistoryCache: (raw: unknown) => WatchHistoryCache
-  isWatchHistoryCacheValid: (cache: unknown, accountId?: unknown) => boolean
+  normalizeStoredWatchHistoryCache: (raw: unknown) => WatchHistoryCache;
+  isWatchHistoryCacheValid: (cache: unknown, accountId?: unknown) => boolean;
   getCachedWatchHistory: (
     seriesId: unknown,
     audioLocale?: unknown,
     allowSeriesFallback?: boolean,
-  ) => WatchHistoryEntry | null
+  ) => WatchHistoryEntry | null;
   shouldReplaceWatchHistoryProgress: (
     previous: Record<string, unknown> | null | undefined,
     next: Record<string, unknown> | null | undefined,
-  ) => boolean
-}
+  ) => boolean;
+};
 
 type HistoryRepositoryCacheModule = {
-  createHistoryRepositoryCache: (options: Record<string, unknown>) => HistoryRepositoryCache
-}
+  createHistoryRepositoryCache: (options: Record<string, unknown>) => HistoryRepositoryCache;
+};
 
 const cacheModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'HistoryRepositoryCache.ts'),
-).href
+).href;
+let createHistoryRepositoryCacheRuntimeFactory: HistoryRepositoryCacheModule['createHistoryRepositoryCache'] | null =
+  null;
 
 function normalizeAudioLocale(value: unknown): string {
-  return typeof value === 'string' ? value.trim().toLowerCase() : ''
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
 function sanitizePositiveInt(value: unknown): number | null {
-  const numericValue = Number(value)
-  return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : null
+  const numericValue = Number(value);
+  return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : null;
 }
 
 function parseDateMs(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return value
+    return value;
   }
 
   if (typeof value === 'string' && value.trim()) {
-    const parsedValue = Date.parse(value)
-    return Number.isFinite(parsedValue) ? parsedValue : null
+    const parsedValue = Date.parse(value);
+    return Number.isFinite(parsedValue) ? parsedValue : null;
   }
 
-  return null
+  return null;
 }
 
 function pickFirstPositiveInt(values: Array<number | null | undefined>): number | null {
   for (const value of values) {
     if (value != null && value > 0) {
-      return value
+      return value;
     }
   }
-  return null
+  return null;
 }
 
 function deriveCanonicalEpisodeKeyFromEpisodeMetadata(metadata: Record<string, unknown>, seriesId?: unknown): string {
-  const identifier = typeof metadata.identifier === 'string' ? metadata.identifier : ''
-  const sequenceNumber = sanitizePositiveInt(metadata.sequence_number)
-  const resolvedSeriesId = typeof seriesId === 'string' ? seriesId : ''
-  return `${resolvedSeriesId}|${identifier}|${String(sequenceNumber ?? '')}`
+  const identifier = typeof metadata.identifier === 'string' ? metadata.identifier : '';
+  const sequenceNumber = sanitizePositiveInt(metadata.sequence_number);
+  const resolvedSeriesId = typeof seriesId === 'string' ? seriesId : '';
+  return `${resolvedSeriesId}|${identifier}|${String(sequenceNumber ?? '')}`;
 }
 
 function createEmptyWatchHistoryCache(version = 1): WatchHistoryCache {
@@ -106,7 +107,7 @@ function createEmptyWatchHistoryCache(version = 1): WatchHistoryCache {
     bySeriesIdAudioLocale: {},
     bySeriesIdProgress: {},
     bySeriesIdAudioLocaleProgress: {},
-  }
+  };
 }
 
 function createHistoryRepositoryCache(
@@ -114,10 +115,11 @@ function createHistoryRepositoryCache(
   watchHistoryCacheVersion = 1,
   watchHistoryCacheTtlMs = 10_000,
 ): HistoryRepositoryCache {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
-  const cacheModule = registry.historyRepositoryCache as HistoryRepositoryCacheModule
+  if (typeof createHistoryRepositoryCacheRuntimeFactory !== 'function') {
+    throw new Error('History repository cache runtime was not initialized for test');
+  }
 
-  return cacheModule.createHistoryRepositoryCache({
+  return createHistoryRepositoryCacheRuntimeFactory({
     state,
     normalizeAudioLocale,
     sanitizePositiveInt,
@@ -127,17 +129,20 @@ function createHistoryRepositoryCache(
     createEmptyWatchHistoryCache,
     watchHistoryCacheVersion,
     watchHistoryCacheTtlMs,
-  })
+  });
 }
 
 describe('HistoryRepositoryCache', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([cacheModuleUrl])
-  })
+    vi.resetModules();
+    const module = (await import(cacheModuleUrl)) as HistoryRepositoryCacheModule;
+    createHistoryRepositoryCacheRuntimeFactory = module.createHistoryRepositoryCache;
+  });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry()
-  })
+    createHistoryRepositoryCacheRuntimeFactory = null;
+    vi.restoreAllMocks();
+  });
 
   it('validates cache version, account, and ttl boundaries', () => {
     const state: WatchHistoryState = {
@@ -146,35 +151,35 @@ describe('HistoryRepositoryCache', () => {
         accountId: 'acct-1',
         updatedAt: Date.now(),
       },
-    }
+    };
 
-    const repository = createHistoryRepositoryCache(state, 1, 30_000)
+    const repository = createHistoryRepositoryCache(state, 1, 30_000);
 
-    expect(repository.isWatchHistoryCacheValid(state.watchHistoryCache, 'acct-1')).toBe(true)
-    expect(repository.isWatchHistoryCacheValid(state.watchHistoryCache, 'acct-2')).toBe(false)
+    expect(repository.isWatchHistoryCacheValid(state.watchHistoryCache, 'acct-1')).toBe(true);
+    expect(repository.isWatchHistoryCacheValid(state.watchHistoryCache, 'acct-2')).toBe(false);
 
     const staleCache = {
       ...state.watchHistoryCache,
       updatedAt: Date.now() - 60_000,
-    }
-    expect(repository.isWatchHistoryCacheValid(staleCache, 'acct-1')).toBe(false)
+    };
+    expect(repository.isWatchHistoryCacheValid(staleCache, 'acct-1')).toBe(false);
 
     const wrongVersionCache = {
       ...state.watchHistoryCache,
       version: 2,
-    }
-    expect(repository.isWatchHistoryCacheValid(wrongVersionCache, 'acct-1')).toBe(false)
-  })
+    };
+    expect(repository.isWatchHistoryCacheValid(wrongVersionCache, 'acct-1')).toBe(false);
+  });
 
   it('normalizes locale maps and keeps the latest localized entry', () => {
     const state: WatchHistoryState = {
       watchHistoryCache: createEmptyWatchHistoryCache(1),
-    }
+    };
 
-    const repository = createHistoryRepositoryCache(state)
+    const repository = createHistoryRepositoryCache(state);
 
-    const olderPlayed = new Date('2024-01-01T00:00:00.000Z').toISOString()
-    const newerPlayed = new Date('2024-01-02T00:00:00.000Z').toISOString()
+    const olderPlayed = new Date('2024-01-01T00:00:00.000Z').toISOString();
+    const newerPlayed = new Date('2024-01-02T00:00:00.000Z').toISOString();
 
     const rawCache = {
       version: 1,
@@ -239,16 +244,16 @@ describe('HistoryRepositoryCache', () => {
       },
       bySeriesIdProgress: {},
       bySeriesIdAudioLocaleProgress: {},
-    }
+    };
 
-    const normalized = repository.normalizeStoredWatchHistoryCache(rawCache)
+    const normalized = repository.normalizeStoredWatchHistoryCache(rawCache);
 
-    const localized = normalized.bySeriesIdAudioLocale['series-a']?.['en-us']
-    expect(localized).not.toBeUndefined()
-    expect(localized?.episodeId).toBe('episode-2')
-    expect(localized?.datePlayedMs).toBe(Date.parse(newerPlayed))
-    expect(localized?.episodeDurationMs).toBe(1_420_087)
-  })
+    const localized = normalized.bySeriesIdAudioLocale['series-a']?.['en-us'];
+    expect(localized).not.toBeUndefined();
+    expect(localized?.episodeId).toBe('episode-2');
+    expect(localized?.datePlayedMs).toBe(Date.parse(newerPlayed));
+    expect(localized?.episodeDurationMs).toBe(1_420_087);
+  });
 
   it('prefers locale-specific history and falls back to series history when allowed', () => {
     const baseEntry: WatchHistoryEntry = {
@@ -266,13 +271,13 @@ describe('HistoryRepositoryCache', () => {
       fullyWatched: false,
       audioLocale: 'en-us',
       audioLocaleInferred: false,
-    }
+    };
 
     const fallbackEntry: WatchHistoryEntry = {
       ...baseEntry,
       episodeId: 'episode-fallback',
       audioLocale: '',
-    }
+    };
 
     const state: WatchHistoryState = {
       watchHistoryCache: {
@@ -286,25 +291,25 @@ describe('HistoryRepositoryCache', () => {
           },
         },
       },
-    }
+    };
 
-    const repository = createHistoryRepositoryCache(state)
+    const repository = createHistoryRepositoryCache(state);
 
-    const localized = repository.getCachedWatchHistory('series-a', 'EN-US', false)
-    expect(localized?.episodeId).toBe('episode-3')
+    const localized = repository.getCachedWatchHistory('series-a', 'EN-US', false);
+    expect(localized?.episodeId).toBe('episode-3');
 
-    const missingLocalizedNoFallback = repository.getCachedWatchHistory('series-a', 'ja-JP', false)
-    expect(missingLocalizedNoFallback).toBeNull()
+    const missingLocalizedNoFallback = repository.getCachedWatchHistory('series-a', 'ja-JP', false);
+    expect(missingLocalizedNoFallback).toBeNull();
 
-    const missingLocalizedWithFallback = repository.getCachedWatchHistory('series-a', 'ja-JP', true)
-    expect(missingLocalizedWithFallback?.episodeId).toBe('episode-fallback')
-  })
+    const missingLocalizedWithFallback = repository.getCachedWatchHistory('series-a', 'ja-JP', true);
+    expect(missingLocalizedWithFallback?.episodeId).toBe('episode-fallback');
+  });
 
   it('prefers non-inferred audio entries when replacing progress rows', () => {
     const state: WatchHistoryState = {
       watchHistoryCache: createEmptyWatchHistoryCache(1),
-    }
-    const repository = createHistoryRepositoryCache(state)
+    };
+    const repository = createHistoryRepositoryCache(state);
 
     const shouldReplace = repository.shouldReplaceWatchHistoryProgress(
       {
@@ -315,8 +320,8 @@ describe('HistoryRepositoryCache', () => {
         audioLocaleInferred: false,
         datePlayedMs: Date.parse('2024-01-01T00:00:00.000Z'),
       },
-    )
+    );
 
-    expect(shouldReplace).toBe(true)
-  })
-})
+    expect(shouldReplace).toBe(true);
+  });
+});

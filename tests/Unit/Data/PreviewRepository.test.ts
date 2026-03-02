@@ -1,42 +1,39 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type ResponseLike = {
-  ok: boolean
-  json: () => Promise<unknown>
-}
+  ok: boolean;
+  json: () => Promise<unknown>;
+};
 
 type PreviewRepositoryRuntime = {
-  fetchPreviewUrlForEntry: (entry: unknown) => Promise<string | null>
-}
+  fetchPreviewUrlForEntry: (entry: unknown) => Promise<string | null>;
+};
 
 type PreviewRepositoryModule = {
-  previewRepository: {
-    createPreviewRepository: (options: Record<string, unknown>) => PreviewRepositoryRuntime
-  }
-}
+  createPreviewRepository: (options: Record<string, unknown>) => PreviewRepositoryRuntime;
+};
 
 type PreviewState = {
-  previewCache: Record<string, string | null>
-  previewInflight: Map<string, Promise<string | null>>
-}
+  previewCache: Record<string, string | null>;
+  previewInflight: Map<string, Promise<string | null>>;
+};
 
 const previewRepositoryModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Data', 'PreviewRepository.ts'),
-).href
-
-function getPreviewRepositoryModule() {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as PreviewRepositoryModule
-  return registry.previewRepository
-}
+).href;
+let createPreviewRepositoryRuntimeFactory: PreviewRepositoryModule['createPreviewRepository'] | null = null;
 
 function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
+  if (typeof createPreviewRepositoryRuntimeFactory !== 'function') {
+    throw new Error('Preview repository runtime was not initialized for test');
+  }
+
   const state: PreviewState = {
     previewCache: {},
     previewInflight: new Map(),
-  }
+  };
 
   const fetchWithResilience =
     vi.fn<
@@ -44,38 +41,38 @@ function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
         url: string,
         requestInit: RequestInit,
         options: {
-          label: string
-          bearerToken?: string
-          refreshBearerToken?: unknown
+          label: string;
+          bearerToken?: string;
+          refreshBearerToken?: unknown;
         },
       ) => Promise<ResponseLike>
-    >()
-  const getAccessToken = vi.fn(async () => ({ accessToken: 'token-123' }))
-  const createAuthRefreshHandler = vi.fn(() => undefined)
-  const pushApiTrace = vi.fn()
-  const runtimeEvent = vi.fn()
+    >();
+  const getAccessToken = vi.fn(async () => ({ accessToken: 'token-123' }));
+  const createAuthRefreshHandler = vi.fn(() => undefined);
+  const pushApiTrace = vi.fn();
+  const runtimeEvent = vi.fn();
 
-  const runtime = getPreviewRepositoryModule().createPreviewRepository({
+  const runtime = createPreviewRepositoryRuntimeFactory({
     state,
     resolveApiHref: (value: unknown) => {
       if (typeof value !== 'string') {
-        return ''
+        return '';
       }
 
-      const trimmed = value.trim()
+      const trimmed = value.trim();
       if (!trimmed) {
-        return ''
+        return '';
       }
 
       if (/^https?:\/\//i.test(trimmed)) {
-        return trimmed
+        return trimmed;
       }
 
       if (trimmed.startsWith('/')) {
-        return `https://api.example.test${trimmed}`
+        return `https://api.example.test${trimmed}`;
       }
 
-      return ''
+      return '';
     },
     getAccessToken,
     fetchWithResilience,
@@ -83,7 +80,7 @@ function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
     pushApiTrace,
     runtimeEvent,
     ...overrides,
-  })
+  });
 
   return {
     runtime,
@@ -93,94 +90,100 @@ function createRuntime(overrides: Partial<Record<string, unknown>> = {}) {
     createAuthRefreshHandler,
     pushApiTrace,
     runtimeEvent,
-  }
+  };
 }
 
 describe('preview-repository module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([previewRepositoryModuleUrl])
-  })
+    vi.resetModules();
+    const module = (await import(previewRepositoryModuleUrl)) as {
+      createPreviewRepositoryRuntime: () => object;
+    };
+    createPreviewRepositoryRuntimeFactory = (module.createPreviewRepositoryRuntime() as PreviewRepositoryModule)
+      .createPreviewRepository;
+  });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry()
-  })
+    createPreviewRepositoryRuntimeFactory = null;
+    vi.restoreAllMocks();
+  });
 
   it('records a contract warning when preview payload root is not an object', async () => {
-    const { runtime, state, fetchWithResilience, runtimeEvent } = createRuntime()
+    const { runtime, state, fetchWithResilience, runtimeEvent } = createRuntime();
     fetchWithResilience.mockResolvedValue({
       ok: true,
       json: async () => ['invalid'],
-    })
+    });
 
     const previewUrl = await runtime.fetchPreviewUrlForEntry({
       seriesId: 'SERIES_A',
       streamsLink: '/content/v2/cms/streams/SERIES_A',
-    })
+    });
 
-    expect(previewUrl).toBeNull()
-    expect(state.previewCache['streams:https://api.example.test/content/v2/cms/streams/SERIES_A']).toBeNull()
+    expect(previewUrl).toBeNull();
+    expect(state.previewCache['streams:https://api.example.test/content/v2/cms/streams/SERIES_A']).toBeNull();
     expect(runtimeEvent).toHaveBeenCalledWith(
       'preview-contract-warning',
       expect.objectContaining({
         reason: 'invalid-payload-root',
         seriesId: 'SERIES_A',
       }),
-    )
-  })
+    );
+  });
 
   it('records a contract warning when preview response json parsing fails', async () => {
-    const { runtime, fetchWithResilience, runtimeEvent } = createRuntime()
+    const { runtime, fetchWithResilience, runtimeEvent } = createRuntime();
     fetchWithResilience.mockResolvedValue({
       ok: true,
       json: async () => {
-        throw new Error('invalid json')
+        throw new Error('invalid json');
       },
-    })
+    });
 
     const previewUrl = await runtime.fetchPreviewUrlForEntry({
       seriesId: 'SERIES_B',
       streamsLink: '/content/v2/cms/streams/SERIES_B',
-    })
+    });
 
-    expect(previewUrl).toBeNull()
+    expect(previewUrl).toBeNull();
     expect(runtimeEvent).toHaveBeenCalledWith(
       'preview-contract-warning',
       expect.objectContaining({
         reason: 'invalid-json-payload',
         seriesId: 'SERIES_B',
       }),
-    )
-  })
+    );
+  });
 
   it('deduplicates inflight preview requests for the same entry', async () => {
-    const { runtime, fetchWithResilience } = createRuntime()
+    const { runtime, fetchWithResilience } = createRuntime();
     const deferred: {
-      resolve: ((value: ResponseLike) => void) | null
+      resolve: ((value: ResponseLike) => void) | null;
     } = {
       resolve: null,
-    }
+    };
     fetchWithResilience.mockImplementation(
       async () =>
         new Promise<ResponseLike>((resolve) => {
           deferred.resolve = (value: ResponseLike) => {
-            resolve(value)
-          }
+            resolve(value);
+          };
         }),
-    )
+    );
 
     const entry = {
       seriesId: 'SERIES_C',
       streamsLink: '/content/v2/cms/streams/SERIES_C',
-    }
+    };
 
-    const first = runtime.fetchPreviewUrlForEntry(entry)
-    const second = runtime.fetchPreviewUrlForEntry(entry)
-    await Promise.resolve()
+    const first = runtime.fetchPreviewUrlForEntry(entry);
+    const second = runtime.fetchPreviewUrlForEntry(entry);
+    await Promise.resolve();
 
-    expect(fetchWithResilience).toHaveBeenCalledTimes(1)
+    expect(fetchWithResilience).toHaveBeenCalledTimes(1);
 
     if (typeof deferred.resolve !== 'function') {
-      throw new Error('Expected preview request promise resolver to be initialized')
+      throw new Error('Expected preview request promise resolver to be initialized');
     }
 
     deferred.resolve({
@@ -192,21 +195,21 @@ describe('preview-repository module', () => {
           },
         },
       }),
-    })
+    });
 
-    await expect(first).resolves.toBe('https://api.example.test/video/series-c-preview.m3u8')
-    await expect(second).resolves.toBe('https://api.example.test/video/series-c-preview.m3u8')
-  })
+    await expect(first).resolves.toBe('https://api.example.test/video/series-c-preview.m3u8');
+    await expect(second).resolves.toBe('https://api.example.test/video/series-c-preview.m3u8');
+  });
 
   it('returns null without requesting preview data when streams link is missing', async () => {
-    const { runtime, fetchWithResilience } = createRuntime()
+    const { runtime, fetchWithResilience } = createRuntime();
 
     const previewUrl = await runtime.fetchPreviewUrlForEntry({
       seriesId: 'SERIES_D',
       panelId: 'episode-1',
-    })
+    });
 
-    expect(previewUrl).toBeNull()
-    expect(fetchWithResilience).not.toHaveBeenCalled()
-  })
-})
+    expect(previewUrl).toBeNull();
+    expect(fetchWithResilience).not.toHaveBeenCalled();
+  });
+});

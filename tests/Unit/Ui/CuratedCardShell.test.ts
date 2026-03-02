@@ -1,62 +1,71 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type FakeMouseEvent = {
-  defaultPrevented: boolean
-  button: number
-  metaKey: boolean
-  ctrlKey: boolean
-  shiftKey: boolean
-  altKey: boolean
+  defaultPrevented: boolean;
+  button: number;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+  altKey: boolean;
   target: {
-    closest: (selector: string) => unknown
-  } | null
-}
+    closest: (selector: string) => unknown;
+  } | null;
+};
 
 type FakeElement = {
-  tagName: string
-  className: string
+  tagName: string;
+  className: string;
   classList: {
-    add: (...tokens: string[]) => void
-  }
-  textContent: string
-  href: string
-  loading: string
-  src: string
-  alt: string
-  dataset: Record<string, string>
-  attributes: Record<string, string>
-  style: Record<string, string>
-  children: FakeElement[]
-  listeners: Record<string, Array<(event: FakeMouseEvent) => void>>
-  appendChild: (child: FakeElement) => FakeElement
-  setAttribute: (name: string, value: string) => void
-  addEventListener: (eventName: string, listener: (event: FakeMouseEvent) => void) => void
-  dispatch: (eventName: string, event?: Partial<FakeMouseEvent>) => void
-  querySelector?: (selector: string) => FakeElement | null
-}
+    add: (...tokens: string[]) => void;
+  };
+  textContent: string;
+  href: string;
+  loading: string;
+  src: string;
+  alt: string;
+  title: string;
+  complete?: boolean;
+  naturalWidth?: number;
+  naturalHeight?: number;
+  dataset: Record<string, string>;
+  attributes: Record<string, string>;
+  style: Record<string, string>;
+  children: FakeElement[];
+  parentNode?: FakeElement | null;
+  listeners: Record<string, Array<(event: FakeMouseEvent) => void>>;
+  appendChild: (child: FakeElement) => FakeElement;
+  removeChild: (child: FakeElement) => FakeElement;
+  setAttribute: (name: string, value: string) => void;
+  addEventListener: (eventName: string, listener: (event: FakeMouseEvent) => void) => void;
+  dispatch: (eventName: string, event?: Partial<FakeMouseEvent>) => void;
+  querySelector?: (selector: string) => FakeElement | null;
+};
 
 type FakeDocument = {
-  createElement: (tagName: string) => FakeElement
-}
+  createElement: (tagName: string) => FakeElement;
+};
 
 type CardShellRuntime = {
-  getCardCoverImage: (entry: unknown, layout?: unknown) => string
-  attachCuratedCardNavigation: (item: FakeElement, cardHref: string) => void
-  createCuratedCard: (entry: unknown) => FakeElement
-}
+  getCardCoverImage: (entry: unknown, layout?: unknown) => string;
+  attachCuratedCardNavigation: (item: FakeElement, cardHref: string) => void;
+  createCuratedCard: (entry: unknown) => FakeElement;
+  patchCuratedCard: (card: unknown, entry: unknown) => void;
+};
 
 type CardShellModule = {
-  createCardShell: (deps: Record<string, unknown>) => CardShellRuntime
-}
+  createCardShell: (deps: Record<string, unknown>) => CardShellRuntime;
+};
 
-const cardShellModuleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardShell.ts')).href
+const cardShellModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Ui', 'CuratedCardShell.ts'),
+).href;
+let createCardShell: CardShellModule['createCardShell'] | null = null;
 
 function createFakeDocument(): FakeDocument {
   const createElement = (tagName: string): FakeElement => {
-    const classNames = new Set<string>()
+    const classNames = new Set<string>();
     const element: FakeElement = {
       tagName,
       className: '',
@@ -64,11 +73,11 @@ function createFakeDocument(): FakeDocument {
         add(...tokens: string[]) {
           for (const token of tokens) {
             if (!token) {
-              continue
+              continue;
             }
-            classNames.add(token)
+            classNames.add(token);
           }
-          element.className = Array.from(classNames).join(' ')
+          element.className = Array.from(classNames).join(' ');
         },
       },
       textContent: '',
@@ -76,25 +85,42 @@ function createFakeDocument(): FakeDocument {
       loading: '',
       src: '',
       alt: '',
+      title: '',
+      complete: false,
+      naturalWidth: 0,
+      naturalHeight: 0,
       dataset: {},
       attributes: {},
       style: {},
       children: [],
+      parentNode: null,
       listeners: {},
       appendChild(child: FakeElement) {
-        this.children.push(child)
-        return child
+        if (child.parentNode) {
+          child.parentNode.removeChild(child);
+        }
+        this.children.push(child);
+        child.parentNode = this;
+        return child;
+      },
+      removeChild(child: FakeElement) {
+        const index = this.children.indexOf(child);
+        if (index >= 0) {
+          this.children.splice(index, 1);
+          child.parentNode = null;
+        }
+        return child;
       },
       setAttribute(name: string, value: string) {
-        this.attributes[name] = value
+        this.attributes[name] = value;
       },
       addEventListener(eventName: string, listener: (event: FakeMouseEvent) => void) {
-        const listeners = this.listeners[eventName] || []
-        listeners.push(listener)
-        this.listeners[eventName] = listeners
+        const listeners = this.listeners[eventName] || [];
+        listeners.push(listener);
+        this.listeners[eventName] = listeners;
       },
       dispatch(eventName: string, event: Partial<FakeMouseEvent> = {}) {
-        const listeners = this.listeners[eventName] || []
+        const listeners = this.listeners[eventName] || [];
         const normalizedEvent: FakeMouseEvent = {
           defaultPrevented: event.defaultPrevented ?? false,
           button: event.button ?? 0,
@@ -105,38 +131,67 @@ function createFakeDocument(): FakeDocument {
           target: event.target ?? {
             closest: () => null,
           },
-        }
+        };
         for (const listener of listeners) {
-          listener(normalizedEvent)
+          listener(normalizedEvent);
         }
       },
-    }
-    return element
-  }
+    };
+    return element;
+  };
 
   return {
     createElement,
-  }
-}
-
-function getCardShellModule(): CardShellModule {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    ui?: Record<string, unknown>
-  }
-  const uiRegistry = registry.ui ?? {}
-  return uiRegistry.cardShell as CardShellModule
+  };
 }
 
 function createCardShellRuntime(options: Partial<Record<string, unknown>> = {}) {
-  const documentRef = createFakeDocument()
-  const locationAssign = vi.fn()
-  const getSelection = vi.fn(() => ({ type: 'None' }))
+  if (typeof createCardShell !== 'function') {
+    throw new Error('Card shell runtime was not initialized for test');
+  }
 
-  const createCuratedCardActions = vi.fn(() => documentRef.createElement('div'))
-  const createCuratedCardBody = vi.fn((_entry: unknown, _actions: unknown) => documentRef.createElement('section'))
-  const installCuratedCardPreview = vi.fn()
+  const {
+    createCuratedCardBody: createCuratedCardBodyOption,
+    getCuratedCardBodyRefs: getCuratedCardBodyRefsOption,
+    ...restOptions
+  } = options;
+  const documentRef = createFakeDocument();
+  const locationAssign = vi.fn();
+  const getSelection = vi.fn(() => ({ type: 'None' }));
+  const cardBodyRefsByElement = new WeakMap<
+    object,
+    {
+      descriptionElement: FakeElement;
+    }
+  >();
 
-  const runtime = getCardShellModule().createCardShell({
+  const createCuratedCardActions = vi.fn(() => documentRef.createElement('div'));
+  const createCuratedCardBody = vi.fn((entry: unknown, actions: unknown) => {
+    const body =
+      typeof createCuratedCardBodyOption === 'function'
+        ? (createCuratedCardBodyOption as (entryValue: unknown, actionsValue: unknown) => FakeElement)(entry, actions)
+        : documentRef.createElement('section');
+    const description = body.children.find((child) => child.className === 'cw-curated-card__description') || null;
+    if (description) {
+      cardBodyRefsByElement.set(body, {
+        descriptionElement: description,
+      });
+    }
+    return body;
+  });
+  const getCuratedCardBodyRefs = vi.fn((value: unknown) => {
+    if (typeof getCuratedCardBodyRefsOption === 'function') {
+      return (getCuratedCardBodyRefsOption as (value: unknown) => unknown)(value);
+    }
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+    return cardBodyRefsByElement.get(value as object) || null;
+  });
+  const patchCuratedCardBody = vi.fn();
+  const installCuratedCardPreview = vi.fn();
+
+  const runtime = createCardShell({
     documentRef,
     windowRef: {
       location: {
@@ -150,9 +205,11 @@ function createCardShellRuntime(options: Partial<Record<string, unknown>> = {}) 
     makeRatingBadge: () => documentRef.createElement('span'),
     createCuratedCardActions,
     createCuratedCardBody,
+    getCuratedCardBodyRefs,
+    patchCuratedCardBody,
     installCuratedCardPreview,
-    ...options,
-  })
+    ...restOptions,
+  });
 
   return {
     runtime,
@@ -160,22 +217,28 @@ function createCardShellRuntime(options: Partial<Record<string, unknown>> = {}) 
     getSelection,
     createCuratedCardActions,
     createCuratedCardBody,
+    getCuratedCardBodyRefs,
+    patchCuratedCardBody,
     installCuratedCardPreview,
     documentRef,
-  }
+  };
 }
 
 describe('curated-card-shell ui module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([cardShellModuleUrl])
-  })
+    vi.resetModules();
+    const cardShellModule = (await import(cardShellModuleUrl)) as {
+      createCardShellRuntime: () => object;
+    };
+    createCardShell = (cardShellModule.createCardShellRuntime() as CardShellModule).createCardShell;
+  });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry()
-  })
+    createCardShell = null;
+  });
 
   it('selects cover images based on card layout with fallback', () => {
-    const { runtime } = createCardShellRuntime()
+    const { runtime } = createCardShellRuntime();
 
     expect(
       runtime.getCardCoverImage({
@@ -183,7 +246,7 @@ describe('curated-card-shell ui module', () => {
         landscapeImageUrl: 'landscape.jpg',
         imageUrl: 'fallback.jpg',
       }),
-    ).toBe('portrait.jpg')
+    ).toBe('portrait.jpg');
 
     expect(
       runtime.getCardCoverImage(
@@ -194,7 +257,7 @@ describe('curated-card-shell ui module', () => {
         },
         'landscape',
       ),
-    ).toBe('landscape.jpg')
+    ).toBe('landscape.jpg');
 
     expect(
       runtime.getCardCoverImage({
@@ -202,12 +265,12 @@ describe('curated-card-shell ui module', () => {
         landscapeImageUrl: '',
         imageUrl: 'fallback.jpg',
       }),
-    ).toBe('fallback.jpg')
-  })
+    ).toBe('fallback.jpg');
+  });
 
   it('builds curated cards and forwards preview/action/body wiring', () => {
     const { runtime, createCuratedCardActions, createCuratedCardBody, installCuratedCardPreview } =
-      createCardShellRuntime()
+      createCardShellRuntime();
 
     const card = runtime.createCuratedCard({
       seriesId: 'series-1',
@@ -219,48 +282,63 @@ describe('curated-card-shell ui module', () => {
       portraitImageUrl: 'portrait.jpg',
       hoverPreviewImageUrl: 'hover.jpg',
       dimNotWatchReady: true,
-    })
+    });
 
-    expect(card.className).toContain('cw-curated-card')
-    expect(card.className).toContain('cw-curated-card--not-watch-ready')
-    expect(card.dataset.cwSeriesId).toBe('series-1')
-    expect(card.dataset.cwCuratedTitle).toBe('Fixture title')
-    expect(card.children).toHaveLength(3)
-    expect(card.children[1]?.className).toBe('cw-curated-card__media')
-    expect(createCuratedCardActions).toHaveBeenCalledTimes(1)
-    expect(createCuratedCardBody).toHaveBeenCalledTimes(1)
-    expect(installCuratedCardPreview).toHaveBeenCalledTimes(1)
-    expect(installCuratedCardPreview.mock.calls[0]?.[2]).toBe('portrait.jpg')
-    expect(installCuratedCardPreview.mock.calls[0]?.[3]).toBe('hover.jpg')
-  })
+    expect(card.className).toContain('cw-curated-card');
+    expect(card.className).toContain('cw-curated-card--not-watch-ready');
+    expect(card.dataset.cwSeriesId).toBe('series-1');
+    expect(card.dataset.cwCuratedTitle).toBe('Fixture title');
+    expect(card.children).toHaveLength(3);
+    expect(card.children[1]?.className).toBe('cw-curated-card__media');
+    expect(createCuratedCardActions).toHaveBeenCalledTimes(1);
+    expect(createCuratedCardBody).toHaveBeenCalledTimes(1);
+    expect(installCuratedCardPreview).toHaveBeenCalledTimes(1);
+    expect(installCuratedCardPreview.mock.calls[0]?.[2]).toBe('portrait.jpg');
+    expect(installCuratedCardPreview.mock.calls[0]?.[3]).toBe('hover.jpg');
+  });
+
+  it('routes thumbnail links to direct episode hrefs while preserving series-level card navigation', () => {
+    const { runtime } = createCardShellRuntime();
+
+    const card = runtime.createCuratedCard({
+      seriesId: 'series-1',
+      title: 'Series title',
+      href: '/series/series-1',
+      episodeHref: '/watch/series-1-episode-3',
+      portraitImageUrl: 'portrait.jpg',
+    });
+
+    const media = card.children[1];
+    const thumbLink = media?.children[0];
+    expect(thumbLink?.href).toBe('/watch/series-1-episode-3');
+  });
 
   it('moves description under the card thumbnail when available', () => {
     const { runtime, documentRef } = createCardShellRuntime({
       createCuratedCardBody: () => {
-        const body = documentRef.createElement('section')
-        const description = documentRef.createElement('div')
-        description.className = 'cw-curated-card__description'
-        body.appendChild(description)
-        body.querySelector = (selector: string) => (selector === '.cw-curated-card__description' ? description : null)
-        return body
+        const body = documentRef.createElement('section');
+        const description = documentRef.createElement('div');
+        description.className = 'cw-curated-card__description';
+        body.appendChild(description);
+        return body;
       },
-    })
+    });
 
     const card = runtime.createCuratedCard({
       seriesId: 'series-1',
       title: 'Series title',
       href: '/series/series-1',
       portraitImageUrl: 'portrait.jpg',
-    })
+    });
 
-    const media = card.children[1]
-    expect(media?.className).toBe('cw-curated-card__media')
-    expect(media?.children[0]?.className).toBe('cw-curated-card__thumb')
-    expect(media?.children[1]?.className).toBe('cw-curated-card__description')
-  })
+    const media = card.children[1];
+    expect(media?.className).toBe('cw-curated-card__media');
+    expect(media?.children[0]?.className).toContain('cw-curated-card__thumb');
+    expect(media?.children[1]?.className).toBe('cw-curated-card__description');
+  });
 
   it('renders a thumbnail progress bar for partial episode progress', () => {
-    const { runtime } = createCardShellRuntime()
+    const { runtime } = createCardShellRuntime();
 
     const card = runtime.createCuratedCard({
       seriesId: 'series-progress',
@@ -268,35 +346,162 @@ describe('curated-card-shell ui module', () => {
       href: '/series/series-progress',
       portraitImageUrl: 'portrait.jpg',
       episodeWatchProgressRatio: 0.42,
-    })
+    });
 
-    const media = card.children[1]
-    expect(media?.className).toBe('cw-curated-card__media')
-    expect(media?.children[0]?.className).toBe('cw-curated-card__thumb')
-    expect(media?.children[1]?.className).toBe('cw-curated-card__thumb-progress')
-    expect(media?.children[1]?.children[0]?.className).toBe('cw-curated-card__thumb-progress-fill')
-    expect(media?.children[1]?.children[0]?.style.width).toBe('42%')
-  })
+    const media = card.children[1];
+    expect(media?.className).toBe('cw-curated-card__media');
+    expect(media?.children[0]?.className).toContain('cw-curated-card__thumb');
+    expect(media?.children[1]?.className).toBe('cw-curated-card__thumb-progress');
+    expect(media?.children[1]?.children[0]?.className).toBe('cw-curated-card__thumb-progress-fill');
+    expect(media?.children[1]?.children[0]?.style.width).toBe('42%');
+  });
+
+  it('delegates body-field patching to card-view patch helper instead of rebuilding body templates', () => {
+    const { runtime, createCuratedCardBody, patchCuratedCardBody } = createCardShellRuntime();
+
+    const card = runtime.createCuratedCard({
+      seriesId: 'series-1',
+      title: 'Series title',
+      href: '/series/series-1',
+      portraitImageUrl: 'portrait.jpg',
+    });
+
+    runtime.patchCuratedCard(card, {
+      seriesId: 'series-1',
+      title: 'Updated title',
+      href: '/series/series-1',
+      portraitImageUrl: 'portrait.jpg',
+    });
+
+    expect(createCuratedCardBody).toHaveBeenCalledTimes(1);
+    expect(patchCuratedCardBody).toHaveBeenCalledTimes(1);
+    expect(patchCuratedCardBody).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tagName: 'section',
+      }),
+      expect.objectContaining({
+        seriesId: 'series-1',
+      }),
+    );
+  });
+
+  it('refreshes preview wiring with latest image metadata when patching an existing card', () => {
+    const { runtime, installCuratedCardPreview } = createCardShellRuntime();
+    const card = runtime.createCuratedCard({
+      seriesId: 'series-1',
+      title: 'Series title',
+      href: '/series/series-1',
+      portraitImageUrl: 'portrait-initial.jpg',
+      hoverPreviewImageUrl: 'hover-initial.jpg',
+    });
+
+    runtime.patchCuratedCard(card, {
+      seriesId: 'series-1',
+      title: 'Series title',
+      href: '/series/series-1',
+      portraitImageUrl: 'portrait-updated.jpg',
+      hoverPreviewImageUrl: 'hover-updated.jpg',
+    });
+
+    expect(installCuratedCardPreview).toHaveBeenCalledTimes(2);
+    expect(installCuratedCardPreview.mock.calls[1]?.[2]).toBe('portrait-updated.jpg');
+    expect(installCuratedCardPreview.mock.calls[1]?.[3]).toBe('hover-updated.jpg');
+  });
+
+  it('patches favorite action button state in place when favorite flag changes', () => {
+    const documentRef = createFakeDocument();
+    let favoriteButtonRef: FakeElement | null = null;
+    const { runtime } = createCardShellRuntime({
+      documentRef,
+      createCuratedCardActions: () => {
+        const actions = documentRef.createElement('div');
+        const favoriteButton = documentRef.createElement('button');
+        favoriteButton.className = 'cw-card-action cw-card-action--favorite is-active';
+        favoriteButton.dataset.cwAction = 'favorite';
+        favoriteButton.textContent = '♥';
+        favoriteButton.setAttribute('aria-label', 'Unfavorite');
+        favoriteButton.setAttribute('aria-pressed', 'true');
+        favoriteButton.title = 'Unfavorite';
+
+        const removeButton = documentRef.createElement('button');
+        removeButton.className = 'cw-card-action cw-card-action--remove';
+        removeButton.dataset.cwAction = 'remove';
+        removeButton.textContent = '🗑';
+        removeButton.setAttribute('aria-label', 'Remove from watchlist');
+
+        actions.appendChild(favoriteButton);
+        actions.appendChild(removeButton);
+        favoriteButtonRef = favoriteButton;
+        return actions;
+      },
+    });
+
+    const card = runtime.createCuratedCard({
+      seriesId: 'series-1',
+      title: 'Series title',
+      href: '/series/series-1',
+      portraitImageUrl: 'portrait.jpg',
+      isFavorite: true,
+    });
+
+    runtime.patchCuratedCard(card, {
+      seriesId: 'series-1',
+      title: 'Series title',
+      href: '/series/series-1',
+      portraitImageUrl: 'portrait.jpg',
+      isFavorite: false,
+    });
+
+    if (!favoriteButtonRef) {
+      throw new Error('missing favorite button test ref');
+    }
+    const favoriteButton = favoriteButtonRef as FakeElement;
+    expect(favoriteButton.attributes['aria-pressed']).toBe('false');
+    expect(favoriteButton.attributes['aria-label']).toBe('Favorite');
+    expect(favoriteButton.title).toBe('Favorite');
+    expect(favoriteButton.textContent).toBe('♡');
+    expect(favoriteButton.className).not.toContain('is-active');
+  });
+
+  it('removes thumbnail loading state once the image reports load completion', () => {
+    const { runtime } = createCardShellRuntime();
+
+    const card = runtime.createCuratedCard({
+      seriesId: 'series-loading',
+      title: 'Series with loading thumb',
+      href: '/series/series-loading',
+      portraitImageUrl: 'portrait.jpg',
+    });
+
+    const media = card.children[1];
+    const thumbLink = media?.children[0];
+    const image = thumbLink?.children[1];
+
+    expect(thumbLink?.className).toContain('cw-curated-card__thumb--loading');
+    image?.dispatch('load');
+    expect(thumbLink?.className).toContain('cw-curated-card__thumb--loaded');
+    expect(thumbLink?.className).not.toContain('cw-curated-card__thumb--loading');
+  });
 
   it('navigates only for safe card click events', () => {
-    const { runtime, locationAssign, getSelection, documentRef } = createCardShellRuntime()
-    const card = documentRef.createElement('article')
+    const { runtime, locationAssign, getSelection, documentRef } = createCardShellRuntime();
+    const card = documentRef.createElement('article');
 
-    runtime.attachCuratedCardNavigation(card, '/series/series-1')
-    card.dispatch('click')
-    expect(locationAssign).toHaveBeenCalledWith('/series/series-1')
+    runtime.attachCuratedCardNavigation(card, '/series/series-1');
+    card.dispatch('click');
+    expect(locationAssign).toHaveBeenCalledWith('/series/series-1');
 
-    locationAssign.mockClear()
+    locationAssign.mockClear();
     card.dispatch('click', {
       target: {
         closest: () => ({}),
       },
-    })
-    expect(locationAssign).not.toHaveBeenCalled()
+    });
+    expect(locationAssign).not.toHaveBeenCalled();
 
-    locationAssign.mockClear()
-    getSelection.mockReturnValue({ type: 'Range' })
-    card.dispatch('click')
-    expect(locationAssign).not.toHaveBeenCalled()
-  })
-})
+    locationAssign.mockClear();
+    getSelection.mockReturnValue({ type: 'Range' });
+    card.dispatch('click');
+    expect(locationAssign).not.toHaveBeenCalled();
+  });
+});

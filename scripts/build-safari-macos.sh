@@ -9,6 +9,9 @@ OUTPUT_DIR="$ROOT_DIR/dist/safari"
 EXTENSION_SOURCE_DIR="${EXTENSION_SOURCE_DIR:-extension}"
 APP_NAME="Crunchy Watchlist Curator.app"
 APP_PATH="$DERIVED_DATA_DIR/Build/Products/Release/$APP_NAME"
+EXTENSION_BUNDLE_PATH="$APP_PATH/Contents/PlugIns/Crunchy Watchlist Curator Extension.appex"
+EXTENSION_RESOURCES_PATH="$EXTENSION_BUNDLE_PATH/Contents/Resources"
+EXTENSION_MANIFEST_PATH="$EXTENSION_RESOURCES_PATH/manifest.json"
 APP_ZIP_PATH="$OUTPUT_DIR/crunchy-watchlist-curator-safari-macos-app.zip"
 SOURCE_ZIP_PATH="$OUTPUT_DIR/crunchy-watchlist-curator-safari-webextension-source.zip"
 EXTENSION_SOURCE_PATH="$ROOT_DIR/$EXTENSION_SOURCE_DIR"
@@ -39,6 +42,64 @@ if ! command -v xcodebuild >/dev/null 2>&1; then
   echo "xcodebuild is required to build Safari artifacts."
   exit 1
 fi
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "node is required to validate packaged Safari extension resources."
+  exit 1
+fi
+
+validate_packaged_manifest_content_scripts() {
+  local manifest_path="$1"
+  local resources_root="$2"
+
+  if [[ ! -f "$manifest_path" ]]; then
+    echo "Expected packaged extension manifest not found: $manifest_path"
+    return 1
+  fi
+
+  if [[ ! -d "$resources_root" ]]; then
+    echo "Expected packaged extension resources directory not found: $resources_root"
+    return 1
+  fi
+
+  node - "$manifest_path" "$resources_root" <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+
+const manifestPath = process.argv[2];
+const resourcesRoot = process.argv[3];
+const resourcesRootAbsolute = path.resolve(resourcesRoot);
+const resourcesRootPrefix = `${resourcesRootAbsolute}${path.sep}`;
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+const contentScripts = Array.isArray(manifest.content_scripts) ? manifest.content_scripts : [];
+const errors = [];
+
+for (const [index, entry] of contentScripts.entries()) {
+  const jsFiles = Array.isArray(entry?.js) ? entry.js : [];
+  for (const scriptPath of jsFiles) {
+    if (typeof scriptPath !== 'string' || scriptPath.trim() === '') {
+      errors.push(`content_scripts[${index}] has invalid js path: ${String(scriptPath)}`);
+      continue;
+    }
+    const resolvedScriptPath = path.resolve(resourcesRootAbsolute, scriptPath);
+    if (resolvedScriptPath !== resourcesRootAbsolute && !resolvedScriptPath.startsWith(resourcesRootPrefix)) {
+      errors.push(`content_scripts[${index}] path escapes extension resources root: ${scriptPath}`);
+      continue;
+    }
+    if (!fs.existsSync(resolvedScriptPath)) {
+      errors.push(`content_scripts[${index}] missing packaged resource: ${scriptPath}`);
+    }
+  }
+}
+
+if (errors.length > 0) {
+  for (const error of errors) {
+    console.error(error);
+  }
+  process.exit(1);
+}
+NODE
+}
 
 rm -rf "$DERIVED_DATA_DIR"
 mkdir -p "$OUTPUT_DIR"
@@ -87,6 +148,8 @@ if [[ ! -d "$EXTENSION_SOURCE_PATH" ]]; then
   exit 1
 fi
 
+validate_packaged_manifest_content_scripts "$EXTENSION_MANIFEST_PATH" "$EXTENSION_RESOURCES_PATH"
+
 rm -f "$APP_ZIP_PATH" "$SOURCE_ZIP_PATH"
 
 if [[ "$SAFARI_SIGNED_BUILD" == "1" ]]; then
@@ -105,7 +168,7 @@ if [[ "$SAFARI_NOTARIZE" == "1" ]]; then
   fi
 
   app_executable_path="$APP_PATH/Contents/MacOS/Crunchy Watchlist Curator"
-  extension_bundle_path="$APP_PATH/Contents/PlugIns/Crunchy Watchlist Curator Extension.appex"
+  extension_bundle_path="$EXTENSION_BUNDLE_PATH"
   extension_executable_path="$extension_bundle_path/Contents/MacOS/Crunchy Watchlist Curator Extension"
   resign_tmp_dir="$(mktemp -d)"
 

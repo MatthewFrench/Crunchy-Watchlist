@@ -1,135 +1,129 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { clearRuntimeModulesRegistry, loadRuntimeModules } from '../Helpers/ModuleRegistry'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type ContentBootstrapPrelude = {
-  ok: boolean
-  runtimeBootstrapGateModule?: Record<string, unknown>
-  runtimeBootstrapModulesModule?: Record<string, unknown>
-  runtimeBootstrapFinalizeModule?: Record<string, unknown>
-  bootstrapModulesRuntime?: Record<string, unknown>
-}
+  ok: boolean;
+  isWatchlistPath?: (pathname: string) => boolean;
+  getWatchlistRoot?: (documentRef: Document) => Element | null;
+  getWatchlistHeader?: (documentRef: Document) => Element | null;
+  assertRuntimeMethods?: (...args: unknown[]) => unknown;
+  bootstrapModulesRuntime?: Record<string, unknown>;
+};
 
 type ContentBootstrapModule = {
   createContentBootstrapPrelude: (options: {
-    windowRef: Window & typeof globalThis
-    consoleRef: Console
-    browserRef?: unknown
-    chromeRef?: unknown
-  }) => ContentBootstrapPrelude
-}
+    windowRef: Window & typeof globalThis;
+    consoleRef: Console;
+    browserRef?: unknown;
+    chromeRef?: unknown;
+    runtimeBootstrapDiagnosticsModule?: unknown;
+    runtimeBootstrapGateModule?: unknown;
+    runtimeBootstrapModulesModule?: unknown;
+  }) => ContentBootstrapPrelude;
+};
 
 const contentBootstrapModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'ContentBootstrap.ts'),
-).href
+).href;
+let contentBootstrapModule: ContentBootstrapModule | null = null;
 
 function getContentBootstrapModule(): ContentBootstrapModule {
-  const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as {
-    runtimeContentBootstrap?: ContentBootstrapModule
+  if (!contentBootstrapModule) {
+    throw new Error('Content bootstrap module was not initialized for test');
   }
-  return registry.runtimeContentBootstrap as ContentBootstrapModule
+  return contentBootstrapModule;
 }
 
 function createWindowRef(pathname = '/watchlist'): Window & typeof globalThis {
   const windowRef = {
     location: { pathname },
-  } as unknown as Window & typeof globalThis
-  ;(windowRef as unknown as { top: unknown }).top = windowRef
-  return windowRef
+  } as unknown as Window & typeof globalThis;
+  (windowRef as unknown as { top: unknown }).top = windowRef;
+  return windowRef;
 }
 
 describe('content-bootstrap runtime module', () => {
   beforeEach(async () => {
-    await loadRuntimeModules([contentBootstrapModuleUrl])
-  })
+    vi.resetModules();
+    contentBootstrapModule = (await import(contentBootstrapModuleUrl)) as ContentBootstrapModule;
+  });
 
   afterEach(() => {
-    clearRuntimeModulesRegistry()
-  })
+    contentBootstrapModule = null;
+  });
 
   it('returns not-ok when route gate denies execution and emits gated diagnostics', () => {
-    const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
-    const updateDiagnostics = vi.fn()
-    const setBootstrapIssue = vi.fn()
-
-    registry.runtimeBootstrapDiagnostics = {
+    const updateDiagnostics = vi.fn();
+    const setBootstrapIssue = vi.fn();
+    const runtimeBootstrapDiagnosticsModule = {
       createBootstrapDiagnostics: () => ({
         updateDiagnostics,
         setBootstrapIssue,
       }),
-    }
-    registry.runtimeBootstrapGate = {
+    };
+    const runtimeBootstrapGateModule = {
       shouldRun: () => false,
       isWatchlistPath: () => true,
       getWatchlistRoot: () => null,
       getWatchlistHeader: () => null,
-    }
-    registry.runtimeBootstrapModules = {
+    };
+    const runtimeBootstrapModulesModule = {
       createBootstrapModules: () => ({}),
       assertRuntimeMethods: () => {},
-    }
-    registry.runtimeBootstrapFinalize = {
-      createBootstrapFinalizeRuntime: () => ({}),
-      createStorageAccessors: () => ({}),
-      safeJsonParse: () => ({}),
-    }
-
+    };
     const prelude = getContentBootstrapModule().createContentBootstrapPrelude({
       windowRef: createWindowRef('/browse'),
       consoleRef: console,
-    })
+      runtimeBootstrapDiagnosticsModule,
+      runtimeBootstrapGateModule,
+      runtimeBootstrapModulesModule,
+    });
 
-    expect(prelude.ok).toBe(false)
-    expect(setBootstrapIssue).not.toHaveBeenCalled()
+    expect(prelude.ok).toBe(false);
+    expect(setBootstrapIssue).not.toHaveBeenCalled();
     expect(updateDiagnostics).toHaveBeenCalledWith({
       ok: false,
       stage: 'bootstrap-gated',
       pathname: '/browse',
       inTopFrame: true,
-    })
-  })
+    });
+  });
 
   it('returns runtime modules when all required owners are available and route is eligible', () => {
-    const registry = (globalThis as Record<string, unknown>).__CW_WATCHLIST_CURATOR_MODULES__ as Record<string, unknown>
-    const updateDiagnostics = vi.fn()
-    const setBootstrapIssue = vi.fn()
+    const updateDiagnostics = vi.fn();
+    const setBootstrapIssue = vi.fn();
     const gateModule = {
       shouldRun: () => true,
       isWatchlistPath: () => true,
       getWatchlistRoot: () => null,
       getWatchlistHeader: () => null,
-    }
+    };
     const modulesModule = {
       createBootstrapModules: () => ({ runtimeStoreModule: {} }),
       assertRuntimeMethods: () => {},
-    }
-    const finalizeModule = {
-      createBootstrapFinalizeRuntime: () => ({}),
-      createStorageAccessors: () => ({}),
-      safeJsonParse: () => ({}),
-    }
-
-    registry.runtimeBootstrapDiagnostics = {
+    };
+    const diagnosticsModule = {
       createBootstrapDiagnostics: () => ({
         updateDiagnostics,
         setBootstrapIssue,
       }),
-    }
-    registry.runtimeBootstrapGate = gateModule
-    registry.runtimeBootstrapModules = modulesModule
-    registry.runtimeBootstrapFinalize = finalizeModule
+    };
 
     const prelude = getContentBootstrapModule().createContentBootstrapPrelude({
       windowRef: createWindowRef('/watchlist'),
       consoleRef: console,
-    })
+      runtimeBootstrapDiagnosticsModule: diagnosticsModule,
+      runtimeBootstrapGateModule: gateModule,
+      runtimeBootstrapModulesModule: modulesModule,
+    });
 
-    expect(prelude.ok).toBe(true)
-    expect(prelude.runtimeBootstrapGateModule).toBe(gateModule)
-    expect(prelude.runtimeBootstrapModulesModule).toBe(modulesModule)
-    expect(prelude.runtimeBootstrapFinalizeModule).toBe(finalizeModule)
-    expect(prelude.bootstrapModulesRuntime).toEqual({ runtimeStoreModule: {} })
-    expect(setBootstrapIssue).not.toHaveBeenCalled()
-  })
-})
+    expect(prelude.ok).toBe(true);
+    expect(prelude.isWatchlistPath).toBe(gateModule.isWatchlistPath);
+    expect(prelude.getWatchlistRoot).toBe(gateModule.getWatchlistRoot);
+    expect(prelude.getWatchlistHeader).toBe(gateModule.getWatchlistHeader);
+    expect(prelude.assertRuntimeMethods).toBe(modulesModule.assertRuntimeMethods);
+    expect(prelude.bootstrapModulesRuntime).toEqual({ runtimeStoreModule: {} });
+    expect(setBootstrapIssue).not.toHaveBeenCalled();
+  });
+});
