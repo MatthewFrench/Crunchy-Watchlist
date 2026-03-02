@@ -491,10 +491,16 @@ describe('curated-panel-grid-transitions runtime', () => {
       [...cards].reverse().map((card) => card as unknown as Element),
     );
 
+    const firstCard = cards[0];
+    const lastCard = cards[120];
+    if (!firstCard || !lastCard) {
+      throw new Error('Expected test cards to exist for medium-sized reorder assertions');
+    }
+
     expect(grid.children[0]).toBe(cards[0]);
     expect(grid.children[120]).toBe(cards[120]);
-    expect(Number.parseFloat(String(cards[0].style?.top || '0'))).toBeGreaterThan(0);
-    expect(Number.parseFloat(String(cards[120].style?.top || '0'))).toBe(0);
+    expect(Number.parseFloat(String(firstCard.style?.top || '0'))).toBeGreaterThan(0);
+    expect(Number.parseFloat(String(lastCard.style?.top || '0'))).toBe(0);
     expect(rectReads.value).toBeGreaterThan(0);
   });
 
@@ -523,10 +529,16 @@ describe('curated-panel-grid-transitions runtime', () => {
       [...cards].reverse().map((card) => card as unknown as Element),
     );
 
+    const firstCard = cards[0];
+    const lastCard = cards[320];
+    if (!firstCard || !lastCard) {
+      throw new Error('Expected test cards to exist for large reorder assertions');
+    }
+
     expect(grid.children[0]).toBe(cards[0]);
     expect(grid.children[320]).toBe(cards[320]);
-    expect(Number.parseFloat(String(cards[0].style?.top || '0'))).toBeGreaterThan(0);
-    expect(Number.parseFloat(String(cards[320].style?.top || '0'))).toBe(0);
+    expect(Number.parseFloat(String(firstCard.style?.top || '0'))).toBeGreaterThan(0);
+    expect(Number.parseFloat(String(lastCard.style?.top || '0'))).toBe(0);
     expect(rectReads.value).toBeGreaterThan(0);
   });
 
