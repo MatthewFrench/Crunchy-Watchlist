@@ -143,6 +143,25 @@ describe('bootstrap-helpers runtime', () => {
     expect(state.ratingLocalePreloadInflight.size).toBe(0);
   });
 
+  it('retries localized ratings preload for the same revision after access token is unavailable', async () => {
+    const preloadRatingsForEntries = vi.fn(async () => undefined);
+    const getAccessToken = vi.fn(async (): Promise<{ accessToken: string; accountId: string } | null> => ({
+      accessToken: 'token',
+      accountId: 'account',
+    }));
+    getAccessToken.mockResolvedValueOnce(null);
+    const { runtime } = createRuntime({
+      preloadRatingsForEntries,
+      getAccessToken,
+    });
+
+    await runtime.preloadRatingsForSelectedAudioLocale('en-US');
+    await runtime.preloadRatingsForSelectedAudioLocale('en-US');
+
+    expect(getAccessToken).toHaveBeenCalledTimes(2);
+    expect(preloadRatingsForEntries).toHaveBeenCalledTimes(1);
+  });
+
   it('limits localized watch-history preloads to one request per locale per curated data revision', async () => {
     const preloadWatchHistoryForEntries = vi.fn(async () => undefined);
     const { runtime, state } = createRuntime({
@@ -156,6 +175,25 @@ describe('bootstrap-helpers runtime', () => {
     state.curatedLastRevalidateAt = Date.now();
     await runtime.preloadWatchHistoryForSelectedAudioLocale('ja-JP');
     expect(preloadWatchHistoryForEntries).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries localized watch-history preload for the same revision after access token is unavailable', async () => {
+    const preloadWatchHistoryForEntries = vi.fn(async () => undefined);
+    const getAccessToken = vi.fn(async (): Promise<{ accessToken: string; accountId: string } | null> => ({
+      accessToken: 'token',
+      accountId: 'account',
+    }));
+    getAccessToken.mockResolvedValueOnce(null);
+    const { runtime } = createRuntime({
+      preloadWatchHistoryForEntries,
+      getAccessToken,
+    });
+
+    await runtime.preloadWatchHistoryForSelectedAudioLocale('ja-JP');
+    await runtime.preloadWatchHistoryForSelectedAudioLocale('ja-JP');
+
+    expect(getAccessToken).toHaveBeenCalledTimes(2);
+    expect(preloadWatchHistoryForEntries).toHaveBeenCalledTimes(1);
   });
 
   it('schedules ratings cache persistence through storageSet', async () => {

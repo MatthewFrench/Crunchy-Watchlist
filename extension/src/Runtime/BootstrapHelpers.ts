@@ -291,7 +291,6 @@ async function preloadRatingsForSelectedAudioLocaleInternal(
     return context.state.ratingLocalePreloadInflight.get(localeKey);
   }
 
-  localeRevisionMap.set(localeKey, curatedDataRevision);
   const inflight = (async () => {
     const tokenEntry = await context.getAccessToken(false);
     if (!tokenEntry?.accessToken) {
@@ -299,6 +298,7 @@ async function preloadRatingsForSelectedAudioLocaleInternal(
     }
 
     await context.preloadRatingsForEntries(entries, tokenEntry, selectedAudioLocale);
+    localeRevisionMap.set(localeKey, curatedDataRevision);
   })().finally(() => {
     if (context.state.ratingLocalePreloadInflight.get(localeKey) === inflight) {
       context.state.ratingLocalePreloadInflight.delete(localeKey);
@@ -338,7 +338,6 @@ async function preloadWatchHistoryForSelectedAudioLocaleInternal(
     return context.state.watchHistoryLocalePreloadInflight.get(localeKey);
   }
 
-  localeRevisionMap.set(localeKey, curatedDataRevision);
   const inflight = (async () => {
     const tokenEntry = await context.getAccessToken(false);
     if (!tokenEntry?.accessToken || !tokenEntry?.accountId) {
@@ -346,6 +345,7 @@ async function preloadWatchHistoryForSelectedAudioLocaleInternal(
     }
 
     await context.preloadWatchHistoryForEntries(entries, tokenEntry, true, selectedAudioLocale);
+    localeRevisionMap.set(localeKey, curatedDataRevision);
   })().finally(() => {
     if (context.state.watchHistoryLocalePreloadInflight.get(localeKey) === inflight) {
       context.state.watchHistoryLocalePreloadInflight.delete(localeKey);

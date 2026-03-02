@@ -483,6 +483,35 @@ describe('HistoryRepositoryPreload', () => {
     expect(fetchWithResilience).toHaveBeenCalledTimes(2);
   });
 
+  it('retries forced localized preload for the same revision after a transient failure', async () => {
+    const state = createWatchHistoryState();
+    state.curatedLastRevalidateAt = 1_710_000_000_000;
+    const fetchWithResilience = vi
+      .fn<() => Promise<Response>>()
+      .mockRejectedValueOnce(new Error('transient network error'))
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            total: 0,
+            data: [],
+          }),
+          { status: 200 },
+        ),
+      );
+
+    const { preloadRepository } = createRepositories(state, {
+      fetchWithResilience,
+      getPreferredAudioLanguage: () => 'en-us',
+    });
+
+    const entries = [{ seriesId: 'series-a', neverWatched: false, playheadMs: 200 }];
+    const tokenEntry = { accessToken: 'token-1', accountId: 'acct-1' };
+    await preloadRepository.preloadWatchHistoryForEntries(entries, tokenEntry, true, 'ja-JP');
+    await preloadRepository.preloadWatchHistoryForEntries(entries, tokenEntry, true, 'ja-JP');
+
+    expect(fetchWithResilience).toHaveBeenCalledTimes(2);
+  });
+
   it('reports localized attempt counters in preload diagnostics events', async () => {
     const state = createWatchHistoryState();
     state.curatedLastRevalidateAt = 1_710_000_000_000;

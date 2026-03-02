@@ -513,9 +513,11 @@ function createWatchHistoryPreloadInflight(options: {
   preloadPlan: WatchHistoryPreloadPlan;
   tokenAccountId: string;
   attemptDiagnostics: WatchHistoryPreloadAttemptDiagnostics;
+  curatedDataRevision: number;
   force: boolean;
   isForcedLocalizedPreload: boolean;
   localeStorageKey: string;
+  localizedRevisionMap: Map<string, number> | null;
   localizedInflightMap: Map<string, WatchHistoryInflightPromise> | null;
 }): WatchHistoryInflightPromise {
   const {
@@ -524,9 +526,11 @@ function createWatchHistoryPreloadInflight(options: {
     preloadPlan,
     tokenAccountId,
     attemptDiagnostics,
+    curatedDataRevision,
     force,
     isForcedLocalizedPreload,
     localeStorageKey,
+    localizedRevisionMap,
     localizedInflightMap,
   } = options;
 
@@ -554,6 +558,9 @@ function createWatchHistoryPreloadInflight(options: {
       shouldReplaceWatchHistoryProgress: context.shouldReplaceWatchHistoryProgress,
     });
     applyWatchHistoryBucketsToState(context, buckets, preloadPlan, tokenAccountId, attemptDiagnostics);
+    if (isForcedLocalizedPreload && localizedRevisionMap) {
+      localizedRevisionMap.set(localeStorageKey, curatedDataRevision);
+    }
   })()
     .catch((error: BoundaryValue) => {
       handleWatchHistoryPreloadFailure(context, error, preloadPlan, tokenAccountId, attemptDiagnostics);
@@ -611,18 +618,18 @@ async function preloadWatchHistoryForEntriesInternal(
   const localizedInflightMap = isForcedLocalizedPreload
     ? getOrCreateStateMap(localizedWatchHistoryInflightByState, context.state)
     : null;
+  const localizedRevisionMap = isForcedLocalizedPreload
+    ? getOrCreateStateMap(localizedWatchHistoryRevisionByState, context.state)
+    : null;
   if (localizedInflightMap?.has(localeStorageKey)) {
     return localizedInflightMap.get(localeStorageKey);
   }
 
-  if (isForcedLocalizedPreload) {
-    const localizedRevisionMap = getOrCreateStateMap(localizedWatchHistoryRevisionByState, context.state);
+  if (localizedRevisionMap) {
     const previousRevision = localizedRevisionMap.get(localeStorageKey);
     if (previousRevision != null && previousRevision === curatedDataRevision) {
       return;
     }
-
-    localizedRevisionMap.set(localeStorageKey, curatedDataRevision);
   }
 
   const attemptDiagnostics = trackWatchHistoryPreloadAttempt(context.state, localeStorageKey, curatedDataRevision);
@@ -632,9 +639,11 @@ async function preloadWatchHistoryForEntriesInternal(
     preloadPlan,
     tokenAccountId,
     attemptDiagnostics,
+    curatedDataRevision,
     force,
     isForcedLocalizedPreload,
     localeStorageKey,
+    localizedRevisionMap,
     localizedInflightMap,
   });
 }
