@@ -234,7 +234,6 @@ function createStorageAdapter(options: StorageAdapterOptions = {}): StorageAdapt
   const localStorageRef = options.localStorageRef || root.localStorage;
   const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : 1500;
   const storageWriteQueueByKey = new Map<string, Promise<void>>();
-  const storageWriteRevisionByKey = new Map<string, number>();
   const parseJson: ParseJson =
     typeof options.parseJson === 'function'
       ? (options.parseJson as ParseJson)
@@ -245,14 +244,6 @@ function createStorageAdapter(options: StorageAdapterOptions = {}): StorageAdapt
             return fallback;
           }
         };
-  const readStorageWriteRevision = (key: string): number => {
-    return storageWriteRevisionByKey.get(key) ?? 0;
-  };
-  const bumpStorageWriteRevision = (key: string): number => {
-    const nextRevision = readStorageWriteRevision(key) + 1;
-    storageWriteRevisionByKey.set(key, nextRevision);
-    return nextRevision;
-  };
 
   return {
     async get<T>(key: string, fallback: T): Promise<T | BoundaryValue> {
@@ -265,32 +256,9 @@ function createStorageAdapter(options: StorageAdapterOptions = {}): StorageAdapt
       }
 
       const localStorageResult = localStorageRead(localStorageRef, parseJson, key, fallback);
-      if (
-        storageArea &&
-        localStorageResult.found &&
-        (!storageReadResult || (storageReadResult.ok && !storageReadResult.found))
-      ) {
-        const migrationRevision = readStorageWriteRevision(key);
-        void enqueueStorageWriteByKey(storageWriteQueueByKey, key, async () => {
-          // Do not write stale local values if a newer explicit write has been scheduled.
-          if (readStorageWriteRevision(key) !== migrationRevision) {
-            return false;
-          }
-          // Re-check extension storage at commit-time so cross-tab writes do not get clobbered.
-          const migrationPreflight = await storageAreaGet(storageArea, key, timeoutMs);
-          if (!migrationPreflight.ok || migrationPreflight.found) {
-            return false;
-          }
-          return storageAreaSetAndVerify(storageArea, key, localStorageResult.value, timeoutMs);
-        }).catch(() => {
-          // no-op
-        });
-      }
-
       return localStorageResult.value;
     },
     async set(key: string, value: BoundaryValue): Promise<void> {
-      bumpStorageWriteRevision(key);
       if (storageArea) {
         const storedInExtensionStorage = await enqueueStorageWriteByKey(storageWriteQueueByKey, key, async () => {
           return storageAreaSetAndVerify(storageArea, key, value, timeoutMs);

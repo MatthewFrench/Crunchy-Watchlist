@@ -117,51 +117,17 @@ describe('StorageAdapter', () => {
     expect(loaded).toEqual({ watchReadyFilterMode: 'dim' });
   });
 
-  it('migrates existing localStorage values into extension storage when extension key is missing', async () => {
+  it('reads localStorage values when extension key is missing without auto-migrating writes', async () => {
     const local = createLocalStorageStub({
       cw_settings_v1: JSON.stringify({ sortMode: 'date_updated_desc' }),
     });
     const storageAreaStore = new Map<string, unknown>();
+    const setCalls: Array<Record<string, unknown>> = [];
     const adapter = createStorageAdapter({
       storageArea: {
         get: async (key: string) => (storageAreaStore.has(key) ? { [key]: storageAreaStore.get(key) } : {}),
         set: async (items: Record<string, unknown>) => {
-          Object.entries(items).forEach(([key, value]) => {
-            storageAreaStore.set(key, value);
-          });
-        },
-      },
-      localStorageRef: local.storage,
-    });
-
-    const loaded = await adapter.get('cw_settings_v1', { sortMode: 'none' });
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(loaded).toEqual({ sortMode: 'date_updated_desc' });
-    expect(storageAreaStore.get('cw_settings_v1')).toEqual({ sortMode: 'date_updated_desc' });
-  });
-
-  it('does not let background migration overwrite newer writes', async () => {
-    const local = createLocalStorageStub({
-      cw_settings_v1: JSON.stringify({ sortMode: 'date_updated_desc' }),
-    });
-    const storageAreaStore = new Map<string, unknown>();
-    let releaseMigrationWrite = () => {};
-    const migrationWriteGate = new Promise<void>((resolve) => {
-      releaseMigrationWrite = resolve;
-    });
-
-    const adapter = createStorageAdapter({
-      storageArea: {
-        get: async (key: string) => (storageAreaStore.has(key) ? { [key]: storageAreaStore.get(key) } : {}),
-        set: async (items: Record<string, unknown>) => {
-          const nextValue = items.cw_settings_v1 as { sortMode?: string } | undefined;
-          if (nextValue?.sortMode === 'date_updated_desc') {
-            await migrationWriteGate;
-          }
+          setCalls.push(items);
           Object.entries(items).forEach(([key, value]) => {
             storageAreaStore.set(key, value);
           });
@@ -172,45 +138,46 @@ describe('StorageAdapter', () => {
 
     const loaded = await adapter.get('cw_settings_v1', { sortMode: 'none' });
     expect(loaded).toEqual({ sortMode: 'date_updated_desc' });
-
-    // Allow the background migration write to enqueue and block.
-    await Promise.resolve();
-    const setPromise = adapter.set('cw_settings_v1', { sortMode: 'rating_desc' });
-    await Promise.resolve();
-
-    releaseMigrationWrite();
-    await setPromise;
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(storageAreaStore.get('cw_settings_v1')).toEqual({ sortMode: 'rating_desc' });
+    expect(storageAreaStore.get('cw_settings_v1')).toBeUndefined();
+    expect(setCalls).toHaveLength(0);
   });
 
-  it('does not let background migration overwrite newer cross-tab writes', async () => {
-    const local = createLocalStorageStub({
-      cw_settings_v1: JSON.stringify({ sortMode: 'date_updated_desc' }),
-    });
+  it('does not enqueue background extension writes for localStorage fallback reads', async () => {
+    const local = createLocalStorageStub({ cw_settings_v1: JSON.stringify({ sortMode: 'date_updated_desc' }) });
     const storageAreaStore = new Map<string, unknown>();
-    let getCallCount = 0;
-    let releaseMigrationPreflight = () => {};
-    const migrationPreflightGate = new Promise<void>((resolve) => {
-      releaseMigrationPreflight = resolve;
-    });
     const setCalls: Array<Record<string, unknown>> = [];
 
     const adapter = createStorageAdapter({
       storageArea: {
-        get: async (key: string) => {
-          getCallCount += 1;
-          if (getCallCount >= 2) {
-            await migrationPreflightGate;
-          }
-          return storageAreaStore.has(key) ? { [key]: storageAreaStore.get(key) } : {};
-        },
+        get: async (key: string) => (storageAreaStore.has(key) ? { [key]: storageAreaStore.get(key) } : {}),
         set: async (items: Record<string, unknown>) => {
           setCalls.push(items);
-          Object.entries(items).forEach(([itemKey, value]) => {
-            storageAreaStore.set(itemKey, value);
+          Object.entries(items).forEach(([key, value]) => {
+            storageAreaStore.set(key, value);
+          });
+        },
+      },
+      localStorageRef: local.storage,
+    });
+
+    const loaded = await adapter.get('cw_settings_v1', { sortMode: 'none' });
+    expect(loaded).toEqual({ sortMode: 'date_updated_desc' });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(setCalls).toHaveLength(0);
+    expect(storageAreaStore.get('cw_settings_v1')).toBeUndefined();
+  });
+
+  it('writes to extension storage when user explicitly sets a value after localStorage fallback read', async () => {
+    const local = createLocalStorageStub({ cw_settings_v1: JSON.stringify({ sortMode: 'date_updated_desc' }) });
+    const storageAreaStore = new Map<string, unknown>();
+    const adapter = createStorageAdapter({
+      storageArea: {
+        get: async (key: string) => (storageAreaStore.has(key) ? { [key]: storageAreaStore.get(key) } : {}),
+        set: async (items: Record<string, unknown>) => {
+          Object.entries(items).forEach(([key, value]) => {
+            storageAreaStore.set(key, value);
           });
         },
       },
@@ -220,13 +187,7 @@ describe('StorageAdapter', () => {
     const loaded = await adapter.get('cw_settings_v1', { sortMode: 'none' });
     expect(loaded).toEqual({ sortMode: 'date_updated_desc' });
 
-    // Simulate another tab persisting a newer value before migration commits.
-    storageAreaStore.set('cw_settings_v1', { sortMode: 'rating_desc' });
-    releaseMigrationPreflight();
-    await Promise.resolve();
-    await Promise.resolve();
-
+    await adapter.set('cw_settings_v1', { sortMode: 'rating_desc' });
     expect(storageAreaStore.get('cw_settings_v1')).toEqual({ sortMode: 'rating_desc' });
-    expect(setCalls).toHaveLength(0);
   });
 });
