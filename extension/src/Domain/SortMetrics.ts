@@ -68,8 +68,6 @@ type SortMetricsModule = {
   createSortMetrics: (deps?: SortMetricsDeps) => SortMetricsDomain;
 };
 
-const plausibleAbsoluteEpisodeFloorForLaterSeasons = 25;
-
 function requireFunction<T>(name: string, value: T | undefined): T {
   if (typeof value !== 'function') {
     throw new Error(`[CW] Missing sort metrics dependency: ${name}`);
@@ -211,9 +209,7 @@ function resolveEpisodeIndexCandidate(
   }
 
   if (seasonIndex != null && seasonIndex > 1) {
-    if (seasonEpisodeIndex < plausibleAbsoluteEpisodeFloorForLaterSeasons) {
-      return null;
-    }
+    return null;
   }
 
   if (totalEpisodes != null && seasonEpisodeIndex > totalEpisodes) {
