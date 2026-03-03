@@ -37,12 +37,18 @@ const curatedPanelGridTransitionsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridTransitions.ts'),
 ).href;
 let curatedPanelGridTransitionsModule: CuratedPanelGridTransitionsModule | null = null;
+const cardContainerHeightCssVariable = '--cw-curated-card-container-height';
 
 function getCuratedPanelGridTransitionsModule() {
   if (!curatedPanelGridTransitionsModule) {
     throw new Error('Curated panel grid transitions runtime module was not initialized for test');
   }
   return curatedPanelGridTransitionsModule;
+}
+
+function readCardContainerHeightPx(element: FakeElement): number {
+  const styleHeight = element.style?.[cardContainerHeightCssVariable] || element.style?.height || '0';
+  return Number.parseFloat(String(styleHeight)) || 0;
 }
 
 function createFakeElement(className = ''): FakeElement {
@@ -239,9 +245,70 @@ describe('curated-panel-grid-transitions runtime', () => {
     expect(cardB.style?.position).toBe('absolute');
     expect(cardA.style?.height).toBe('360px');
     expect(cardB.style?.height).toBe('360px');
-    expect(Number.parseFloat(String(grid.style?.height || '0'))).toBe(360);
+    expect(readCardContainerHeightPx(grid)).toBe(360);
     expect(Number.parseFloat(String(cardB.style?.left || '0'))).toBeGreaterThan(0);
     expect(rectReads.value).toBeGreaterThan(0);
+  });
+
+  it('restores grid height from prior card heights when cards are temporarily unmeasurable', () => {
+    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const grid = createFakeElement('cw-curated-grid');
+    const cardA = createFakeElement('cw-curated-card');
+    const cardB = createFakeElement('cw-curated-card');
+    cardA.dataset.cwSeriesId = 'series-a';
+    cardB.dataset.cwSeriesId = 'series-b';
+    grid.style = {};
+    cardA.style = {};
+    cardB.style = {};
+    grid.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 1000,
+      height: 0,
+    });
+    cardA.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 240,
+      height: 360,
+    });
+    cardB.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 240,
+      height: 420,
+    });
+    grid.appendChild(cardA);
+    grid.appendChild(cardB);
+
+    runtime.reorderCuratedGridChildren(grid as unknown as Element, [
+      cardA as unknown as Element,
+      cardB as unknown as Element,
+    ]);
+    expect(readCardContainerHeightPx(grid)).toBe(360);
+
+    grid.style.height = '1px';
+    cardA.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 240,
+      height: 0,
+    });
+    cardB.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 240,
+      height: 0,
+    });
+
+    runtime.reorderCuratedGridChildren(grid as unknown as Element, [
+      cardA as unknown as Element,
+      cardB as unknown as Element,
+    ]);
+
+    expect(cardA.style?.height).toBe('360px');
+    expect(cardB.style?.height).toBe('360px');
+    expect(readCardContainerHeightPx(grid)).toBe(360);
   });
 
   it('keeps compact uniform height even when content is taller than the card box', () => {
@@ -304,7 +371,47 @@ describe('curated-panel-grid-transitions runtime', () => {
 
     expect(cardA.style?.height).toBe('360px');
     expect(cardB.style?.height).toBe('360px');
-    expect(Number.parseFloat(String(grid.style?.height || '0'))).toBe(360);
+    expect(readCardContainerHeightPx(grid)).toBe(360);
+  });
+
+  it('uses a 65th percentile compact height target for two-column grids', () => {
+    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const grid = createFakeElement('cw-curated-grid');
+    grid.style = {};
+    grid.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 760,
+      height: 0,
+    });
+
+    const cards = Array.from({ length: 12 }, (_value, index) => {
+      const card = createFakeElement('cw-curated-card');
+      card.dataset.cwSeriesId = `series-${index + 1}`;
+      card.style = {};
+      const measuredHeight = 300 + index * 10;
+      card.getBoundingClientRect = () => ({
+        left: 0,
+        top: 0,
+        width: 240,
+        height: measuredHeight,
+      });
+      grid.appendChild(card);
+      return card;
+    });
+
+    runtime.reorderCuratedGridChildren(
+      grid as unknown as Element,
+      cards.map((card) => card as unknown as Element),
+    );
+
+    const firstCard = cards[0];
+    const lastCard = cards[cards.length - 1];
+    expect(firstCard).toBeDefined();
+    expect(lastCard).toBeDefined();
+    expect(firstCard?.style?.height).toBe('370px');
+    expect(lastCard?.style?.height).toBe('370px');
+    expect(readCardContainerHeightPx(grid)).toBe(2280);
   });
 
   it('uses parent container width to size cards during absolute placement', () => {
@@ -340,7 +447,7 @@ describe('curated-panel-grid-transitions runtime', () => {
     runtime.reorderCuratedGridChildren(grid as unknown as Element, [card as unknown as Element]);
 
     expect(Number.parseFloat(String(card.style?.width || '0'))).toBeGreaterThan(300);
-    expect(Number.parseFloat(String(grid.style?.height || '0'))).toBeGreaterThan(0);
+    expect(readCardContainerHeightPx(grid)).toBeGreaterThan(0);
   });
 
   it('keeps existing dom child order stable when absolute placement is active', () => {

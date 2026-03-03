@@ -83,26 +83,107 @@ export function isWatchHistoryCacheValid(
   return Date.now() - cacheRecord.updatedAt < context.watchHistoryCacheTtlMs;
 }
 
+function resolveSequenceEpisodeNumber(
+  context: HistoryRepositoryCacheContext,
+  value: LooseRecord | null | undefined,
+  episodeMetadata: LooseRecord | null | undefined,
+): number | null {
+  return context.pickFirstPositiveInt([
+    context.sanitizePositiveInt(value?.sequenceNumber),
+    context.sanitizePositiveInt(value?.sequence_number),
+    context.sanitizePositiveInt(episodeMetadata?.sequence_number),
+    context.sanitizePositiveInt(episodeMetadata?.episode_sequence_number),
+  ]);
+}
+
+function resolveGlobalEpisodeNumber(
+  context: HistoryRepositoryCacheContext,
+  value: LooseRecord | null | undefined,
+  episodeMetadata: LooseRecord | null | undefined,
+): number | null {
+  return context.pickFirstPositiveInt([
+    context.sanitizePositiveInt(value?.globalEpisodeNumber),
+    context.sanitizePositiveInt(value?.global_episode_number),
+    context.sanitizePositiveInt(value?.global_episode_num),
+    context.sanitizePositiveInt(episodeMetadata?.global_episode_number),
+    context.sanitizePositiveInt(episodeMetadata?.global_episode_num),
+  ]);
+}
+
+function isTrustedAbsoluteCandidate(
+  candidate: number | null,
+  seasonNumber: number | null,
+  episodeNumber: number | null,
+): boolean {
+  if (candidate == null) {
+    return false;
+  }
+
+  if (seasonNumber == null || seasonNumber === 1) {
+    return true;
+  }
+
+  if (episodeNumber == null) {
+    return true;
+  }
+
+  return candidate > episodeNumber;
+}
+
+function resolveAbsoluteEpisodeNumber(
+  context: HistoryRepositoryCacheContext,
+  value: LooseRecord | null | undefined,
+  seasonNumber: number | null,
+  episodeNumber: number | null,
+): number | null {
+  const episodeMetadata =
+    value?.panel?.episode_metadata && typeof value.panel.episode_metadata === 'object'
+      ? value.panel.episode_metadata
+      : null;
+  const globalEpisodeNumber = resolveGlobalEpisodeNumber(context, value, episodeMetadata);
+  if (globalEpisodeNumber != null) {
+    return globalEpisodeNumber;
+  }
+
+  const sequenceEpisodeNumber = resolveSequenceEpisodeNumber(context, value, episodeMetadata);
+  const storedAbsoluteEpisodeNumber = context.sanitizePositiveInt(value?.absoluteEpisodeNumber);
+
+  if (seasonNumber === 1) {
+    return context.pickFirstPositiveInt([storedAbsoluteEpisodeNumber, episodeNumber, sequenceEpisodeNumber]);
+  }
+
+  if (isTrustedAbsoluteCandidate(storedAbsoluteEpisodeNumber, seasonNumber, episodeNumber)) {
+    return storedAbsoluteEpisodeNumber;
+  }
+
+  if (isTrustedAbsoluteCandidate(sequenceEpisodeNumber, seasonNumber, episodeNumber)) {
+    return sequenceEpisodeNumber;
+  }
+
+  return null;
+}
+
 function getWatchHistoryProgressIndex(
   context: HistoryRepositoryCacheContext,
   value: LooseRecord | null | undefined,
 ): number | null {
-  const absoluteEpisodeNumber = context.pickFirstPositiveInt([
-    context.sanitizePositiveInt(value?.absoluteEpisodeNumber),
-    context.sanitizePositiveInt(value?.sequenceNumber),
-    context.sanitizePositiveInt(value?.sequence_number),
-  ]);
+  const seasonNumber = context.sanitizePositiveInt(value?.seasonNumber);
+  const episodeNumber = context.sanitizePositiveInt(value?.episodeNumber);
+  const absoluteEpisodeNumber = resolveAbsoluteEpisodeNumber(context, value, seasonNumber, episodeNumber);
   if (absoluteEpisodeNumber != null) {
     return absoluteEpisodeNumber;
   }
 
-  const seasonNumber = context.sanitizePositiveInt(value?.seasonNumber);
-  const episodeNumber = context.sanitizePositiveInt(value?.episodeNumber);
   if (seasonNumber != null && episodeNumber != null) {
     return seasonNumber * 100000 + episodeNumber;
   }
 
-  return null;
+  const sequenceEpisodeNumber = resolveSequenceEpisodeNumber(context, value, null);
+  if (seasonNumber != null && sequenceEpisodeNumber != null) {
+    return seasonNumber * 100000 + sequenceEpisodeNumber;
+  }
+
+  return sequenceEpisodeNumber;
 }
 
 export function shouldReplaceWatchHistoryProgress(
@@ -170,16 +251,7 @@ export function normalizeWatchHistoryEntry(
   const episodeNumber = context.sanitizePositiveInt(
     value.episodeNumber ?? value?.panel?.episode_metadata?.episode_number,
   );
-  const absoluteEpisodeNumber = context.pickFirstPositiveInt([
-    context.sanitizePositiveInt(value.absoluteEpisodeNumber),
-    context.sanitizePositiveInt(value.sequenceNumber),
-    context.sanitizePositiveInt(value.sequence_number),
-    context.sanitizePositiveInt(value?.panel?.episode_metadata?.sequence_number),
-    context.sanitizePositiveInt(value?.panel?.episode_metadata?.episode_sequence_number),
-    context.sanitizePositiveInt(value?.panel?.episode_metadata?.global_episode_number),
-    context.sanitizePositiveInt(value?.panel?.episode_metadata?.global_episode_num),
-    seasonNumber === 1 ? episodeNumber : null,
-  ]);
+  const absoluteEpisodeNumber = resolveAbsoluteEpisodeNumber(context, value, seasonNumber, episodeNumber);
   const audioLocale = context.normalizeAudioLocale(
     value.audioLocale ??
       value.audio_locale ??

@@ -89,10 +89,15 @@ function runHandledAsync(work: () => Promise<void>): void {
   });
 }
 
-function persistSettingsInBackground(context: CuratedInteractionsControlsContext): void {
-  void context.persistSettings().catch(() => {
+async function renderAndPersistSettings(context: CuratedInteractionsControlsContext): Promise<void> {
+  const persistPromise = context.persistSettings().catch(() => {
     // no-op
   });
+  try {
+    context.renderCuratedPanel();
+  } finally {
+    await persistPromise;
+  }
 }
 
 function bindWatchReadyFilterInternal(
@@ -111,8 +116,7 @@ function bindWatchReadyFilterInternal(
         return;
       }
       context.state.settings.watchReadyFilterMode = nextWatchReadyMode;
-      context.renderCuratedPanel();
-      persistSettingsInBackground(context);
+      await renderAndPersistSettings(context);
     });
   });
 }
@@ -133,8 +137,7 @@ function bindCardLayoutFilterInternal(
         return;
       }
       context.state.settings.cardLayout = nextCardLayout;
-      context.renderCuratedPanel();
-      persistSettingsInBackground(context);
+      await renderAndPersistSettings(context);
     });
   });
 }
@@ -160,8 +163,7 @@ function bindAudioFilterInternal(
       }
 
       context.state.settings.audioLocaleFilter = nextAudioFilter;
-      context.renderCuratedPanel();
-      persistSettingsInBackground(context);
+      await renderAndPersistSettings(context);
     });
   });
 }
@@ -182,8 +184,7 @@ function bindGenreFilterInternal(
         return;
       }
       context.state.settings.genreFilter = nextGenreFilter;
-      context.renderCuratedPanel();
-      persistSettingsInBackground(context);
+      await renderAndPersistSettings(context);
     });
   });
 }
@@ -201,8 +202,7 @@ function bindSortFilterInternal(context: CuratedInteractionsControlsContext, sor
         return;
       }
       context.state.settings.sortMode = nextSortMode;
-      context.renderCuratedPanel();
-      persistSettingsInBackground(context);
+      await renderAndPersistSettings(context);
     });
   });
 }
@@ -223,8 +223,7 @@ function bindSecondarySortFilterInternal(
         return;
       }
       context.state.settings.secondarySortMode = nextSecondarySortMode;
-      context.renderCuratedPanel();
-      persistSettingsInBackground(context);
+      await renderAndPersistSettings(context);
     });
   });
 }

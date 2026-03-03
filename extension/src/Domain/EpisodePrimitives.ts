@@ -183,17 +183,32 @@ function getAbsoluteEpisodeNumberFromEpisodeMetadata(
   context: EpisodePrimitivesContext,
   metadata: BoundaryRecord,
 ): number | null {
-  // API payloads vary across endpoints/locales; keep an ordered fallback chain
-  // so progress and watch-ready calculations remain stable across contracts.
+  // API payloads vary across endpoints/locales. Prefer explicit global fields
+  // and avoid promoting season-local episode numbers to absolute indices.
   const seasonNumber = context.sanitizePositiveInt(metadata.season_number);
-  const episodeNumber = context.sanitizePositiveInt(metadata.episode_number);
-  return context.pickFirstPositiveInt([
-    context.sanitizePositiveInt(metadata.sequence_number),
-    context.sanitizePositiveInt(metadata.episode_sequence_number),
+  const globalEpisodeNumber = context.pickFirstPositiveInt([
     context.sanitizePositiveInt(metadata.global_episode_number),
     context.sanitizePositiveInt(metadata.global_episode_num),
-    seasonNumber === 1 ? episodeNumber : null,
   ]);
+  if (globalEpisodeNumber != null) {
+    return globalEpisodeNumber;
+  }
+
+  const episodeNumber = context.sanitizePositiveInt(metadata.episode_number);
+  const sequenceNumber = context.pickFirstPositiveInt([
+    context.sanitizePositiveInt(metadata.sequence_number),
+    context.sanitizePositiveInt(metadata.episode_sequence_number),
+  ]);
+
+  if (seasonNumber === 1) {
+    return episodeNumber ?? sequenceNumber;
+  }
+
+  if (episodeNumber != null && sequenceNumber != null) {
+    return sequenceNumber > episodeNumber ? sequenceNumber : null;
+  }
+
+  return episodeNumber == null ? sequenceNumber : null;
 }
 
 function getEpisodeAvailabilityByAudioLocale(

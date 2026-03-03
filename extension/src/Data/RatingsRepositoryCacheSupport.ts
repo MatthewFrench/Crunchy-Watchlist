@@ -203,6 +203,8 @@ function mergeCachedSeriesData(
   const preferredAudioLocale = context.normalizeAudioLocale(nextData.preferredAudioLocale);
   const normalizedEpisodeCount = context.sanitizePositiveInt(nextData.episodeCount);
   const normalizedSeasonCount = context.sanitizePositiveInt(nextData.seasonCount);
+  const previousEpisodeCount = context.sanitizePositiveInt(previous.episodeCount);
+  const previousSeasonCount = context.sanitizePositiveInt(previous.seasonCount);
   const episodeCountByAudioLocale = context.mergeAudioLocaleCountMap(
     previous.episodeCountByAudioLocale,
     preferredAudioLocale,
@@ -228,8 +230,18 @@ function mergeCachedSeriesData(
         : typeof previous.description === 'string'
           ? previous.description
           : '',
-    episodeCount: normalizedEpisodeCount ?? context.sanitizePositiveInt(previous.episodeCount),
-    seasonCount: normalizedSeasonCount ?? context.sanitizePositiveInt(previous.seasonCount),
+    episodeCount:
+      normalizedEpisodeCount == null
+        ? previousEpisodeCount
+        : previousEpisodeCount == null
+          ? normalizedEpisodeCount
+          : Math.max(previousEpisodeCount, normalizedEpisodeCount),
+    seasonCount:
+      normalizedSeasonCount == null
+        ? previousSeasonCount
+        : previousSeasonCount == null
+          ? normalizedSeasonCount
+          : Math.max(previousSeasonCount, normalizedSeasonCount),
     episodeCountByAudioLocale,
     seasonCountByAudioLocale,
     genreTags:

@@ -518,6 +518,57 @@ describe('curated-interactions runtime', () => {
     await flushMicrotasks();
   });
 
+  it('still persists updated settings when render throws during control changes', async () => {
+    const state = {
+      mounted: true,
+      settings: {
+        genreFilter: 'any',
+      },
+    };
+
+    const persistSettings = vi.fn(async () => null);
+    const renderCuratedPanel = vi.fn(() => {
+      throw new Error('render failed');
+    });
+
+    const runtime = getCuratedInteractionsModule().createCuratedInteractionsRuntime({
+      documentRef: {
+        createElement: () => createFakeElement(),
+      },
+      alertRef: vi.fn(),
+      confirmRef: vi.fn(() => true),
+      triggerNativeCardAction: vi.fn(async () => true),
+      toggleCuratedFavorite: vi.fn(),
+      removeCuratedSeries: vi.fn(),
+      renderCuratedPanel,
+      state,
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      persistSettings,
+      normalizeAudioLocale: vi.fn((value: unknown) => String(value || '').trim() || null),
+      preloadRatingsForSelectedAudioLocale: vi.fn(async () => null),
+      preloadWatchHistoryForSelectedAudioLocale: vi.fn(async () => null),
+      isWatchlistPath: vi.fn(() => true),
+      resetCuratedCachesForRefresh: vi.fn(async () => null),
+      ensureCuratedDataLoad: vi.fn(async () => null),
+      debounceProcess: vi.fn(),
+    });
+
+    const genreSelect = createFakeElement();
+    genreSelect.value = 'action';
+    runtime.bindCuratedInterfaceControls({
+      genreFilterControl: { select: genreSelect },
+    });
+
+    await genreSelect.dispatch('change');
+    await flushMicrotasks();
+
+    expect(state.settings.genreFilter).toBe('action');
+    expect(renderCuratedPanel).toHaveBeenCalledTimes(1);
+    expect(persistSettings).toHaveBeenCalledTimes(1);
+  });
+
   it('prevents overlapping manual refresh actions while a refresh is in flight', async () => {
     const state = {
       mounted: true,

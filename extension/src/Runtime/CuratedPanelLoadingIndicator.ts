@@ -46,6 +46,10 @@ type TimedRoot = {
 
 const LOADING_BOX_TRANSITION_MS = 3_000;
 const GRID_CONTAINER_TRANSITION_MS = 1_000;
+const cardContainerVisibleClassName = 'cw-curated-card-container--visible';
+const cardContainerAnimatingClassName = 'cw-curated-card-container--animating';
+const legacyGridVisibleClassName = 'cw-curated-grid--visible';
+const legacyGridAnimatingClassName = 'cw-curated-grid--animating';
 
 class CuratedPanelLoadingIndicatorController {
   private readonly loadingIndicatorDetailsByElement = new WeakMap<Element, LoadingIndicatorDetailsNodes>();
@@ -107,6 +111,30 @@ class CuratedPanelLoadingIndicatorController {
       return;
     }
     mutableElement.className = nextClassName;
+  }
+
+  private setCardContainerClassToken(element: Element, token: string, enabled: boolean): void {
+    this.setElementClassToken(element, token, enabled);
+    if (token === cardContainerVisibleClassName) {
+      this.setElementClassToken(element, legacyGridVisibleClassName, enabled);
+      return;
+    }
+    if (token === cardContainerAnimatingClassName) {
+      this.setElementClassToken(element, legacyGridAnimatingClassName, enabled);
+    }
+  }
+
+  private hasCardContainerClassToken(element: Element, token: string): boolean {
+    if (this.hasElementClassToken(element, token)) {
+      return true;
+    }
+    if (token === cardContainerVisibleClassName) {
+      return this.hasElementClassToken(element, legacyGridVisibleClassName);
+    }
+    if (token === cardContainerAnimatingClassName) {
+      return this.hasElementClassToken(element, legacyGridAnimatingClassName);
+    }
+    return false;
   }
 
   private hasElementClassToken(element: Element, token: string): boolean {
@@ -215,9 +243,6 @@ class CuratedPanelLoadingIndicatorController {
       return;
     }
     if (heightPx == null) {
-      if (this.hasAbsolutePositionedCardChildren(gridEl)) {
-        return;
-      }
       if (typeof style.height === 'string' && style.height) {
         style.height = '';
       }
@@ -230,54 +255,40 @@ class CuratedPanelLoadingIndicatorController {
     style.height = nextHeight;
   }
 
-  private hasAbsolutePositionedCardChildren(gridEl: Element): boolean {
-    return Array.from(gridEl.children).some((child) => {
-      const seriesId =
-        (child as Element & { getAttribute?: (name: string) => string | null }).getAttribute?.('data-cw-series-id') ||
-        '';
-      if (!seriesId) {
-        return false;
-      }
-
-      const style = (child as Element & { style?: { position?: string } }).style;
-      return Boolean(style) && style?.position === 'absolute';
-    });
-  }
-
   private finalizeGridContainerShownState(gridEl: Element): void {
     this.gridContainerHasShownByElement.set(gridEl, true);
-    this.setElementClassToken(gridEl, 'cw-curated-grid--animating', false);
-    this.setElementClassToken(gridEl, 'cw-curated-grid--visible', true);
+    this.setCardContainerClassToken(gridEl, cardContainerAnimatingClassName, false);
+    this.setCardContainerClassToken(gridEl, cardContainerVisibleClassName, true);
     this.setGridContainerHeight(gridEl, null);
   }
 
   private hideGridContainer(documentRef: Document, gridEl: Element): void {
     const wasVisible =
       this.gridContainerVisibleByElement.get(gridEl) === true ||
-      this.hasElementClassToken(gridEl, 'cw-curated-grid--visible') ||
+      this.hasCardContainerClassToken(gridEl, cardContainerVisibleClassName) ||
       this.gridContainerEnterFrameByElement.has(gridEl);
     this.gridContainerVisibleByElement.set(gridEl, false);
     this.cancelPendingGridContainerEnterFrame(gridEl, documentRef);
     this.clearGridContainerSettleTimeout(gridEl, documentRef);
-    this.setElementClassToken(gridEl, 'cw-curated-grid--animating', true);
+    this.setCardContainerClassToken(gridEl, cardContainerAnimatingClassName, true);
     if (!wasVisible) {
-      this.setElementClassToken(gridEl, 'cw-curated-grid--visible', false);
+      this.setCardContainerClassToken(gridEl, cardContainerVisibleClassName, false);
       this.setGridContainerHeight(gridEl, 0);
       return;
     }
-    this.setElementClassToken(gridEl, 'cw-curated-grid--visible', true);
+    this.setCardContainerClassToken(gridEl, cardContainerVisibleClassName, true);
     this.setGridContainerHeight(gridEl, this.resolveExpandedLoadingBoxHeight(gridEl));
     this.forceLayoutRead(gridEl);
-    this.setElementClassToken(gridEl, 'cw-curated-grid--visible', false);
+    this.setCardContainerClassToken(gridEl, cardContainerVisibleClassName, false);
     this.setGridContainerHeight(gridEl, 0);
   }
 
   private showGridContainer(documentRef: Document, gridEl: Element): void {
-    const isClassVisible = this.hasElementClassToken(gridEl, 'cw-curated-grid--visible');
+    const isClassVisible = this.hasCardContainerClassToken(gridEl, cardContainerVisibleClassName);
     const pendingEnterFrame = this.gridContainerEnterFrameByElement.get(gridEl);
     this.gridContainerVisibleByElement.set(gridEl, true);
     this.clearGridContainerSettleTimeout(gridEl, documentRef);
-    this.setElementClassToken(gridEl, 'cw-curated-grid--animating', true);
+    this.setCardContainerClassToken(gridEl, cardContainerAnimatingClassName, true);
 
     if (isClassVisible) {
       this.finalizeGridContainerShownState(gridEl);
@@ -288,7 +299,7 @@ class CuratedPanelLoadingIndicatorController {
       return;
     }
 
-    this.setElementClassToken(gridEl, 'cw-curated-grid--visible', false);
+    this.setCardContainerClassToken(gridEl, cardContainerVisibleClassName, false);
     this.setGridContainerHeight(gridEl, 0);
     this.forceLayoutRead(gridEl);
 
@@ -297,7 +308,7 @@ class CuratedPanelLoadingIndicatorController {
       if (this.gridContainerVisibleByElement.get(gridEl) !== true) {
         return;
       }
-      this.setElementClassToken(gridEl, 'cw-curated-grid--visible', true);
+      this.setCardContainerClassToken(gridEl, cardContainerVisibleClassName, true);
       this.setGridContainerHeight(gridEl, this.resolveExpandedLoadingBoxHeight(gridEl));
 
       const timeoutId = this.scheduleTimeout(

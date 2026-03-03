@@ -38,102 +38,167 @@ function readResultValue(result: BoundaryValue, key: string): BoundaryValue {
     return undefined;
   }
 
-  return (result as StorageRecord)[key];
+  const record = result as StorageRecord;
+  if (!Object.hasOwn(record, key)) {
+    return undefined;
+  }
+
+  return record[key];
 }
 
-async function storageAreaGet<T>(
-  storageArea: StorageAreaLike | null | undefined,
+type StorageAreaReadResult = {
+  ok: boolean;
+  found: boolean;
+  value: BoundaryValue;
+};
+
+type LocalStorageReadResult<T> = {
+  found: boolean;
+  value: T;
+};
+
+function makeStorageAreaReadResult(
+  ok: boolean,
+  found: boolean,
+  value: BoundaryValue = undefined,
+): StorageAreaReadResult {
+  return {
+    ok,
+    found,
+    value,
+  };
+}
+
+function mapStorageAreaReadValue(result: BoundaryValue, key: string): StorageAreaReadResult {
+  const value = readResultValue(result, key);
+  if (value == null) {
+    return makeStorageAreaReadResult(true, false);
+  }
+  return makeStorageAreaReadResult(true, true, value);
+}
+
+async function storageAreaGetPromise(getFn: StorageGetPromise, key: string): Promise<StorageAreaReadResult> {
+  try {
+    const result = await getFn(key);
+    return mapStorageAreaReadValue(result, key);
+  } catch (_error) {
+    return makeStorageAreaReadResult(false, false);
+  }
+}
+
+async function storageAreaGetCallback(
+  getFn: StorageGetCallback,
   key: string,
-  fallback: T,
-  timeoutMs = 1500,
-): Promise<T | BoundaryValue> {
-  const getFn = storageArea?.get;
-  if (typeof getFn !== 'function') {
-    return fallback;
-  }
-
-  if (getFn.length <= 1) {
-    try {
-      const result = await (getFn as StorageGetPromise)(key);
-      const value = readResultValue(result, key);
-      return value != null ? value : fallback;
-    } catch (_error) {
-      return fallback;
-    }
-  }
-
+  timeoutMs: number,
+): Promise<StorageAreaReadResult> {
   return new Promise((resolve) => {
     let resolved = false;
 
     const timer = root.setTimeout(() => {
       if (!resolved) {
         resolved = true;
-        resolve(fallback);
+        resolve(makeStorageAreaReadResult(false, false));
       }
     }, timeoutMs);
 
     try {
-      (getFn as StorageGetCallback)([key], (result) => {
+      getFn([key], (result) => {
         if (resolved) {
           return;
         }
 
         resolved = true;
         root.clearTimeout(timer);
-        const value = readResultValue(result, key);
-        resolve(value != null ? value : fallback);
+        resolve(mapStorageAreaReadValue(result, key));
       });
     } catch (_error) {
       if (!resolved) {
         resolved = true;
         root.clearTimeout(timer);
-        resolve(fallback);
+        resolve(makeStorageAreaReadResult(false, false));
       }
     }
   });
+}
+
+async function storageAreaGet(
+  storageArea: StorageAreaLike | null | undefined,
+  key: string,
+  timeoutMs = 1500,
+): Promise<StorageAreaReadResult> {
+  const getFn = storageArea?.get;
+  if (typeof getFn !== 'function') {
+    return makeStorageAreaReadResult(false, false);
+  }
+
+  if (getFn.length <= 1) {
+    return storageAreaGetPromise(getFn as StorageGetPromise, key);
+  }
+
+  return storageAreaGetCallback(getFn as StorageGetCallback, key, timeoutMs);
 }
 
 async function storageAreaSet(
   storageArea: StorageAreaLike | null | undefined,
   key: string,
   value: BoundaryValue,
-): Promise<void> {
+): Promise<boolean> {
   const setFn = storageArea?.set;
   if (typeof setFn !== 'function') {
-    return;
+    return false;
   }
 
   if (setFn.length <= 1) {
     try {
       await (setFn as StorageSetPromise)({ [key]: value });
+      return true;
     } catch (_error) {
-      // no-op
+      return false;
     }
-    return;
   }
 
-  await new Promise<void>((resolve) => {
+  return new Promise<boolean>((resolve) => {
     try {
-      (setFn as StorageSetCallback)({ [key]: value }, () => resolve());
+      (setFn as StorageSetCallback)({ [key]: value }, () => resolve(true));
     } catch (_error) {
-      resolve();
+      resolve(false);
     }
   });
 }
 
-function localStorageGet<T>(localStorageRef: LocalStorageLike, parseJson: ParseJson, key: string, fallback: T): T {
+async function storageAreaSetAndVerify(
+  storageArea: StorageAreaLike | null | undefined,
+  key: string,
+  value: BoundaryValue,
+  timeoutMs: number,
+): Promise<boolean> {
+  const stored = await storageAreaSet(storageArea, key, value);
+  if (!stored) {
+    return false;
+  }
+
+  const verification = await storageAreaGet(storageArea, key, timeoutMs);
+  return verification.ok && verification.found;
+}
+
+function localStorageRead<T>(
+  localStorageRef: LocalStorageLike,
+  parseJson: ParseJson,
+  key: string,
+  fallback: T,
+): LocalStorageReadResult<T> {
   let raw: string | null = null;
   try {
     raw = localStorageRef.getItem(key);
   } catch (_error) {
-    return fallback;
+    return { found: false, value: fallback };
   }
 
   if (raw == null) {
-    return fallback;
+    return { found: false, value: fallback };
   }
 
-  return parseJson(raw, fallback);
+  return { found: true, value: parseJson(raw, fallback) };
 }
 
 function localStorageSet(localStorageRef: LocalStorageLike, key: string, value: BoundaryValue): void {
@@ -144,10 +209,31 @@ function localStorageSet(localStorageRef: LocalStorageLike, key: string, value: 
   }
 }
 
+function enqueueStorageWriteByKey<T>(
+  queueByKey: Map<string, Promise<void>>,
+  key: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  const previousQueue = queueByKey.get(key) ?? Promise.resolve();
+  const taskRun = previousQueue.catch(() => undefined).then(task);
+  const nextQueue = taskRun.then(
+    () => undefined,
+    () => undefined,
+  );
+  queueByKey.set(key, nextQueue);
+
+  return taskRun.finally(() => {
+    if (queueByKey.get(key) === nextQueue) {
+      queueByKey.delete(key);
+    }
+  });
+}
+
 function createStorageAdapter(options: StorageAdapterOptions = {}): StorageAdapter {
   const storageArea = options.storageArea || null;
   const localStorageRef = options.localStorageRef || root.localStorage;
   const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : 1500;
+  const storageWriteQueueByKey = new Map<string, Promise<void>>();
   const parseJson: ParseJson =
     typeof options.parseJson === 'function'
       ? (options.parseJson as ParseJson)
@@ -161,16 +247,25 @@ function createStorageAdapter(options: StorageAdapterOptions = {}): StorageAdapt
 
   return {
     async get<T>(key: string, fallback: T): Promise<T | BoundaryValue> {
+      let storageReadResult: StorageAreaReadResult | null = null;
       if (storageArea) {
-        return storageAreaGet(storageArea, key, fallback, timeoutMs);
+        storageReadResult = await storageAreaGet(storageArea, key, timeoutMs);
+        if (storageReadResult.ok && storageReadResult.found) {
+          return storageReadResult.value;
+        }
       }
 
-      return localStorageGet(localStorageRef, parseJson, key, fallback);
+      const localStorageResult = localStorageRead(localStorageRef, parseJson, key, fallback);
+      return localStorageResult.value;
     },
     async set(key: string, value: BoundaryValue): Promise<void> {
       if (storageArea) {
-        await storageAreaSet(storageArea, key, value);
-        return;
+        const storedInExtensionStorage = await enqueueStorageWriteByKey(storageWriteQueueByKey, key, async () => {
+          return storageAreaSetAndVerify(storageArea, key, value, timeoutMs);
+        });
+        if (storedInExtensionStorage) {
+          return;
+        }
       }
 
       localStorageSet(localStorageRef, key, value);

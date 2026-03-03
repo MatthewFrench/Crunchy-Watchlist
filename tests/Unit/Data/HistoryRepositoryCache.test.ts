@@ -255,6 +255,41 @@ describe('HistoryRepositoryCache', () => {
     expect(localized?.episodeDurationMs).toBe(1_420_087);
   });
 
+  it('does not promote season-local episode values into absolute episode numbers', () => {
+    const state: WatchHistoryState = {
+      watchHistoryCache: createEmptyWatchHistoryCache(1),
+    };
+    const repository = createHistoryRepositoryCache(state);
+
+    const rawCache = {
+      version: 1,
+      accountId: 'acct-1',
+      updatedAt: Date.now(),
+      bySeriesId: {
+        'series-progress': {
+          seriesId: 'series-progress',
+          datePlayed: '2026-01-24T20:06:06.000Z',
+          seasonNumber: 3,
+          episodeNumber: 49,
+          absoluteEpisodeNumber: 2,
+          panel: {
+            episode_metadata: {
+              season_number: 3,
+              episode_number: 49,
+              sequence_number: 2,
+            },
+          },
+        },
+      },
+      bySeriesIdAudioLocale: {},
+      bySeriesIdProgress: {},
+      bySeriesIdAudioLocaleProgress: {},
+    };
+
+    const normalized = repository.normalizeStoredWatchHistoryCache(rawCache);
+    expect(normalized.bySeriesId['series-progress']?.absoluteEpisodeNumber).toBeNull();
+  });
+
   it('prefers locale-specific history and falls back to series history when allowed', () => {
     const baseEntry: WatchHistoryEntry = {
       seriesId: 'series-a',
@@ -319,6 +354,54 @@ describe('HistoryRepositoryCache', () => {
       {
         audioLocaleInferred: false,
         datePlayedMs: Date.parse('2024-01-01T00:00:00.000Z'),
+      },
+    );
+
+    expect(shouldReplace).toBe(true);
+  });
+
+  it('replaces progress when a newer row has a higher effective episode index despite stale absolute values', () => {
+    const state: WatchHistoryState = {
+      watchHistoryCache: createEmptyWatchHistoryCache(1),
+    };
+    const repository = createHistoryRepositoryCache(state);
+
+    const shouldReplace = repository.shouldReplaceWatchHistoryProgress(
+      {
+        seasonNumber: 1,
+        episodeNumber: 24,
+        absoluteEpisodeNumber: 24,
+        datePlayedMs: Date.parse('2024-05-07T02:02:56.000Z'),
+      },
+      {
+        seasonNumber: 3,
+        episodeNumber: 49,
+        sequence_number: 2,
+        absoluteEpisodeNumber: 2,
+        datePlayedMs: Date.parse('2026-01-24T20:06:06.000Z'),
+      },
+    );
+
+    expect(shouldReplace).toBe(true);
+  });
+
+  it('keeps explicit absolute episode indices when season metadata is missing', () => {
+    const state: WatchHistoryState = {
+      watchHistoryCache: createEmptyWatchHistoryCache(1),
+    };
+    const repository = createHistoryRepositoryCache(state);
+
+    const shouldReplace = repository.shouldReplaceWatchHistoryProgress(
+      {
+        seasonNumber: 1,
+        episodeNumber: 23,
+        absoluteEpisodeNumber: 23,
+        datePlayedMs: Date.parse('2026-01-20T00:00:00.000Z'),
+      },
+      {
+        episodeNumber: 24,
+        absoluteEpisodeNumber: 24,
+        datePlayedMs: Date.parse('2026-01-21T00:00:00.000Z'),
       },
     );
 

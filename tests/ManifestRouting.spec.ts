@@ -96,6 +96,43 @@ test.describe('Routing and Mounting', () => {
     await expect(page.locator('.cw-host')).toHaveCount(1);
     await expect(page.locator('.cw-curated-card').first()).toBeVisible();
 
+    const assertGridHeightContainsCards = async () => {
+      const metrics = await page.evaluate(() => {
+        const grid = document.querySelector('.cw-curated-card-container') as HTMLElement | null;
+        if (!grid) {
+          return null;
+        }
+
+        const cards = Array.from(grid.querySelectorAll<HTMLElement>('.cw-curated-card'));
+        const maxCardBottom = cards.reduce((maxBottom, card) => {
+          return Math.max(maxBottom, card.offsetTop + card.offsetHeight);
+        }, 0);
+
+        const styleHeight = Number.parseFloat(grid.style.height || '0') || 0;
+        const clientHeight = grid.clientHeight;
+        const measuredHeight = grid.getBoundingClientRect().height;
+
+        return {
+          cardCount: cards.length,
+          maxCardBottom,
+          styleHeight,
+          clientHeight,
+          measuredHeight,
+        };
+      });
+
+      expect(metrics).not.toBeNull();
+      if (!metrics) {
+        return;
+      }
+
+      expect(metrics.cardCount).toBeGreaterThan(0);
+      const effectiveHeight = Math.max(metrics.styleHeight, metrics.clientHeight, metrics.measuredHeight);
+      expect(effectiveHeight + 1).toBeGreaterThanOrEqual(metrics.maxCardBottom);
+    };
+
+    await assertGridHeightContainsCards();
+
     const sortModes = ['rating_desc', 'date_added_desc', 'date_updated_desc'];
     const watchReadyModes = ['hide', 'dim', 'none'];
 
@@ -115,6 +152,7 @@ test.describe('Routing and Mounting', () => {
       });
       await expect(page.locator('.cw-host')).toHaveCount(1);
       await expect(page.locator('.cw-curated-card').first()).toBeVisible();
+      await assertGridHeightContainsCards();
     }
   });
 });

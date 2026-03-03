@@ -85,6 +85,41 @@ When modifying an existing production function (or adding a new one), follow the
    - Keep this verification safe and read-only against production-like pages (no destructive account mutations or bulk data actions).
    - Prioritize the exact interaction paths that changed (for example: toggle actions, sorting/filtering, or route transitions).
 
+## Live Crunchyroll Verification Workflow (Cloudflare-Safe)
+
+Use this workflow when validating behavior on real `crunchyroll.com` while avoiding repeated Cloudflare challenge failures.
+
+1. **Default to fixtures for automation-heavy coverage**:
+   - Keep most regression/behavior checks on fixture-driven tests (`npm run test:unit`, `npm run test:e2e*`).
+   - Reserve live Crunchyroll checks for final, focused read-only verification.
+
+2. **Do not rely on Playwright-launched fresh browser profiles for Cloudflare login**:
+   - Fresh automated contexts are more likely to challenge-loop.
+   - Prefer a long-lived, user-managed browser profile for live site checks.
+
+3. **Use a separate Chrome app/profile and attach over CDP**:
+   - Launch a separate browser process with a dedicated profile and DevTools port.
+   - Example launch (macOS app copy):
+     - `open -na '/Applications/Google Chrome copy.app' --args --remote-debugging-port=9222 --user-data-dir='/Users/matthewfrench/GitHub/Crunchy-Watchlist/.tmp/chrome-copy-cdp-profile' --new-window 'https://www.crunchyroll.com/watchlist'`
+   - Agent control model: attach with Playwright `chromium.connectOverCDP('http://127.0.0.1:9222')` to the already-running browser instead of launching a new automated browser.
+
+4. **Manual challenge handling is expected**:
+   - User manually completes Cloudflare/login in that browser window when prompted.
+   - Agent resumes read-only verification after confirmation.
+
+5. **For rapid iteration, inject built runtime directly into watchlist**:
+   - Build runtime: `npm run build:runtime:dev`
+   - Inject bundled content-script JS/CSS into the live watchlist tab (no extension installation required for this step).
+   - Use this mode for debugging logic/UI quickly.
+
+6. **For release-parity validation, user tests real installed extension**:
+   - Final parity checks (manifest/permissions/content-script wiring) should be done with the actual extension installed and enabled by the user.
+
+7. **Session hygiene and safety**:
+   - Keep one live browser session/profile per verification pass; avoid parallel controlling sessions against Crunchyroll.
+   - Avoid destructive account actions.
+   - Do not implement or suggest anti-bot bypass/spoofing tactics.
+
 ## Architecture Smell Escalation (Required)
 
 1. **Stop-and-discuss trigger**:
