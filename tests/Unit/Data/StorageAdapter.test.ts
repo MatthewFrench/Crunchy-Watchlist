@@ -141,4 +141,46 @@ describe('StorageAdapter', () => {
     expect(loaded).toEqual({ sortMode: 'date_updated_desc' });
     expect(storageAreaStore.get('cw_settings_v1')).toEqual({ sortMode: 'date_updated_desc' });
   });
+
+  it('does not let background migration overwrite newer writes', async () => {
+    const local = createLocalStorageStub({
+      cw_settings_v1: JSON.stringify({ sortMode: 'date_updated_desc' }),
+    });
+    const storageAreaStore = new Map<string, unknown>();
+    let releaseMigrationWrite = () => {};
+    const migrationWriteGate = new Promise<void>((resolve) => {
+      releaseMigrationWrite = resolve;
+    });
+
+    const adapter = createStorageAdapter({
+      storageArea: {
+        get: async (key: string) => (storageAreaStore.has(key) ? { [key]: storageAreaStore.get(key) } : {}),
+        set: async (items: Record<string, unknown>) => {
+          const nextValue = items.cw_settings_v1 as { sortMode?: string } | undefined;
+          if (nextValue?.sortMode === 'date_updated_desc') {
+            await migrationWriteGate;
+          }
+          Object.entries(items).forEach(([key, value]) => {
+            storageAreaStore.set(key, value);
+          });
+        },
+      },
+      localStorageRef: local.storage,
+    });
+
+    const loaded = await adapter.get('cw_settings_v1', { sortMode: 'none' });
+    expect(loaded).toEqual({ sortMode: 'date_updated_desc' });
+
+    // Allow the background migration write to enqueue and block.
+    await Promise.resolve();
+    const setPromise = adapter.set('cw_settings_v1', { sortMode: 'rating_desc' });
+    await Promise.resolve();
+
+    releaseMigrationWrite();
+    await setPromise;
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(storageAreaStore.get('cw_settings_v1')).toEqual({ sortMode: 'rating_desc' });
+  });
 });

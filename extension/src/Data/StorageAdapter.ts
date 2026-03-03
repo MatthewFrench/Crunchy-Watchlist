@@ -209,10 +209,32 @@ function localStorageSet(localStorageRef: LocalStorageLike, key: string, value: 
   }
 }
 
+function enqueueStorageWriteByKey<T>(
+  queueByKey: Map<string, Promise<void>>,
+  key: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  const previousQueue = queueByKey.get(key) ?? Promise.resolve();
+  const taskRun = previousQueue.catch(() => undefined).then(task);
+  const nextQueue = taskRun.then(
+    () => undefined,
+    () => undefined,
+  );
+  queueByKey.set(key, nextQueue);
+
+  return taskRun.finally(() => {
+    if (queueByKey.get(key) === nextQueue) {
+      queueByKey.delete(key);
+    }
+  });
+}
+
 function createStorageAdapter(options: StorageAdapterOptions = {}): StorageAdapter {
   const storageArea = options.storageArea || null;
   const localStorageRef = options.localStorageRef || root.localStorage;
   const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : 1500;
+  const storageWriteQueueByKey = new Map<string, Promise<void>>();
+  const storageWriteRevisionByKey = new Map<string, number>();
   const parseJson: ParseJson =
     typeof options.parseJson === 'function'
       ? (options.parseJson as ParseJson)
@@ -223,6 +245,14 @@ function createStorageAdapter(options: StorageAdapterOptions = {}): StorageAdapt
             return fallback;
           }
         };
+  const readStorageWriteRevision = (key: string): number => {
+    return storageWriteRevisionByKey.get(key) ?? 0;
+  };
+  const bumpStorageWriteRevision = (key: string): number => {
+    const nextRevision = readStorageWriteRevision(key) + 1;
+    storageWriteRevisionByKey.set(key, nextRevision);
+    return nextRevision;
+  };
 
   return {
     async get<T>(key: string, fallback: T): Promise<T | BoundaryValue> {
@@ -240,7 +270,14 @@ function createStorageAdapter(options: StorageAdapterOptions = {}): StorageAdapt
         localStorageResult.found &&
         (!storageReadResult || (storageReadResult.ok && !storageReadResult.found))
       ) {
-        void storageAreaSetAndVerify(storageArea, key, localStorageResult.value, timeoutMs).catch(() => {
+        const migrationRevision = readStorageWriteRevision(key);
+        void enqueueStorageWriteByKey(storageWriteQueueByKey, key, async () => {
+          // Do not write stale local values if a newer explicit write has been scheduled.
+          if (readStorageWriteRevision(key) !== migrationRevision) {
+            return false;
+          }
+          return storageAreaSetAndVerify(storageArea, key, localStorageResult.value, timeoutMs);
+        }).catch(() => {
           // no-op
         });
       }
@@ -248,8 +285,14 @@ function createStorageAdapter(options: StorageAdapterOptions = {}): StorageAdapt
       return localStorageResult.value;
     },
     async set(key: string, value: BoundaryValue): Promise<void> {
-      if (storageArea && (await storageAreaSetAndVerify(storageArea, key, value, timeoutMs))) {
-        return;
+      bumpStorageWriteRevision(key);
+      if (storageArea) {
+        const storedInExtensionStorage = await enqueueStorageWriteByKey(storageWriteQueueByKey, key, async () => {
+          return storageAreaSetAndVerify(storageArea, key, value, timeoutMs);
+        });
+        if (storedInExtensionStorage) {
+          return;
+        }
       }
 
       localStorageSet(localStorageRef, key, value);

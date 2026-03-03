@@ -384,4 +384,27 @@ describe('HistoryRepositoryCache', () => {
 
     expect(shouldReplace).toBe(true);
   });
+
+  it('keeps explicit absolute episode indices when season metadata is missing', () => {
+    const state: WatchHistoryState = {
+      watchHistoryCache: createEmptyWatchHistoryCache(1),
+    };
+    const repository = createHistoryRepositoryCache(state);
+
+    const shouldReplace = repository.shouldReplaceWatchHistoryProgress(
+      {
+        seasonNumber: 1,
+        episodeNumber: 23,
+        absoluteEpisodeNumber: 23,
+        datePlayedMs: Date.parse('2026-01-20T00:00:00.000Z'),
+      },
+      {
+        episodeNumber: 24,
+        absoluteEpisodeNumber: 24,
+        datePlayedMs: Date.parse('2026-01-21T00:00:00.000Z'),
+      },
+    );
+
+    expect(shouldReplace).toBe(true);
+  });
 });

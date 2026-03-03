@@ -119,7 +119,7 @@ function isTrustedAbsoluteCandidate(
     return false;
   }
 
-  if (seasonNumber === 1) {
+  if (seasonNumber == null || seasonNumber === 1) {
     return true;
   }
 
