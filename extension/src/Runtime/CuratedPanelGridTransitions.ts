@@ -41,6 +41,8 @@ const absoluteGridDefaultGapPx = 12;
 const absoluteGridDefaultMinCardWidthPx = 320;
 const absoluteGridDefaultMaxCardWidthPx = 420;
 const absoluteGridPreferredCardWidthPx = 370;
+const absoluteGridFallbackCardHeightPx = 320;
+const cardContainerContentHeightCssVariable = '--cw-curated-card-container-height';
 const absoluteCardTopLeftTransition = `top ${absoluteCardMoveDurationMs}ms ease-in-out, left ${absoluteCardMoveDurationMs}ms ease-in-out, opacity ${cardFadeDurationMs}ms ease, border-color 180ms ease, background-color 180ms ease`;
 const leavingCardTimeoutByElement = new Map<Element, number>();
 
@@ -99,6 +101,43 @@ function getElementRectSnapshot(element: Element): RectSnapshot | null {
 function getElementStyleRecord(value: Element): Record<string, string> | null {
   const elementWithStyle = value as Element & { style?: Record<string, string> };
   return elementWithStyle.style || null;
+}
+
+type CustomStyleRecord = Record<string, string> & {
+  setProperty?: (propertyName: string, value: string) => void;
+};
+
+function setStyleCustomProperty(style: Record<string, string>, propertyName: string, value: string): void {
+  const styleWithSetProperty = style as CustomStyleRecord;
+  if (typeof styleWithSetProperty.setProperty === 'function') {
+    styleWithSetProperty.setProperty(propertyName, value);
+    return;
+  }
+  style[propertyName] = value;
+}
+
+function resolveFallbackCardHeightPx(card: Element, previousHeightPx: number): number {
+  if (Number.isFinite(previousHeightPx) && previousHeightPx > 0) {
+    return previousHeightPx;
+  }
+
+  const scrollHeight = Number((card as Element & { scrollHeight?: number }).scrollHeight) || 0;
+  if (scrollHeight > 0) {
+    return scrollHeight;
+  }
+
+  const offsetHeight = Number((card as Element & { offsetHeight?: number }).offsetHeight) || 0;
+  if (offsetHeight > 0) {
+    return offsetHeight;
+  }
+
+  const clientHeight = Number((card as Element & { clientHeight?: number }).clientHeight) || 0;
+  if (clientHeight > 0) {
+    return clientHeight;
+  }
+
+  const style = getElementStyleRecord(card);
+  return style ? parseNonNegativePixelValue(style.height || '') : 0;
 }
 
 function hasGridStylesForAbsolutePlacement(value: Element): boolean {
@@ -165,7 +204,10 @@ function resetGridAbsoluteHeight(gridElement: Element): void {
   if (!gridStyle) {
     return;
   }
-  gridStyle.height = '';
+  setStyleCustomProperty(gridStyle, cardContainerContentHeightCssVariable, '0px');
+  if (typeof gridStyle.height === 'string' && gridStyle.height) {
+    gridStyle.height = '';
+  }
 }
 
 function resolveAbsoluteGridColumnCount(gridWidthPx: number, gapPx: number): number {
@@ -360,6 +402,97 @@ function stageCardCenterIntro(gridElement: Element, card: Element): void {
   fadeIn();
 }
 
+function prepareCardsForAbsolutePlacement(nextCards: Element[], cardWidthPx: number): number[] {
+  const previousCardHeights = nextCards.map((card) => {
+    const style = getElementStyleRecord(card);
+    if (!style) {
+      return 0;
+    }
+    return parseNonNegativePixelValue(style.height || '');
+  });
+
+  nextCards.forEach((card) => {
+    const style = getElementStyleRecord(card);
+    if (!style) {
+      return;
+    }
+    const roundedWidthPx = `${Math.max(1, Math.round(cardWidthPx))}px`;
+    style.position = 'absolute';
+    style.margin = '0';
+    style.width = roundedWidthPx;
+    style.maxWidth = roundedWidthPx;
+    // Measure natural content height per card each render before applying uniform height.
+    style.height = '';
+  });
+
+  return previousCardHeights;
+}
+
+function resolveCardHeightsForAbsolutePlacement(nextCards: Element[], previousCardHeights: number[]): number[] {
+  return nextCards.map((card, index) => {
+    const cardRect = getElementRectSnapshot(card);
+    if (cardRect && cardRect.height > 0) {
+      return cardRect.height;
+    }
+    const fallbackHeight = resolveFallbackCardHeightPx(card, previousCardHeights[index] || 0);
+    return fallbackHeight > 0 ? fallbackHeight : 0;
+  });
+}
+
+function resolveUniformAbsoluteCardHeightPx(cardHeights: number[], columns: number): number {
+  const measurableCardHeights = cardHeights.filter((height) => height > 0);
+  return (
+    resolveCompactUniformCardHeightPx(
+      measurableCardHeights.length ? measurableCardHeights : [absoluteGridFallbackCardHeightPx],
+      columns,
+    ) || absoluteGridFallbackCardHeightPx
+  );
+}
+
+function setGridAbsolutePlacementHeight(
+  gridElement: Element,
+  cardCount: number,
+  columns: number,
+  roundedUniformCardHeightPx: number,
+  gapPx: number,
+): void {
+  const rowCount = Math.ceil(cardCount / columns);
+  const gridHeight = rowCount > 0 ? Math.max(0, rowCount * roundedUniformCardHeightPx + (rowCount - 1) * gapPx) : 0;
+  const gridStyle = getElementStyleRecord(gridElement);
+  if (!gridStyle) {
+    return;
+  }
+  gridStyle.display = 'block';
+  gridStyle.position = 'relative';
+  setStyleCustomProperty(gridStyle, cardContainerContentHeightCssVariable, `${Math.max(0, Math.round(gridHeight))}px`);
+  if (typeof gridStyle.height === 'string' && gridStyle.height) {
+    gridStyle.height = '';
+  }
+}
+
+function applyAbsoluteCardPositions(
+  nextCards: Element[],
+  columns: number,
+  cardWidthPx: number,
+  gapPx: number,
+  gridWidthPx: number,
+  roundedUniformCardHeightPx: number,
+  firstRowCenterLeftPx: number,
+  firstRowCenterTopPx: number,
+): void {
+  nextCards.forEach((card, index) => {
+    const rowIndex = Math.floor(index / columns);
+    const rowStartIndex = rowIndex * columns;
+    const rowItemCount = Math.min(columns, nextCards.length - rowStartIndex);
+    const columnIndex = index - rowStartIndex;
+    const rowWidthPx = rowItemCount * cardWidthPx + Math.max(0, rowItemCount - 1) * gapPx;
+    const rowLeftInsetPx = Math.max(0, (gridWidthPx - rowWidthPx) / 2);
+    const leftPx = rowLeftInsetPx + columnIndex * (cardWidthPx + gapPx);
+    const topPx = rowIndex * (roundedUniformCardHeightPx + gapPx);
+    applyCardAbsolutePosition(card, leftPx, topPx, cardWidthPx, firstRowCenterLeftPx, firstRowCenterTopPx);
+  });
+}
+
 function applyAbsoluteGridCardPlacement(gridElement: Element, nextCards: Element[]): boolean {
   if (!nextCards.length || !hasGridStylesForAbsolutePlacement(gridElement)) {
     resetGridAbsoluteHeight(gridElement);
@@ -380,55 +513,22 @@ function applyAbsoluteGridCardPlacement(gridElement: Element, nextCards: Element
   const cardWidthPx = Math.max(1, (gridWidthPx - gapPx * (columns - 1)) / columns);
   const firstRowCenterLeftPx = Math.max(0, (gridWidthPx - cardWidthPx) / 2);
   const firstRowCenterTopPx = 0;
-
-  nextCards.forEach((card) => {
-    const style = getElementStyleRecord(card);
-    if (!style) {
-      return;
-    }
-    const roundedWidthPx = `${Math.max(1, Math.round(cardWidthPx))}px`;
-    style.position = 'absolute';
-    style.margin = '0';
-    style.width = roundedWidthPx;
-    style.maxWidth = roundedWidthPx;
-    // Measure natural content height per card each render before applying uniform height.
-    style.height = '';
-  });
-
-  const cardHeights = nextCards.map((card) => {
-    const cardRect = getElementRectSnapshot(card);
-    return cardRect && cardRect.height > 0 ? cardRect.height : 0;
-  });
-
-  if (cardHeights.every((height) => height <= 0)) {
-    return false;
-  }
-
-  const measurableCardHeights = cardHeights.filter((height) => height > 0);
-  const uniformCardHeightPx = resolveCompactUniformCardHeightPx(measurableCardHeights, columns);
+  const previousCardHeights = prepareCardsForAbsolutePlacement(nextCards, cardWidthPx);
+  const cardHeights = resolveCardHeightsForAbsolutePlacement(nextCards, previousCardHeights);
+  const uniformCardHeightPx = resolveUniformAbsoluteCardHeightPx(cardHeights, columns);
   applyUniformCardHeight(nextCards, uniformCardHeightPx);
   const roundedUniformCardHeightPx = roundCardHeightPx(uniformCardHeightPx);
-  const rowCount = Math.ceil(nextCards.length / columns);
-  const gridHeight = rowCount > 0 ? Math.max(0, rowCount * roundedUniformCardHeightPx + (rowCount - 1) * gapPx) : 0;
-
-  const gridStyle = getElementStyleRecord(gridElement);
-  if (gridStyle) {
-    gridStyle.display = 'block';
-    gridStyle.position = 'relative';
-    gridStyle.height = `${Math.max(0, Math.round(gridHeight))}px`;
-  }
-
-  nextCards.forEach((card, index) => {
-    const rowIndex = Math.floor(index / columns);
-    const rowStartIndex = rowIndex * columns;
-    const rowItemCount = Math.min(columns, nextCards.length - rowStartIndex);
-    const columnIndex = index - rowStartIndex;
-    const rowWidthPx = rowItemCount * cardWidthPx + Math.max(0, rowItemCount - 1) * gapPx;
-    const rowLeftInsetPx = Math.max(0, (gridWidthPx - rowWidthPx) / 2);
-    const leftPx = rowLeftInsetPx + columnIndex * (cardWidthPx + gapPx);
-    const topPx = rowIndex * (roundedUniformCardHeightPx + gapPx);
-    applyCardAbsolutePosition(card, leftPx, topPx, cardWidthPx, firstRowCenterLeftPx, firstRowCenterTopPx);
-  });
+  setGridAbsolutePlacementHeight(gridElement, nextCards.length, columns, roundedUniformCardHeightPx, gapPx);
+  applyAbsoluteCardPositions(
+    nextCards,
+    columns,
+    cardWidthPx,
+    gapPx,
+    gridWidthPx,
+    roundedUniformCardHeightPx,
+    firstRowCenterLeftPx,
+    firstRowCenterTopPx,
+  );
 
   return true;
 }

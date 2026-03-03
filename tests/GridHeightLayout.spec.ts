@@ -20,7 +20,7 @@ test.describe('Grid Height Layout', () => {
 
     const assertGridHeightContainsCards = async () => {
       const metrics = await page.evaluate(() => {
-        const grid = document.querySelector('.cw-curated-grid') as HTMLElement | null;
+        const grid = document.querySelector('.cw-curated-card-container') as HTMLElement | null;
         if (!grid) {
           return null;
         }

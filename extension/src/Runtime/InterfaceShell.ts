@@ -546,7 +546,7 @@ function mountInterfaceShellInternal(
   loadingBox.appendChild(loadingBoxInner);
 
   const grid = context.documentRef.createElement('div');
-  grid.className = 'cw-curated-grid';
+  grid.className = 'cw-curated-card-container cw-curated-grid';
 
   panel.appendChild(controls.controls);
   panel.appendChild(loadingBox);
