@@ -338,8 +338,12 @@ describe('curated-panel-grid-transitions runtime', () => {
       cards.map((card) => card as unknown as Element),
     );
 
-    expect(cards[0].style?.height).toBe('370px');
-    expect(cards[cards.length - 1].style?.height).toBe('370px');
+    const firstCard = cards[0];
+    const lastCard = cards[cards.length - 1];
+    expect(firstCard).toBeDefined();
+    expect(lastCard).toBeDefined();
+    expect(firstCard?.style?.height).toBe('370px');
+    expect(lastCard?.style?.height).toBe('370px');
     expect(Number.parseFloat(String(grid.style?.height || '0'))).toBe(2280);
   });
 

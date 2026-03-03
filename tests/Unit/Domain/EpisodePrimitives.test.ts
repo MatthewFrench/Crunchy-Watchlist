@@ -120,7 +120,14 @@ describe('episode-primitives domain module', () => {
         episode_number: 50,
         sequence_number: 3,
       }),
-    ).toBe(50);
+    ).toBeNull();
+    expect(
+      runtime.getAbsoluteEpisodeNumberFromEpisodeMetadata({
+        season_number: 2,
+        episode_number: 5,
+        sequence_number: 29,
+      }),
+    ).toBe(29);
     expect(
       runtime.getAbsoluteEpisodeNumberFromEpisodeMetadata({
         season_number: 1,

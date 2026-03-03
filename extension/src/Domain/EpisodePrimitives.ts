@@ -183,9 +183,9 @@ function getAbsoluteEpisodeNumberFromEpisodeMetadata(
   context: EpisodePrimitivesContext,
   metadata: BoundaryRecord,
 ): number | null {
-  // API payloads vary across endpoints/locales. Prefer explicit global fields;
-  // otherwise fall back to the highest season-local candidate to avoid
-  // regressing progress when sequence_number resets each season.
+  // API payloads vary across endpoints/locales. Prefer explicit global fields
+  // and avoid promoting season-local episode numbers to absolute indices.
+  const seasonNumber = context.sanitizePositiveInt(metadata.season_number);
   const globalEpisodeNumber = context.pickFirstPositiveInt([
     context.sanitizePositiveInt(metadata.global_episode_number),
     context.sanitizePositiveInt(metadata.global_episode_num),
@@ -200,11 +200,15 @@ function getAbsoluteEpisodeNumberFromEpisodeMetadata(
     context.sanitizePositiveInt(metadata.episode_sequence_number),
   ]);
 
-  if (episodeNumber != null && sequenceNumber != null) {
-    return Math.max(episodeNumber, sequenceNumber);
+  if (seasonNumber === 1) {
+    return episodeNumber ?? sequenceNumber;
   }
 
-  return episodeNumber ?? sequenceNumber;
+  if (episodeNumber != null && sequenceNumber != null) {
+    return sequenceNumber > episodeNumber ? sequenceNumber : null;
+  }
+
+  return episodeNumber == null ? sequenceNumber : null;
 }
 
 function getEpisodeAvailabilityByAudioLocale(

@@ -255,7 +255,7 @@ describe('HistoryRepositoryCache', () => {
     expect(localized?.episodeDurationMs).toBe(1_420_087);
   });
 
-  it('normalizes absolute episode numbers using the highest known episode index candidate', () => {
+  it('does not promote season-local episode values into absolute episode numbers', () => {
     const state: WatchHistoryState = {
       watchHistoryCache: createEmptyWatchHistoryCache(1),
     };
@@ -287,7 +287,7 @@ describe('HistoryRepositoryCache', () => {
     };
 
     const normalized = repository.normalizeStoredWatchHistoryCache(rawCache);
-    expect(normalized.bySeriesId['series-progress']?.absoluteEpisodeNumber).toBe(49);
+    expect(normalized.bySeriesId['series-progress']?.absoluteEpisodeNumber).toBeNull();
   });
 
   it('prefers locale-specific history and falls back to series history when allowed', () => {
