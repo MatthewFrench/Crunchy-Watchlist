@@ -82,6 +82,7 @@ type MergeRenderableEntryResult = {
 };
 
 const VALID_WATCH_READY_FILTER_MODES = new Set(['none', 'dim', 'hide', 'hide_not_started']);
+const plausibleAbsoluteEpisodeFloorForLaterSeasons = 25;
 
 function asRecord(value: RuntimeBoundaryValue): LooseRecord {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -113,10 +114,22 @@ function pickFirstPositiveNumber(values: RuntimeBoundaryValue[]): number | null 
 }
 
 function resolveEpisodeIndexValue(dependencies: CuratedRenderableDependencies, entry: LooseRecord): number | null {
-  return (
-    dependencies.sanitizePositiveInt(entry.absoluteEpisodeNumber) ??
-    dependencies.sanitizePositiveInt(entry.episodeNumber)
-  );
+  const absoluteEpisodeIndex = dependencies.sanitizePositiveInt(entry.absoluteEpisodeNumber);
+  if (absoluteEpisodeIndex != null) {
+    return absoluteEpisodeIndex;
+  }
+
+  const seasonIndex = dependencies.sanitizePositiveInt(entry.seasonNumber);
+  const seasonEpisodeIndex = dependencies.sanitizePositiveInt(entry.episodeNumber);
+  if (seasonEpisodeIndex == null) {
+    return null;
+  }
+
+  if (seasonIndex != null && seasonIndex > 1 && seasonEpisodeIndex < plausibleAbsoluteEpisodeFloorForLaterSeasons) {
+    return null;
+  }
+
+  return seasonEpisodeIndex;
 }
 
 function shouldPreferSeriesProgressForCrossLocaleCompletion(
