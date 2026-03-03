@@ -82,7 +82,6 @@ type MergeRenderableEntryResult = {
 };
 
 const VALID_WATCH_READY_FILTER_MODES = new Set(['none', 'dim', 'hide', 'hide_not_started']);
-const plausibleAbsoluteEpisodeFloorForLaterSeasons = 25;
 
 function asRecord(value: RuntimeBoundaryValue): LooseRecord {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -125,7 +124,7 @@ function resolveEpisodeIndexValue(dependencies: CuratedRenderableDependencies, e
     return null;
   }
 
-  if (seasonIndex != null && seasonIndex > 1 && seasonEpisodeIndex < plausibleAbsoluteEpisodeFloorForLaterSeasons) {
+  if (seasonIndex != null && seasonIndex > 1) {
     return null;
   }
 

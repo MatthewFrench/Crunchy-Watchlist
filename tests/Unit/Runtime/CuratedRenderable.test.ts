@@ -556,6 +556,39 @@ describe('curated-renderable runtime', () => {
     expect(hiddenWhenNotStarted.visible).toHaveLength(0);
   });
 
+  it('keeps high later-season local episode numbers out of progress inference without absolute progress', () => {
+    const runtime = createCuratedRenderableRuntime({
+      deriveDisplayStatusBase: () => 'Up Next',
+      isEntryWatchReady: () => true,
+    });
+    const entry = {
+      seriesId: 'series-later-season-local-high-only',
+      episodeCount: 55,
+      neverWatched: true,
+      seasonNumber: 3,
+      episodeNumber: 40,
+      audioLocales: ['en-US'],
+      genreTags: ['Action'],
+      sortOrder: 1,
+      watchReadyHint: true,
+    };
+    const filterContext = runtime.resolveRenderableFilterContext({
+      audioLocaleFilter: 'any',
+      genreFilter: 'any',
+    });
+    const merged = runtime.mergeRenderableEntry(entry, filterContext);
+
+    expect(merged.neverWatched).toBe(true);
+    expect(merged.watchedRatio).toBeNull();
+
+    const hiddenWhenNotStarted = runtime.buildRenderableEntries([entry], {
+      audioLocaleFilter: 'any',
+      genreFilter: 'any',
+      watchReadyFilterMode: 'hide_not_started',
+    });
+    expect(hiddenWhenNotStarted.visible).toHaveLength(0);
+  });
+
   it('marks entries as complete when last known episode is watched past the completion threshold', () => {
     const runtime = createCuratedRenderableRuntime({
       progressBySeriesId: {
