@@ -137,6 +137,8 @@ describe('StorageAdapter', () => {
     const loaded = await adapter.get('cw_settings_v1', { sortMode: 'none' });
     await Promise.resolve();
     await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
 
     expect(loaded).toEqual({ sortMode: 'date_updated_desc' });
     expect(storageAreaStore.get('cw_settings_v1')).toEqual({ sortMode: 'date_updated_desc' });
@@ -182,5 +184,49 @@ describe('StorageAdapter', () => {
     await Promise.resolve();
 
     expect(storageAreaStore.get('cw_settings_v1')).toEqual({ sortMode: 'rating_desc' });
+  });
+
+  it('does not let background migration overwrite newer cross-tab writes', async () => {
+    const local = createLocalStorageStub({
+      cw_settings_v1: JSON.stringify({ sortMode: 'date_updated_desc' }),
+    });
+    const storageAreaStore = new Map<string, unknown>();
+    let getCallCount = 0;
+    let releaseMigrationPreflight = () => {};
+    const migrationPreflightGate = new Promise<void>((resolve) => {
+      releaseMigrationPreflight = resolve;
+    });
+    const setCalls: Array<Record<string, unknown>> = [];
+
+    const adapter = createStorageAdapter({
+      storageArea: {
+        get: async (key: string) => {
+          getCallCount += 1;
+          if (getCallCount >= 2) {
+            await migrationPreflightGate;
+          }
+          return storageAreaStore.has(key) ? { [key]: storageAreaStore.get(key) } : {};
+        },
+        set: async (items: Record<string, unknown>) => {
+          setCalls.push(items);
+          Object.entries(items).forEach(([itemKey, value]) => {
+            storageAreaStore.set(itemKey, value);
+          });
+        },
+      },
+      localStorageRef: local.storage,
+    });
+
+    const loaded = await adapter.get('cw_settings_v1', { sortMode: 'none' });
+    expect(loaded).toEqual({ sortMode: 'date_updated_desc' });
+
+    // Simulate another tab persisting a newer value before migration commits.
+    storageAreaStore.set('cw_settings_v1', { sortMode: 'rating_desc' });
+    releaseMigrationPreflight();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(storageAreaStore.get('cw_settings_v1')).toEqual({ sortMode: 'rating_desc' });
+    expect(setCalls).toHaveLength(0);
   });
 });

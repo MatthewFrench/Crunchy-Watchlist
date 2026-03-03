@@ -276,6 +276,11 @@ function createStorageAdapter(options: StorageAdapterOptions = {}): StorageAdapt
           if (readStorageWriteRevision(key) !== migrationRevision) {
             return false;
           }
+          // Re-check extension storage at commit-time so cross-tab writes do not get clobbered.
+          const migrationPreflight = await storageAreaGet(storageArea, key, timeoutMs);
+          if (!migrationPreflight.ok || migrationPreflight.found) {
+            return false;
+          }
           return storageAreaSetAndVerify(storageArea, key, localStorageResult.value, timeoutMs);
         }).catch(() => {
           // no-op

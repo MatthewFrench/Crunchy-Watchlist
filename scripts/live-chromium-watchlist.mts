@@ -398,13 +398,20 @@ page.on('framenavigated', async (frame) => {
   }
 });
 
-await page.goto('https://www.crunchyroll.com/watchlist', {
-  waitUntil: 'domcontentloaded',
-});
 if (runtimeInjectionEnabled) {
-  await injectLatest(page, 'startup');
-} else {
-  await report(page, 'startup');
+  suppressNavInjection = true;
+}
+try {
+  await page.goto('https://www.crunchyroll.com/watchlist', {
+    waitUntil: 'domcontentloaded',
+  });
+  if (runtimeInjectionEnabled) {
+    await injectLatest(page, 'startup');
+  } else {
+    await report(page, 'startup');
+  }
+} finally {
+  suppressNavInjection = false;
 }
 
 const fileWatchers = runtimeInjectionEnabled ? createFileWatchers(page) : [];
