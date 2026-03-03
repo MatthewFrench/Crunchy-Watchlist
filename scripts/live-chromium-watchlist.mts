@@ -6,7 +6,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { chromium, type Page } from '@playwright/test';
+import { type BrowserContext, chromium, type Page } from '@playwright/test';
 
 type LiveSourceEntry = {
   file: string;
@@ -72,6 +72,7 @@ let latestSourceSnapshot: LiveSourceSnapshot = {
 let hotReloadTimer: NodeJS.Timeout | null = null;
 let hotReloadInFlight = false;
 let suppressNavInjection = false;
+let shutdownInFlight = false;
 
 function getErrorMessage(error: unknown): string {
   const maybeError = error as { message?: string; stderr?: unknown };
@@ -335,6 +336,24 @@ function cleanup(watchers: FSWatcher[]): void {
   }
 }
 
+async function shutdownSession(context: BrowserContext, watchers: FSWatcher[], signal: NodeJS.Signals): Promise<void> {
+  if (shutdownInFlight) {
+    return;
+  }
+  shutdownInFlight = true;
+  cleanup(watchers);
+  if (hotReloadTimer) {
+    clearTimeout(hotReloadTimer);
+    hotReloadTimer = null;
+  }
+  try {
+    await context.close();
+  } catch (error) {
+    console.error(`[shutdown] Failed to close browser context after ${signal}:`, getErrorMessage(error));
+  }
+  console.log(`[shutdown] ${signal} received. Live Chromium session stopped.`);
+}
+
 if (runtimeInjectionEnabled) {
   console.log(`[runtime-build] Building generated runtime at ${runtimeOutputDir}...`);
   await buildGeneratedRuntime();
@@ -413,7 +432,10 @@ if (slowMoMs > 0) {
 }
 console.log('Press Ctrl+C in this terminal to stop this session.');
 
-process.on('SIGINT', () => cleanup(fileWatchers));
-process.on('SIGTERM', () => cleanup(fileWatchers));
-
-await new Promise<never>(() => {});
+await new Promise<void>((resolve) => {
+  const handleSignal = (signal: NodeJS.Signals): void => {
+    void shutdownSession(context, fileWatchers, signal).finally(resolve);
+  };
+  process.once('SIGINT', handleSignal);
+  process.once('SIGTERM', handleSignal);
+});
