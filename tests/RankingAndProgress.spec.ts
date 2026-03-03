@@ -314,5 +314,4 @@ test.describe('Ranking, Filtering, and Progress', () => {
     await expect(page.locator('.cw-curated-card[data-cw-curated-title="Low Rated Show"]')).toBeHidden();
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 1 of 4');
   });
-
 });

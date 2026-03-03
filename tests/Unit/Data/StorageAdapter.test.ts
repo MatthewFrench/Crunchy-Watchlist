@@ -16,8 +16,9 @@ type LocalStorageStub = {
   setItem: (key: string, value: string) => void;
 };
 
-const storageAdapterModuleUrl = pathToFileURL(path.join(process.cwd(), 'extension', 'src', 'Data', 'StorageAdapter.ts'))
-  .href;
+const storageAdapterModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Data', 'StorageAdapter.ts'),
+).href;
 let createStorageAdapterRuntimeFactory: StorageRuntimeModule['createStorageAdapter'] | null = null;
 
 function createLocalStorageStub(seed: Record<string, string> = {}): {

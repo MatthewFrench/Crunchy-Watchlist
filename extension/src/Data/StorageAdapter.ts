@@ -57,7 +57,11 @@ type LocalStorageReadResult<T> = {
   value: T;
 };
 
-function makeStorageAreaReadResult(ok: boolean, found: boolean, value: BoundaryValue = undefined): StorageAreaReadResult {
+function makeStorageAreaReadResult(
+  ok: boolean,
+  found: boolean,
+  value: BoundaryValue = undefined,
+): StorageAreaReadResult {
   return {
     ok,
     found,
