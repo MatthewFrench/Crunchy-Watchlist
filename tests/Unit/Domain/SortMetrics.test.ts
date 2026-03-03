@@ -190,7 +190,8 @@ describe('sort-metrics domain module', () => {
     expect(
       runtime.estimateUnwatchedEpisodesLeft({
         episodeCount: 55,
-        absoluteEpisodeNumber: 50,
+        seasonNumber: 3,
+        episodeNumber: 50,
         watchHistoryProgressEntry: {
           absoluteEpisodeNumber: 24,
           fullyWatched: false,

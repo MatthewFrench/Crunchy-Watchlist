@@ -115,10 +115,15 @@ function pickFirstPositiveNumber(values: RuntimeBoundaryValue[]): number | null 
 function resolveEpisodeIndexValue(dependencies: CuratedRenderableDependencies, entry: LooseRecord): number | null {
   return (
     dependencies.sanitizePositiveInt(entry.absoluteEpisodeNumber) ??
-    (dependencies.sanitizePositiveInt(entry.seasonNumber) === 1
-      ? dependencies.sanitizePositiveInt(entry.episodeNumber)
-      : null)
+    dependencies.sanitizePositiveInt(entry.episodeNumber)
   );
+}
+
+function shouldPreferSeriesProgressForCrossLocaleCompletion(
+  seriesProgressRecord: LooseRecord,
+  localeProgressRecord: LooseRecord,
+): boolean {
+  return Boolean(seriesProgressRecord.fullyWatched) && !localeProgressRecord.fullyWatched;
 }
 
 function resolveProgressRatioFromPlayhead(playhead: number | null, durationMs: number | null): number | null {
@@ -237,10 +242,18 @@ function resolveMergeWatchHistorySelection(
   const localeWatchHistoryProgressEntry = selectedAudioLocale
     ? dependencies.getCachedWatchHistoryProgress(seriesId, selectedAudioLocale, false)
     : null;
+  const seriesProgressRecord = asRecord(watchHistoryProgressFallback);
+  const localeProgressRecord = asRecord(localeWatchHistoryProgressEntry);
   const useSeriesProgressFallback = !selectedAudioLocale || selectedAudioIsDefaultPreferred;
   const useSeriesHistoryFallback = !selectedAudioLocale || selectedAudioIsDefaultPreferred;
+  const preferSeriesProgressForCrossLocaleCompletion =
+    Boolean(selectedAudioLocale) &&
+    shouldPreferSeriesProgressForCrossLocaleCompletion(seriesProgressRecord, localeProgressRecord);
+  const primaryProgressEntry = preferSeriesProgressForCrossLocaleCompletion
+    ? watchHistoryProgressFallback
+    : localeWatchHistoryProgressEntry;
   const watchHistoryProgressEntry =
-    localeWatchHistoryProgressEntry ||
+    primaryProgressEntry ||
     (useSeriesProgressFallback ? watchHistoryProgressFallback : null) ||
     localeWatchHistoryEntry ||
     (useSeriesHistoryFallback ? watchHistoryEntry : null);

@@ -109,11 +109,18 @@ describe('episode-primitives domain module', () => {
     const runtime = createEpisodePrimitivesRuntime();
     expect(
       runtime.getAbsoluteEpisodeNumberFromEpisodeMetadata({
+        episode_number: 50,
         sequence_number: 44,
         episode_sequence_number: 11,
-        global_episode_num: 3,
+        global_episode_num: 52,
       }),
-    ).toBe(44);
+    ).toBe(52);
+    expect(
+      runtime.getAbsoluteEpisodeNumberFromEpisodeMetadata({
+        episode_number: 50,
+        sequence_number: 3,
+      }),
+    ).toBe(50);
     expect(
       runtime.getAbsoluteEpisodeNumberFromEpisodeMetadata({
         season_number: 1,

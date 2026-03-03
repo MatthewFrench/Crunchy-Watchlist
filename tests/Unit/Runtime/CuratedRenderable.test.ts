@@ -483,6 +483,46 @@ describe('curated-renderable runtime', () => {
     expect(merged.watchHistoryProgressEntry).toBe(fallbackProgress);
   });
 
+  it('uses series progress for non-default locales when series progress marks completion', () => {
+    const seriesProgress = {
+      absoluteEpisodeNumber: 50,
+      fullyWatched: true,
+    };
+    const localizedProgress = {
+      absoluteEpisodeNumber: 25,
+      fullyWatched: false,
+    };
+    const runtime = createCuratedRenderableRuntime({
+      progressBySeriesId: {
+        'series-1': seriesProgress,
+      },
+      progressBySeriesIdAudio: {
+        'series-1|en-us': localizedProgress,
+      },
+      preferredAudioLanguage: 'ja-jp',
+    });
+
+    const filterContext = runtime.resolveRenderableFilterContext({
+      audioLocaleFilter: 'en-US',
+      genreFilter: 'any',
+    });
+    const merged = runtime.mergeRenderableEntry(
+      {
+        seriesId: 'series-1',
+        title: 'First Show',
+        episodeCount: 55,
+        seasonNumber: 3,
+        episodeNumber: 50,
+        audioLocales: ['en-US', 'ja-JP'],
+        genreTags: ['Action'],
+      },
+      filterContext,
+    );
+
+    expect(filterContext.selectedAudioIsDefaultPreferred).toBe(false);
+    expect(merged.watchHistoryProgressEntry).toBe(seriesProgress);
+  });
+
   it('marks entries as complete when last known episode is watched past the completion threshold', () => {
     const runtime = createCuratedRenderableRuntime({
       progressBySeriesId: {

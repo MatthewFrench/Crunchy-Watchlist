@@ -51,7 +51,10 @@
     "lint:firefox": "npm run build:webext:firefox && tsx scripts/lint-firefox.mts",
     "pw:live": "tsx scripts/live-webkit-watchlist.mts",
     "pw:live:smoke": "tsx scripts/live-runtime-smoke.mts",
-    "prepare": "simple-git-hooks"
+    "prepare": "simple-git-hooks",
+    "pw:live:chromium": "tsx scripts/live-chromium-watchlist.mts",
+    "pw:live:chromium:native": "CW_PW_LIVE_RUNTIME_INJECTION=0 CW_PW_HOT_RELOAD=0 tsx scripts/live-chromium-watchlist.mts",
+    "pw:live:chrome:native": "CW_PW_LIVE_RUNTIME_INJECTION=0 CW_PW_HOT_RELOAD=0 CW_PW_PROFILE_DIR=.tmp/chrome-native-profile CW_PW_EXECUTABLE_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' tsx scripts/live-chromium-watchlist.mts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",

@@ -307,6 +307,42 @@ describe('curated-panel-grid-transitions runtime', () => {
     expect(Number.parseFloat(String(grid.style?.height || '0'))).toBe(360);
   });
 
+  it('uses a 65th percentile compact height target for two-column grids', () => {
+    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const grid = createFakeElement('cw-curated-grid');
+    grid.style = {};
+    grid.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      width: 760,
+      height: 0,
+    });
+
+    const cards = Array.from({ length: 12 }, (_value, index) => {
+      const card = createFakeElement('cw-curated-card');
+      card.dataset.cwSeriesId = `series-${index + 1}`;
+      card.style = {};
+      const measuredHeight = 300 + index * 10;
+      card.getBoundingClientRect = () => ({
+        left: 0,
+        top: 0,
+        width: 240,
+        height: measuredHeight,
+      });
+      grid.appendChild(card);
+      return card;
+    });
+
+    runtime.reorderCuratedGridChildren(
+      grid as unknown as Element,
+      cards.map((card) => card as unknown as Element),
+    );
+
+    expect(cards[0].style?.height).toBe('370px');
+    expect(cards[cards.length - 1].style?.height).toBe('370px');
+    expect(Number.parseFloat(String(grid.style?.height || '0'))).toBe(2280);
+  });
+
   it('uses parent container width to size cards during absolute placement', () => {
     const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
     const gridParent = createFakeElement('cw-curated-grid-shell');

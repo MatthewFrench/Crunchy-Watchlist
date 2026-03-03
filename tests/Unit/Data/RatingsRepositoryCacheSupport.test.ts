@@ -224,4 +224,31 @@ describe('ratings-repository-cache-support module', () => {
     expect(normalized.preferredAudioLocale).toBe('ja-jp');
     expect(normalized.portraitImageUrl).toBeNull();
   });
+
+  it('keeps fallback episode totals at the highest observed count across locale merges', () => {
+    if (typeof createCacheSupportRuntimeFactory !== 'function') {
+      throw new Error('Ratings repository cache support runtime was not initialized for test');
+    }
+    const runtime = createCacheSupportRuntimeFactory();
+    const context = createContext();
+
+    const first = runtime.normalizeRatingUpdate(context, {
+      episodeCount: 55,
+      seasonCount: 3,
+      preferredAudioLocale: 'ja-JP',
+    });
+    runtime.mergeCachedSeriesData(context, 'SERIES_1', first);
+
+    const second = runtime.normalizeRatingUpdate(context, {
+      episodeCount: 54,
+      seasonCount: 3,
+      preferredAudioLocale: 'en-US',
+    });
+    const merged = runtime.mergeCachedSeriesData(context, 'SERIES_1', second);
+
+    expect(merged.episodeCount).toBe(55);
+    expect(merged.episodeCountByAudioLocale['ja-jp']).toBe(55);
+    expect(merged.episodeCountByAudioLocale['en-us']).toBe(54);
+    expect(merged.seasonCount).toBe(3);
+  });
 });

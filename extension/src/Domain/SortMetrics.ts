@@ -190,6 +190,29 @@ function getQualityFloorScoreInternal(context: SortMetricsContext, distribution:
   return (p1 ?? 0) * 2 + (p2 ?? 0);
 }
 
+function resolveEpisodeIndexCandidate(
+  context: SortMetricsContext,
+  totalEpisodes: number | null,
+  absoluteEpisodeNumber: BoundaryValue,
+  episodeNumber: BoundaryValue,
+): number | null {
+  const absoluteEpisodeIndex = context.sanitizePositiveInt(absoluteEpisodeNumber);
+  if (absoluteEpisodeIndex != null) {
+    return absoluteEpisodeIndex;
+  }
+
+  const seasonEpisodeIndex = context.sanitizePositiveInt(episodeNumber);
+  if (seasonEpisodeIndex == null) {
+    return null;
+  }
+
+  if (totalEpisodes != null && seasonEpisodeIndex > totalEpisodes) {
+    return null;
+  }
+
+  return seasonEpisodeIndex;
+}
+
 function estimateUnwatchedEpisodesLeftInternal(context: SortMetricsContext, entryValue: BoundaryValue): number | null {
   const entry = asSortMetricsEntry(entryValue);
   const filteredProgressEntry =
@@ -205,21 +228,24 @@ function estimateUnwatchedEpisodesLeftInternal(context: SortMetricsContext, entr
     return 0;
   }
 
-  const overrideEpisodeIndex = context.pickFirstPositiveInt([
+  const overrideEpisodeIndex = resolveEpisodeIndexCandidate(
+    context,
+    totalEpisodes,
     filteredProgressEntry?.absoluteEpisodeNumber,
-    filteredProgressEntry?.seasonNumber === 1 ? filteredProgressEntry?.episodeNumber : null,
-  ]);
+    filteredProgressEntry?.episodeNumber,
+  );
+  const entryEpisodeIndex = resolveEpisodeIndexCandidate(
+    context,
+    totalEpisodes,
+    entry.absoluteEpisodeNumber,
+    entry.episodeNumber,
+  );
   const hasOverrideProgressSignal =
     overrideEpisodeIndex != null ||
     Number(filteredProgressEntry?.playhead || 0) > 0 ||
     Number(filteredProgressEntry?.playheadMs || 0) > 0 ||
     Number(filteredProgressEntry?.progressMs || 0) > 0;
-  const hasEntryProgressSignal =
-    Number(entry.playheadMs || 0) > 0 ||
-    context.pickFirstPositiveInt([
-      entry.absoluteEpisodeNumber,
-      entry.seasonNumber === 1 ? entry.episodeNumber : null,
-    ]) != null;
+  const hasEntryProgressSignal = Number(entry.playheadMs || 0) > 0 || entryEpisodeIndex != null;
 
   if (entry.neverWatched && !hasOverrideProgressSignal && !hasEntryProgressSignal) {
     return totalEpisodes;
@@ -231,10 +257,7 @@ function estimateUnwatchedEpisodesLeftInternal(context: SortMetricsContext, entr
 
   const overrideNextEpisodeIndex =
     overrideEpisodeIndex != null ? overrideEpisodeIndex + (filteredProgressEntry?.fullyWatched ? 1 : 0) : null;
-  const entryNextEpisodeIndex = context.pickFirstPositiveInt([
-    entry.absoluteEpisodeNumber,
-    entry.seasonNumber === 1 ? entry.episodeNumber : null,
-  ]);
+  const entryNextEpisodeIndex = entryEpisodeIndex;
 
   const nextEpisodeIndexCandidates = [overrideNextEpisodeIndex, entryNextEpisodeIndex].filter(
     (value): value is number => value != null,

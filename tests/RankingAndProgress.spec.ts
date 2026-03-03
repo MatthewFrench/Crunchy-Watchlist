@@ -384,6 +384,170 @@ test.describe('Ranking, Filtering, and Progress', () => {
     await expect(highRatedScope).toContainText('Unwatched left: 20');
   });
 
+  test('keeps unwatched count stable for high episode indices across audio filter toggles', async ({ page }) => {
+    await page.evaluate(() => {
+      localStorage.setItem('preferred_audio_language', 'ja-JP');
+    });
+
+    await page.route('**/content/v2/discover/**/watchlist*', async (route) => {
+      await fulfillJsonWithTransform(route, (payload) => {
+        return rewriteWatchlistRows(payload, (row) => {
+          const rowPanel = asJsonRecord(row.panel);
+          const rowEpisodeMetadata = asJsonRecord(rowPanel.episode_metadata);
+          if (rowEpisodeMetadata.series_id !== 'GHIGH456') {
+            return row;
+          }
+
+          return {
+            ...row,
+            panel: {
+              ...rowPanel,
+              episode_metadata: {
+                ...rowEpisodeMetadata,
+                season_number: 3,
+                episode_number: 50,
+                sequence_number: 3,
+                audio_locale: 'ja-JP',
+              },
+            },
+          };
+        });
+      });
+    });
+
+    await page.route('**/content/v2/**/watch-history*', async (route) => {
+      await fulfillJsonWithTransform(route, (payload, request) => {
+        const url = new URL(request.url());
+        const preferredAudioLanguage = String(url.searchParams.get('preferred_audio_language') || '')
+          .trim()
+          .toLowerCase();
+        const payloadRecord = asJsonRecord(payload);
+        const rows = Array.isArray(payloadRecord.data) ? payloadRecord.data : [];
+        const rewrittenRows = rows.map((row) => {
+          const rowRecord = asJsonRecord(row);
+          const rowPanel = asJsonRecord(rowRecord.panel);
+          const rowEpisodeMetadata = asJsonRecord(rowPanel.episode_metadata);
+          if (rowEpisodeMetadata.series_id !== 'GHIGH456') {
+            return rowRecord;
+          }
+
+          const rowAudioLocale = String(rowEpisodeMetadata.audio_locale || '')
+            .trim()
+            .toLowerCase();
+          if (rowAudioLocale === 'ja-jp') {
+            return {
+              ...rowRecord,
+              fully_watched: true,
+              panel: {
+                ...rowPanel,
+                episode_metadata: {
+                  ...rowEpisodeMetadata,
+                  season_number: 3,
+                  episode_number: 49,
+                  sequence_number: 2,
+                  audio_locale: 'ja-JP',
+                },
+              },
+            };
+          }
+
+          if (rowAudioLocale === 'en-us') {
+            return {
+              ...rowRecord,
+              fully_watched: false,
+              playhead: 0,
+              panel: {
+                ...rowPanel,
+                episode_metadata: {
+                  ...rowEpisodeMetadata,
+                  season_number: 2,
+                  episode_number: 24,
+                  sequence_number: 24,
+                  audio_locale: 'en-US',
+                },
+              },
+            };
+          }
+
+          return rowRecord;
+        });
+
+        const filteredRows = preferredAudioLanguage
+          ? rewrittenRows.filter((row) => {
+              const rowRecord = asJsonRecord(row);
+              const rowPanel = asJsonRecord(rowRecord.panel);
+              const rowEpisodeMetadata = asJsonRecord(rowPanel.episode_metadata);
+              const rowAudioLocale = String(rowEpisodeMetadata.audio_locale || '')
+                .trim()
+                .toLowerCase();
+              return rowAudioLocale === preferredAudioLanguage;
+            })
+          : rewrittenRows;
+
+        return {
+          ...payloadRecord,
+          total: filteredRows.length,
+          data: filteredRows,
+        };
+      });
+    });
+
+    await page.route('**/content/v2/cms/objects/*', async (route) => {
+      await fulfillJsonWithTransform(route, (payload, request) => {
+        const url = new URL(request.url());
+        const preferredAudioLanguage = String(url.searchParams.get('preferred_audio_language') || '')
+          .trim()
+          .toLowerCase();
+        const payloadRecord = asJsonRecord(payload);
+        const rows = Array.isArray(payloadRecord.data) ? payloadRecord.data : [];
+        const rewrittenRows = rows.map((row) => {
+          const rowRecord = asJsonRecord(row);
+          if (rowRecord.id !== 'GHIGH456') {
+            return rowRecord;
+          }
+          const seriesMetadata = asJsonRecord(rowRecord.series_metadata);
+          return {
+            ...rowRecord,
+            series_metadata: {
+              ...seriesMetadata,
+              season_count: 3,
+              episode_count: preferredAudioLanguage === 'en-us' ? 54 : 55,
+            },
+          };
+        });
+
+        return {
+          ...payloadRecord,
+          total: rewrittenRows.length,
+          data: rewrittenRows,
+        };
+      });
+    });
+
+    await injectExtension(page, {
+      activeTab: 'curated',
+      audioLocaleFilter: 'any',
+    });
+    const highRatedScope = page.locator(
+      '.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__scope',
+    );
+
+    await expect(highRatedScope).toContainText('Episodes: 55');
+    await expect(highRatedScope).toContainText('Unwatched left: 6');
+
+    await page.selectOption('#cw-audio-filter', 'en-US');
+    await expect(highRatedScope).toContainText('Episodes: 54');
+    await expect(highRatedScope).toContainText('Unwatched left: 5');
+
+    await page.selectOption('#cw-audio-filter', 'any');
+    await expect(highRatedScope).toContainText('Episodes: 55');
+    await expect(highRatedScope).toContainText('Unwatched left: 6');
+
+    await page.selectOption('#cw-audio-filter', 'en-US');
+    await expect(highRatedScope).toContainText('Episodes: 54');
+    await expect(highRatedScope).toContainText('Unwatched left: 5');
+  });
+
   test('keeps default-audio unwatched count correct when watch-history rows omit audio locale', async ({ page }) => {
     await page.route('**/content/v2/**/watch-history*', async (route) => {
       await fulfillJsonWithTransform(route, (payload) => {

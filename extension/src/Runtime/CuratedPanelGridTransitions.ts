@@ -405,7 +405,7 @@ function applyAbsoluteGridCardPlacement(gridElement: Element, nextCards: Element
   }
 
   const measurableCardHeights = cardHeights.filter((height) => height > 0);
-  const uniformCardHeightPx = resolveCompactUniformCardHeightPx(measurableCardHeights);
+  const uniformCardHeightPx = resolveCompactUniformCardHeightPx(measurableCardHeights, columns);
   applyUniformCardHeight(nextCards, uniformCardHeightPx);
   const roundedUniformCardHeightPx = roundCardHeightPx(uniformCardHeightPx);
   const rowCount = Math.ceil(nextCards.length / columns);
