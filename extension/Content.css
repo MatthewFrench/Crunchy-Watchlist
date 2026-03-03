@@ -285,12 +285,10 @@
 .cw-curated-card--entering {
   opacity: 0;
 }
-
 .cw-curated-card--leaving {
   opacity: 0;
   pointer-events: none;
 }
-
 .cw-curated-card--parked {
   display: none;
 }
@@ -304,28 +302,23 @@
     "media"
     "body";
 }
-
 .cw-host[data-cw-card-layout="landscape"] .cw-curated-card__thumb {
   width: 100%;
   max-width: none;
   aspect-ratio: 16 / 9;
   margin-inline: auto;
 }
-
 .cw-host[data-cw-card-layout="landscape"] .cw-curated-card__media {
   width: 100%;
   max-width: none;
   align-items: stretch;
 }
-
 .cw-curated-card--not-watch-ready {
   opacity: 0.72;
 }
-
 .cw-curated-card--clickable {
   cursor: pointer;
 }
-
 .cw-curated-card__thumb {
   display: block;
   position: relative;

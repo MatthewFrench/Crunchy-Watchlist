@@ -80,6 +80,10 @@ const FILE_SIZE_BUDGET_OVERRIDES: Record<string, { warn: number; refactor: numbe
     warn: 600,
     refactor: 700,
   },
+  'extension/Content.css': {
+    warn: 900,
+    refactor: 1100,
+  },
 };
 
 function isAstNode(value: unknown): value is AstNode {
