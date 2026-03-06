@@ -14,7 +14,10 @@ type CuratedPanelControlsSyncOwner = {
 };
 
 type CuratedPanelControlsSyncModule = {
-  CuratedPanelControlsSyncOwner: new (options: { state: { curatedError: unknown }; documentRef: Document }) => CuratedPanelControlsSyncOwner;
+  CuratedPanelControlsSyncOwner: new (options: {
+    state: { curatedError: unknown };
+    documentRef: Document;
+  }) => CuratedPanelControlsSyncOwner;
 };
 
 type FakeOptionElement = {

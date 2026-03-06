@@ -658,7 +658,8 @@ function reconcileCuratedGridChildrenForAbsolutePlacement(
   const { onCardRemoved, animateRemovals } = options;
   const activeGridChildren = getActiveGridChildren(gridElement);
   const preserveMountedDomOrder =
-    hasGridStylesForAbsolutePlacement(gridElement) && nextCards.every((card) => hasCardStylesForAbsolutePlacement(card));
+    hasGridStylesForAbsolutePlacement(gridElement) &&
+    nextCards.every((card) => hasCardStylesForAbsolutePlacement(card));
   const shouldReorderMountedChildren = activeGridChildren.length <= nextCards.length;
   mountCuratedGridNextCards(
     gridElement,

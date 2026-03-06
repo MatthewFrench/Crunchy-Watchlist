@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { gotoFixture, injectExtension } from './Helpers/ExtensionFixture';
 import { measureControlInteractionLatency } from './Helpers/CuratedGridLatencyProbe';
+import { gotoFixture, injectExtension } from './Helpers/ExtensionFixture';
 import {
   installCardContentMutationProbe,
   readAndDisposeCardContentMutationProbe,

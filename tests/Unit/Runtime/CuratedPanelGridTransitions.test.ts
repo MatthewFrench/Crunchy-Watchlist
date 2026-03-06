@@ -58,7 +58,9 @@ function readActiveGridChildren(grid: FakeElement): FakeElement[] {
   if (!curatedPanelGridDomStateModule) {
     throw new Error('Curated panel grid dom state module was not initialized for test');
   }
-  return curatedPanelGridDomStateModule.readCuratedGridActiveCards(grid as unknown as Element) as unknown as FakeElement[];
+  return curatedPanelGridDomStateModule.readCuratedGridActiveCards(
+    grid as unknown as Element,
+  ) as unknown as FakeElement[];
 }
 
 function readCardContainerHeightPx(element: FakeElement): number {
@@ -144,7 +146,9 @@ describe('curated-panel-grid-transitions runtime', () => {
     curatedPanelGridTransitionsModule = (await import(
       curatedPanelGridTransitionsModuleUrl
     )) as CuratedPanelGridTransitionsModule;
-    curatedPanelGridDomStateModule = (await import(curatedPanelGridDomStateModuleUrl)) as CuratedPanelGridDomStateModule;
+    curatedPanelGridDomStateModule = (await import(
+      curatedPanelGridDomStateModuleUrl
+    )) as CuratedPanelGridDomStateModule;
   });
 
   afterEach(() => {

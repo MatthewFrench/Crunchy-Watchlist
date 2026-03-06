@@ -1,5 +1,5 @@
-import { getRuntimePerfDiagnostics, type RuntimePerfDiagnostics } from './RuntimePerfDiagnostics.js';
 import { readCuratedGridActiveCards } from './CuratedPanelGridDomState.js';
+import { getRuntimePerfDiagnostics, type RuntimePerfDiagnostics } from './RuntimePerfDiagnostics.js';
 
 type BoundaryValue = CwBoundaryValue;
 type BoundaryRecord = Record<string, BoundaryValue>;

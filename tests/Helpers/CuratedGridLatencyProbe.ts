@@ -30,14 +30,16 @@ export async function measureControlInteractionLatency(
     }
 
     const readActiveSeriesIds = (): string[] => {
-      const debugApi = (window as Window &
-        typeof globalThis & {
-          __CW_WATCHLIST_CURATOR_DEBUG__?: {
-            getCuratedDomStats?: () => {
-              activeSeriesIds?: string[];
+      const debugApi = (
+        window as Window &
+          typeof globalThis & {
+            __CW_WATCHLIST_CURATOR_DEBUG__?: {
+              getCuratedDomStats?: () => {
+                activeSeriesIds?: string[];
+              };
             };
-          };
-        }).__CW_WATCHLIST_CURATOR_DEBUG__;
+          }
+      ).__CW_WATCHLIST_CURATOR_DEBUG__;
       const activeSeriesIds = debugApi?.getCuratedDomStats?.()?.activeSeriesIds;
       if (!Array.isArray(activeSeriesIds) || activeSeriesIds.length === 0) {
         return Array.from(grid.querySelectorAll<HTMLElement>('.cw-curated-card'))
