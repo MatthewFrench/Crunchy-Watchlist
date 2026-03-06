@@ -1633,7 +1633,7 @@ describe('curated-panel runtime', () => {
     const firstCard = gridEl.children[0];
 
     gridEl.textContent = '';
-    mutationObserverCallbacks[0]?.([{ target: gridEl } as MutationRecord], {} as MutationObserver);
+    mutationObserverCallbacks[0]?.([{ target: gridEl } as unknown as MutationRecord], {} as MutationObserver);
     await Promise.resolve();
     await Promise.resolve();
 
