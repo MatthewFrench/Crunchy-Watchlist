@@ -218,6 +218,7 @@ describe('debug-api runtime', () => {
       },
       totalLifecycleMutations: 68,
       identityChurnRate: 0.2,
+      activeSeriesIds: [],
       watchHistoryPreloadAttempts: {
         totalAttempts: 3,
         byLocale: {
