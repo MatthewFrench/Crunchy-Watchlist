@@ -27,13 +27,14 @@ type CuratedPanelGridParkingManagerOptions = {
 };
 
 const defaultMaxParkedCardCount = 180;
+const adaptiveMaxParkedCardCountCeiling = 720;
 const defaultMaxParkedCardAgeMs = 5 * 60_000;
 
 export class CuratedPanelGridParkingManager {
   private readonly cardControllersBySeriesId = new Map<string, CuratedCardController>();
   private parkedCardSeriesOrder: string[] = [];
-  private parkedCardContainer: DocumentFragment | Element | null = null;
   private readonly maxParkedCardCount: number;
+  private readonly useAdaptiveParkedCardCount: boolean;
   private readonly maxParkedCardAgeMs: number;
   private readonly now: () => number;
   private readonly isCuratedCardElement: (value: CuratedBoundaryValue) => value is Element;
@@ -43,6 +44,7 @@ export class CuratedPanelGridParkingManager {
 
   constructor(options: CuratedPanelGridParkingManagerOptions) {
     this.maxParkedCardCount = options.maxParkedCardCount ?? defaultMaxParkedCardCount;
+    this.useAdaptiveParkedCardCount = options.maxParkedCardCount == null;
     this.maxParkedCardAgeMs = options.maxParkedCardAgeMs ?? defaultMaxParkedCardAgeMs;
     this.now = options.now ?? Date.now;
     this.isCuratedCardElement = options.isCuratedCardElement;
@@ -147,7 +149,8 @@ export class CuratedPanelGridParkingManager {
     });
 
     let parkedCount = this.getParkedControllerCount();
-    while (parkedCount > this.maxParkedCardCount) {
+    const allowedParkedCardCount = this.resolveAllowedParkedCardCount();
+    while (parkedCount > allowedParkedCardCount) {
       const oldestSeriesId = this.parkedCardSeriesOrder[0] || '';
       if (!oldestSeriesId) {
         break;
@@ -169,7 +172,6 @@ export class CuratedPanelGridParkingManager {
     });
     this.cardControllersBySeriesId.clear();
     this.parkedCardSeriesOrder = [];
-    this.parkedCardContainer = null;
   }
 
   private getControllerSeriesIdForCard(card: Element): string {
@@ -181,22 +183,6 @@ export class CuratedPanelGridParkingManager {
     if (index >= 0) {
       this.parkedCardSeriesOrder.splice(index, 1);
     }
-  }
-
-  private ensureParkedCardContainer(documentRef: Document): DocumentFragment | Element {
-    if (this.parkedCardContainer) {
-      return this.parkedCardContainer;
-    }
-
-    if (typeof documentRef.createDocumentFragment === 'function') {
-      this.parkedCardContainer = documentRef.createDocumentFragment();
-      return this.parkedCardContainer;
-    }
-
-    const fallback = documentRef.createElement('div');
-    (fallback as HTMLElement).style.display = 'none';
-    this.parkedCardContainer = fallback;
-    return fallback;
   }
 
   private removeCardFromParentNode(card: Element): void {
@@ -233,6 +219,16 @@ export class CuratedPanelGridParkingManager {
     return parkedCount;
   }
 
+  private resolveAllowedParkedCardCount(): number {
+    if (!this.useAdaptiveParkedCardCount) {
+      return this.maxParkedCardCount;
+    }
+    return Math.max(
+      this.maxParkedCardCount,
+      Math.min(adaptiveMaxParkedCardCountCeiling, this.cardControllersBySeriesId.size),
+    );
+  }
+
   private disposeCardController(
     seriesId: string,
     controller: CuratedCardController,
@@ -246,7 +242,7 @@ export class CuratedPanelGridParkingManager {
   }
 
   private parkControllerForReuse(
-    documentRef: Document,
+    _documentRef: Document,
     controller: CuratedCardController,
     handlers?: CuratedPanelGridParkingLifecycleHandlers,
   ): void {
@@ -260,9 +256,7 @@ export class CuratedPanelGridParkingManager {
       return;
     }
 
-    const parkingContainer = this.ensureParkedCardContainer(documentRef);
     this.setCardParkedState(controller.card, true);
-    parkingContainer.appendChild(controller.card);
     controller.parkedAt = this.now();
     this.removeSeriesIdFromParkedOrder(controller.seriesId);
     this.parkedCardSeriesOrder.push(controller.seriesId);

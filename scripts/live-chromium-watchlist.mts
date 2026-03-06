@@ -6,7 +6,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { type BrowserContext, chromium, type Page } from '@playwright/test';
+import { type Browser, type BrowserContext, chromium, type Page } from '@playwright/test';
 
 type LiveSourceEntry = {
   file: string;
@@ -40,6 +40,19 @@ type ReportSummary = {
   loginForm: boolean;
   runtimePhase: string | null;
   runtimeEvents: unknown[];
+  benchmarkSummary: {
+    loadTiming: {
+      totalDurationMs: number;
+      rowsDurationMs: number;
+      priorityMetadataDurationMs: number;
+      tokenDurationMs: number;
+      requestCountTotal: number;
+      totalEntries: number;
+      priorityEntryCount: number;
+      deferredEntryCount: number;
+    } | null;
+    perfDiagnostics: Record<string, unknown> | null;
+  };
 };
 
 const __filename = fileURLToPath(import.meta.url);
@@ -52,6 +65,7 @@ const profileDir = rawProfileDir
     ? rawProfileDir
     : path.resolve(repoRoot, rawProfileDir)
   : path.join(repoRoot, '.tmp', 'chromium-profile');
+const cdpUrl = String(process.env.CW_PW_CDP_URL || '').trim();
 const executablePath = String(process.env.CW_PW_EXECUTABLE_PATH || '').trim();
 const sourceExtensionDir = path.join(repoRoot, 'extension');
 const runtimeOutputRelativeDir = String(process.env.EXTENSION_RUNTIME_DIR || '.tmp/extension-runtime-dev').trim();
@@ -73,6 +87,13 @@ let hotReloadTimer: NodeJS.Timeout | null = null;
 let hotReloadInFlight = false;
 let suppressNavInjection = false;
 let shutdownInFlight = false;
+
+type LiveBrowserSession = {
+  browser: Browser | null;
+  context: BrowserContext;
+  page: Page;
+  attachedOverCdp: boolean;
+};
 
 function getErrorMessage(error: unknown): string {
   const maybeError = error as { message?: string; stderr?: unknown };
@@ -207,6 +228,54 @@ async function report(page: Page, reason: string): Promise<void> {
           };
         }
       ).__CW_WATCHLIST_CURATOR_RUNTIME__?.events?.slice(-3) || [],
+    benchmarkSummary: (() => {
+      const runtimeState = (
+        window as Window & {
+          __CW_WATCHLIST_CURATOR_RUNTIME__?: {
+            events?: Array<{ event?: string; data?: Record<string, unknown> }>;
+          };
+          __CW_WATCHLIST_CURATOR_DEBUG__?: {
+            getCuratedDomStats?: () => {
+              perfDiagnostics?: Record<string, unknown>;
+            };
+          };
+        }
+      ).__CW_WATCHLIST_CURATOR_RUNTIME__;
+      const runtimeEvents = Array.isArray(runtimeState?.events) ? runtimeState.events : [];
+      const loadTimingEvent = [...runtimeEvents]
+        .reverse()
+        .find((entry) => entry && entry.event === 'curated-load-timing');
+      const loadTimingData =
+        loadTimingEvent?.data && typeof loadTimingEvent.data === 'object' ? loadTimingEvent.data : null;
+      const debugStats = (
+        window as Window & {
+          __CW_WATCHLIST_CURATOR_DEBUG__?: {
+            getCuratedDomStats?: () => {
+              perfDiagnostics?: Record<string, unknown>;
+            };
+          };
+        }
+      ).__CW_WATCHLIST_CURATOR_DEBUG__?.getCuratedDomStats?.();
+
+      return {
+        loadTiming: loadTimingData
+          ? {
+              totalDurationMs: Number(loadTimingData.totalDurationMs) || 0,
+              rowsDurationMs: Number(loadTimingData.rowsDurationMs) || 0,
+              priorityMetadataDurationMs: Number(loadTimingData.priorityMetadataDurationMs) || 0,
+              tokenDurationMs: Number(loadTimingData.tokenDurationMs) || 0,
+              requestCountTotal: Number(loadTimingData.requestCountTotal) || 0,
+              totalEntries: Number(loadTimingData.totalEntries) || 0,
+              priorityEntryCount: Number(loadTimingData.priorityEntryCount) || 0,
+              deferredEntryCount: Number(loadTimingData.deferredEntryCount) || 0,
+            }
+          : null,
+        perfDiagnostics:
+          debugStats && typeof debugStats === 'object' && typeof debugStats.perfDiagnostics === 'object'
+            ? (debugStats.perfDiagnostics as Record<string, unknown>)
+            : null,
+      };
+    })(),
   }));
 
   console.log(
@@ -220,11 +289,35 @@ async function report(page: Page, reason: string): Promise<void> {
   if (summary.runtimeEvents.length) {
     console.log(`[${reason}] runtimeEvents=${JSON.stringify(summary.runtimeEvents)}`);
   }
+  if (summary.benchmarkSummary.loadTiming) {
+    const loadTiming = summary.benchmarkSummary.loadTiming;
+    console.log(
+      `[${reason}] benchmark load total=${loadTiming.totalDurationMs}ms rows=${loadTiming.rowsDurationMs}ms ` +
+        `priorityMeta=${loadTiming.priorityMetadataDurationMs}ms token=${loadTiming.tokenDurationMs}ms ` +
+        `entries=${loadTiming.totalEntries} priority=${loadTiming.priorityEntryCount} deferred=${loadTiming.deferredEntryCount} ` +
+        `requests=${loadTiming.requestCountTotal}`,
+    );
+  }
+  if (summary.benchmarkSummary.perfDiagnostics) {
+    console.log(`[${reason}] benchmark perf=${JSON.stringify(summary.benchmarkSummary.perfDiagnostics)}`);
+  }
 }
 
 async function injectLatest(page: Page, reason: string): Promise<void> {
   const snapshot = await readLatestSourceSnapshot();
   latestSourceSnapshot = snapshot;
+
+  await page.evaluate(() => {
+    (
+      window as Window & {
+        __CW_WATCHLIST_CURATOR_DEBUG_FLAGS__?: {
+          perf?: boolean;
+        };
+      }
+    ).__CW_WATCHLIST_CURATOR_DEBUG_FLAGS__ = {
+      perf: true,
+    };
+  });
 
   await page.evaluate((styles) => {
     const styleId = 'cw-live-style';
@@ -289,6 +382,61 @@ async function runHotReload(page: Page): Promise<void> {
   }
 }
 
+async function resolveExistingPage(context: BrowserContext): Promise<Page> {
+  const pages = context.pages();
+  const watchlistPage = pages.find((page) => isWatchlistUrl(page.url()));
+  if (watchlistPage) {
+    return watchlistPage;
+  }
+
+  const crunchyrollPage = pages.find((page) => {
+    try {
+      return new URL(page.url()).hostname.includes('crunchyroll.com');
+    } catch {
+      return false;
+    }
+  });
+  if (crunchyrollPage) {
+    return crunchyrollPage;
+  }
+
+  return pages[0] || (await context.newPage());
+}
+
+async function createLiveBrowserSession(): Promise<LiveBrowserSession> {
+  if (cdpUrl) {
+    const browser = await chromium.connectOverCDP(cdpUrl, {
+      slowMo: slowMoMs,
+    });
+    const contexts = browser.contexts();
+    const context = contexts[0];
+    if (!context) {
+      throw new Error(`No browser context available over CDP at ${cdpUrl}.`);
+    }
+
+    return {
+      browser,
+      context,
+      page: await resolveExistingPage(context),
+      attachedOverCdp: true,
+    };
+  }
+
+  const context = await chromium.launchPersistentContext(profileDir, {
+    headless: false,
+    viewport: { width: 1600, height: 960 },
+    slowMo: slowMoMs,
+    ...(executablePath ? { executablePath } : {}),
+  });
+
+  return {
+    browser: null,
+    context,
+    page: context.pages()[0] || (await context.newPage()),
+    attachedOverCdp: false,
+  };
+}
+
 function scheduleHotReload(page: Page, changedFile: string): void {
   if (!hotReloadEnabled) {
     return;
@@ -336,7 +484,11 @@ function cleanup(watchers: FSWatcher[]): void {
   }
 }
 
-async function shutdownSession(context: BrowserContext, watchers: FSWatcher[], signal: NodeJS.Signals): Promise<void> {
+async function shutdownSession(
+  session: LiveBrowserSession,
+  watchers: FSWatcher[],
+  signal: NodeJS.Signals,
+): Promise<void> {
   if (shutdownInFlight) {
     return;
   }
@@ -347,11 +499,19 @@ async function shutdownSession(context: BrowserContext, watchers: FSWatcher[], s
     hotReloadTimer = null;
   }
   try {
-    await context.close();
+    if (session.attachedOverCdp && session.browser) {
+      await session.browser.close();
+    } else {
+      await session.context.close();
+    }
   } catch (error) {
-    console.error(`[shutdown] Failed to close browser context after ${signal}:`, getErrorMessage(error));
+    console.error(`[shutdown] Failed to close browser session after ${signal}:`, getErrorMessage(error));
   }
-  console.log(`[shutdown] ${signal} received. Live Chromium session stopped.`);
+  console.log(
+    `[shutdown] ${signal} received. ${
+      session.attachedOverCdp ? 'Detached from existing Chromium session.' : 'Live Chromium session stopped.'
+    }`,
+  );
 }
 
 if (runtimeInjectionEnabled) {
@@ -362,15 +522,15 @@ if (runtimeInjectionEnabled) {
   console.log('[runtime-build] Skipped (CW_PW_LIVE_RUNTIME_INJECTION=0).');
 }
 
-const context = await chromium.launchPersistentContext(profileDir, {
-  headless: false,
-  viewport: { width: 1600, height: 960 },
-  slowMo: slowMoMs,
-  ...(executablePath ? { executablePath } : {}),
-});
-const page = context.pages()[0] || (await context.newPage());
-console.log(`[browser] profileDir=${profileDir}`);
-if (executablePath) {
+const session = await createLiveBrowserSession();
+const { page } = session;
+if (session.attachedOverCdp) {
+  console.log(`[browser] cdpUrl=${cdpUrl}`);
+  console.log('[browser] Attached to existing Chromium-family browser session over CDP.');
+} else {
+  console.log(`[browser] profileDir=${profileDir}`);
+}
+if (executablePath && !session.attachedOverCdp) {
   console.log(`[browser] executablePath=${executablePath}`);
 }
 
@@ -402,9 +562,13 @@ if (runtimeInjectionEnabled) {
   suppressNavInjection = true;
 }
 try {
-  await page.goto('https://www.crunchyroll.com/watchlist', {
-    waitUntil: 'domcontentloaded',
-  });
+  if (isWatchlistUrl(page.url())) {
+    await page.waitForLoadState('domcontentloaded', { timeout: 20000 });
+  } else {
+    await page.goto('https://www.crunchyroll.com/watchlist', {
+      waitUntil: 'domcontentloaded',
+    });
+  }
   if (runtimeInjectionEnabled) {
     await injectLatest(page, 'startup');
   } else {
@@ -422,6 +586,9 @@ if (runtimeInjectionEnabled) {
   );
 } else {
   console.log('Live Chromium native-site session started (no extension runtime injection).');
+}
+if (session.attachedOverCdp) {
+  console.log('Attached to an existing browser session; no fresh browser profile was launched.');
 }
 console.log('If login redirects you away from /watchlist, complete login and return to /watchlist.');
 console.log('Watch the terminal for [watchlist-nav] or [startup] status lines.');
@@ -441,7 +608,7 @@ console.log('Press Ctrl+C in this terminal to stop this session.');
 
 await new Promise<void>((resolve) => {
   const handleSignal = (signal: NodeJS.Signals): void => {
-    void shutdownSession(context, fileWatchers, signal).finally(resolve);
+    void shutdownSession(session, fileWatchers, signal).finally(resolve);
   };
   process.once('SIGINT', handleSignal);
   process.once('SIGTERM', handleSignal);

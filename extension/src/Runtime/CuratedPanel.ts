@@ -18,6 +18,7 @@ type RenderableResult = {
   mode: 'none' | 'dim' | 'hide' | 'hide_not_started';
   total: number;
   visible: CuratedRenderableEntry[];
+  retainedHidden?: CuratedRenderableEntry[];
   audioOptions: Array<{ optionValue: string; title: string }>;
   genreOptions: Array<{ optionValue: string; title: string }>;
   selectedAudioFilter: string;
@@ -58,6 +59,7 @@ type CuratedPanelGridRuntime = {
     state: RuntimeState;
     documentRef: Document;
     visible: CuratedRenderableEntry[];
+    retainedHidden?: CuratedRenderableEntry[];
     total: number;
     loading: boolean;
     metadataLoading: boolean;

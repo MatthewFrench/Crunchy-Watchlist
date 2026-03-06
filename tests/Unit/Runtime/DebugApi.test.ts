@@ -218,6 +218,7 @@ describe('debug-api runtime', () => {
       },
       totalLifecycleMutations: 68,
       identityChurnRate: 0.2,
+      activeSeriesIds: [],
       watchHistoryPreloadAttempts: {
         totalAttempts: 3,
         byLocale: {
@@ -235,6 +236,18 @@ describe('debug-api runtime', () => {
           localeAttemptCount: 2,
           localeRevisionAttemptCount: 1,
         },
+      },
+      perfDiagnostics: {
+        routeObserverBatchesProcessed: 0,
+        routeObserverBatchesIgnored: 0,
+        routeStructureChecks: 0,
+        routeStructureSyncs: 0,
+        gridLayoutCacheHits: 0,
+        gridLayoutCacheMisses: 0,
+        retainedCardHideScheduled: 0,
+        retainedCardHideCompleted: 0,
+        localizedPreloadRenderRequestsQueued: 0,
+        localizedPreloadRenderRequestsDeduped: 0,
       },
     });
   });

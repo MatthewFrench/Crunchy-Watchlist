@@ -219,6 +219,26 @@ function resolveEpisodeIndexCandidate(
   return seasonEpisodeIndex;
 }
 
+function resolveLateSeasonEpisodeIndexFallback(
+  context: SortMetricsContext,
+  totalEpisodes: number | null,
+  seasonNumber: BoundaryValue,
+  episodeNumber: BoundaryValue,
+): number | null {
+  const seasonIndex = context.sanitizePositiveInt(seasonNumber);
+  const seasonEpisodeIndex = context.sanitizePositiveInt(episodeNumber);
+  if (totalEpisodes == null || seasonIndex == null || seasonIndex <= 1 || seasonEpisodeIndex == null) {
+    return null;
+  }
+
+  if (seasonEpisodeIndex > totalEpisodes) {
+    return null;
+  }
+
+  // Only trust late-season local episode numbers when they are already close to the series total.
+  return totalEpisodes - seasonEpisodeIndex <= 12 ? seasonEpisodeIndex : null;
+}
+
 function estimateUnwatchedEpisodesLeftInternal(context: SortMetricsContext, entryValue: BoundaryValue): number | null {
   const entry = asSortMetricsEntry(entryValue);
   const filteredProgressEntry =
@@ -260,6 +280,12 @@ function estimateUnwatchedEpisodesLeftInternal(context: SortMetricsContext, entr
     (totalEpisodes == null || entrySeasonEpisodeIndex <= totalEpisodes)
       ? entrySeasonEpisodeIndex
       : null;
+  const entryEpisodeIndexFromLateSeasonFallback =
+    entryEpisodeIndex == null &&
+    overrideEpisodeIndex == null &&
+    (Number(entry.playheadMs || 0) > 0 || Number(entry.lastWatchedMs || 0) > 0 || filteredProgressEntry != null)
+      ? resolveLateSeasonEpisodeIndexFallback(context, totalEpisodes, entry.seasonNumber, entry.episodeNumber)
+      : null;
   const hasOverrideProgressSignal =
     overrideEpisodeIndex != null ||
     Number(filteredProgressEntry?.playhead || 0) > 0 ||
@@ -277,7 +303,8 @@ function estimateUnwatchedEpisodesLeftInternal(context: SortMetricsContext, entr
 
   const overrideNextEpisodeIndex =
     overrideEpisodeIndex != null ? overrideEpisodeIndex + (filteredProgressEntry?.fullyWatched ? 1 : 0) : null;
-  const entryNextEpisodeIndex = entryEpisodeIndexFromOverride ?? entryEpisodeIndex;
+  const entryNextEpisodeIndex =
+    entryEpisodeIndexFromLateSeasonFallback ?? entryEpisodeIndexFromOverride ?? entryEpisodeIndex;
 
   const nextEpisodeIndexCandidates = [overrideNextEpisodeIndex, entryNextEpisodeIndex].filter(
     (value): value is number => value != null,

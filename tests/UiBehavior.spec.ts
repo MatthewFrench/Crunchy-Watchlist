@@ -177,7 +177,7 @@ test.describe('UI Behavior', () => {
     );
     await expect(
       page.locator('.cw-panel > .cw-loading-box .cw-loading-indicator .cw-loading__details-title'),
-    ).toHaveText('Request progress');
+    ).toHaveText('Loading progress');
     await expect(page.locator('.cw-panel > .cw-loading-box .cw-loading-indicator .cw-loading__progress')).toHaveText(
       'Completed 1 of 2 • In progress 1',
     );

@@ -13,6 +13,7 @@ export type CuratedDomLifecycleStats = {
   counters: CuratedDomLifecycleCounters;
   totalLifecycleMutations: number;
   identityChurnRate: number;
+  activeSeriesIds?: string[];
 };
 
 export async function readCuratedDomLifecycleStats(page: Page): Promise<CuratedDomLifecycleStats> {

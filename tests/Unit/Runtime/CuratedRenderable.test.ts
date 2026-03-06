@@ -20,6 +20,7 @@ type CuratedRenderableRuntime = {
     mode: string;
     total: number;
     visible: Array<Record<string, unknown>>;
+    retainedHidden: Array<Record<string, unknown>>;
     audioOptions: Array<{ optionValue: string; title: string }>;
     genreOptions: Array<{ optionValue: string; title: string }>;
     selectedAudioFilter: string;
@@ -269,6 +270,71 @@ describe('curated-renderable runtime', () => {
     expect(result.total).toBe(2);
     expect(result.visible).toHaveLength(1);
     expect(result.visible[0]?.seriesId).toBe('series-1');
+    expect(result.retainedHidden.map((entry) => entry.seriesId)).toEqual(['series-2']);
+  });
+
+  it('rebuilds visible order when sort settings change', () => {
+    const runtime = createCuratedRenderableRuntime({
+      ratingsBySeriesId: {
+        'series-1': {
+          rating: 4.9,
+          votes: 1200,
+          distribution: { 5: 1000, 4: 120, 3: 40, 2: 25, 1: 15 },
+        },
+        'series-2': {
+          rating: 3.1,
+          votes: 180,
+          distribution: { 5: 20, 4: 30, 3: 60, 2: 40, 1: 30 },
+        },
+      },
+      compareRenderableEntries: (left: unknown, right: unknown, sortMode?: unknown) => {
+        const leftRecord = left as Record<string, unknown>;
+        const rightRecord = right as Record<string, unknown>;
+        if (sortMode === 'rating_desc') {
+          return Number(rightRecord.rating || 0) - Number(leftRecord.rating || 0);
+        }
+        if (sortMode === 'rating_asc') {
+          return Number(leftRecord.rating || 0) - Number(rightRecord.rating || 0);
+        }
+        return Number(leftRecord.sortOrder || 0) - Number(rightRecord.sortOrder || 0);
+      },
+    });
+    const entries = [
+      {
+        seriesId: 'series-1',
+        title: 'Alpha',
+        audioLocales: ['en-US'],
+        genreTags: ['Action'],
+        watchReadyHint: true,
+        sortOrder: 2,
+      },
+      {
+        seriesId: 'series-2',
+        title: 'Beta',
+        audioLocales: ['en-US'],
+        genreTags: ['Drama'],
+        watchReadyHint: true,
+        sortOrder: 1,
+      },
+    ];
+    const baseSettings = {
+      audioLocaleFilter: 'any',
+      genreFilter: 'any',
+      watchReadyFilterMode: 'none',
+      secondarySortMode: 'none',
+    };
+
+    const ascending = runtime.buildRenderableEntries(entries, {
+      ...baseSettings,
+      sortMode: 'rating_asc',
+    });
+    const descending = runtime.buildRenderableEntries(entries, {
+      ...baseSettings,
+      sortMode: 'rating_desc',
+    });
+
+    expect(ascending.visible.map((entry) => entry.seriesId)).toEqual(['series-2', 'series-1']);
+    expect(descending.visible.map((entry) => entry.seriesId)).toEqual(['series-1', 'series-2']);
   });
 
   it('hides not-watch-ready and cold-start entries when watch-ready mode is hide_not_started', () => {

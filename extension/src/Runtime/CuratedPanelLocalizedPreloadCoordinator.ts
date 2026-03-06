@@ -1,3 +1,5 @@
+import { incrementRuntimePerfDiagnostic } from './RuntimePerfDiagnostics.js';
+
 type CuratedBoundaryValue = CwBoundaryValue;
 type CuratedBoundaryRecord = Record<string, CuratedBoundaryValue>;
 type CuratedBoundaryArray = CuratedBoundaryValue[];
@@ -40,6 +42,7 @@ export class CuratedPanelLocalizedPreloadCoordinator {
   private readonly isLocalizedWatchHistoryDataMissingForEntries: LocalizedMetadataMissingFn;
   private readonly preloadRatingsForSelectedAudioLocale: LocalizedMetadataPreloadFn;
   private readonly preloadWatchHistoryForSelectedAudioLocale: LocalizedMetadataPreloadFn;
+  private readonly queuedRenderRequests = new Set<string>();
 
   constructor(options: CuratedPanelLocalizedPreloadCoordinatorOptions) {
     this.state = options.state;
@@ -72,6 +75,20 @@ export class CuratedPanelLocalizedPreloadCoordinator {
     const initialRatingCacheRevision = Number(this.state.ratingCacheRevision) || 0;
     const initialWatchHistoryUpdatedAt = getWatchHistoryCacheUpdatedAt(this.state);
     const preloadTasks: CuratedBoundaryPromise[] = [];
+    const renderRequestKey = [
+      selectedAudioFilter.trim().toLowerCase(),
+      shouldPreloadLocalizedRatings ? 'ratings' : '',
+      shouldPreloadLocalizedWatchHistory ? 'history' : '',
+      initialRatingCacheRevision,
+      initialWatchHistoryUpdatedAt,
+    ].join('|');
+
+    if (this.queuedRenderRequests.has(renderRequestKey)) {
+      incrementRuntimePerfDiagnostic('localizedPreloadRenderRequestsDeduped');
+      return;
+    }
+    this.queuedRenderRequests.add(renderRequestKey);
+    incrementRuntimePerfDiagnostic('localizedPreloadRenderRequestsQueued');
 
     if (shouldPreloadLocalizedRatings) {
       preloadTasks.push(this.preloadRatingsForSelectedAudioLocale(selectedAudioFilter));
@@ -80,21 +97,25 @@ export class CuratedPanelLocalizedPreloadCoordinator {
       preloadTasks.push(this.preloadWatchHistoryForSelectedAudioLocale(selectedAudioFilter));
     }
 
-    Promise.allSettled(preloadTasks).then(() => {
-      if (!this.state.mounted || !this.isWatchlistPath(this.locationRef.pathname)) {
-        return;
-      }
+    Promise.allSettled(preloadTasks)
+      .then(() => {
+        if (!this.state.mounted || !this.isWatchlistPath(this.locationRef.pathname)) {
+          return;
+        }
 
-      const nextRatingCacheRevision = Number(this.state.ratingCacheRevision) || 0;
-      const nextWatchHistoryUpdatedAt = getWatchHistoryCacheUpdatedAt(this.state);
-      if (
-        nextRatingCacheRevision === initialRatingCacheRevision &&
-        nextWatchHistoryUpdatedAt === initialWatchHistoryUpdatedAt
-      ) {
-        return;
-      }
+        const nextRatingCacheRevision = Number(this.state.ratingCacheRevision) || 0;
+        const nextWatchHistoryUpdatedAt = getWatchHistoryCacheUpdatedAt(this.state);
+        if (
+          nextRatingCacheRevision === initialRatingCacheRevision &&
+          nextWatchHistoryUpdatedAt === initialWatchHistoryUpdatedAt
+        ) {
+          return;
+        }
 
-      onRenderRequested();
-    });
+        onRenderRequested();
+      })
+      .finally(() => {
+        this.queuedRenderRequests.delete(renderRequestKey);
+      });
   };
 }

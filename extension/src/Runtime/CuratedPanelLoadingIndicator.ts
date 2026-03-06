@@ -44,7 +44,7 @@ type TimedRoot = {
   clearTimeout?: (id: number) => void;
 };
 
-const LOADING_BOX_TRANSITION_MS = 3_000;
+const LOADING_BOX_TRANSITION_MS = 2_000;
 const GRID_CONTAINER_TRANSITION_MS = 1_000;
 const cardContainerVisibleClassName = 'cw-curated-card-container--visible';
 const cardContainerAnimatingClassName = 'cw-curated-card-container--animating';
@@ -456,7 +456,7 @@ class CuratedPanelLoadingIndicatorController {
 
     const detailsTitle = documentRef.createElement('span');
     detailsTitle.className = 'cw-loading__details-title';
-    detailsTitle.textContent = 'Request progress';
+    detailsTitle.textContent = 'Loading progress';
     this.appendChildElement(details, detailsTitle);
 
     const progress = documentRef.createElement('span');

@@ -97,11 +97,18 @@ Use this workflow when validating behavior on real `crunchyroll.com` while avoid
    - Fresh automated contexts are more likely to challenge-loop.
    - Prefer a long-lived, user-managed browser profile for live site checks.
 
-3. **Use a separate Chrome app/profile and attach over CDP**:
-   - Launch a separate browser process with a dedicated profile and DevTools port.
-   - Example launch (macOS app copy):
+3. **Use a separate Chromium-family app/profile and attach over CDP**:
+   - Prefer attaching to an already-running user-managed Edge/Chrome session on a DevTools port before launching any browser yourself.
+   - This avoids the "fresh automated browser" pattern that is more likely to trigger Crunchyroll/Cloudflare lock-down behavior.
+   - Launch a separate browser process with a dedicated profile and DevTools port only when no reusable session already exists.
+   - Preferred agent default for Edge on macOS when no session is available:
+     - `open -na '/Applications/Microsoft Edge.app' --args --remote-debugging-port=9222 --new-window 'https://www.crunchyroll.com/watchlist'`
+   - After launching, agents should attach to that running browser over CDP instead of creating a fresh Playwright browser/profile.
+   - Example launch (macOS, Chrome app copy):
      - `open -na '/Applications/Google Chrome copy.app' --args --remote-debugging-port=9222 --user-data-dir='/Users/matthewfrench/GitHub/Crunchy-Watchlist/.tmp/chrome-copy-cdp-profile' --new-window 'https://www.crunchyroll.com/watchlist'`
-   - Agent control model: attach with Playwright `chromium.connectOverCDP('http://127.0.0.1:9222')` to the already-running browser instead of launching a new automated browser.
+   - Example launch (macOS, Microsoft Edge):
+     - `open -na '/Applications/Microsoft Edge.app' --args --remote-debugging-port=9222 --new-window 'https://www.crunchyroll.com/watchlist'`
+   - Agent control model: attach with Playwright `chromium.connectOverCDP('http://127.0.0.1:9222')` to the already-running browser instead of launching a new automated browser or a fresh persistent context.
 
 4. **Manual challenge handling is expected**:
    - User manually completes Cloudflare/login in that browser window when prompted.

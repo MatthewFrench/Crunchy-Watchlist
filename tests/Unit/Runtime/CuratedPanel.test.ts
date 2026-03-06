@@ -319,6 +319,75 @@ describe('curated-panel runtime', () => {
     expect(gridEl.children).toHaveLength(1);
   });
 
+  it('prewarms filtered hidden cards without mounting them as active visible cards', () => {
+    const gridEl = createFakeElement();
+    const statsEl = createFakeElement();
+    const loadingIndicatorEl = createFakeElement();
+    const controlsLoadingIndicatorEl = createFakeElement();
+
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [],
+      curatedInflight: null,
+      curatedPendingRequests: [] as string[],
+      curatedPendingRequestStartedCount: 0,
+      curatedPendingRequestCompletedCount: 0,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingIndicatorEl,
+      controlsLoadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    };
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: () => {
+        const card = createFakeElement();
+        card.className = 'cw-curated-card';
+        return card;
+      },
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => ({
+        mode: 'hide',
+        total: 2,
+        visible: [{ seriesId: 'series-visible', watchReady: true }],
+        retainedHidden: [{ seriesId: 'series-hidden', watchReady: false }],
+        audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+        genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+        selectedAudioFilter: 'any',
+        selectedGenreFilter: 'any',
+      }),
+      withMutedObserver: (work: () => void) => {
+        work();
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    });
+
+    runtime.renderCuratedPanel();
+
+    expect(gridEl.children).toHaveLength(2);
+    const hiddenCard = gridEl.children.find((child) => hasClassName(child, 'cw-curated-card--parked')) || null;
+    const visibleCard = gridEl.children.find((child) => hasClassName(child, 'cw-curated-card')) || null;
+    expect(hiddenCard).not.toBeNull();
+    expect(hiddenCard?.style.display).toBe('none');
+    expect(visibleCard).not.toBeNull();
+    expect(visibleCard?.style.display || '').toBe('');
+  });
+
   it('uses compact visible revision signatures instead of serializing full visible payloads', () => {
     const gridEl = createFakeElement();
     const statsEl = createFakeElement();
@@ -631,14 +700,92 @@ describe('curated-panel runtime', () => {
 
     const requestsList = findElementByClassName(loadingIndicatorEl, 'cw-loading__requests');
     const progressLine = findElementByClassName(loadingIndicatorEl, 'cw-loading__progress');
+    const progressTitle = findElementByClassName(loadingIndicatorEl, 'cw-loading__details-title');
     const nestedGridLoading = findElementByClassName(gridEl, 'cw-loading');
     expect(requestsList).not.toBeNull();
     expect(requestsList?.children.map((child) => child.textContent)).toEqual(state.curatedPendingRequests);
+    expect(progressTitle?.textContent).toBe('Loading progress');
     expect(progressLine?.textContent).toBe('Completed 1 of 4 • In progress 3');
     expect(nestedGridLoading).toBeNull();
     expect(loadingIndicatorEl.style.display).toBe('flex');
     expect(controlsLoadingIndicatorEl.style.display).toBe('inline-flex');
     expect(statsEl.textContent).toBe('');
+  });
+
+  it('mentions deferred metadata as blocking work while the first-load panel remains open', () => {
+    const gridEl = createFakeElement();
+    const statsEl = createFakeElement();
+    const loadingIndicatorEl = createFakeElement();
+    loadingIndicatorEl.className = 'cw-loading cw-loading-indicator';
+
+    const loadingBox = createFakeElement();
+    loadingBox.className = 'cw-loading-box';
+    loadingBox.appendChild(loadingIndicatorEl);
+
+    const state = {
+      mounted: true,
+      curatedError: null,
+      curatedEntries: [{ seriesId: 'series-1', title: 'Series 1' }],
+      curatedInflight: Promise.resolve([]) as Promise<unknown[]> | null,
+      curatedDeferredMetadataInFlight: false,
+      curatedInitialLoadDone: false,
+      curatedPendingRequests: ['Fetching watchlist pages (/content/v2/discover/{account_id}/watchlist)'],
+      curatedPendingRequestStartedCount: 1,
+      curatedPendingRequestCompletedCount: 0,
+      curatedGridRenderSignature: '',
+      gridEl,
+      statsEl,
+      loadingBoxEl: loadingBox,
+      loadingIndicatorEl,
+      audioFilterSelectEl: createFakeSelectElement(),
+      genreFilterSelectEl: createFakeSelectElement(),
+      settings: {
+        cardLayout: 'portrait',
+      },
+    };
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state,
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: () => createFakeElement(),
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => ({
+        mode: 'hide',
+        total: 1,
+        visible: [{ seriesId: 'series-1', title: 'Series 1' }],
+        audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+        genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+        selectedAudioFilter: 'any',
+        selectedGenreFilter: 'any',
+      }),
+      withMutedObserver: (work: () => void) => {
+        work();
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    });
+
+    runtime.renderCuratedPanel();
+
+    state.curatedInflight = null;
+    state.curatedDeferredMetadataInFlight = true;
+    state.curatedInitialLoadDone = true;
+    state.curatedPendingRequests = [];
+    state.curatedPendingRequestStartedCount = 4;
+    state.curatedPendingRequestCompletedCount = 4;
+    runtime.renderCuratedPanel();
+
+    const requestsList = findElementByClassName(loadingIndicatorEl, 'cw-loading__requests');
+    const progressLine = findElementByClassName(loadingIndicatorEl, 'cw-loading__progress');
+    expect(loadingBox.style.display).toBe('block');
+    expect(progressLine?.textContent).toBe('Completed 4 of 5 • In progress 1');
+    expect(requestsList?.children.map((child) => child.textContent)).toEqual(['Finishing remaining card details']);
   });
 
   it('updates the existing shared loading indicator in place without nesting another loading widget', () => {
@@ -1056,7 +1203,7 @@ describe('curated-panel runtime', () => {
     expect(statsEl.textContent).toBe('Showing 2 of 5');
   });
 
-  it('reuses existing card nodes and keeps dom order stable when render order changes', () => {
+  it('reuses existing card nodes and updates dom order when render order changes', () => {
     const gridEl = createFakeElement();
     const statsEl = createFakeElement();
     const loadingIndicatorEl = createFakeElement();
@@ -1136,7 +1283,7 @@ describe('curated-panel runtime', () => {
     runtime.renderCuratedPanel();
 
     expect(createdCards).toBe(3);
-    expect(gridEl.children).toEqual(firstRenderCards);
+    expect(gridEl.children).toEqual([firstRenderCards[2], firstRenderCards[0], firstRenderCards[1]]);
   });
 
   it('parks filtered cards and reuses the same nodes when they re-enter visibility', () => {
@@ -1408,6 +1555,94 @@ describe('curated-panel runtime', () => {
     expect(gridEl.children).toHaveLength(1);
     expect(gridEl.children[0]).toBe(firstCard);
     expect(createdCards).toBe(1);
+  });
+
+  it('requests a recovery render when observed grid children are cleared externally', async () => {
+    const mutationObserverCallbacks: Array<(...args: unknown[]) => void> = [];
+    let disconnectCalls = 0;
+    class FakeMutationObserver {
+      constructor(callback: (...args: unknown[]) => void) {
+        mutationObserverCallbacks.push(callback);
+      }
+
+      observe(): void {}
+
+      disconnect(): void {
+        disconnectCalls += 1;
+      }
+    }
+    vi.stubGlobal('MutationObserver', FakeMutationObserver);
+
+    const gridEl = createFakeElement();
+    const statsEl = createFakeElement();
+    const loadingIndicatorEl = createFakeElement();
+    let createdCards = 0;
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state: {
+        mounted: true,
+        curatedError: null,
+        curatedEntries: [],
+        curatedInflight: null,
+        curatedPendingRequests: [],
+        curatedPendingRequestStartedCount: 0,
+        curatedPendingRequestCompletedCount: 0,
+        curatedGridRenderSignature: '',
+        gridEl,
+        statsEl,
+        loadingIndicatorEl,
+        audioFilterSelectEl: createFakeSelectElement(),
+        genreFilterSelectEl: createFakeSelectElement(),
+        settings: {
+          cardLayout: 'portrait',
+        },
+      },
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: (entry: Record<string, unknown>) => {
+        createdCards += 1;
+        const card = createFakeElement();
+        card.className = 'cw-curated-card';
+        card.dataset.cwSeriesId = String(entry.seriesId || '');
+        return card;
+      },
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => ({
+        mode: 'hide',
+        total: 1,
+        visible: [{ seriesId: 'series-1', title: 'Series 1' }],
+        audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+        genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+        selectedAudioFilter: 'any',
+        selectedGenreFilter: 'any',
+      }),
+      withMutedObserver: (work: () => void) => {
+        work();
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    });
+
+    runtime.renderCuratedPanel();
+    expect(gridEl.children).toHaveLength(1);
+    const firstCard = gridEl.children[0];
+
+    gridEl.textContent = '';
+    mutationObserverCallbacks[0]?.([{ target: gridEl } as unknown as MutationRecord], {} as MutationObserver);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(gridEl.children).toHaveLength(1);
+    expect(gridEl.children[0]).toBe(firstCard);
+    expect(createdCards).toBe(1);
+
+    runtime.dispose();
+    expect(disconnectCalls).toBeGreaterThan(0);
   });
 
   it('coalesces queued render requests into a single panel render per microtask', async () => {

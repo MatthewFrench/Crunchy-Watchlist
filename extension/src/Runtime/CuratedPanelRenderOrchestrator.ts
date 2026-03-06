@@ -10,6 +10,7 @@ type RenderableResult = {
   mode: 'none' | 'dim' | 'hide' | 'hide_not_started';
   total: number;
   visible: CuratedRenderableEntry[];
+  retainedHidden?: CuratedRenderableEntry[];
   audioOptions: Array<{ optionValue: string; title: string }>;
   genreOptions: Array<{ optionValue: string; title: string }>;
   selectedAudioFilter: string;
@@ -20,6 +21,11 @@ type RequestProgress = {
   started: number;
   completed: number;
   inProgress: number;
+};
+
+type LoadingIndicatorStatus = {
+  pendingRequests: string[];
+  requestProgress: RequestProgress;
 };
 
 type RuntimeState = {
@@ -50,6 +56,7 @@ type CuratedPanelGridRuntime = {
     state: RuntimeState;
     documentRef: Document;
     visible: CuratedRenderableEntry[];
+    retainedHidden?: CuratedRenderableEntry[];
     total: number;
     loading: boolean;
     metadataLoading: boolean;
@@ -110,6 +117,7 @@ type CuratedPanelRenderOrchestratorOptions = {
 };
 
 const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
+const deferredMetadataBlockingTaskLabel = 'Finishing remaining card details';
 
 function updateRevisionHash(hash: number, value: string): number {
   let next = hash >>> 0;
@@ -153,8 +161,12 @@ function hashRevisionToken(hash: number, value: CuratedBoundaryValue): number {
 export class CuratedPanelRenderOrchestrator {
   private readonly context: CuratedPanelRenderOrchestratorOptions;
   private readonly resizeObserver: ResizeObserver | null;
+  private readonly gridMutationObserver: MutationObserver | null;
   private observedResizeTarget: Element | null = null;
+  private observedGridElement: Element | null = null;
   private observedGridAvailableWidthKey = '0';
+  private cachedVisibleEntries: CuratedRenderableEntry[] | null = null;
+  private cachedVisibleRevisionSignature = 'count:0|first:|last:|hash:0';
   private initialLoadingLatched = false;
   private renderQueued = false;
   private flushScheduled = false;
@@ -166,6 +178,11 @@ export class CuratedPanelRenderOrchestrator {
     const ResizeObserverCtor =
       typeof root.ResizeObserver === 'function' ? (root.ResizeObserver as typeof ResizeObserver) : null;
     this.resizeObserver = ResizeObserverCtor ? new ResizeObserverCtor(this.handleGridResizeObserved) : null;
+    const MutationObserverCtor =
+      typeof root.MutationObserver === 'function' ? (root.MutationObserver as typeof MutationObserver) : null;
+    this.gridMutationObserver = MutationObserverCtor
+      ? new MutationObserverCtor(this.handleGridMutationsObserved)
+      : null;
   }
 
   readonly renderNow = (): void => {
@@ -227,8 +244,14 @@ export class CuratedPanelRenderOrchestrator {
       }
       this.resizeObserver.disconnect();
     }
+    if (this.gridMutationObserver) {
+      this.gridMutationObserver.disconnect();
+    }
     this.observedResizeTarget = null;
+    this.observedGridElement = null;
     this.observedGridAvailableWidthKey = '0';
+    this.cachedVisibleEntries = null;
+    this.cachedVisibleRevisionSignature = 'count:0|first:|last:|hash:0';
   };
 
   private readonly runQueuedRender = (): void => {
@@ -257,6 +280,7 @@ export class CuratedPanelRenderOrchestrator {
   private readonly renderCuratedPanel = (): void => {
     const { state } = this.context;
     this.syncGridResizeObservation(state.gridEl);
+    this.syncGridMutationObservation(state.gridEl);
     if (!state.gridEl || !state.statsEl) {
       return;
     }
@@ -268,6 +292,7 @@ export class CuratedPanelRenderOrchestrator {
       mode: watchReadyFilterMode,
       total,
       visible,
+      retainedHidden = [],
       audioOptions,
       genreOptions,
       selectedAudioFilter,
@@ -307,6 +332,7 @@ export class CuratedPanelRenderOrchestrator {
         state,
         documentRef: this.context.documentRef,
         visible,
+        retainedHidden,
         total,
         loading,
         metadataLoading,
@@ -334,6 +360,7 @@ export class CuratedPanelRenderOrchestrator {
     const loading = Boolean(state.curatedInflight) || Boolean(state.curatedDeferredMetadataInFlight);
     const hasNoCuratedEntries = !Array.isArray(state.curatedEntries) || state.curatedEntries.length === 0;
     const pendingRequests = this.getPendingRequestItems(state.curatedPendingRequests);
+    const loadingIndicatorStatus = this.getLoadingIndicatorStatus();
     const showFirstLoadByCurrentState = loading && (state.curatedInitialLoadDone !== true || hasNoCuratedEntries);
     // Latch first-load visibility so the shared loading box stays mounted until
     // all initial work (including deferred metadata) has fully settled.
@@ -350,7 +377,6 @@ export class CuratedPanelRenderOrchestrator {
     }
     const firstLoadInFlight =
       showFirstLoadByCurrentState || (this.initialLoadingLatched && (loading || pendingRequests.length > 0));
-    const requestProgress = this.getPendingRequestProgress(pendingRequests);
 
     this.context.curatedPanelLoadingIndicatorRuntime.syncLoadingIndicator({
       documentRef: this.context.documentRef,
@@ -359,8 +385,8 @@ export class CuratedPanelRenderOrchestrator {
       gridEl: state.gridEl,
       loading,
       firstLoadInFlight,
-      pendingRequests,
-      requestProgress,
+      pendingRequests: loadingIndicatorStatus.pendingRequests,
+      requestProgress: loadingIndicatorStatus.requestProgress,
     });
   };
 
@@ -385,6 +411,32 @@ export class CuratedPanelRenderOrchestrator {
       started,
       completed,
       inProgress: pendingRequests.length,
+    };
+  };
+
+  /**
+   * Deferred metadata keeps the shared loading box mounted, so surface it as
+   * explicit blocking work after tracked requests have already completed.
+   */
+  private readonly getLoadingIndicatorStatus = (): LoadingIndicatorStatus => {
+    const { state } = this.context;
+    const pendingRequests = this.getPendingRequestItems(state.curatedPendingRequests);
+    const requestProgress = this.getPendingRequestProgress(pendingRequests);
+
+    if (state.curatedDeferredMetadataInFlight !== true) {
+      return {
+        pendingRequests,
+        requestProgress,
+      };
+    }
+
+    return {
+      pendingRequests: [...pendingRequests, deferredMetadataBlockingTaskLabel],
+      requestProgress: {
+        started: requestProgress.started + 1,
+        completed: requestProgress.completed,
+        inProgress: requestProgress.inProgress + 1,
+      },
     };
   };
 
@@ -459,6 +511,9 @@ export class CuratedPanelRenderOrchestrator {
     if (!visible.length) {
       return 'count:0|first:|last:|hash:0';
     }
+    if (visible === this.cachedVisibleEntries) {
+      return this.cachedVisibleRevisionSignature;
+    }
 
     let revisionHash = 2_166_136_261;
     visible.forEach((entry, index) => {
@@ -467,7 +522,10 @@ export class CuratedPanelRenderOrchestrator {
 
     const firstSeriesId = this.getRenderableSeriesId(visible[0] || {}, 0);
     const lastSeriesId = this.getRenderableSeriesId(visible[visible.length - 1] || {}, visible.length - 1);
-    return `count:${visible.length}|first:${firstSeriesId}|last:${lastSeriesId}|hash:${revisionHash.toString(16)}`;
+    const nextSignature = `count:${visible.length}|first:${firstSeriesId}|last:${lastSeriesId}|hash:${revisionHash.toString(16)}`;
+    this.cachedVisibleEntries = visible;
+    this.cachedVisibleRevisionSignature = nextSignature;
+    return nextSignature;
   };
 
   private readonly buildCuratedGridRenderSignature = (
@@ -516,6 +574,31 @@ export class CuratedPanelRenderOrchestrator {
     this.requestRender();
   };
 
+  private readonly handleGridMutationsObserved = (): void => {
+    if (this.disposed || this.renderInProgress) {
+      return;
+    }
+
+    const { state } = this.context;
+    const gridElement = this.observedGridElement;
+    if (!gridElement || state.gridEl !== gridElement) {
+      return;
+    }
+
+    const childCount = Number((gridElement as Element & { children?: ArrayLike<Element> }).children?.length) || 0;
+    if (childCount > 0) {
+      return;
+    }
+
+    const loading = Boolean(state.curatedInflight) || Boolean(state.curatedDeferredMetadataInFlight);
+    const pendingRequests = this.getPendingRequestItems(state.curatedPendingRequests);
+    if (loading || pendingRequests.length > 0) {
+      return;
+    }
+
+    this.requestRender();
+  };
+
   private readonly syncGridResizeObservation = (gridElement: Element | null): void => {
     if (!this.resizeObserver) {
       return;
@@ -531,6 +614,25 @@ export class CuratedPanelRenderOrchestrator {
     }
 
     this.observedResizeTarget = nextResizeTarget;
+  };
+
+  private readonly syncGridMutationObservation = (gridElement: Element | null): void => {
+    if (!this.gridMutationObserver) {
+      return;
+    }
+
+    if (this.observedGridElement === gridElement) {
+      return;
+    }
+
+    this.gridMutationObserver.disconnect();
+    this.observedGridElement = gridElement;
+
+    if (gridElement) {
+      this.gridMutationObserver.observe(gridElement, {
+        childList: true,
+      });
+    }
   };
 
   private readonly resolveGridResizeTarget = (gridElement: Element | null): Element | null => {

@@ -74,14 +74,15 @@ function createFakeElement(className = ''): FakeElement {
   return element;
 }
 
-function createFakeDocumentRef() {
+function createFakeDocumentRef(scheduledTimeouts: number[] = []) {
   const defaultView = {
     requestAnimationFrame: (callback: () => void) => {
       callback();
       return 1;
     },
     cancelAnimationFrame: (_id: number) => {},
-    setTimeout: (callback: () => void, _delay?: number) => {
+    setTimeout: (callback: () => void, delay = 0) => {
+      scheduledTimeouts.push(delay);
       callback();
       return 1;
     },
@@ -118,7 +119,8 @@ describe('CuratedPanelLoadingIndicator', () => {
     }
 
     const runtime = moduleFactory.createCuratedPanelLoadingIndicatorRuntime();
-    const documentRef = createFakeDocumentRef();
+    const scheduledTimeouts: number[] = [];
+    const documentRef = createFakeDocumentRef(scheduledTimeouts);
     const loadingBox = createFakeElement('cw-loading-box');
     const loadingIndicator = createFakeElement('cw-loading cw-loading-indicator');
     loadingBox.appendChild(loadingIndicator);
@@ -154,5 +156,6 @@ describe('CuratedPanelLoadingIndicator', () => {
     expect(hasClassNameToken(grid, 'cw-curated-grid--visible')).toBe(true);
     expect(grid.style.height).toBe('');
     expect(grid.style['--cw-curated-card-container-height']).toBe('360px');
+    expect(scheduledTimeouts).toContain(2_000);
   });
 });

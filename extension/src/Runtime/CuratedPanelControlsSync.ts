@@ -6,7 +6,11 @@ type RuntimeState = {
 
 type SelectLike = Element & {
   value?: string;
-  options?: Array<{ value?: string }>;
+  options?: ArrayLike<{
+    value?: string | null;
+    textContent?: string | null;
+    text?: string | null;
+  }>;
   textContent: string | null;
   appendChild: (child: Element) => void;
 };
@@ -56,9 +60,18 @@ function asSelectOptions(value: CuratedBoundaryValue): SelectOption[] {
     .filter((option): option is SelectOption => option != null);
 }
 
-function getSelectOptionValues(select: SelectLike): string[] {
-  const options = Array.isArray(select.options) ? select.options : [];
-  return options.map((option) => (typeof option?.value === 'string' ? option.value : ''));
+function getSelectOptionSignature(select: SelectLike): string[] {
+  const options = select.options ? Array.from(select.options) : [];
+  return options.map((option) => {
+    const optionValue = typeof option?.value === 'string' ? option.value : '';
+    const optionTitle =
+      typeof option?.textContent === 'string'
+        ? option.textContent
+        : typeof option?.text === 'string'
+          ? option.text
+          : '';
+    return `${optionValue}\u001f${optionTitle}`;
+  });
 }
 
 export class CuratedPanelControlsSyncOwner {
@@ -124,8 +137,9 @@ export class CuratedPanelControlsSyncOwner {
 
     const currentValue =
       typeof selectedValue === 'string' && selectedValue ? selectedValue : options[0]?.optionValue || '';
-    const existing = getSelectOptionValues(select);
-    const next = options.map((option) => option.optionValue);
+    const hasCurrentOptionValue = options.some(({ optionValue }) => optionValue === currentValue);
+    const existing = getSelectOptionSignature(select);
+    const next = options.map((option) => `${option.optionValue}\u001f${option.title}`);
     const unchanged = existing.length === next.length && existing.every((value, index) => value === next[index]);
 
     if (!unchanged) {
@@ -138,7 +152,7 @@ export class CuratedPanelControlsSyncOwner {
       });
     }
 
-    select.value = next.includes(currentValue) ? currentValue : options[0]?.optionValue || '';
+    select.value = hasCurrentOptionValue ? currentValue : options[0]?.optionValue || '';
   };
 
   private readonly resolveCuratedStatsText = (

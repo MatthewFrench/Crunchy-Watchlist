@@ -43,6 +43,7 @@ type CuratedPanelGridRenderOptions = {
   state: CuratedPanelGridState;
   documentRef: Document;
   visible: CuratedGridEntry[];
+  retainedHidden?: CuratedGridEntry[];
   total: number;
   loading: boolean;
   metadataLoading: boolean;
@@ -392,22 +393,38 @@ function queueCardEnterTransition(card: Element & { className?: string }): void 
 
 function setCardParkedState(card: Element, parked: boolean): void {
   const cardElement = card as Element & { className?: string };
+  const style = (card as Element & { style?: Record<string, string> }).style || null;
   const currentClassName = cardElement.className || '';
+  const withBaseCardClass = toggleClassNameToken(currentClassName, 'cw-curated-card', true);
   const hadParkedClass = hasClassNameToken(currentClassName, 'cw-curated-card--parked');
-  const nextWithParked = toggleClassNameToken(currentClassName, 'cw-curated-card--parked', parked);
+  const nextWithParked = toggleClassNameToken(withBaseCardClass, 'cw-curated-card--parked', parked);
   const nextClassName = parked
-    ? toggleClassNameToken(nextWithParked, 'cw-curated-card--entering', false)
+    ? toggleClassNameToken(
+        toggleClassNameToken(nextWithParked, 'cw-curated-card--entering', false),
+        'cw-curated-card',
+        false,
+      )
     : nextWithParked;
   if (nextClassName === currentClassName) {
     return;
   }
 
   if (!parked && hadParkedClass) {
-    cardElement.className = toggleClassNameToken(nextClassName, 'cw-curated-card--entering', true);
+    if (style) {
+      style.display = '';
+    }
+    cardElement.className = toggleClassNameToken(
+      toggleClassNameToken(nextClassName, 'cw-curated-card', true),
+      'cw-curated-card--entering',
+      true,
+    );
     queueCardEnterTransition(cardElement);
     return;
   }
 
+  if (style) {
+    style.display = parked ? 'none' : '';
+  }
   cardElement.className = nextClassName;
 }
 
@@ -481,6 +498,55 @@ function createShouldRetainCardInGrid(loadedSeriesIds: Set<string>): (card: Elem
     const seriesId = getElementDataAttribute(card, 'cwSeriesId', 'data-cw-series-id');
     return Boolean(seriesId && loadedSeriesIds.has(seriesId));
   };
+}
+
+function prewarmHiddenCuratedCards(options: {
+  gridElement: Element;
+  retainedHidden: CuratedGridEntry[];
+  visibleSeriesIds: Set<string>;
+  metadataLoading: boolean;
+  createOrReuseCuratedCard: (
+    entry: CuratedGridEntry,
+    detailsLoading: boolean,
+    visibleSeriesIds: Set<string>,
+  ) => Element;
+  getEntrySeriesId: (entry: CuratedGridEntry) => string;
+  isRenderableEntryMetadataLoading: (entry: CuratedGridEntry) => boolean;
+  parkCardForReuse: (card: Element) => void;
+  parkingManager: CuratedPanelGridParkingManager;
+}): void {
+  const {
+    gridElement,
+    retainedHidden,
+    visibleSeriesIds,
+    metadataLoading,
+    createOrReuseCuratedCard,
+    getEntrySeriesId,
+    isRenderableEntryMetadataLoading,
+    parkCardForReuse,
+    parkingManager,
+  } = options;
+  if (!retainedHidden.length) {
+    return;
+  }
+
+  const usedSeriesIds = new Set<string>(visibleSeriesIds);
+  retainedHidden.forEach((entry) => {
+    const seriesId = getEntrySeriesId(entry);
+    if (!seriesId || usedSeriesIds.has(seriesId) || parkingManager.getControllerForSeriesId(seriesId)) {
+      return;
+    }
+    const nextCard = createOrReuseCuratedCard(
+      entry,
+      metadataLoading && isRenderableEntryMetadataLoading(entry),
+      usedSeriesIds,
+    );
+    const parentNode = (nextCard as Element & { parentNode?: Element | null }).parentNode;
+    if (parentNode !== gridElement) {
+      gridElement.appendChild(nextCard);
+    }
+    parkCardForReuse(nextCard);
+  });
 }
 
 function createCuratedGridRenderContext(options: CuratedGridRenderContextOptions): CuratedGridRenderContext {
@@ -567,6 +633,7 @@ function renderCuratedGridIfNeeded(
     state,
     documentRef,
     visible,
+    retainedHidden = [],
     total,
     loading,
     metadataLoading,
@@ -606,6 +673,18 @@ function renderCuratedGridIfNeeded(
   incrementCuratedDomLifecycleCounter(state, 'renderPasses');
 
   renderCuratedGridPass(renderContext);
+  prewarmHiddenCuratedCards({
+    gridElement: gridEl,
+    retainedHidden,
+    visibleSeriesIds: new Set(visible.map((entry) => getEntrySeriesId(entry)).filter(Boolean)),
+    metadataLoading,
+    createOrReuseCuratedCard: renderContext.createOrReuseCuratedCard,
+    getEntrySeriesId,
+    isRenderableEntryMetadataLoading,
+    parkCardForReuse: renderContext.parkCardForReuse,
+    parkingManager,
+  });
+  parkingManager.trimParkedCardsForReuse(parkingLifecycleHandlers);
 
   state.curatedGridRenderSignature = gridRenderSignature;
 }

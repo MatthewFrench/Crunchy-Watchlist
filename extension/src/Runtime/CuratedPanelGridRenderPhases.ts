@@ -1,3 +1,4 @@
+import { readCuratedGridActiveCards } from './CuratedPanelGridDomState.js';
 import { CuratedPanelGridMountReconcilerOwner } from './CuratedPanelGridMountReconciler.js';
 import { CuratedPanelGridOrderPlannerOwner } from './CuratedPanelGridOrderPlanner.js';
 
@@ -74,7 +75,7 @@ function shouldSkipCuratedGridRender(options: ShouldSkipCuratedGridRenderOptions
     return false;
   }
 
-  const children = Array.from(gridEl.children);
+  const children = readCuratedGridActiveCards(gridEl);
   if (visible.length > 0) {
     return (
       children.length === visible.length &&
