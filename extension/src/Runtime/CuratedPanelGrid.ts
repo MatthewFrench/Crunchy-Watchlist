@@ -43,6 +43,7 @@ type CuratedPanelGridRenderOptions = {
   state: CuratedPanelGridState;
   documentRef: Document;
   visible: CuratedGridEntry[];
+  retainedHidden?: CuratedGridEntry[];
   total: number;
   loading: boolean;
   metadataLoading: boolean;
@@ -499,6 +500,51 @@ function createShouldRetainCardInGrid(loadedSeriesIds: Set<string>): (card: Elem
   };
 }
 
+function prewarmHiddenCuratedCards(options: {
+  gridElement: Element;
+  retainedHidden: CuratedGridEntry[];
+  visibleSeriesIds: Set<string>;
+  metadataLoading: boolean;
+  createOrReuseCuratedCard: (entry: CuratedGridEntry, detailsLoading: boolean, visibleSeriesIds: Set<string>) => Element;
+  getEntrySeriesId: (entry: CuratedGridEntry) => string;
+  isRenderableEntryMetadataLoading: (entry: CuratedGridEntry) => boolean;
+  parkCardForReuse: (card: Element) => void;
+  parkingManager: CuratedPanelGridParkingManager;
+}): void {
+  const {
+    gridElement,
+    retainedHidden,
+    visibleSeriesIds,
+    metadataLoading,
+    createOrReuseCuratedCard,
+    getEntrySeriesId,
+    isRenderableEntryMetadataLoading,
+    parkCardForReuse,
+    parkingManager,
+  } = options;
+  if (!retainedHidden.length) {
+    return;
+  }
+
+  const usedSeriesIds = new Set<string>(visibleSeriesIds);
+  retainedHidden.forEach((entry) => {
+    const seriesId = getEntrySeriesId(entry);
+    if (!seriesId || usedSeriesIds.has(seriesId) || parkingManager.getControllerForSeriesId(seriesId)) {
+      return;
+    }
+    const nextCard = createOrReuseCuratedCard(
+      entry,
+      metadataLoading && isRenderableEntryMetadataLoading(entry),
+      usedSeriesIds,
+    );
+    const parentNode = (nextCard as Element & { parentNode?: Element | null }).parentNode;
+    if (parentNode !== gridElement) {
+      gridElement.appendChild(nextCard);
+    }
+    parkCardForReuse(nextCard);
+  });
+}
+
 function createCuratedGridRenderContext(options: CuratedGridRenderContextOptions): CuratedGridRenderContext {
   const {
     state,
@@ -583,6 +629,7 @@ function renderCuratedGridIfNeeded(
     state,
     documentRef,
     visible,
+    retainedHidden = [],
     total,
     loading,
     metadataLoading,
@@ -622,6 +669,17 @@ function renderCuratedGridIfNeeded(
   incrementCuratedDomLifecycleCounter(state, 'renderPasses');
 
   renderCuratedGridPass(renderContext);
+  prewarmHiddenCuratedCards({
+    gridElement: gridEl,
+    retainedHidden,
+    visibleSeriesIds: new Set(visible.map((entry) => getEntrySeriesId(entry)).filter(Boolean)),
+    metadataLoading,
+    createOrReuseCuratedCard: renderContext.createOrReuseCuratedCard,
+    getEntrySeriesId,
+    isRenderableEntryMetadataLoading,
+    parkCardForReuse: renderContext.parkCardForReuse,
+    parkingManager,
+  });
 
   state.curatedGridRenderSignature = gridRenderSignature;
 }

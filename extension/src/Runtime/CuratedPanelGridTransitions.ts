@@ -25,6 +25,7 @@ import {
   resolveCuratedGridRemovableOverflow,
 } from './CuratedPanelGridOverflowSupport.js';
 import {
+  applyRetainedCardHiddenState,
   cancelRetainedCardHideIfNeeded,
   isParkedCardElement,
   isRetainedCardHiding,
@@ -644,6 +645,14 @@ function removeTrackedCuratedGridOverflowCard(
   );
 }
 
+function hideTrackedCuratedGridRetainedCard(
+  card: Element,
+  onCardRemoved: ((card: Element) => void) | null,
+): void {
+  applyRetainedCardHiddenState(card);
+  onCardRemoved?.(card);
+}
+
 function reconcileCuratedGridChildrenForAbsolutePlacement(
   gridElement: Element,
   nextCards: Element[],
@@ -683,13 +692,15 @@ function reconcileCuratedGridChildrenForAbsolutePlacement(
         parseNonNegativePixelValue,
       ),
     onImmediateRetain: (overflow) => {
-      removeTrackedCuratedGridOverflowCard(gridElement, overflow, onCardRemoved);
+      cancelLeavingCardIfNeeded(overflow);
+      cancelRetainedCardHideIfNeeded(overflow);
+      hideTrackedCuratedGridRetainedCard(overflow, onCardRemoved);
     },
     onAnimatedRetain: (overflow) => {
       incrementRuntimePerfDiagnostic('retainedCardHideScheduled');
       scheduleRetainedCardHide(overflow, retainedCardHideDurationMs, () => {
         incrementRuntimePerfDiagnostic('retainedCardHideCompleted');
-        onCardRemoved?.(overflow);
+        hideTrackedCuratedGridRetainedCard(overflow, onCardRemoved);
       });
     },
   });

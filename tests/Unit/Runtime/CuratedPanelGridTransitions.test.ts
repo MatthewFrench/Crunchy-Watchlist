@@ -711,6 +711,7 @@ describe('curated-panel-grid-transitions runtime', () => {
       expect(cardB.parentNode).toBe(grid);
       expect(cardB.className.includes('cw-curated-card--leaving')).toBe(false);
       expect(cardB.className.includes('cw-curated-card--parked')).toBe(true);
+      expect(cardB.style?.display).toBe('none');
       expect(removedCards).toEqual([cardB]);
     } finally {
       vi.useRealTimers();
@@ -755,9 +756,10 @@ describe('curated-panel-grid-transitions runtime', () => {
       });
 
       expect(removedCards).toEqual([cardB]);
-      expect(cardB.parentNode).toBeNull();
+      expect(cardB.parentNode).toBe(grid);
       expect(cardB.className.includes('cw-curated-card--leaving')).toBe(false);
-      expect(cardB.className.includes('cw-curated-card--parked')).toBe(false);
+      expect(cardB.className.includes('cw-curated-card--parked')).toBe(true);
+      expect(cardB.style?.display).toBe('none');
     } finally {
       vi.unstubAllGlobals();
     }

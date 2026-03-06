@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { type CDPSession, chromium, type Page } from '@playwright/test';
+import { type CDPSession, chromium, type Page, type Request } from '@playwright/test';
 
 type LiveSourceEntry = {
   file: string;
@@ -101,6 +101,21 @@ type BenchmarkProbeBucket = {
 };
 
 type BenchmarkProbeStats = Record<string, BenchmarkProbeBucket>;
+
+type RelevantRequestTracker = {
+  resetWindow: () => void;
+  readWindowUrls: () => string[];
+  isIdle: (quietMs: number) => boolean;
+  hasInflightRequests: () => boolean;
+  dispose: () => void;
+};
+
+type BenchmarkBaseline = {
+  audioFilter: string;
+  genreFilter: string;
+  watchReadyMode: string;
+  sortMode: string;
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -236,6 +251,55 @@ function isRelevantExtensionRequest(urlString: string): boolean {
   } catch {
     return false;
   }
+}
+
+function createRelevantRequestTracker(page: Page): RelevantRequestTracker {
+  const inflightRequests = new Set<Request>();
+  let lastRelevantActivityAt = Date.now();
+  let windowRequestUrls: string[] = [];
+
+  const onRequest = (request: Request): void => {
+    if (!isRelevantExtensionRequest(request.url())) {
+      return;
+    }
+    inflightRequests.add(request);
+    windowRequestUrls.push(request.url());
+    lastRelevantActivityAt = Date.now();
+  };
+
+  const onRequestFinished = (request: Request): void => {
+    if (!isRelevantExtensionRequest(request.url())) {
+      return;
+    }
+    inflightRequests.delete(request);
+    lastRelevantActivityAt = Date.now();
+  };
+
+  const onRequestFailed = (request: Request): void => {
+    if (!isRelevantExtensionRequest(request.url())) {
+      return;
+    }
+    inflightRequests.delete(request);
+    lastRelevantActivityAt = Date.now();
+  };
+
+  page.on('request', onRequest);
+  page.on('requestfinished', onRequestFinished);
+  page.on('requestfailed', onRequestFailed);
+
+  return {
+    resetWindow: () => {
+      windowRequestUrls = [];
+    },
+    readWindowUrls: () => [...windowRequestUrls],
+    isIdle: (quietMs: number) => inflightRequests.size === 0 && Date.now() - lastRelevantActivityAt >= quietMs,
+    hasInflightRequests: () => inflightRequests.size > 0,
+    dispose: () => {
+      page.off('request', onRequest);
+      page.off('requestfinished', onRequestFinished);
+      page.off('requestfailed', onRequestFailed);
+    },
+  };
 }
 
 async function readBenchmarkSnapshot(page: Page): Promise<BenchmarkSnapshot> {
@@ -448,13 +512,24 @@ async function waitForFirstRelevantChange(
   throw new Error('Timed out waiting for first relevant benchmark change.');
 }
 
-async function waitForSettledSnapshot(page: Page): Promise<{ snapshot: BenchmarkSnapshot; elapsedMs: number }> {
+async function waitForSteadySnapshot(
+  page: Page,
+  requestTracker: RelevantRequestTracker,
+  options: {
+    quietMs?: number;
+    stableMs?: number;
+    timeoutMs?: number;
+  } = {},
+): Promise<{ snapshot: BenchmarkSnapshot; elapsedMs: number }> {
+  const quietMs = options.quietMs ?? 450;
+  const stableMs = options.stableMs ?? 300;
+  const timeoutMs = options.timeoutMs ?? 12_000;
   const startedAt = Date.now();
   let lastSnapshot = await readBenchmarkSnapshot(page);
   let lastSignature = snapshotSignature(lastSnapshot);
   let stableSince = Date.now();
 
-  while (Date.now() - startedAt < 8_000) {
+  while (Date.now() - startedAt < timeoutMs) {
     await page.waitForTimeout(50);
     const nextSnapshot = await readBenchmarkSnapshot(page);
     const nextSignature = snapshotSignature(nextSnapshot);
@@ -464,7 +539,13 @@ async function waitForSettledSnapshot(page: Page): Promise<{ snapshot: Benchmark
       stableSince = Date.now();
       continue;
     }
-    if (Date.now() - stableSince >= 250 && nextSnapshot.leavingCount === 0) {
+    const stableDurationMs = Date.now() - stableSince;
+    const hasNoInflightRequests = !requestTracker.hasInflightRequests();
+    const settledWithQuietIdle =
+      stableDurationMs >= stableMs && nextSnapshot.leavingCount === 0 && requestTracker.isIdle(quietMs);
+    const settledWithRelaxedIdle =
+      stableDurationMs >= Math.max(stableMs, quietMs) && nextSnapshot.leavingCount === 0 && hasNoInflightRequests;
+    if (settledWithQuietIdle || settledWithRelaxedIdle) {
       return {
         snapshot: nextSnapshot,
         elapsedMs: Date.now() - startedAt,
@@ -472,107 +553,168 @@ async function waitForSettledSnapshot(page: Page): Promise<{ snapshot: Benchmark
     }
   }
 
-  throw new Error('Timed out waiting for benchmark interaction to settle.');
+  throw new Error('Timed out waiting for benchmark steady-state.');
+}
+
+async function readSelectValue(page: Page, selector: string): Promise<string> {
+  return page.evaluate((nextSelector) => {
+    const element = document.querySelector(nextSelector);
+    return element instanceof HTMLSelectElement ? element.value : '';
+  }, selector);
+}
+
+async function selectOptionIfNeeded(page: Page, selector: string, value: string): Promise<void> {
+  const currentValue = await readSelectValue(page, selector);
+  if (currentValue === value) {
+    return;
+  }
+  await page.selectOption(selector, value);
+}
+
+async function applyBenchmarkBaseline(page: Page, baseline: BenchmarkBaseline): Promise<void> {
+  await selectOptionIfNeeded(page, '#cw-audio-filter', baseline.audioFilter);
+  await selectOptionIfNeeded(page, '#cw-genre-filter', baseline.genreFilter);
+  await selectOptionIfNeeded(page, '#cw-watch-ready-mode', baseline.watchReadyMode);
+  await selectOptionIfNeeded(page, '#cw-sort-mode', baseline.sortMode);
+}
+
+async function settleBenchmarkBaseline(
+  page: Page,
+  requestTracker: RelevantRequestTracker,
+  baseline: BenchmarkBaseline,
+): Promise<BenchmarkSnapshot> {
+  await applyBenchmarkBaseline(page, baseline);
+  return (await waitForSteadySnapshot(page, requestTracker)).snapshot;
 }
 
 async function measureInteraction(options: {
   page: Page;
   cdpSession: CDPSession;
+  requestTracker: RelevantRequestTracker;
   name: string;
   selector: string;
   targetValue: string;
   expectation: 'order' | 'count-or-order';
+  before: BenchmarkSnapshot;
 }): Promise<BenchmarkMeasurement> {
-  const { page, cdpSession, name, selector, targetValue, expectation } = options;
-  const before = await readBenchmarkSnapshot(page);
+  const { page, cdpSession, requestTracker, name, selector, targetValue, expectation, before } = options;
   await resetBenchmarkProbe(page);
+  requestTracker.resetWindow();
   const metricsBeforeRecord = toMetricRecord(
     (await cdpSession.send('Performance.getMetrics')).metrics as Array<{ name: string; value: number }>,
   );
   const metricsBefore = pickEnginePerfMetrics(metricsBeforeRecord);
   const memoryBefore = pickEngineMemoryMetrics(metricsBeforeRecord);
-  const requestUrls: string[] = [];
-  const requestListener = (request: { url: () => string }) => {
-    const url = request.url();
-    if (isRelevantExtensionRequest(url)) {
-      requestUrls.push(url);
-    }
+  await page.selectOption(selector, targetValue);
+  const firstChange = await waitForFirstRelevantChange(page, before, expectation);
+  const settled = await waitForSteadySnapshot(page, requestTracker);
+  const after = settled.snapshot;
+  const metricsAfterRecord = toMetricRecord(
+    (await cdpSession.send('Performance.getMetrics')).metrics as Array<{ name: string; value: number }>,
+  );
+  const metricsAfter = pickEnginePerfMetrics(metricsAfterRecord);
+  const memoryAfter = pickEngineMemoryMetrics(metricsAfterRecord);
+  const probeStats = await readBenchmarkProbe(page);
+  const requestUrls = requestTracker.readWindowUrls();
+
+  return {
+    name,
+    selector,
+    targetValue,
+    expectation,
+    firstChangeMs: firstChange.elapsedMs,
+    settledMs: settled.elapsedMs,
+    requestCount: requestUrls.length,
+    before,
+    after,
+    countersDelta: diffNumericRecord(
+      before.debugStats?.counters || {
+        created: 0,
+        patched: 0,
+        parked: 0,
+        unparked: 0,
+        disposed: 0,
+        renderPasses: 0,
+      },
+      after.debugStats?.counters || {
+        created: 0,
+        patched: 0,
+        parked: 0,
+        unparked: 0,
+        disposed: 0,
+        renderPasses: 0,
+      },
+    ),
+    perfDelta: diffNumericRecord(
+      before.debugStats?.perfDiagnostics || {
+        routeObserverBatchesProcessed: 0,
+        routeObserverBatchesIgnored: 0,
+        routeStructureChecks: 0,
+        routeStructureSyncs: 0,
+        gridLayoutCacheHits: 0,
+        gridLayoutCacheMisses: 0,
+        retainedCardHideScheduled: 0,
+        retainedCardHideCompleted: 0,
+        localizedPreloadRenderRequestsQueued: 0,
+        localizedPreloadRenderRequestsDeduped: 0,
+      },
+      after.debugStats?.perfDiagnostics || {
+        routeObserverBatchesProcessed: 0,
+        routeObserverBatchesIgnored: 0,
+        routeStructureChecks: 0,
+        routeStructureSyncs: 0,
+        gridLayoutCacheHits: 0,
+        gridLayoutCacheMisses: 0,
+        retainedCardHideScheduled: 0,
+        retainedCardHideCompleted: 0,
+        localizedPreloadRenderRequestsQueued: 0,
+        localizedPreloadRenderRequestsDeduped: 0,
+      },
+    ),
+    enginePerfDelta: diffNumericRecord(metricsBefore, metricsAfter),
+    memoryDelta: diffNumericRecord(memoryBefore, memoryAfter),
+    probeStats,
   };
+}
 
-  page.on('request', requestListener);
-  try {
-    await page.selectOption(selector, targetValue);
-    const firstChange = await waitForFirstRelevantChange(page, before, expectation);
-    const settled = await waitForSettledSnapshot(page);
-    const after = settled.snapshot;
-    const metricsAfterRecord = toMetricRecord(
-      (await cdpSession.send('Performance.getMetrics')).metrics as Array<{ name: string; value: number }>,
-    );
-    const metricsAfter = pickEnginePerfMetrics(metricsAfterRecord);
-    const memoryAfter = pickEngineMemoryMetrics(metricsAfterRecord);
-    const probeStats = await readBenchmarkProbe(page);
+async function measureSteadyInteraction(options: {
+  page: Page;
+  cdpSession: CDPSession;
+  requestTracker: RelevantRequestTracker;
+  baseline: BenchmarkBaseline;
+  name: string;
+  selector: string;
+  targetValue: string;
+  expectation: 'order' | 'count-or-order';
+}): Promise<BenchmarkMeasurement> {
+  const { page, cdpSession, requestTracker, baseline, name, selector, targetValue, expectation } = options;
+  let lastMeasurement: BenchmarkMeasurement | null = null;
 
-    return {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const before = await settleBenchmarkBaseline(page, requestTracker, baseline);
+    const measurement = await measureInteraction({
+      page,
+      cdpSession,
+      requestTracker,
       name,
       selector,
       targetValue,
       expectation,
-      firstChangeMs: firstChange.elapsedMs,
-      settledMs: settled.elapsedMs,
-      requestCount: requestUrls.length,
       before,
-      after,
-      countersDelta: diffNumericRecord(
-        before.debugStats?.counters || {
-          created: 0,
-          patched: 0,
-          parked: 0,
-          unparked: 0,
-          disposed: 0,
-          renderPasses: 0,
-        },
-        after.debugStats?.counters || {
-          created: 0,
-          patched: 0,
-          parked: 0,
-          unparked: 0,
-          disposed: 0,
-          renderPasses: 0,
-        },
-      ),
-      perfDelta: diffNumericRecord(
-        before.debugStats?.perfDiagnostics || {
-          routeObserverBatchesProcessed: 0,
-          routeObserverBatchesIgnored: 0,
-          routeStructureChecks: 0,
-          routeStructureSyncs: 0,
-          gridLayoutCacheHits: 0,
-          gridLayoutCacheMisses: 0,
-          retainedCardHideScheduled: 0,
-          retainedCardHideCompleted: 0,
-          localizedPreloadRenderRequestsQueued: 0,
-          localizedPreloadRenderRequestsDeduped: 0,
-        },
-        after.debugStats?.perfDiagnostics || {
-          routeObserverBatchesProcessed: 0,
-          routeObserverBatchesIgnored: 0,
-          routeStructureChecks: 0,
-          routeStructureSyncs: 0,
-          gridLayoutCacheHits: 0,
-          gridLayoutCacheMisses: 0,
-          retainedCardHideScheduled: 0,
-          retainedCardHideCompleted: 0,
-          localizedPreloadRenderRequestsQueued: 0,
-          localizedPreloadRenderRequestsDeduped: 0,
-        },
-      ),
-      enginePerfDelta: diffNumericRecord(metricsBefore, metricsAfter),
-      memoryDelta: diffNumericRecord(memoryBefore, memoryAfter),
-      probeStats,
-    };
-  } finally {
-    page.off('request', requestListener);
+    });
+    if (measurement.requestCount === 0) {
+      return measurement;
+    }
+    lastMeasurement = measurement;
+    console.log(
+      `[bench] ${name} attempt=${attempt} observed ${measurement.requestCount} relevant request(s); retrying after idle.`,
+    );
   }
+
+  if (!lastMeasurement) {
+    throw new Error(`Benchmark measurement for ${name} did not produce a result.`);
+  }
+  return lastMeasurement;
 }
 
 async function main(): Promise<void> {
@@ -603,6 +745,7 @@ async function main(): Promise<void> {
     await page.waitForLoadState('domcontentloaded', { timeout: 20_000 });
   }
 
+  const requestTracker = createRelevantRequestTracker(page);
   await injectLatest(page);
   await page.waitForTimeout(3_200);
   await page.waitForSelector('#cw-audio-filter', { timeout: 20_000 });
@@ -613,19 +756,19 @@ async function main(): Promise<void> {
   await cdpSession.send('Performance.enable');
   await installBenchmarkProbe(page);
 
-  const baseline = await readBenchmarkSnapshot(page);
-  const originalAudio = baseline.audioFilter || 'any';
-  const originalSort = baseline.sortMode || 'consensus_quality_desc';
-  const originalGenre = baseline.genreFilter || 'any';
-  const originalWatchReady = baseline.watchReadyMode || 'hide';
+  const baseline = await waitForSteadySnapshot(page, requestTracker, { timeoutMs: 20_000 });
+  const originalAudio = baseline.snapshot.audioFilter || 'any';
+  const originalSort = baseline.snapshot.sortMode || 'consensus_quality_desc';
+  const originalGenre = baseline.snapshot.genreFilter || 'any';
+  const originalWatchReady = baseline.snapshot.watchReadyMode || 'hide';
+  const normalizedBaselineControls: BenchmarkBaseline = {
+    audioFilter: 'any',
+    genreFilter: 'any',
+    watchReadyMode: 'hide',
+    sortMode: 'consensus_quality_desc',
+  };
 
-  await page.selectOption('#cw-audio-filter', 'any');
-  await page.selectOption('#cw-genre-filter', 'any');
-  await page.selectOption('#cw-watch-ready-mode', 'hide');
-  await page.selectOption('#cw-sort-mode', 'consensus_quality_desc');
-  await page.waitForTimeout(600);
-
-  const normalizedBaseline = await readBenchmarkSnapshot(page);
+  const normalizedBaseline = await settleBenchmarkBaseline(page, requestTracker, normalizedBaselineControls);
   console.log('[bench] baseline', JSON.stringify(normalizedBaseline));
 
   const genreOptions = (await page.evaluate(`(() => {
@@ -642,9 +785,11 @@ async function main(): Promise<void> {
 
   const measurements: BenchmarkMeasurement[] = [];
   measurements.push(
-    await measureInteraction({
+    await measureSteadyInteraction({
       page,
       cdpSession,
+      requestTracker,
+      baseline: normalizedBaselineControls,
       name: 'sort-change',
       selector: '#cw-sort-mode',
       targetValue: sortTarget,
@@ -654,9 +799,11 @@ async function main(): Promise<void> {
 
   if (genreTarget !== originalGenre) {
     measurements.push(
-      await measureInteraction({
+      await measureSteadyInteraction({
         page,
         cdpSession,
+        requestTracker,
+        baseline: normalizedBaselineControls,
         name: 'genre-favorites',
         selector: '#cw-genre-filter',
         targetValue: genreTarget,
@@ -666,9 +813,11 @@ async function main(): Promise<void> {
   }
 
   measurements.push(
-    await measureInteraction({
+    await measureSteadyInteraction({
       page,
       cdpSession,
+      requestTracker,
+      baseline: normalizedBaselineControls,
       name: 'watch-ready-toggle',
       selector: '#cw-watch-ready-mode',
       targetValue: watchReadyTarget,
@@ -676,11 +825,13 @@ async function main(): Promise<void> {
     }),
   );
 
-  await page.selectOption('#cw-watch-ready-mode', originalWatchReady);
-  await page.selectOption('#cw-genre-filter', originalGenre);
-  await page.selectOption('#cw-sort-mode', originalSort);
-  await page.selectOption('#cw-audio-filter', originalAudio);
-  await page.waitForTimeout(500);
+  await applyBenchmarkBaseline(page, {
+    audioFilter: originalAudio,
+    genreFilter: originalGenre,
+    watchReadyMode: originalWatchReady,
+    sortMode: originalSort,
+  });
+  await waitForSteadySnapshot(page, requestTracker);
   console.log('[bench] restored', JSON.stringify(await readBenchmarkSnapshot(page)));
 
   console.log('[bench] client-only measurements');
@@ -705,6 +856,7 @@ async function main(): Promise<void> {
   }
 
   await cdpSession.send('Performance.disable');
+  requestTracker.dispose();
   await browser.close();
 }
 

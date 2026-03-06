@@ -56,6 +56,149 @@ The feature tracks shows at series level only. Episode progress, ratings, favori
 2. The current `watchlistCache` is not a suitable home for saved transfer snapshots because it is a single active-scope cache and resets on scope mismatch.
 3. Existing watchlist mutations only support favorite/remove. Import requires a new add path even for watchlist support.
 
+### 3.4 Live API discovery findings (verified 2026-03-06)
+
+Read-only live exploration was performed against a logged-in Edge CDP session on real `crunchyroll.com` pages.
+No list mutations were allowed to reach Crunchyroll:
+
+1. Read-only navigation was used for list catalog and list detail pages.
+2. Mutation discovery clicks were performed only after matching write requests were intercepted and aborted locally.
+
+Observed routes and request shapes:
+
+1. Crunchy List catalog
+
+```text
+GET /content/v2/{account_id}/custom-lists?locale=en-US
+```
+
+Observed response shape:
+
+```ts
+type CustomListCatalogResponse = {
+  total: number;
+  data: Array<{
+    list_id: string;
+    is_public: boolean;
+    total: number;
+    modified_at: string;
+    title: string;
+  }>;
+  meta: {
+    total_public: number;
+    total_private: number;
+    max_private: number;
+  };
+};
+```
+
+Observed notes:
+
+1. The route is driven by the public page `https://www.crunchyroll.com/crunchylists`.
+2. The sample account response reported `max_private: 10`.
+
+2. Crunchy List members
+
+```text
+GET /content/v2/{account_id}/custom-lists/{list_id}?ratings=true&locale=en-US
+```
+
+Observed response shape:
+
+```ts
+type CustomListMembersResponse = {
+  total: number;
+  data: Array<{
+    list_id: string;
+    id: string;
+    modified_at: string;
+    panel: {
+      id: string;
+      type: 'series';
+      title: string;
+      slug_title: string;
+      description: string;
+      rating?: unknown;
+      images?: unknown;
+      series_metadata?: unknown;
+    };
+  }>;
+  meta: {
+    title: string;
+    is_public: boolean;
+    modified_at: string;
+    prev_page: string;
+    next_page: string;
+    max: number;
+  };
+};
+```
+
+Observed notes:
+
+1. `panel.id` is the series id needed for snapshot/import.
+2. The sample response reported `meta.max: 100`.
+3. The sample response returned all items directly with empty `prev_page` / `next_page`.
+
+3. Watchlist membership lookup by series ids
+
+```text
+GET /content/v2/{account_id}/watchlist?content_ids={comma_separated_series_ids}&preferred_audio_language=en-US&locale=en-US
+```
+
+Observed response shape:
+
+```ts
+type WatchlistMembershipLookupResponse = {
+  total: number;
+  data: Array<{
+    id: string;
+    is_favorite: boolean;
+    date_added: string;
+  }>;
+  meta: Record<string, unknown>;
+};
+```
+
+Observed notes:
+
+1. This was triggered by Crunchyroll's own Crunchy List detail page to determine which cards are already in watchlist.
+2. This is a useful duplicate-skip primitive for import-to-watchlist.
+
+4. Add to watchlist
+
+```text
+POST /content/v2/{account_id}/watchlist?preferred_audio_language=en-US&locale=en-US
+content-type: application/json
+body: { "content_id": "{series_id}" }
+```
+
+Observed notes:
+
+1. This request was captured by clicking the native `Add to Watchlist` button on a series page.
+2. The request was intercepted and aborted locally before it was sent upstream.
+3. The UI used a single `content_id`, not a bulk array.
+
+5. Add to existing Crunchy List
+
+```text
+POST /content/v2/{account_id}/custom-lists/{list_id}?preferred_audio_language=en-US&locale=en-US
+content-type: application/json
+body: { "content_id": "{series_id}" }
+```
+
+Observed notes:
+
+1. This request was captured by opening the native `My List` modal on a series page and selecting an existing list.
+2. The request was intercepted and aborted locally before it was sent upstream.
+3. The UI used a single `content_id`, not a bulk array.
+
+Discovery conclusions:
+
+1. The repo can support v1 import/export without route expansion because all required list contracts were observed through API-driven flows.
+2. Observed endpoints remain under existing `https://www.crunchyroll.com/content/v2/*` host permissions.
+3. No bulk-add contract was observed. Implementation should assume one-item-at-a-time `POST` imports unless later discovery proves otherwise.
+
 ## 4) Recommended Product Shape
 
 ### 4.1 Core concept
@@ -144,6 +287,13 @@ Exit criteria:
 2. Confirmation of whether bulk add exists
 3. Confirmation of whether list routes require new host permissions
 4. Updated fixture server contract plan
+
+Status on 2026-03-06:
+
+1. Concrete catalog/detail/add request shapes were observed live.
+2. No bulk-add endpoint was observed in native UI traffic.
+3. No new host permissions are required for the observed routes.
+4. Fixture server updates are still pending implementation work.
 
 ### Phase 1: Saved-set storage and watchlist snapshot support
 
@@ -372,6 +522,7 @@ Reason:
 1. Existing shell mounts only on watchlist routes.
 2. Existing DOM hook discovery is watchlist-specific.
 3. Transfer UX can still support Crunchy List capture by offering a list selector on the watchlist page.
+4. Live discovery confirmed the required list catalog/detail/add endpoints are API-driven and do not require list-page mounting for v1.
 
 ### 9.2 When route expansion becomes necessary
 
@@ -465,17 +616,29 @@ Keep these green before landing the feature:
 
 ### 12.1 Highest-risk unknown
 
-Crunchy List endpoints and add-to-target request shapes are not yet discovered in this repo.
+The highest-risk unknown from initial planning was Crunchy List endpoint discovery.
 
-This is the main blocker for exact implementation sizing.
+This is now resolved for the native flows observed on 2026-03-06:
+
+1. list catalog fetch,
+2. list members fetch,
+3. add-to-watchlist,
+4. add-to-existing-list,
+5. watchlist membership lookup.
+
+Remaining uncertainty is narrower:
+
+1. response details for success/failure edge cases,
+2. rate-limit behavior under sustained import,
+3. whether any hidden bulk path exists outside the observed native UI flow.
 
 ### 12.2 Secondary risks
 
-1. Watchlist import may require a different endpoint than the existing favorite/remove path.
-2. Crunchyroll may return different scopes or identifiers for watchlist and list endpoints.
-3. List target membership fetch may be required to avoid excessive duplicate writes.
-4. Host permissions may need to expand if list APIs live outside already allowed paths.
-5. Route expansion may be needed if API discovery is incomplete.
+1. Watchlist import uses a newly discovered `POST /watchlist` path, so implementation must not reuse the existing favorite/remove mutation helper without refactoring.
+2. Crunchyroll may return different scopes or identifiers for watchlist and list endpoints in other profile/account states.
+3. List target membership fetch may still be required to avoid excessive duplicate writes when importing into an existing Crunchy List.
+4. Success/failure response contracts for blocked write requests were not observed because writes were intentionally not allowed to complete.
+5. Route expansion is no longer required for v1 based on the observed API-driven paths, but could still be revisited for richer UI later.
 
 ### 12.3 Safety requirements
 
@@ -524,12 +687,12 @@ Status values:
 | --- | --- | --- | --- | --- |
 | T01 | Done | Planning | Investigate current repo support for watchlist/profile/list transfer | Repository investigation completed on 2026-03-06 |
 | T02 | Done | Planning | Create implementation planning document with tracker | This document |
-| T03 | Planned | Discovery | Capture live API contracts for Crunchy List catalog fetch | Exact endpoint unknown today |
-| T04 | Planned | Discovery | Capture live API contracts for Crunchy List members fetch | Needed for copy and duplicate skipping |
-| T05 | Planned | Discovery | Capture live API contract for add-to-watchlist | Existing repo only supports favorite/remove |
-| T06 | Planned | Discovery | Capture live API contract for add-to-existing-Crunchy-List | Exact request shape unknown today |
-| T07 | Planned | Discovery | Confirm whether bulk add exists for watchlist or list targets | If yes, queue design can simplify |
-| T08 | Planned | Discovery | Confirm whether new host permissions are required | Update manifest only if necessary |
+| T03 | Done | Discovery | Capture live API contracts for Crunchy List catalog fetch | Observed `GET /content/v2/{account_id}/custom-lists?locale=en-US` |
+| T04 | Done | Discovery | Capture live API contracts for Crunchy List members fetch | Observed `GET /content/v2/{account_id}/custom-lists/{list_id}?ratings=true&locale=en-US` |
+| T05 | Done | Discovery | Capture live API contract for add-to-watchlist | Observed blocked native `POST /content/v2/{account_id}/watchlist` with `{ content_id }` body |
+| T06 | Done | Discovery | Capture live API contract for add-to-existing-Crunchy-List | Observed blocked native `POST /content/v2/{account_id}/custom-lists/{list_id}` with `{ content_id }` body |
+| T07 | Done | Discovery | Confirm whether bulk add exists for watchlist or list targets | No bulk-add request observed in native UI flows; assume single-item POSTs |
+| T08 | Done | Discovery | Confirm whether new host permissions are required | Observed routes stay under existing `content/v2/*` host permission |
 | T09 | Planned | Data | Add `SavedShowSetRepository` with normalized persisted shape | Use dedicated storage key |
 | T10 | Planned | Data | Add saved-set state hydration to runtime bootstrap | Must not reuse `watchlistCache` |
 | T11 | Planned | Data | Add `CrunchyListClient` for list catalog and membership fetch | Contract-audited boundary module |
@@ -542,7 +705,7 @@ Status values:
 | T18 | Planned | UI | Add saved-set browser and selection UI | Show name, source, profile, timestamp, count |
 | T19 | Planned | UI | Add import progress and final summary UI | Added/skipped/failed/cancelled |
 | T20 | Planned | UI | Add target selector for existing Crunchy Lists | Requires list catalog fetch |
-| T21 | Planned | Routing | Decide whether list-page route expansion is required | Prefer no for v1 |
+| T21 | Done | Routing | Decide whether list-page route expansion is required | Not required for v1 based on observed API-driven catalog/detail/add flows |
 | T22 | Planned | Tests | Add unit tests for repository normalization and dedupe | Series-level only |
 | T23 | Planned | Tests | Add unit tests for transfer queue pacing, retry, and cancellation | Include profile-switch cancellation |
 | T24 | Planned | Tests | Add unit tests for watchlist and list import clients | Request contract coverage |

@@ -20,6 +20,7 @@ type CuratedRenderableRuntime = {
     mode: string;
     total: number;
     visible: Array<Record<string, unknown>>;
+    retainedHidden: Array<Record<string, unknown>>;
     audioOptions: Array<{ optionValue: string; title: string }>;
     genreOptions: Array<{ optionValue: string; title: string }>;
     selectedAudioFilter: string;
@@ -269,6 +270,7 @@ describe('curated-renderable runtime', () => {
     expect(result.total).toBe(2);
     expect(result.visible).toHaveLength(1);
     expect(result.visible[0]?.seriesId).toBe('series-1');
+    expect(result.retainedHidden.map((entry) => entry.seriesId)).toEqual(['series-2']);
   });
 
   it('rebuilds visible order when sort settings change', () => {

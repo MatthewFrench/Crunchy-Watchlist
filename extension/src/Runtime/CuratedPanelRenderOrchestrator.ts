@@ -10,6 +10,7 @@ type RenderableResult = {
   mode: 'none' | 'dim' | 'hide' | 'hide_not_started';
   total: number;
   visible: CuratedRenderableEntry[];
+  retainedHidden?: CuratedRenderableEntry[];
   audioOptions: Array<{ optionValue: string; title: string }>;
   genreOptions: Array<{ optionValue: string; title: string }>;
   selectedAudioFilter: string;
@@ -20,6 +21,11 @@ type RequestProgress = {
   started: number;
   completed: number;
   inProgress: number;
+};
+
+type LoadingIndicatorStatus = {
+  pendingRequests: string[];
+  requestProgress: RequestProgress;
 };
 
 type RuntimeState = {
@@ -50,6 +56,7 @@ type CuratedPanelGridRuntime = {
     state: RuntimeState;
     documentRef: Document;
     visible: CuratedRenderableEntry[];
+    retainedHidden?: CuratedRenderableEntry[];
     total: number;
     loading: boolean;
     metadataLoading: boolean;
@@ -110,6 +117,7 @@ type CuratedPanelRenderOrchestratorOptions = {
 };
 
 const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
+const deferredMetadataBlockingTaskLabel = 'Finishing remaining card details';
 
 function updateRevisionHash(hash: number, value: string): number {
   let next = hash >>> 0;
@@ -272,6 +280,7 @@ export class CuratedPanelRenderOrchestrator {
       mode: watchReadyFilterMode,
       total,
       visible,
+      retainedHidden = [],
       audioOptions,
       genreOptions,
       selectedAudioFilter,
@@ -311,6 +320,7 @@ export class CuratedPanelRenderOrchestrator {
         state,
         documentRef: this.context.documentRef,
         visible,
+        retainedHidden,
         total,
         loading,
         metadataLoading,
@@ -338,6 +348,7 @@ export class CuratedPanelRenderOrchestrator {
     const loading = Boolean(state.curatedInflight) || Boolean(state.curatedDeferredMetadataInFlight);
     const hasNoCuratedEntries = !Array.isArray(state.curatedEntries) || state.curatedEntries.length === 0;
     const pendingRequests = this.getPendingRequestItems(state.curatedPendingRequests);
+    const loadingIndicatorStatus = this.getLoadingIndicatorStatus();
     const showFirstLoadByCurrentState = loading && (state.curatedInitialLoadDone !== true || hasNoCuratedEntries);
     // Latch first-load visibility so the shared loading box stays mounted until
     // all initial work (including deferred metadata) has fully settled.
@@ -354,7 +365,6 @@ export class CuratedPanelRenderOrchestrator {
     }
     const firstLoadInFlight =
       showFirstLoadByCurrentState || (this.initialLoadingLatched && (loading || pendingRequests.length > 0));
-    const requestProgress = this.getPendingRequestProgress(pendingRequests);
 
     this.context.curatedPanelLoadingIndicatorRuntime.syncLoadingIndicator({
       documentRef: this.context.documentRef,
@@ -363,8 +373,8 @@ export class CuratedPanelRenderOrchestrator {
       gridEl: state.gridEl,
       loading,
       firstLoadInFlight,
-      pendingRequests,
-      requestProgress,
+      pendingRequests: loadingIndicatorStatus.pendingRequests,
+      requestProgress: loadingIndicatorStatus.requestProgress,
     });
   };
 
@@ -389,6 +399,32 @@ export class CuratedPanelRenderOrchestrator {
       started,
       completed,
       inProgress: pendingRequests.length,
+    };
+  };
+
+  /**
+   * Deferred metadata keeps the shared loading box mounted, so surface it as
+   * explicit blocking work after tracked requests have already completed.
+   */
+  private readonly getLoadingIndicatorStatus = (): LoadingIndicatorStatus => {
+    const { state } = this.context;
+    const pendingRequests = this.getPendingRequestItems(state.curatedPendingRequests);
+    const requestProgress = this.getPendingRequestProgress(pendingRequests);
+
+    if (state.curatedDeferredMetadataInFlight !== true) {
+      return {
+        pendingRequests,
+        requestProgress,
+      };
+    }
+
+    return {
+      pendingRequests: [...pendingRequests, deferredMetadataBlockingTaskLabel],
+      requestProgress: {
+        started: requestProgress.started + 1,
+        completed: requestProgress.completed,
+        inProgress: requestProgress.inProgress + 1,
+      },
     };
   };
 

@@ -61,6 +61,7 @@ type BuildRenderableEntriesResult = {
   mode: 'none' | 'dim' | 'hide' | 'hide_not_started';
   total: number;
   visible: LooseRecord[];
+  retainedHidden: LooseRecord[];
   audioOptions: Array<{ optionValue: string; title: string }>;
   genreOptions: Array<{ optionValue: string; title: string }>;
   selectedAudioFilter: string;
@@ -369,11 +370,19 @@ function buildRenderableEntriesInternal(
     dependencies,
     listProcessingRuntime,
   );
+  const filteredEntrySet = new Set(filtered);
+  const retainedHidden = merged
+    .filter((entry) => !filteredEntrySet.has(entry))
+    .map((entry) => ({
+      ...entry,
+      dimNotWatchReady: watchReadyFilterMode === 'dim' && !entry.watchReady,
+    }));
 
   return {
     mode: watchReadyFilterMode,
     total: merged.length,
     visible: decorated,
+    retainedHidden,
     audioOptions: mergeSupportRuntime.buildCuratedFilterOptions('Any language', effectiveAudioFilter, audioValues),
     genreOptions: mergeSupportRuntime.buildGenreFilterOptions(
       effectiveGenreFilter,

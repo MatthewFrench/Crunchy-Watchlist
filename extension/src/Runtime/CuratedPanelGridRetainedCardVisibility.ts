@@ -39,6 +39,33 @@ function clearRetainedCardHideState(card: Element): void {
   setCardClassToken(card, 'cw-curated-card--leaving', false);
 }
 
+export function applyRetainedCardHiddenState(card: Element): void {
+  const cardElement = card as Element & {
+    className?: string;
+    style?: Record<string, string>;
+  };
+  const style = cardElement.style;
+  if (style) {
+    if (style.display !== 'none') {
+      style.display = 'none';
+    }
+    if (style.pointerEvents !== 'none') {
+      style.pointerEvents = 'none';
+    }
+  }
+
+  const className = cardElement.className || '';
+  cardElement.className = toggleClassNameToken(
+    toggleClassNameToken(
+      toggleClassNameToken(className, 'cw-curated-card--leaving', false),
+      'cw-curated-card--parked',
+      true,
+    ),
+    'cw-curated-card',
+    false,
+  );
+}
+
 export function isRetainedCardHiding(value: Element): boolean {
   return retainedCardHideDurationByElement.has(value);
 }
@@ -96,9 +123,8 @@ export function scheduleRetainedCardHide(card: Element, durationMs: number, onHi
     }
     retainedCardHideBatchByDuration.delete(durationMs);
     activeBatch.onHiddenByElement.forEach((callback, activeCard) => {
-      retainedCardHideDurationByElement.delete(activeCard);
-      setCardClassToken(activeCard, 'cw-curated-card--leaving', false);
-      setCardClassToken(activeCard, 'cw-curated-card--parked', true);
+    retainedCardHideDurationByElement.delete(activeCard);
+      applyRetainedCardHiddenState(activeCard);
       callback?.();
     });
   }, durationMs);
