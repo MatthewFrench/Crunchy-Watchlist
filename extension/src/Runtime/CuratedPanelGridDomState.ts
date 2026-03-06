@@ -29,7 +29,8 @@ export function readCuratedGridActiveCards(gridElement: Element): Element[] {
   const activeCards = existingState.activeCards.filter((card) => {
     const parentNode = (card as Element & { parentNode?: object | null }).parentNode;
     return (
-      parentNode === gridElement && !(card as Element & { className?: string }).className?.includes('cw-curated-card--parked')
+      parentNode === gridElement &&
+      !(card as Element & { className?: string }).className?.includes('cw-curated-card--parked')
     );
   });
   if (activeCards.length !== existingState.activeCards.length) {
