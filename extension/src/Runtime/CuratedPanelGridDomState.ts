@@ -18,13 +18,27 @@ function resolveCuratedGridDomState(gridElement: Element): CuratedGridDomState {
 }
 
 export function readCuratedGridActiveCards(gridElement: Element): Element[] {
+  const liveChildren = Array.from(gridElement.children).filter(
+    (child) => !(child as Element & { className?: string }).className?.includes('cw-curated-card--parked'),
+  );
   const existingState = domStateByGridElement.get(gridElement);
   if (!existingState || existingState.activeCards.length === 0) {
-    return Array.from(gridElement.children).filter(
-      (child) => !(child as Element & { className?: string }).className?.includes('cw-curated-card--parked'),
-    );
+    return liveChildren;
   }
-  return [...existingState.activeCards];
+
+  const activeCards = existingState.activeCards.filter((card) => {
+    const parentNode = (card as Element & { parentNode?: object | null }).parentNode;
+    return (
+      parentNode === gridElement && !(card as Element & { className?: string }).className?.includes('cw-curated-card--parked')
+    );
+  });
+  if (activeCards.length !== existingState.activeCards.length) {
+    existingState.activeCards = [...activeCards];
+  }
+  if (activeCards.length === 0) {
+    return liveChildren;
+  }
+  return [...activeCards];
 }
 
 export function writeCuratedGridActiveCards(gridElement: Element, activeCards: Element[]): void {
