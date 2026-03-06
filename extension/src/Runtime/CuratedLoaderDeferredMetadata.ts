@@ -1,3 +1,5 @@
+import { readCuratedGridActiveCards } from './CuratedPanelGridDomState.js';
+
 type BoundaryValue = LooseRecord[string];
 type BoundaryList = BoundaryValue[];
 type BoundaryChunks = BoundaryList[];
@@ -121,16 +123,12 @@ function reorderDeferredEntriesByViewportInternal(
     return deferredEntries;
   }
 
-  const gridElement = context.state.gridEl as
-    | (Element & {
-        children?: ArrayLike<Element>;
-      })
-    | null;
-  if (!gridElement || !gridElement.children) {
+  const gridElement = context.state.gridEl as Element | null;
+  if (!gridElement) {
     return deferredEntries;
   }
 
-  const cards = Array.from(gridElement.children);
+  const cards = readCuratedGridActiveCards(gridElement);
   if (!cards.length) {
     return deferredEntries;
   }

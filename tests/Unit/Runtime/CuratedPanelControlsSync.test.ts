@@ -161,4 +161,28 @@ describe('CuratedPanelControlsSyncOwner', () => {
     expect(audioSelect.options).toHaveLength(1);
     expect(audioSelect.options[0]?.textContent).toBe('All languages');
   });
+
+  it('preserves selected non-default filter values across syncs', () => {
+    const owner = createOwner();
+    const audioSelect = createFakeSelectElement();
+    const genreSelect = createFakeSelectElement();
+
+    owner.syncFilterOptions(
+      audioSelect,
+      genreSelect,
+      [
+        { optionValue: 'any', title: 'Any language' },
+        { optionValue: 'en-US', title: 'en-US' },
+      ],
+      [
+        { optionValue: 'any', title: 'Any genre' },
+        { optionValue: 'action', title: 'action' },
+      ],
+      'en-US',
+      'action',
+    );
+
+    expect(audioSelect.value).toBe('en-US');
+    expect(genreSelect.value).toBe('action');
+  });
 });

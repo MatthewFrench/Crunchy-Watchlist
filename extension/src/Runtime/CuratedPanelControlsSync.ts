@@ -137,6 +137,7 @@ export class CuratedPanelControlsSyncOwner {
 
     const currentValue =
       typeof selectedValue === 'string' && selectedValue ? selectedValue : options[0]?.optionValue || '';
+    const hasCurrentOptionValue = options.some(({ optionValue }) => optionValue === currentValue);
     const existing = getSelectOptionSignature(select);
     const next = options.map((option) => `${option.optionValue}\u001f${option.title}`);
     const unchanged = existing.length === next.length && existing.every((value, index) => value === next[index]);
@@ -151,7 +152,7 @@ export class CuratedPanelControlsSyncOwner {
       });
     }
 
-    select.value = next.includes(currentValue) ? currentValue : options[0]?.optionValue || '';
+    select.value = hasCurrentOptionValue ? currentValue : options[0]?.optionValue || '';
   };
 
   private readonly resolveCuratedStatsText = (

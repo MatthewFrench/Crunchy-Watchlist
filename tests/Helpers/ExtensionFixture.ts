@@ -115,7 +115,30 @@ export async function injectExtension(
 }
 
 export async function visibleFixtureOrder(page: Page): Promise<Array<string | null>> {
-  return page.$$eval('.cw-curated-card', (cards) => cards.map((card) => card.getAttribute('data-cw-curated-title')));
+  return page.evaluate(() => {
+    type DebugApiShape = {
+      getCuratedDomStats?: () => {
+        activeSeriesIds?: string[];
+      };
+    };
+
+    const debugApi = (window as Window & typeof globalThis & { __CW_WATCHLIST_CURATOR_DEBUG__?: DebugApiShape })
+      .__CW_WATCHLIST_CURATOR_DEBUG__;
+    const activeSeriesIds = debugApi?.getCuratedDomStats?.()?.activeSeriesIds;
+    if (Array.isArray(activeSeriesIds) && activeSeriesIds.length > 0) {
+      const titleBySeriesId = new Map(
+        Array.from(document.querySelectorAll('.cw-curated-card')).map((card) => [
+          card.getAttribute('data-cw-series-id') || '',
+          card.getAttribute('data-cw-curated-title'),
+        ]),
+      );
+      return activeSeriesIds.map((seriesId) => titleBySeriesId.get(String(seriesId || '').trim()) ?? null);
+    }
+
+    return Array.from(document.querySelectorAll('.cw-curated-card')).map((card) =>
+      card.getAttribute('data-cw-curated-title'),
+    );
+  });
 }
 
 function isBenignRouteLifecycleError(error: unknown): boolean {
