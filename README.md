@@ -154,6 +154,7 @@ npm run pw:live:cdp              # attach to an existing Chromium-family browser
 npm run pw:live:edge:native      # interactive Edge-native watchlist session
 npm run pw:live:edge:cdp         # attach to an existing Edge session on localhost:9222
 npm run pw:bench:edge:cdp        # one-shot client-only interaction benchmark on an attached Edge session
+npm run pw:mem:edge:cdp          # save a heap snapshot and print memory counters for an attached Edge session
 npm run lint:firefox             # Firefox manifest + package lint
 npm run format:check             # Biome format check on configured paths
 ```

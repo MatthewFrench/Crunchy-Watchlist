@@ -54,6 +54,7 @@
     "pw:live:smoke": "tsx scripts/live-runtime-smoke.mts",
     "pw:bench:cdp": "CW_PW_CDP_URL=http://127.0.0.1:9222 tsx scripts/live-client-benchmark.mts",
     "pw:bench:edge:cdp": "CW_PW_CDP_URL=http://127.0.0.1:9222 tsx scripts/live-client-benchmark.mts",
+    "pw:mem:edge:cdp": "CW_PW_CDP_URL=http://127.0.0.1:9222 tsx scripts/live-memory-snapshot.mts",
     "prepare": "simple-git-hooks",
     "pw:live:chromium": "tsx scripts/live-chromium-watchlist.mts",
     "pw:live:cdp": "CW_PW_CDP_URL=http://127.0.0.1:9222 tsx scripts/live-chromium-watchlist.mts",

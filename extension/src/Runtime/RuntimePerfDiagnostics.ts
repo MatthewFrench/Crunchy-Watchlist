@@ -31,7 +31,7 @@ const runtimePerfDiagnostics = createRuntimePerfDiagnostics();
 function isRuntimePerfDiagnosticsEnabled(): boolean {
   const root = globalThis as typeof globalThis & {
     __CW_WATCHLIST_CURATOR_DEBUG_FLAGS__?: {
-      perf?: unknown;
+      perf?: boolean;
     };
   };
   return root.__CW_WATCHLIST_CURATOR_DEBUG_FLAGS__?.perf === true;

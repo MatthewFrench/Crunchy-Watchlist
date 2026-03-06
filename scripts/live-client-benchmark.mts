@@ -74,6 +74,7 @@ type BenchmarkMeasurement = {
   countersDelta: Partial<DomCounters>;
   perfDelta: Partial<PerfDiagnostics>;
   enginePerfDelta: Partial<EnginePerfMetrics>;
+  memoryDelta: Partial<EngineMemoryMetrics>;
   probeStats: BenchmarkProbeStats | null;
 };
 
@@ -84,6 +85,14 @@ type EnginePerfMetrics = {
   TaskDuration: number;
   LayoutCount: number;
   RecalcStyleCount: number;
+};
+
+type EngineMemoryMetrics = {
+  JSHeapUsedSize: number;
+  JSHeapTotalSize: number;
+  Nodes: number;
+  Documents: number;
+  LayoutObjects: number;
 };
 
 type BenchmarkProbeBucket = {
@@ -301,6 +310,16 @@ function pickEnginePerfMetrics(record: Record<string, number>): EnginePerfMetric
   };
 }
 
+function pickEngineMemoryMetrics(record: Record<string, number>): EngineMemoryMetrics {
+  return {
+    JSHeapUsedSize: Number(record.JSHeapUsedSize) || 0,
+    JSHeapTotalSize: Number(record.JSHeapTotalSize) || 0,
+    Nodes: Number(record.Nodes) || 0,
+    Documents: Number(record.Documents) || 0,
+    LayoutObjects: Number(record.LayoutObjects) || 0,
+  };
+}
+
 async function installBenchmarkProbe(page: Page): Promise<void> {
   await page.evaluate(`(() => {
     if (window.__cwBenchProbe__) {
@@ -467,9 +486,11 @@ async function measureInteraction(options: {
   const { page, cdpSession, name, selector, targetValue, expectation } = options;
   const before = await readBenchmarkSnapshot(page);
   await resetBenchmarkProbe(page);
-  const metricsBefore = pickEnginePerfMetrics(
-    toMetricRecord((await cdpSession.send('Performance.getMetrics')).metrics as Array<{ name: string; value: number }>),
+  const metricsBeforeRecord = toMetricRecord(
+    (await cdpSession.send('Performance.getMetrics')).metrics as Array<{ name: string; value: number }>,
   );
+  const metricsBefore = pickEnginePerfMetrics(metricsBeforeRecord);
+  const memoryBefore = pickEngineMemoryMetrics(metricsBeforeRecord);
   const requestUrls: string[] = [];
   const requestListener = (request: { url: () => string }) => {
     const url = request.url();
@@ -484,11 +505,11 @@ async function measureInteraction(options: {
     const firstChange = await waitForFirstRelevantChange(page, before, expectation);
     const settled = await waitForSettledSnapshot(page);
     const after = settled.snapshot;
-    const metricsAfter = pickEnginePerfMetrics(
-      toMetricRecord(
-        (await cdpSession.send('Performance.getMetrics')).metrics as Array<{ name: string; value: number }>,
-      ),
+    const metricsAfterRecord = toMetricRecord(
+      (await cdpSession.send('Performance.getMetrics')).metrics as Array<{ name: string; value: number }>,
     );
+    const metricsAfter = pickEnginePerfMetrics(metricsAfterRecord);
+    const memoryAfter = pickEngineMemoryMetrics(metricsAfterRecord);
     const probeStats = await readBenchmarkProbe(page);
 
     return {
@@ -546,6 +567,7 @@ async function measureInteraction(options: {
         },
       ),
       enginePerfDelta: diffNumericRecord(metricsBefore, metricsAfter),
+      memoryDelta: diffNumericRecord(memoryBefore, memoryAfter),
       probeStats,
     };
   } finally {
@@ -669,6 +691,7 @@ async function main(): Promise<void> {
     console.log(`[bench] ${measurement.name} countersDelta=${JSON.stringify(measurement.countersDelta)}`);
     console.log(`[bench] ${measurement.name} perfDelta=${JSON.stringify(measurement.perfDelta)}`);
     console.log(`[bench] ${measurement.name} enginePerfDelta=${JSON.stringify(measurement.enginePerfDelta)}`);
+    console.log(`[bench] ${measurement.name} memoryDelta=${JSON.stringify(measurement.memoryDelta)}`);
     console.log(`[bench] ${measurement.name} probeStats=${JSON.stringify(measurement.probeStats)}`);
   });
 

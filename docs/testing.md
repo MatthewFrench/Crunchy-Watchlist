@@ -135,6 +135,12 @@ One-shot client-only benchmark against an attached Edge session:
 npm run pw:bench:edge:cdp
 ```
 
+Heap snapshot + memory counters against an attached Edge session:
+
+```bash
+npm run pw:mem:edge:cdp
+```
+
 ## Firefox publish validation
 
 Run this before release to validate Gecko packaging and manifest expectations:
