@@ -45,11 +45,20 @@ type MountReconcilerModule = {
   CuratedPanelGridMountReconcilerOwner: new () => CuratedPanelGridMountReconcilerOwner;
 };
 
+type CuratedPanelGridDomStateModule = {
+  readCuratedGridActiveCards: (gridElement: Element) => Element[];
+  writeCuratedGridActiveCards: (gridElement: Element, activeCards: Element[]) => void;
+};
+
 const moduleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridMountReconciler.ts'),
 ).href;
+const domStateModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridDomState.ts'),
+).href;
 
 let OwnerCtor: MountReconcilerModule['CuratedPanelGridMountReconcilerOwner'] | null = null;
+let domStateModule: CuratedPanelGridDomStateModule | null = null;
 
 function createFakeElement(tagName = 'div'): FakeElement {
   let textContentValue: string | null = '';
@@ -103,12 +112,15 @@ describe('curated-panel-grid mount reconciler owner', () => {
     vi.resetModules();
     const module = (await import(moduleUrl)) as MountReconcilerModule;
     OwnerCtor = module.CuratedPanelGridMountReconcilerOwner;
+    domStateModule = (await import(domStateModuleUrl)) as CuratedPanelGridDomStateModule;
   });
 
   it('renders empty state by parking current cards and appending empty element', () => {
     const reconciler = new (getOwnerCtor())();
     const grid = createFakeElement('div');
-    grid.appendChild(createFakeElement('article'));
+    const card = createFakeElement('article');
+    grid.appendChild(card);
+    domStateModule?.writeCuratedGridActiveCards(grid as unknown as Element, [card as unknown as Element]);
 
     const parkGridCardsForReuse = vi.fn();
     const parkUnusedControllersForReuse = vi.fn();
@@ -135,6 +147,9 @@ describe('curated-panel-grid mount reconciler owner', () => {
     expect(parkUnusedControllersForReuse).toHaveBeenCalledWith(expect.any(Set));
     expect(grid.children).toHaveLength(1);
     expect(grid.children[0]?.textContent).toBe('empty:2');
+    expect(domStateModule?.readCuratedGridActiveCards(grid as unknown as Element)).toEqual([
+      grid.children[0] as unknown as Element,
+    ]);
     expect(trimParkedCardsForReuse).toHaveBeenCalledTimes(1);
   });
 

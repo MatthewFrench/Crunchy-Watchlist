@@ -1,3 +1,5 @@
+import { clearCuratedGridDomState } from './CuratedPanelGridDomState.js';
+
 type CuratedGridReorderOptions = {
   onCardRemoved?: ((card: Element) => void) | null;
   shouldRetainCardInGrid?: ((card: Element) => boolean) | null;
@@ -43,6 +45,7 @@ export class CuratedPanelGridMountReconcilerOwner {
     parkGridCardsForReuse(gridEl);
     parkUnusedControllersForReuse(visibleSeriesIds);
     gridEl.textContent = '';
+    clearCuratedGridDomState(gridEl);
     const gridStyle = (gridEl as Element & { style?: Record<string, string> }).style;
     if (gridStyle) {
       gridStyle.height = '';
