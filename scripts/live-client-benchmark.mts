@@ -46,6 +46,7 @@ type DomCounters = {
 
 type DebugStats = {
   counters: DomCounters;
+  activeSeriesIds?: string[];
   perfDiagnostics: PerfDiagnostics;
 };
 
@@ -322,7 +323,10 @@ async function readBenchmarkSnapshot(page: Page): Promise<BenchmarkSnapshot> {
       watchReadyMode: watchReadyModeElement instanceof HTMLSelectElement ? watchReadyModeElement.value : '',
       cardCount: cards.length,
       leavingCount: document.querySelectorAll('.cw-curated-card--leaving').length,
-      firstIds: cards.slice(0, 12).map((card) => card instanceof HTMLElement ? String(card.dataset.cwSeriesId || '') : ''),
+      firstIds:
+        Array.isArray(debugStats?.activeSeriesIds) && debugStats.activeSeriesIds.length > 0
+          ? debugStats.activeSeriesIds.slice(0, 12).map((seriesId) => String(seriesId || ''))
+          : cards.slice(0, 12).map((card) => (card instanceof HTMLElement ? String(card.dataset.cwSeriesId || '') : '')),
       debugStats: debugStats || null,
     };
   })()`);
@@ -412,12 +416,29 @@ async function installBenchmarkProbe(page: Page): Promise<void> {
       counts[key].totalMs += performance.now() - startedAt;
     };
 
+    const isOwnedNode = (value) => {
+      if (!value) {
+        return false;
+      }
+      const element =
+        value instanceof Element
+          ? value
+          : value instanceof Node && value.parentElement instanceof Element
+            ? value.parentElement
+            : null;
+      return element instanceof Element ? Boolean(element.closest('.cw-host')) : false;
+    };
+
     const wrapMethod = (target, key, bucketKey) => {
       const original = target[key];
       if (typeof original !== 'function') {
         return;
       }
       target[key] = function(...args) {
+        const shouldTrack = isOwnedNode(this) || args.some((arg) => isOwnedNode(arg));
+        if (!shouldTrack) {
+          return original.apply(this, args);
+        }
         const startedAt = performance.now();
         try {
           return original.apply(this, args);
@@ -436,6 +457,9 @@ async function installBenchmarkProbe(page: Page): Promise<void> {
         configurable: true,
         enumerable: descriptor.enumerable ?? false,
         get() {
+          if (!isOwnedNode(this)) {
+            return descriptor.get.call(this);
+          }
           const startedAt = performance.now();
           try {
             return descriptor.get.call(this);
@@ -519,11 +543,13 @@ async function waitForSteadySnapshot(
     quietMs?: number;
     stableMs?: number;
     timeoutMs?: number;
+    allowBackgroundActivityAfterMs?: number;
   } = {},
 ): Promise<{ snapshot: BenchmarkSnapshot; elapsedMs: number }> {
   const quietMs = options.quietMs ?? 450;
   const stableMs = options.stableMs ?? 300;
   const timeoutMs = options.timeoutMs ?? 12_000;
+  const allowBackgroundActivityAfterMs = options.allowBackgroundActivityAfterMs ?? Number.POSITIVE_INFINITY;
   const startedAt = Date.now();
   let lastSnapshot = await readBenchmarkSnapshot(page);
   let lastSignature = snapshotSignature(lastSnapshot);
@@ -545,7 +571,9 @@ async function waitForSteadySnapshot(
       stableDurationMs >= stableMs && nextSnapshot.leavingCount === 0 && requestTracker.isIdle(quietMs);
     const settledWithRelaxedIdle =
       stableDurationMs >= Math.max(stableMs, quietMs) && nextSnapshot.leavingCount === 0 && hasNoInflightRequests;
-    if (settledWithQuietIdle || settledWithRelaxedIdle) {
+    const settledWithBackgroundActivityAllowance =
+      stableDurationMs >= allowBackgroundActivityAfterMs && nextSnapshot.leavingCount === 0;
+    if (settledWithQuietIdle || settledWithRelaxedIdle || settledWithBackgroundActivityAllowance) {
       return {
         snapshot: nextSnapshot,
         elapsedMs: Date.now() - startedAt,
@@ -623,7 +651,7 @@ async function measureInteraction(options: {
     targetValue,
     expectation,
     firstChangeMs: firstChange.elapsedMs,
-    settledMs: settled.elapsedMs,
+    settledMs: firstChange.elapsedMs + settled.elapsedMs,
     requestCount: requestUrls.length,
     before,
     after,
@@ -690,7 +718,7 @@ async function measureSteadyInteraction(options: {
   const { page, cdpSession, requestTracker, baseline, name, selector, targetValue, expectation } = options;
   let lastMeasurement: BenchmarkMeasurement | null = null;
 
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
     const before = await settleBenchmarkBaseline(page, requestTracker, baseline);
     const measurement = await measureInteraction({
       page,
@@ -709,6 +737,7 @@ async function measureSteadyInteraction(options: {
     console.log(
       `[bench] ${name} attempt=${attempt} observed ${measurement.requestCount} relevant request(s); retrying after idle.`,
     );
+    await page.waitForTimeout(750);
   }
 
   if (!lastMeasurement) {
@@ -756,7 +785,10 @@ async function main(): Promise<void> {
   await cdpSession.send('Performance.enable');
   await installBenchmarkProbe(page);
 
-  const baseline = await waitForSteadySnapshot(page, requestTracker, { timeoutMs: 20_000 });
+  const baseline = await waitForSteadySnapshot(page, requestTracker, {
+    timeoutMs: 20_000,
+    allowBackgroundActivityAfterMs: 2_500,
+  });
   const originalAudio = baseline.snapshot.audioFilter || 'any';
   const originalSort = baseline.snapshot.sortMode || 'consensus_quality_desc';
   const originalGenre = baseline.snapshot.genreFilter || 'any';
@@ -831,7 +863,7 @@ async function main(): Promise<void> {
     watchReadyMode: originalWatchReady,
     sortMode: originalSort,
   });
-  await waitForSteadySnapshot(page, requestTracker);
+  await waitForSteadySnapshot(page, requestTracker, { allowBackgroundActivityAfterMs: 2_500 });
   console.log('[bench] restored', JSON.stringify(await readBenchmarkSnapshot(page)));
 
   console.log('[bench] client-only measurements');

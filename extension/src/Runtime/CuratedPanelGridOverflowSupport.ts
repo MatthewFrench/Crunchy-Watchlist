@@ -102,6 +102,7 @@ export function mountCuratedGridNextCards(
   gridElement: Element,
   nextCards: Element[],
   currentActiveChildren: Element[],
+  preserveMountedDomOrder: boolean,
   shouldReorderMountedChildren: boolean,
   shouldFadeInCard: (card: Element) => boolean,
   cancelLeavingCardIfNeeded: (card: Element) => void,
@@ -109,6 +110,26 @@ export function mountCuratedGridNextCards(
   markCardEntering: (card: Element) => void,
   stageCardCenterIntro: (gridElement: Element, nextCard: Element) => void,
 ): void {
+  if (preserveMountedDomOrder) {
+    nextCards.forEach((nextCard) => {
+      if (!nextCard) {
+        return;
+      }
+      const shouldFadeIn = shouldFadeInCard(nextCard);
+      cancelLeavingCardIfNeeded(nextCard);
+      cancelRetainedCardHideIfNeeded(nextCard);
+      const parentNode = (nextCard as Element & { parentNode?: Element | null }).parentNode;
+      if (parentNode !== gridElement) {
+        gridElement.appendChild(nextCard);
+        stageCardCenterIntro(gridElement, nextCard);
+      }
+      if (shouldFadeIn) {
+        markCardEntering(nextCard);
+      }
+    });
+    return;
+  }
+
   const mountedChildren = new Set(currentActiveChildren);
   const stableMountedCards = shouldReorderMountedChildren
     ? resolveCuratedGridStableMountedCards(nextCards, currentActiveChildren)

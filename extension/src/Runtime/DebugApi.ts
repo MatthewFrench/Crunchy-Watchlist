@@ -1,4 +1,5 @@
 import { getRuntimePerfDiagnostics, type RuntimePerfDiagnostics } from './RuntimePerfDiagnostics.js';
+import { readCuratedGridActiveCards } from './CuratedPanelGridDomState.js';
 
 type BoundaryValue = CwBoundaryValue;
 type BoundaryRecord = Record<string, BoundaryValue>;
@@ -23,6 +24,7 @@ type ApiTraceRecord = {
 type RuntimeState = {
   curatedEntries: BoundaryArray;
   curatedDomLifecycleCounters?: CuratedDomLifecycleCounters;
+  gridEl?: Element | null;
   watchlistCache?: {
     rows?: BoundaryArray;
   };
@@ -49,6 +51,7 @@ type CuratedDomLifecycleStats = {
   counters: CuratedDomLifecycleCounters;
   totalLifecycleMutations: number;
   identityChurnRate: number;
+  activeSeriesIds: string[];
   watchHistoryPreloadAttempts: WatchHistoryPreloadAttemptStats;
   perfDiagnostics: RuntimePerfDiagnostics;
 };
@@ -302,11 +305,28 @@ function getCuratedDomLifecycleStatsInternal(context: DebugApiContext): CuratedD
     counters.created + counters.patched + counters.parked + counters.unparked + counters.disposed;
   const identityChurnRate =
     counters.created + counters.patched > 0 ? counters.created / (counters.created + counters.patched) : 0;
+  const activeSeriesIds = context.state.gridEl
+    ? readCuratedGridActiveCards(context.state.gridEl)
+        .map((card) => {
+          const cardElement = card as Element & {
+            dataset?: Record<string, string>;
+            getAttribute?: (name: string) => string | null;
+          };
+          return getString(
+            (typeof cardElement.dataset?.cwSeriesId === 'string' ? cardElement.dataset.cwSeriesId : '') ||
+              (typeof cardElement.getAttribute === 'function'
+                ? (cardElement.getAttribute('data-cw-series-id') ?? '')
+                : ''),
+          );
+        })
+        .filter(Boolean)
+    : [];
 
   return {
     counters,
     totalLifecycleMutations,
     identityChurnRate,
+    activeSeriesIds,
     watchHistoryPreloadAttempts: getWatchHistoryPreloadAttemptStats(context),
     perfDiagnostics: getRuntimePerfDiagnostics(),
   };

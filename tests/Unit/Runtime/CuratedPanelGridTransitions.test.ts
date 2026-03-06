@@ -17,6 +17,10 @@ type CuratedPanelGridTransitionsModule = {
   createCuratedPanelGridTransitionsRuntime: () => CuratedPanelGridTransitionsRuntime;
 };
 
+type CuratedPanelGridDomStateModule = {
+  readCuratedGridActiveCards: (gridElement: Element) => Element[];
+};
+
 type FakeElement = {
   className: string;
   dataset: Record<string, string>;
@@ -36,7 +40,11 @@ type FakeElement = {
 const curatedPanelGridTransitionsModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridTransitions.ts'),
 ).href;
+const curatedPanelGridDomStateModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridDomState.ts'),
+).href;
 let curatedPanelGridTransitionsModule: CuratedPanelGridTransitionsModule | null = null;
+let curatedPanelGridDomStateModule: CuratedPanelGridDomStateModule | null = null;
 const cardContainerHeightCssVariable = '--cw-curated-card-container-height';
 
 function getCuratedPanelGridTransitionsModule() {
@@ -44,6 +52,13 @@ function getCuratedPanelGridTransitionsModule() {
     throw new Error('Curated panel grid transitions runtime module was not initialized for test');
   }
   return curatedPanelGridTransitionsModule;
+}
+
+function readActiveGridChildren(grid: FakeElement): FakeElement[] {
+  if (!curatedPanelGridDomStateModule) {
+    throw new Error('Curated panel grid dom state module was not initialized for test');
+  }
+  return curatedPanelGridDomStateModule.readCuratedGridActiveCards(grid as unknown as Element) as unknown as FakeElement[];
 }
 
 function readCardContainerHeightPx(element: FakeElement): number {
@@ -129,10 +144,12 @@ describe('curated-panel-grid-transitions runtime', () => {
     curatedPanelGridTransitionsModule = (await import(
       curatedPanelGridTransitionsModuleUrl
     )) as CuratedPanelGridTransitionsModule;
+    curatedPanelGridDomStateModule = (await import(curatedPanelGridDomStateModuleUrl)) as CuratedPanelGridDomStateModule;
   });
 
   afterEach(() => {
     curatedPanelGridTransitionsModule = null;
+    curatedPanelGridDomStateModule = null;
   });
 
   it('keeps dom order stable while removing overflow cards when absolute placement styles are unavailable', () => {
@@ -195,7 +212,7 @@ describe('curated-panel-grid-transitions runtime', () => {
       cardA as unknown as Element,
     ]);
 
-    expect(grid.children).toEqual([cardB, cardA]);
+    expect(readActiveGridChildren(grid)).toEqual([cardB, cardA]);
   });
 
   it('minimizes visible-card moves for near-sorted reorders', () => {
@@ -239,8 +256,8 @@ describe('curated-panel-grid-transitions runtime', () => {
       cards[4] as unknown as Element,
     ]);
 
-    expect(grid.children).toEqual([cards[0], cards[3], cards[1], cards[2], cards[4]]);
-    expect(insertBeforeCalls).toBe(1);
+    expect(readActiveGridChildren(grid)).toEqual([cards[0], cards[3], cards[1], cards[2], cards[4]]);
+    expect(insertBeforeCalls).toBe(0);
   });
 
   it('clears all cards when next card list is empty', () => {
@@ -391,7 +408,7 @@ describe('curated-panel-grid-transitions runtime', () => {
 
     expect(initialRectReads).toBeGreaterThan(cards.length);
     expect(rectReads.value).toBeLessThanOrEqual(6);
-    expect(grid.children[0]).toBe(cards[cards.length - 1]);
+    expect(readActiveGridChildren(grid)[0]).toBe(cards[cards.length - 1]);
   });
 
   it('restores grid height from prior card heights when cards are temporarily unmeasurable', () => {
@@ -594,7 +611,7 @@ describe('curated-panel-grid-transitions runtime', () => {
     expect(readCardContainerHeightPx(grid)).toBeGreaterThan(0);
   });
 
-  it('reorders existing dom children to match the visual order when absolute placement is active', () => {
+  it('tracks visual order through runtime-owned active state when absolute placement is active', () => {
     const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const cardA = createFakeElement('cw-curated-card');
@@ -648,8 +665,8 @@ describe('curated-panel-grid-transitions runtime', () => {
       cardB as unknown as Element,
     ]);
 
-    expect(insertBeforeCalls).toBe(1);
-    expect(grid.children).toEqual([cardC, cardA, cardB]);
+    expect(insertBeforeCalls).toBe(0);
+    expect(readActiveGridChildren(grid)).toEqual([cardC, cardA, cardB]);
 
     const cardALeft = Number.parseFloat(String(cardA.style?.left || '0'));
     const cardBLeft = Number.parseFloat(String(cardB.style?.left || '0'));
@@ -765,7 +782,7 @@ describe('curated-panel-grid-transitions runtime', () => {
     }
   });
 
-  it('updates absolute positions for medium-sized reorders while matching dom child order to the new order', () => {
+  it('updates absolute positions for medium-sized reorders while keeping active order aligned', () => {
     const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const rectReads = { value: 0 };
@@ -796,14 +813,14 @@ describe('curated-panel-grid-transitions runtime', () => {
       throw new Error('Expected test cards to exist for medium-sized reorder assertions');
     }
 
-    expect(grid.children[0]).toBe(cards[120]);
-    expect(grid.children[120]).toBe(cards[0]);
+    expect(readActiveGridChildren(grid)[0]).toBe(cards[120]);
+    expect(readActiveGridChildren(grid)[120]).toBe(cards[0]);
     expect(Number.parseFloat(String(firstCard.style?.top || '0'))).toBeGreaterThan(0);
     expect(Number.parseFloat(String(lastCard.style?.top || '0'))).toBe(0);
     expect(rectReads.value).toBeGreaterThan(0);
   });
 
-  it('updates absolute positions for large reorders while matching dom child order to the new order', () => {
+  it('updates absolute positions for large reorders while keeping active order aligned', () => {
     const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const rectReads = { value: 0 };
@@ -834,8 +851,8 @@ describe('curated-panel-grid-transitions runtime', () => {
       throw new Error('Expected test cards to exist for large reorder assertions');
     }
 
-    expect(grid.children[0]).toBe(cards[320]);
-    expect(grid.children[320]).toBe(cards[0]);
+    expect(readActiveGridChildren(grid)[0]).toBe(cards[320]);
+    expect(readActiveGridChildren(grid)[320]).toBe(cards[0]);
     expect(Number.parseFloat(String(firstCard.style?.top || '0'))).toBeGreaterThan(0);
     expect(Number.parseFloat(String(lastCard.style?.top || '0'))).toBe(0);
     expect(rectReads.value).toBeGreaterThan(0);
@@ -936,10 +953,7 @@ describe('curated-panel-grid-transitions runtime', () => {
       );
     }
 
-    expect(grid.children).toEqual([cardC, cardA, cardB]);
-    expect(grid.children[0]).toBe(cardC);
-    expect(grid.children[1]).toBe(cardA);
-    expect(grid.children[2]).toBe(cardB);
+    expect(readActiveGridChildren(grid)).toEqual([cardC, cardA, cardB]);
     const cardALeft = Number.parseFloat(String(cardA.style?.left || '0'));
     const cardBLeft = Number.parseFloat(String(cardB.style?.left || '0'));
     const cardCLeft = Number.parseFloat(String(cardC.style?.left || '0'));
