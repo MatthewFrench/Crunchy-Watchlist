@@ -5,17 +5,15 @@ import {
 } from './CuratedPanelGridAbsoluteHeight.js';
 import { toggleClassNameToken } from './CuratedPanelGridDom.js';
 import {
-  cancelRetainedCardHideIfNeeded,
-  isParkedCardElement,
-  isRetainedCardHiding,
-  scheduleRetainedCardHide,
-} from './CuratedPanelGridRetainedCardVisibility.js';
-import { buildCuratedGridLayoutSignature } from './CuratedPanelGridLayoutSignature.js';
-import {
   clearCuratedGridDomState,
   readCuratedGridActiveCards,
   writeCuratedGridActiveCards,
 } from './CuratedPanelGridDomState.js';
+import {
+  prepareCuratedGridHeightMeasurements,
+  resolveCuratedGridCardHeights,
+} from './CuratedPanelGridHeightMeasurement.js';
+import { buildCuratedGridLayoutSignature } from './CuratedPanelGridLayoutSignature.js';
 import {
   animateCuratedGridOverflowRemovals,
   finalizeCuratedGridOverflow,
@@ -27,11 +25,13 @@ import {
   resolveCuratedGridRemovableOverflow,
 } from './CuratedPanelGridOverflowSupport.js';
 import {
-  prepareCuratedGridHeightMeasurements,
-  resolveCuratedGridCardHeights,
-} from './CuratedPanelGridHeightMeasurement.js';
-import { incrementRuntimePerfDiagnostic } from './RuntimePerfDiagnostics.js';
+  cancelRetainedCardHideIfNeeded,
+  isParkedCardElement,
+  isRetainedCardHiding,
+  scheduleRetainedCardHide,
+} from './CuratedPanelGridRetainedCardVisibility.js';
 import { clearCuratedGridStyleValue, setCuratedGridStyleValue } from './CuratedPanelGridStyleSupport.js';
+import { incrementRuntimePerfDiagnostic } from './RuntimePerfDiagnostics.js';
 
 type RectSnapshot = {
   left: number;

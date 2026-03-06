@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { chromium, type CDPSession, type Page } from '@playwright/test';
+import { type CDPSession, chromium, type Page } from '@playwright/test';
 
 type LiveSourceEntry = {
   file: string;
