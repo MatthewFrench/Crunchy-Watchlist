@@ -1557,6 +1557,94 @@ describe('curated-panel runtime', () => {
     expect(createdCards).toBe(1);
   });
 
+  it('requests a recovery render when observed grid children are cleared externally', async () => {
+    const mutationObserverCallbacks: Array<(...args: unknown[]) => void> = [];
+    let disconnectCalls = 0;
+    class FakeMutationObserver {
+      constructor(callback: (...args: unknown[]) => void) {
+        mutationObserverCallbacks.push(callback);
+      }
+
+      observe(): void {}
+
+      disconnect(): void {
+        disconnectCalls += 1;
+      }
+    }
+    vi.stubGlobal('MutationObserver', FakeMutationObserver);
+
+    const gridEl = createFakeElement();
+    const statsEl = createFakeElement();
+    const loadingIndicatorEl = createFakeElement();
+    let createdCards = 0;
+
+    const runtime = getCuratedPanelModule().createCuratedPanelRuntime({
+      state: {
+        mounted: true,
+        curatedError: null,
+        curatedEntries: [],
+        curatedInflight: null,
+        curatedPendingRequests: [],
+        curatedPendingRequestStartedCount: 0,
+        curatedPendingRequestCompletedCount: 0,
+        curatedGridRenderSignature: '',
+        gridEl,
+        statsEl,
+        loadingIndicatorEl,
+        audioFilterSelectEl: createFakeSelectElement(),
+        genreFilterSelectEl: createFakeSelectElement(),
+        settings: {
+          cardLayout: 'portrait',
+        },
+      },
+      documentRef: createFakeDocumentRef(),
+      locationRef: {
+        pathname: '/watchlist',
+      },
+      createCuratedCard: (entry: Record<string, unknown>) => {
+        createdCards += 1;
+        const card = createFakeElement();
+        card.className = 'cw-curated-card';
+        card.dataset.cwSeriesId = String(entry.seriesId || '');
+        return card;
+      },
+      applyCardLayoutUi: () => {},
+      buildRenderableEntries: () => ({
+        mode: 'hide',
+        total: 1,
+        visible: [{ seriesId: 'series-1', title: 'Series 1' }],
+        audioOptions: [{ optionValue: 'any', title: 'Any language' }],
+        genreOptions: [{ optionValue: 'any', title: 'Any genre' }],
+        selectedAudioFilter: 'any',
+        selectedGenreFilter: 'any',
+      }),
+      withMutedObserver: (work: () => void) => {
+        work();
+      },
+      isLocalizedRatingDataMissingForEntries: () => false,
+      isLocalizedWatchHistoryDataMissingForEntries: () => false,
+      preloadRatingsForSelectedAudioLocale: async () => null,
+      preloadWatchHistoryForSelectedAudioLocale: async () => null,
+      isWatchlistPath: () => true,
+    });
+
+    runtime.renderCuratedPanel();
+    expect(gridEl.children).toHaveLength(1);
+    const firstCard = gridEl.children[0];
+
+    gridEl.textContent = '';
+    mutationObserverCallbacks[0]?.([{ target: gridEl } as MutationRecord], {} as MutationObserver);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(gridEl.children).toHaveLength(1);
+    expect(gridEl.children[0]).toBe(firstCard);
+    expect(createdCards).toBe(1);
+
+    runtime.dispose();
+    expect(disconnectCalls).toBeGreaterThan(0);
+  });
+
   it('coalesces queued render requests into a single panel render per microtask', async () => {
     const gridEl = createFakeElement();
     const statsEl = createFakeElement();

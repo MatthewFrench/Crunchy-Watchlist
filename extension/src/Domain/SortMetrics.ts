@@ -303,7 +303,8 @@ function estimateUnwatchedEpisodesLeftInternal(context: SortMetricsContext, entr
 
   const overrideNextEpisodeIndex =
     overrideEpisodeIndex != null ? overrideEpisodeIndex + (filteredProgressEntry?.fullyWatched ? 1 : 0) : null;
-  const entryNextEpisodeIndex = entryEpisodeIndexFromLateSeasonFallback ?? entryEpisodeIndexFromOverride ?? entryEpisodeIndex;
+  const entryNextEpisodeIndex =
+    entryEpisodeIndexFromLateSeasonFallback ?? entryEpisodeIndexFromOverride ?? entryEpisodeIndex;
 
   const nextEpisodeIndexCandidates = [overrideNextEpisodeIndex, entryNextEpisodeIndex].filter(
     (value): value is number => value != null,

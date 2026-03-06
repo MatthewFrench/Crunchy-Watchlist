@@ -161,7 +161,9 @@ function hashRevisionToken(hash: number, value: CuratedBoundaryValue): number {
 export class CuratedPanelRenderOrchestrator {
   private readonly context: CuratedPanelRenderOrchestratorOptions;
   private readonly resizeObserver: ResizeObserver | null;
+  private readonly gridMutationObserver: MutationObserver | null;
   private observedResizeTarget: Element | null = null;
+  private observedGridElement: Element | null = null;
   private observedGridAvailableWidthKey = '0';
   private cachedVisibleEntries: CuratedRenderableEntry[] | null = null;
   private cachedVisibleRevisionSignature = 'count:0|first:|last:|hash:0';
@@ -176,6 +178,11 @@ export class CuratedPanelRenderOrchestrator {
     const ResizeObserverCtor =
       typeof root.ResizeObserver === 'function' ? (root.ResizeObserver as typeof ResizeObserver) : null;
     this.resizeObserver = ResizeObserverCtor ? new ResizeObserverCtor(this.handleGridResizeObserved) : null;
+    const MutationObserverCtor =
+      typeof root.MutationObserver === 'function' ? (root.MutationObserver as typeof MutationObserver) : null;
+    this.gridMutationObserver = MutationObserverCtor
+      ? new MutationObserverCtor(this.handleGridMutationsObserved)
+      : null;
   }
 
   readonly renderNow = (): void => {
@@ -237,7 +244,11 @@ export class CuratedPanelRenderOrchestrator {
       }
       this.resizeObserver.disconnect();
     }
+    if (this.gridMutationObserver) {
+      this.gridMutationObserver.disconnect();
+    }
     this.observedResizeTarget = null;
+    this.observedGridElement = null;
     this.observedGridAvailableWidthKey = '0';
     this.cachedVisibleEntries = null;
     this.cachedVisibleRevisionSignature = 'count:0|first:|last:|hash:0';
@@ -269,6 +280,7 @@ export class CuratedPanelRenderOrchestrator {
   private readonly renderCuratedPanel = (): void => {
     const { state } = this.context;
     this.syncGridResizeObservation(state.gridEl);
+    this.syncGridMutationObservation(state.gridEl);
     if (!state.gridEl || !state.statsEl) {
       return;
     }
@@ -562,6 +574,31 @@ export class CuratedPanelRenderOrchestrator {
     this.requestRender();
   };
 
+  private readonly handleGridMutationsObserved = (): void => {
+    if (this.disposed || this.renderInProgress) {
+      return;
+    }
+
+    const { state } = this.context;
+    const gridElement = this.observedGridElement;
+    if (!gridElement || state.gridEl !== gridElement) {
+      return;
+    }
+
+    const childCount = Number((gridElement as Element & { children?: ArrayLike<Element> }).children?.length) || 0;
+    if (childCount > 0) {
+      return;
+    }
+
+    const loading = Boolean(state.curatedInflight) || Boolean(state.curatedDeferredMetadataInFlight);
+    const pendingRequests = this.getPendingRequestItems(state.curatedPendingRequests);
+    if (loading || pendingRequests.length > 0) {
+      return;
+    }
+
+    this.requestRender();
+  };
+
   private readonly syncGridResizeObservation = (gridElement: Element | null): void => {
     if (!this.resizeObserver) {
       return;
@@ -577,6 +614,25 @@ export class CuratedPanelRenderOrchestrator {
     }
 
     this.observedResizeTarget = nextResizeTarget;
+  };
+
+  private readonly syncGridMutationObservation = (gridElement: Element | null): void => {
+    if (!this.gridMutationObserver) {
+      return;
+    }
+
+    if (this.observedGridElement === gridElement) {
+      return;
+    }
+
+    this.gridMutationObserver.disconnect();
+    this.observedGridElement = gridElement;
+
+    if (gridElement) {
+      this.gridMutationObserver.observe(gridElement, {
+        childList: true,
+      });
+    }
   };
 
   private readonly resolveGridResizeTarget = (gridElement: Element | null): Element | null => {
