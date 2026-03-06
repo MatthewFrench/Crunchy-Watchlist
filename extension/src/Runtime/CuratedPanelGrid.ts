@@ -684,6 +684,7 @@ function renderCuratedGridIfNeeded(
     parkCardForReuse: renderContext.parkCardForReuse,
     parkingManager,
   });
+  parkingManager.trimParkedCardsForReuse(parkingLifecycleHandlers);
 
   state.curatedGridRenderSignature = gridRenderSignature;
 }

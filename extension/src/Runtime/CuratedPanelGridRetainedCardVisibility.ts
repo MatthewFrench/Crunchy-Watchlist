@@ -1,7 +1,13 @@
 const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
 type RetainedCardHideBatch = {
   timeoutId: number | null;
-  onHiddenByElement: Map<Element, (() => void) | null>;
+  entriesByElement: Map<
+    Element,
+    {
+      hiddenAt: number;
+      onHidden: (() => void) | null;
+    }
+  >;
 };
 
 const retainedCardHideDurationByElement = new Map<Element, number>();
@@ -81,8 +87,8 @@ export function cancelRetainedCardHideIfNeeded(card: Element): void {
     retainedCardHideDurationByElement.delete(card);
     const batch = retainedCardHideBatchByDuration.get(durationMs);
     if (batch) {
-      batch.onHiddenByElement.delete(card);
-      if (batch.onHiddenByElement.size === 0) {
+      batch.entriesByElement.delete(card);
+      if (batch.entriesByElement.size === 0) {
         if (typeof batch.timeoutId === 'number') {
           root.clearTimeout(batch.timeoutId);
         }
@@ -91,6 +97,34 @@ export function cancelRetainedCardHideIfNeeded(card: Element): void {
     }
   }
   clearRetainedCardHideState(card);
+}
+
+function scheduleRetainedCardHideBatch(durationMs: number, batch: RetainedCardHideBatch): void {
+  const now = Date.now();
+  const dueEntries = Array.from(batch.entriesByElement.entries()).filter(([_card, entry]) => entry.hiddenAt <= now);
+
+  dueEntries.forEach(([activeCard, entry]) => {
+    retainedCardHideDurationByElement.delete(activeCard);
+    batch.entriesByElement.delete(activeCard);
+    applyRetainedCardHiddenState(activeCard);
+    entry.onHidden?.();
+  });
+
+  if (batch.entriesByElement.size === 0) {
+    batch.timeoutId = null;
+    retainedCardHideBatchByDuration.delete(durationMs);
+    return;
+  }
+
+  const nextHiddenAt = Math.min(...Array.from(batch.entriesByElement.values()).map((entry) => entry.hiddenAt));
+  const nextDelayMs = Math.max(0, nextHiddenAt - now);
+  batch.timeoutId = root.setTimeout(() => {
+    const activeBatch = retainedCardHideBatchByDuration.get(durationMs);
+    if (!activeBatch) {
+      return;
+    }
+    scheduleRetainedCardHideBatch(durationMs, activeBatch);
+  }, nextDelayMs);
 }
 
 export function scheduleRetainedCardHide(card: Element, durationMs: number, onHidden?: (() => void) | null): void {
@@ -106,26 +140,18 @@ export function scheduleRetainedCardHide(card: Element, durationMs: number, onHi
   if (!batch) {
     batch = {
       timeoutId: null,
-      onHiddenByElement: new Map<Element, (() => void) | null>(),
+      entriesByElement: new Map(),
     };
     retainedCardHideBatchByDuration.set(durationMs, batch);
   }
 
-  batch.onHiddenByElement.set(card, onHidden || null);
-  if (typeof batch.timeoutId === 'number') {
-    return;
-  }
+  batch.entriesByElement.set(card, {
+    hiddenAt: Date.now() + durationMs,
+    onHidden: onHidden || null,
+  });
 
-  batch.timeoutId = root.setTimeout(() => {
-    const activeBatch = retainedCardHideBatchByDuration.get(durationMs);
-    if (!activeBatch) {
-      return;
-    }
-    retainedCardHideBatchByDuration.delete(durationMs);
-    activeBatch.onHiddenByElement.forEach((callback, activeCard) => {
-      retainedCardHideDurationByElement.delete(activeCard);
-      applyRetainedCardHiddenState(activeCard);
-      callback?.();
-    });
-  }, durationMs);
+  if (typeof batch.timeoutId === 'number') {
+    root.clearTimeout(batch.timeoutId);
+  }
+  scheduleRetainedCardHideBatch(durationMs, batch);
 }
