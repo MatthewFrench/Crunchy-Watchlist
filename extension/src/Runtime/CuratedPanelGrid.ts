@@ -505,7 +505,11 @@ function prewarmHiddenCuratedCards(options: {
   retainedHidden: CuratedGridEntry[];
   visibleSeriesIds: Set<string>;
   metadataLoading: boolean;
-  createOrReuseCuratedCard: (entry: CuratedGridEntry, detailsLoading: boolean, visibleSeriesIds: Set<string>) => Element;
+  createOrReuseCuratedCard: (
+    entry: CuratedGridEntry,
+    detailsLoading: boolean,
+    visibleSeriesIds: Set<string>,
+  ) => Element;
   getEntrySeriesId: (entry: CuratedGridEntry) => string;
   isRenderableEntryMetadataLoading: (entry: CuratedGridEntry) => boolean;
   parkCardForReuse: (card: Element) => void;

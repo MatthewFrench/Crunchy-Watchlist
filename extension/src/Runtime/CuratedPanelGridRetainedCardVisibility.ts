@@ -123,7 +123,7 @@ export function scheduleRetainedCardHide(card: Element, durationMs: number, onHi
     }
     retainedCardHideBatchByDuration.delete(durationMs);
     activeBatch.onHiddenByElement.forEach((callback, activeCard) => {
-    retainedCardHideDurationByElement.delete(activeCard);
+      retainedCardHideDurationByElement.delete(activeCard);
       applyRetainedCardHiddenState(activeCard);
       callback?.();
     });

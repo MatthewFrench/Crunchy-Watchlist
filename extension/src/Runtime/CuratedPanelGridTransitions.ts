@@ -645,10 +645,7 @@ function removeTrackedCuratedGridOverflowCard(
   );
 }
 
-function hideTrackedCuratedGridRetainedCard(
-  card: Element,
-  onCardRemoved: ((card: Element) => void) | null,
-): void {
+function hideTrackedCuratedGridRetainedCard(card: Element, onCardRemoved: ((card: Element) => void) | null): void {
   applyRetainedCardHiddenState(card);
   onCardRemoved?.(card);
 }
