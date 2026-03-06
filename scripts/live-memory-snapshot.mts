@@ -4,7 +4,7 @@ import { createWriteStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium, type CDPSession, type Page } from '@playwright/test';
+import { type CDPSession, chromium, type Page } from '@playwright/test';
 
 type MemoryMetrics = {
   JSHeapUsedSize: number;
@@ -32,7 +32,12 @@ async function buildGeneratedRuntime(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const child = execFile(
       'tsx',
-      [path.join(repoRoot, 'scripts', 'build-extension-runtime.mts'), '--bundle-content-scripts', '--out', runtimeOutputDir],
+      [
+        path.join(repoRoot, 'scripts', 'build-extension-runtime.mts'),
+        '--bundle-content-scripts',
+        '--out',
+        runtimeOutputDir,
+      ],
       {
         cwd: repoRoot,
         env: process.env,
@@ -165,15 +170,7 @@ async function captureHeapSnapshot(cdpSession: CDPSession, outputPath: string): 
     const handleChunk = ({ chunk }: { chunk: string }) => {
       outputStream.write(chunk);
     };
-    const handleProgress = ({
-      finished,
-      total,
-      done,
-    }: {
-      finished?: boolean;
-      total?: number;
-      done?: number;
-    }) => {
+    const handleProgress = ({ finished, total, done }: { finished?: boolean; total?: number; done?: number }) => {
       if (finished) {
         process.stdout.write(`[memory] heap snapshot progress ${done ?? total ?? 0}/${total ?? done ?? 0}\n`);
       }
