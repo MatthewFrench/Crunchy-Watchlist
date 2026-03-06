@@ -217,9 +217,11 @@ function createParkingManager(options?: {
       }
       if (!parked && hasParkedToken) {
         card.className = classTokens.filter((token) => token !== 'cw-curated-card--parked').join(' ');
+        card.style.display = '';
         return;
       }
       card.className = classTokens.join(' ');
+      card.style.display = parked ? 'none' : '';
     },
   };
 
@@ -270,7 +272,8 @@ describe('curated-panel-grid parking manager', () => {
     expect(controller).not.toBeNull();
     expect(controller?.parkedAt).toBe(100);
     expect(lifecycleCounts.parked).toBe(1);
-    expect(card.parentNode?.tagName).toBe('#document-fragment');
+    expect(card.parentNode).toBe(grid);
+    expect(card.style.display).toBe('none');
 
     now = 130;
     manager.markCardControllerActive('SERIES-1', handlers);
@@ -355,5 +358,28 @@ describe('curated-panel-grid parking manager', () => {
     expect(parkedCount).toBe(1);
     expect(manager.getControllerForSeriesId('SERIES-A')?.parkedAt).not.toBeNull();
     expect(manager.getControllerForSeriesId('SERIES-B')?.parkedAt).toBeNull();
+  });
+
+  it('keeps parked cards for larger lists when using the adaptive default parking budget', () => {
+    const documentRef = createFakeDocumentRef();
+    const manager = createParkingManager();
+
+    const cards = Array.from({ length: 200 }, (_value, index) =>
+      createFakeCard(`SERIES-${index + 1}`, `layout:portrait|series:${index + 1}`),
+    );
+    cards.forEach((card) => {
+      manager.parkCardForReuse(documentRef, card);
+    });
+
+    let disposedCount = 0;
+    manager.trimParkedCardsForReuse({
+      onDisposed: () => {
+        disposedCount += 1;
+      },
+    });
+
+    expect(disposedCount).toBe(0);
+    expect(manager.getControllerForSeriesId('SERIES-1')).not.toBeNull();
+    expect(manager.getControllerForSeriesId('SERIES-200')).not.toBeNull();
   });
 });

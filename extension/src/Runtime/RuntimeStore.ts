@@ -1,3 +1,5 @@
+import { resetRuntimePerfDiagnostics } from './RuntimePerfDiagnostics.js';
+
 type BoundaryValue = CwBoundaryValue;
 type BoundaryArray = BoundaryValue[];
 type BoundaryRecord = Record<string, BoundaryValue>;
@@ -195,6 +197,7 @@ function createWatchHistoryPreloadAttemptDiagnostics(): WatchHistoryPreloadAttem
 }
 
 function createRuntimeState(options: RuntimeStateOptions = {}): RuntimeState {
+  resetRuntimePerfDiagnostics();
   const defaultSettings =
     options.defaultSettings && typeof options.defaultSettings === 'object' ? options.defaultSettings : {};
   const watchHistoryCacheVersion = options.watchHistoryCacheVersion;

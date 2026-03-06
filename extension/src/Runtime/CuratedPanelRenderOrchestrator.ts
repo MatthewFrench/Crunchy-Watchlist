@@ -155,6 +155,8 @@ export class CuratedPanelRenderOrchestrator {
   private readonly resizeObserver: ResizeObserver | null;
   private observedResizeTarget: Element | null = null;
   private observedGridAvailableWidthKey = '0';
+  private cachedVisibleEntries: CuratedRenderableEntry[] | null = null;
+  private cachedVisibleRevisionSignature = 'count:0|first:|last:|hash:0';
   private initialLoadingLatched = false;
   private renderQueued = false;
   private flushScheduled = false;
@@ -229,6 +231,8 @@ export class CuratedPanelRenderOrchestrator {
     }
     this.observedResizeTarget = null;
     this.observedGridAvailableWidthKey = '0';
+    this.cachedVisibleEntries = null;
+    this.cachedVisibleRevisionSignature = 'count:0|first:|last:|hash:0';
   };
 
   private readonly runQueuedRender = (): void => {
@@ -459,6 +463,9 @@ export class CuratedPanelRenderOrchestrator {
     if (!visible.length) {
       return 'count:0|first:|last:|hash:0';
     }
+    if (visible === this.cachedVisibleEntries) {
+      return this.cachedVisibleRevisionSignature;
+    }
 
     let revisionHash = 2_166_136_261;
     visible.forEach((entry, index) => {
@@ -467,7 +474,10 @@ export class CuratedPanelRenderOrchestrator {
 
     const firstSeriesId = this.getRenderableSeriesId(visible[0] || {}, 0);
     const lastSeriesId = this.getRenderableSeriesId(visible[visible.length - 1] || {}, visible.length - 1);
-    return `count:${visible.length}|first:${firstSeriesId}|last:${lastSeriesId}|hash:${revisionHash.toString(16)}`;
+    const nextSignature = `count:${visible.length}|first:${firstSeriesId}|last:${lastSeriesId}|hash:${revisionHash.toString(16)}`;
+    this.cachedVisibleEntries = visible;
+    this.cachedVisibleRevisionSignature = nextSignature;
+    return nextSignature;
   };
 
   private readonly buildCuratedGridRenderSignature = (

@@ -1,3 +1,5 @@
+import { getRuntimePerfDiagnostics, type RuntimePerfDiagnostics } from './RuntimePerfDiagnostics.js';
+
 type BoundaryValue = CwBoundaryValue;
 type BoundaryRecord = Record<string, BoundaryValue>;
 type BoundaryArray = BoundaryValue[];
@@ -48,6 +50,7 @@ type CuratedDomLifecycleStats = {
   totalLifecycleMutations: number;
   identityChurnRate: number;
   watchHistoryPreloadAttempts: WatchHistoryPreloadAttemptStats;
+  perfDiagnostics: RuntimePerfDiagnostics;
 };
 
 type WatchHistoryPreloadAttemptStats = {
@@ -305,6 +308,7 @@ function getCuratedDomLifecycleStatsInternal(context: DebugApiContext): CuratedD
     totalLifecycleMutations,
     identityChurnRate,
     watchHistoryPreloadAttempts: getWatchHistoryPreloadAttemptStats(context),
+    perfDiagnostics: getRuntimePerfDiagnostics(),
   };
 }
 

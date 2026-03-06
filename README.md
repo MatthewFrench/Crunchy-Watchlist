@@ -145,10 +145,15 @@ npm run build:safari       # Safari artifacts
 ```bash
 npm run test:e2e                 # cross-engine Playwright smoke/e2e
 npm run test:e2e:chromium
+npm run test:e2e:edge
 npm run test:e2e:firefox
 npm run test:e2e:webkit
 npm run pw:live                  # interactive WebKit watchlist session
 npm run pw:live:smoke            # non-interactive generated-runtime parity check for live injection
+npm run pw:live:cdp              # attach to an existing Chromium-family browser on localhost:9222
+npm run pw:live:edge:native      # interactive Edge-native watchlist session
+npm run pw:live:edge:cdp         # attach to an existing Edge session on localhost:9222
+npm run pw:bench:edge:cdp        # one-shot client-only interaction benchmark on an attached Edge session
 npm run lint:firefox             # Firefox manifest + package lint
 npm run format:check             # Biome format check on configured paths
 ```

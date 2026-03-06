@@ -175,6 +175,18 @@ function resolveBootstrapDebugApiDependencies(options: BootstrapFinalizeOptions)
         byLocaleRevision: {},
         lastAttempt: null,
       },
+      perfDiagnostics: {
+        routeObserverBatchesProcessed: 0,
+        routeObserverBatchesIgnored: 0,
+        routeStructureChecks: 0,
+        routeStructureSyncs: 0,
+        gridLayoutCacheHits: 0,
+        gridLayoutCacheMisses: 0,
+        retainedCardHideScheduled: 0,
+        retainedCardHideCompleted: 0,
+        localizedPreloadRenderRequestsQueued: 0,
+        localizedPreloadRenderRequestsDeduped: 0,
+      },
     })),
     dumpSeriesApiData,
     printSeriesApiData: toFunction<(query: BoundaryValue) => BoundaryValue>(

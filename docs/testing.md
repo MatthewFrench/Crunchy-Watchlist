@@ -35,6 +35,7 @@ Run a single engine:
 
 ```bash
 npm run test:e2e:chromium
+npm run test:e2e:edge
 npm run test:e2e:firefox
 npm run test:e2e:webkit
 ```
@@ -108,6 +109,30 @@ Non-interactive smoke check for live-runtime parity:
 
 ```bash
 npm run pw:live:smoke
+```
+
+Edge-native live session:
+
+```bash
+npm run pw:live:edge:native
+```
+
+Attach to an already-running Chromium-family browser on `http://127.0.0.1:9222`:
+
+```bash
+npm run pw:live:cdp
+```
+
+Attach specifically to an already-running Edge session on `http://127.0.0.1:9222`:
+
+```bash
+npm run pw:live:edge:cdp
+```
+
+One-shot client-only benchmark against an attached Edge session:
+
+```bash
+npm run pw:bench:edge:cdp
 ```
 
 ## Firefox publish validation

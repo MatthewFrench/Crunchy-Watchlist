@@ -1,4 +1,5 @@
 import { CuratedPanelGridMountReconcilerOwner } from './CuratedPanelGridMountReconciler.js';
+import { readCuratedGridActiveCards } from './CuratedPanelGridDomState.js';
 import { CuratedPanelGridOrderPlannerOwner } from './CuratedPanelGridOrderPlanner.js';
 
 type BoundaryValue = CwBoundaryValue;
@@ -74,7 +75,7 @@ function shouldSkipCuratedGridRender(options: ShouldSkipCuratedGridRenderOptions
     return false;
   }
 
-  const children = Array.from(gridEl.children);
+  const children = readCuratedGridActiveCards(gridEl);
   if (visible.length > 0) {
     return (
       children.length === visible.length &&

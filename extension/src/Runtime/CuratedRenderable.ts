@@ -282,6 +282,25 @@ function createCuratedRenderableMergeSupportRuntime(): CuratedRenderableMergeSup
   };
 }
 
+function createDecoratedRenderableEntries(
+  filtered: LooseRecord[],
+  watchReadyFilterMode: BuildRenderableEntriesResult['mode'],
+  settingsRecord: LooseRecord,
+  dependencies: CuratedRenderableDependencies,
+  listProcessingRuntime: CuratedRenderableListProcessingRuntime,
+): LooseRecord[] {
+  const decorated = filtered.map((entry) => ({
+    ...entry,
+    dimNotWatchReady: watchReadyFilterMode === 'dim' && !entry.watchReady,
+  }));
+  listProcessingRuntime.sortDecoratedEntries({
+    decorated,
+    settingsRecord,
+    compareRenderableEntries: dependencies.compareRenderableEntries,
+  });
+  return decorated;
+}
+
 function buildRenderableEntriesInternal(
   entries: RuntimeBoundaryValue[],
   settings: RuntimeBoundaryValue,
@@ -343,16 +362,13 @@ function buildRenderableEntriesInternal(
     cacheState.filteredEntries = filtered;
   }
 
-  const decorated = filtered.map((entry) => ({
-    ...entry,
-    dimNotWatchReady: watchReadyFilterMode === 'dim' && !entry.watchReady,
-  }));
-
-  listProcessingRuntime.sortDecoratedEntries({
-    decorated,
+  const decorated = createDecoratedRenderableEntries(
+    filtered,
+    watchReadyFilterMode,
     settingsRecord,
-    compareRenderableEntries: dependencies.compareRenderableEntries,
-  });
+    dependencies,
+    listProcessingRuntime,
+  );
 
   return {
     mode: watchReadyFilterMode,

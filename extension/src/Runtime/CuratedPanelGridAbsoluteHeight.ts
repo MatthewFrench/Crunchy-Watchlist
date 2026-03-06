@@ -1,3 +1,5 @@
+import { setCuratedGridStyleValue } from './CuratedPanelGridStyleSupport.js';
+
 function getElementStyleRecord(value: Element): Record<string, string> | null {
   const elementWithStyle = value as Element & { style?: Record<string, string> };
   return elementWithStyle.style || null;
@@ -41,6 +43,6 @@ export function applyUniformCardHeight(nextCards: Element[], heightPx: number): 
     if (!style) {
       return;
     }
-    style.height = roundedHeight;
+    setCuratedGridStyleValue(style, 'height', roundedHeight);
   });
 }

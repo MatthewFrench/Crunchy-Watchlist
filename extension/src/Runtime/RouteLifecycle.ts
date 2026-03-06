@@ -1,3 +1,5 @@
+import { incrementRuntimePerfDiagnostic } from './RuntimePerfDiagnostics.js';
+
 type BoundaryValue = CwBoundaryValue;
 type BoundaryArray = BoundaryValue[];
 type BoundaryRecord = Record<string, BoundaryValue>;
@@ -12,6 +14,7 @@ type RuntimeState = {
   routeSyncTimer: number | null;
   processTimer: number | null;
   mutationMuted: boolean;
+  framedRootEl?: Element | null;
   hostEl: Element | null;
   tabCrunchyrollEl: Element | null;
   tabCuratedEl: Element | null;
@@ -168,6 +171,86 @@ function shouldIgnoreOwnedHostMutations(context: RouteLifecycleContext, records:
   return true;
 }
 
+function toNodeArray(value: BoundaryValue): Node[] {
+  if (!value || typeof value !== 'object') {
+    return [];
+  }
+  try {
+    return Array.from(value as ArrayLike<Node>);
+  } catch {
+    return [];
+  }
+}
+
+function getTrackedWatchlistContainers(context: RouteLifecycleContext): Element[] {
+  const tracked: Element[] = [];
+  const framedRoot = context.state.framedRootEl;
+  if (framedRoot) {
+    tracked.push(framedRoot);
+  }
+
+  const hostParent =
+    (context.state.hostEl as (Element & { parentElement?: Element | null }) | null)?.parentElement || null;
+  if (hostParent && !tracked.includes(hostParent)) {
+    tracked.push(hostParent);
+  }
+
+  return tracked;
+}
+
+function mutationTouchesTrackedContainer(record: MutationRecord, trackedContainer: Element): boolean {
+  if (isMutationWithinOwnedHost(record?.target, trackedContainer)) {
+    return true;
+  }
+
+  const changedNodes = [...toNodeArray(record?.addedNodes), ...toNodeArray(record?.removedNodes)];
+  for (const changedNode of changedNodes) {
+    if (changedNode === trackedContainer) {
+      return true;
+    }
+    if (typeof trackedContainer.contains === 'function') {
+      try {
+        if (trackedContainer.contains(changedNode)) {
+          return true;
+        }
+      } catch {
+        // no-op
+      }
+    }
+
+    const changedElement = changedNode as Node & { contains?: (candidate: Node) => boolean };
+    if (typeof changedElement.contains === 'function') {
+      try {
+        if (changedElement.contains(trackedContainer)) {
+          return true;
+        }
+      } catch {
+        // no-op
+      }
+    }
+  }
+
+  return false;
+}
+
+function shouldProcessWatchlistMutations(context: RouteLifecycleContext, records: MutationRecord[]): boolean {
+  if (!records.length) {
+    return false;
+  }
+  if (shouldIgnoreOwnedHostMutations(context, records)) {
+    return false;
+  }
+
+  const trackedContainers = getTrackedWatchlistContainers(context);
+  if (!trackedContainers.length) {
+    return true;
+  }
+
+  return records.some((record) =>
+    trackedContainers.some((trackedContainer) => mutationTouchesTrackedContainer(record, trackedContainer)),
+  );
+}
+
 async function processWatchlistInternal(context: RouteLifecycleContext): Promise<void> {
   if (!isRuntimeActiveInternal(context) || !context.state.mounted || !context.isWatchlistPath(readCurrentPathname())) {
     return;
@@ -204,10 +287,12 @@ function startObserverInternal(context: RouteLifecycleContext): void {
     if (!isRuntimeActiveInternal(context) || context.state.mutationMuted) {
       return;
     }
-    if (shouldIgnoreOwnedHostMutations(context, records)) {
+    if (!shouldProcessWatchlistMutations(context, records)) {
+      incrementRuntimePerfDiagnostic('routeObserverBatchesIgnored');
       return;
     }
 
+    incrementRuntimePerfDiagnostic('routeObserverBatchesProcessed');
     context.debounceProcess();
   });
 
@@ -311,19 +396,6 @@ function notifyPathnameRouteSyncInternal(context: RouteLifecycleContext, routeWa
   scheduleRouteSyncInternal(context);
 }
 
-function syncWhenPathnameChangesInternal(context: RouteLifecycleContext, routeWatcherState: RouteWatcherState): void {
-  if (!routeWatcherState.active || !isRuntimeActiveInternal(context)) {
-    return;
-  }
-  const pathname = readCurrentPathname();
-  if (pathname === routeWatcherState.lastObservedPathname) {
-    return;
-  }
-
-  routeWatcherState.lastObservedPathname = pathname;
-  scheduleRouteSyncInternal(context);
-}
-
 function startRouteStructureObserverInternal(
   context: RouteLifecycleContext,
   routeWatcherState: RouteWatcherState,
@@ -341,10 +413,20 @@ function startRouteStructureObserverInternal(
   // Some SPA routers call saved native history references that bypass patched history methods.
   // Detect pathname changes during DOM churn so route syncing still runs for those transitions.
   const observer = new MutationObserver((records) => {
+    if (!routeWatcherState.active || !isRuntimeActiveInternal(context)) {
+      return;
+    }
+    incrementRuntimePerfDiagnostic('routeStructureChecks');
+    const pathname = readCurrentPathname();
+    if (pathname === routeWatcherState.lastObservedPathname) {
+      return;
+    }
     if (shouldIgnoreOwnedHostMutations(context, records)) {
       return;
     }
-    syncWhenPathnameChangesInternal(context, routeWatcherState);
+    routeWatcherState.lastObservedPathname = pathname;
+    incrementRuntimePerfDiagnostic('routeStructureSyncs');
+    scheduleRouteSyncInternal(context);
   });
   observer.observe(target, {
     childList: true,

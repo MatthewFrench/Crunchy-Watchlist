@@ -236,6 +236,18 @@ describe('debug-api runtime', () => {
           localeRevisionAttemptCount: 1,
         },
       },
+      perfDiagnostics: {
+        routeObserverBatchesProcessed: 0,
+        routeObserverBatchesIgnored: 0,
+        routeStructureChecks: 0,
+        routeStructureSyncs: 0,
+        gridLayoutCacheHits: 0,
+        gridLayoutCacheMisses: 0,
+        retainedCardHideScheduled: 0,
+        retainedCardHideCompleted: 0,
+        localizedPreloadRenderRequestsQueued: 0,
+        localizedPreloadRenderRequestsDeduped: 0,
+      },
     });
   });
 

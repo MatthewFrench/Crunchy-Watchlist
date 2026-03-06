@@ -392,22 +392,38 @@ function queueCardEnterTransition(card: Element & { className?: string }): void 
 
 function setCardParkedState(card: Element, parked: boolean): void {
   const cardElement = card as Element & { className?: string };
+  const style = (card as Element & { style?: Record<string, string> }).style || null;
   const currentClassName = cardElement.className || '';
+  const withBaseCardClass = toggleClassNameToken(currentClassName, 'cw-curated-card', true);
   const hadParkedClass = hasClassNameToken(currentClassName, 'cw-curated-card--parked');
-  const nextWithParked = toggleClassNameToken(currentClassName, 'cw-curated-card--parked', parked);
+  const nextWithParked = toggleClassNameToken(withBaseCardClass, 'cw-curated-card--parked', parked);
   const nextClassName = parked
-    ? toggleClassNameToken(nextWithParked, 'cw-curated-card--entering', false)
+    ? toggleClassNameToken(
+        toggleClassNameToken(nextWithParked, 'cw-curated-card--entering', false),
+        'cw-curated-card',
+        false,
+      )
     : nextWithParked;
   if (nextClassName === currentClassName) {
     return;
   }
 
   if (!parked && hadParkedClass) {
-    cardElement.className = toggleClassNameToken(nextClassName, 'cw-curated-card--entering', true);
+    if (style) {
+      style.display = '';
+    }
+    cardElement.className = toggleClassNameToken(
+      toggleClassNameToken(nextClassName, 'cw-curated-card', true),
+      'cw-curated-card--entering',
+      true,
+    );
     queueCardEnterTransition(cardElement);
     return;
   }
 
+  if (style) {
+    style.display = parked ? 'none' : '';
+  }
   cardElement.className = nextClassName;
 }
 

@@ -1,5 +1,11 @@
 const root = (typeof window !== 'undefined' ? window : globalThis) as Window & typeof globalThis;
-const retainedCardHideTimeoutByElement = new Map<Element, number>();
+type RetainedCardHideBatch = {
+  timeoutId: number | null;
+  onHiddenByElement: Map<Element, (() => void) | null>;
+};
+
+const retainedCardHideDurationByElement = new Map<Element, number>();
+const retainedCardHideBatchByDuration = new Map<number, RetainedCardHideBatch>();
 
 function toggleClassNameToken(className: string, token: string, enabled: boolean): string {
   const classTokens = className
@@ -34,7 +40,7 @@ function clearRetainedCardHideState(card: Element): void {
 }
 
 export function isRetainedCardHiding(value: Element): boolean {
-  return retainedCardHideTimeoutByElement.has(value);
+  return retainedCardHideDurationByElement.has(value);
 }
 
 export function isParkedCardElement(value: Element): boolean {
@@ -43,26 +49,57 @@ export function isParkedCardElement(value: Element): boolean {
 }
 
 export function cancelRetainedCardHideIfNeeded(card: Element): void {
-  const timeoutId = retainedCardHideTimeoutByElement.get(card);
-  if (typeof timeoutId === 'number') {
-    root.clearTimeout(timeoutId);
-    retainedCardHideTimeoutByElement.delete(card);
+  const durationMs = retainedCardHideDurationByElement.get(card);
+  if (typeof durationMs === 'number') {
+    retainedCardHideDurationByElement.delete(card);
+    const batch = retainedCardHideBatchByDuration.get(durationMs);
+    if (batch) {
+      batch.onHiddenByElement.delete(card);
+      if (batch.onHiddenByElement.size === 0) {
+        if (typeof batch.timeoutId === 'number') {
+          root.clearTimeout(batch.timeoutId);
+        }
+        retainedCardHideBatchByDuration.delete(durationMs);
+      }
+    }
   }
   clearRetainedCardHideState(card);
 }
 
-export function scheduleRetainedCardHide(card: Element, durationMs: number): void {
-  const existingTimeoutId = retainedCardHideTimeoutByElement.get(card);
-  if (typeof existingTimeoutId === 'number') {
+export function scheduleRetainedCardHide(card: Element, durationMs: number, onHidden?: (() => void) | null): void {
+  if (retainedCardHideDurationByElement.has(card)) {
     return;
   }
 
   setCardClassToken(card, 'cw-curated-card--parked', false);
   setCardClassToken(card, 'cw-curated-card--leaving', true);
-  const timeoutId = root.setTimeout(() => {
-    retainedCardHideTimeoutByElement.delete(card);
-    setCardClassToken(card, 'cw-curated-card--leaving', false);
-    setCardClassToken(card, 'cw-curated-card--parked', true);
+  retainedCardHideDurationByElement.set(card, durationMs);
+
+  let batch = retainedCardHideBatchByDuration.get(durationMs);
+  if (!batch) {
+    batch = {
+      timeoutId: null,
+      onHiddenByElement: new Map<Element, (() => void) | null>(),
+    };
+    retainedCardHideBatchByDuration.set(durationMs, batch);
+  }
+
+  batch.onHiddenByElement.set(card, onHidden || null);
+  if (typeof batch.timeoutId === 'number') {
+    return;
+  }
+
+  batch.timeoutId = root.setTimeout(() => {
+    const activeBatch = retainedCardHideBatchByDuration.get(durationMs);
+    if (!activeBatch) {
+      return;
+    }
+    retainedCardHideBatchByDuration.delete(durationMs);
+    activeBatch.onHiddenByElement.forEach((callback, activeCard) => {
+      retainedCardHideDurationByElement.delete(activeCard);
+      setCardClassToken(activeCard, 'cw-curated-card--leaving', false);
+      setCardClassToken(activeCard, 'cw-curated-card--parked', true);
+      callback?.();
+    });
   }, durationMs);
-  retainedCardHideTimeoutByElement.set(card, timeoutId);
 }

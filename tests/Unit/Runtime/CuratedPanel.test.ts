@@ -1056,7 +1056,7 @@ describe('curated-panel runtime', () => {
     expect(statsEl.textContent).toBe('Showing 2 of 5');
   });
 
-  it('reuses existing card nodes and keeps dom order stable when render order changes', () => {
+  it('reuses existing card nodes and updates dom order when render order changes', () => {
     const gridEl = createFakeElement();
     const statsEl = createFakeElement();
     const loadingIndicatorEl = createFakeElement();
@@ -1136,7 +1136,7 @@ describe('curated-panel runtime', () => {
     runtime.renderCuratedPanel();
 
     expect(createdCards).toBe(3);
-    expect(gridEl.children).toEqual(firstRenderCards);
+    expect(gridEl.children).toEqual([firstRenderCards[2], firstRenderCards[0], firstRenderCards[1]]);
   });
 
   it('parks filtered cards and reuses the same nodes when they re-enter visibility', () => {
