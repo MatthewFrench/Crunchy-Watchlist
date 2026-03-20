@@ -98,20 +98,7 @@ class FakeElement {
   }
 
   querySelectorAll(selector: string): FakeElement[] {
-    if (selector !== '[data-cw-prev-display]') {
-      return [];
-    }
-    const matches: FakeElement[] = [];
-    const visit = (node: FakeElement) => {
-      if (Object.hasOwn(node.dataset, 'cwPrevDisplay')) {
-        matches.push(node);
-      }
-      node.children.forEach((child) => {
-        visit(child);
-      });
-    };
-    visit(this);
-    return matches;
+    return [];
   }
 }
 
@@ -139,7 +126,7 @@ function getHostLifecycleRuntime(): InterfaceShellHostLifecycleRuntime {
 function createState(hostEl: FakeElement | null = null) {
   return {
     framedRootEl: null,
-    nativeHiddenNodes: [] as FakeElement[],
+    nativeHiddenNodes: [] as Array<{ node: FakeElement; previousDisplay: string }>,
     hostEl,
     tabCrunchyrollEl: hostEl,
     tabCuratedEl: hostEl,
@@ -192,14 +179,16 @@ describe('interface-shell-host-lifecycle runtime', () => {
     runtime.setNativeVisibility(context, false);
 
     expect(nativeElement.style.display).toBe('none');
-    expect(nativeElement.dataset.cwPrevDisplay).toBe('grid');
     expect(state.nativeHiddenNodes).toHaveLength(1);
+    expect(state.nativeHiddenNodes[0]).toEqual({
+      node: nativeElement,
+      previousDisplay: 'grid',
+    });
 
     runtime.setNativeVisibility(context, true);
     runtime.setNativeVisibility(context, true);
 
     expect(nativeElement.style.display).toBe('grid');
-    expect(Object.hasOwn(nativeElement.dataset, 'cwPrevDisplay')).toBe(false);
     expect(state.nativeHiddenNodes).toEqual([]);
     expect(windowRef.dispatchedEvents).toEqual(['resize', 'scroll', 'resize', 'scroll']);
   });

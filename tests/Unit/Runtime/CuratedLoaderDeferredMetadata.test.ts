@@ -54,7 +54,7 @@ const curatedPanelGridDomStateModuleUrl = pathToFileURL(
 
 let curatedLoaderDeferredMetadataModule: DeferredMetadataModule | null = null;
 let curatedPanelGridDomStateModule: {
-  writeCuratedGridActiveCards: (gridElement: Element, activeCards: Element[]) => void;
+  writeProjectedCuratedGridChildren: (gridElement: Element, activeCards: Element[]) => void;
 } | null = null;
 
 function getModule(): DeferredMetadataModule {
@@ -65,7 +65,7 @@ function getModule(): DeferredMetadataModule {
 }
 
 function getDomStateModule(): {
-  writeCuratedGridActiveCards: (gridElement: Element, activeCards: Element[]) => void;
+  writeProjectedCuratedGridChildren: (gridElement: Element, activeCards: Element[]) => void;
 } {
   if (!curatedPanelGridDomStateModule) {
     throw new Error('Curated panel grid DOM state module is not initialized');
@@ -86,7 +86,7 @@ describe('curated-loader-deferred-metadata runtime', () => {
       curatedLoaderDeferredMetadataModuleUrl
     )) as DeferredMetadataModule;
     curatedPanelGridDomStateModule = (await import(curatedPanelGridDomStateModuleUrl)) as {
-      writeCuratedGridActiveCards: (gridElement: Element, activeCards: Element[]) => void;
+      writeProjectedCuratedGridChildren: (gridElement: Element, activeCards: Element[]) => void;
     };
   });
 
@@ -170,7 +170,9 @@ describe('curated-loader-deferred-metadata runtime', () => {
     const gridElement = {
       children: [parkedCard, visibleCard],
     } as unknown as Element;
-    getDomStateModule().writeCuratedGridActiveCards(gridElement, [visibleCard]);
+    (parkedCard as Element & { parentNode?: Element | null }).parentNode = gridElement;
+    (visibleCard as Element & { parentNode?: Element | null }).parentNode = gridElement;
+    getDomStateModule().writeProjectedCuratedGridChildren(gridElement, [visibleCard]);
     const preloadMetadataForEntries = vi.fn(async () => {});
 
     runtime.queueDeferredMetadataPreload({

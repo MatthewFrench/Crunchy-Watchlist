@@ -11,6 +11,14 @@ type CuratedPanelControlsSyncOwner = {
     selectedAudioFilter: string,
     selectedGenreFilter: string,
   ) => void;
+  updateStatsText: (
+    statsEl: { textContent: string | null },
+    summary: {
+      totalCount: number;
+      visibleCount: number;
+      loading: boolean;
+    },
+  ) => void;
 };
 
 type CuratedPanelControlsSyncModule = {
@@ -24,6 +32,7 @@ type FakeOptionElement = {
   value: string;
   textContent: string | null;
   text?: string | null;
+  selected?: boolean;
 };
 
 type FakeSelectElement = {
@@ -184,5 +193,55 @@ describe('CuratedPanelControlsSyncOwner', () => {
 
     expect(audioSelect.value).toBe('en-US');
     expect(genreSelect.value).toBe('action');
+  });
+
+  it('matches selected values against options case-insensitively during sync', () => {
+    const owner = createOwner();
+    const audioSelect = createFakeSelectElement();
+    const genreSelect = createFakeSelectElement();
+
+    owner.syncFilterOptions(
+      audioSelect,
+      genreSelect,
+      [
+        { optionValue: 'any', title: 'Any language' },
+        { optionValue: 'en-US', title: 'en-US' },
+      ],
+      [
+        { optionValue: 'any', title: 'Any genre' },
+        { optionValue: 'action', title: 'Action' },
+      ],
+      'EN-us',
+      'Action',
+    );
+
+    expect(audioSelect.value).toBe('en-US');
+    expect(genreSelect.value).toBe('action');
+  });
+
+  it('shows filtered counts whenever visible results are smaller than the total set', () => {
+    const owner = createOwner();
+    const statsEl = { textContent: null as string | null };
+
+    owner.updateStatsText(statsEl, {
+      totalCount: 284,
+      visibleCount: 46,
+      loading: false,
+    });
+
+    expect(statsEl.textContent).toBe('Showing 46 of 284');
+  });
+
+  it('shows total count only when the visible render set matches the total set', () => {
+    const owner = createOwner();
+    const statsEl = { textContent: null as string | null };
+
+    owner.updateStatsText(statsEl, {
+      totalCount: 4,
+      visibleCount: 4,
+      loading: false,
+    });
+
+    expect(statsEl.textContent).toBe('4 shows');
   });
 });

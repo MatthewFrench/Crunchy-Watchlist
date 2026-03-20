@@ -1,6 +1,7 @@
-import { readCuratedGridActiveCards } from './CuratedPanelGridDomState.js';
+import { readProjectedCuratedGridChildren } from './CuratedPanelGridDomState.js';
 import { CuratedPanelGridMountReconcilerOwner } from './CuratedPanelGridMountReconciler.js';
 import { CuratedPanelGridOrderPlannerOwner } from './CuratedPanelGridOrderPlanner.js';
+import type { CuratedGridRenderCard } from './CuratedPanelGridRenderCard.js';
 
 type BoundaryValue = CwBoundaryValue;
 type BoundaryRecord = Record<string, BoundaryValue>;
@@ -39,12 +40,20 @@ type RenderVisibleCuratedGridStateOptions = {
   loadedSeriesIds: Set<string>;
   metadataLoading: boolean;
   gridEl: Element;
-  createOrReuseCuratedCard: (entry: BoundaryRecord, detailsLoading: boolean, visibleSeriesIds: Set<string>) => Element;
+  createOrReuseCuratedCard: (
+    entry: BoundaryRecord,
+    detailsLoading: boolean,
+    visibleSeriesIds: Set<string>,
+  ) => CuratedGridRenderCard;
   getEntrySeriesId: (entry: BoundaryRecord) => string;
   markCardControllerActive: (seriesId: string) => void;
-  setCardParkedState: (card: Element, parked: boolean) => void;
+  setCardParkedState: (card: CuratedGridRenderCard, parked: boolean) => void;
   isRenderableEntryMetadataLoading: (entry: BoundaryRecord) => boolean;
-  reorderCuratedGridChildren: (gridElement: Element, nextCards: Element[], options?: CuratedGridReorderOptions) => void;
+  reorderCuratedGridChildren: (
+    gridElement: Element,
+    nextCards: CuratedGridRenderCard[],
+    options?: CuratedGridReorderOptions,
+  ) => void;
   shouldRetainCardInGrid: (card: Element) => boolean;
   parkCardForReuse: (card: Element) => void;
   parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>, retainedSeriesIds?: Set<string>) => void;
@@ -75,7 +84,7 @@ function shouldSkipCuratedGridRender(options: ShouldSkipCuratedGridRenderOptions
     return false;
   }
 
-  const children = readCuratedGridActiveCards(gridEl);
+  const children = readProjectedCuratedGridChildren(gridEl);
   if (visible.length > 0) {
     return (
       children.length === visible.length &&

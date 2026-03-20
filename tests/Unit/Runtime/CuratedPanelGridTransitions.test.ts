@@ -5,7 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 type CuratedPanelGridTransitionsRuntime = {
   reorderCuratedGridChildren: (
     gridElement: Element,
-    nextCards: Element[],
+    nextCards: Array<{
+      card: Element;
+      seriesId: string;
+      contentSignature: string;
+      detailsLoading: boolean;
+      transitionState: {
+        absolutePositionSeeded: boolean;
+        centerIntroStaged: boolean;
+      };
+    }>,
     options?: {
       onCardRemoved?: ((card: Element) => void) | null;
       shouldRetainCardInGrid?: ((card: Element) => boolean) | null;
@@ -18,7 +27,7 @@ type CuratedPanelGridTransitionsModule = {
 };
 
 type CuratedPanelGridDomStateModule = {
-  readCuratedGridActiveCards: (gridElement: Element) => Element[];
+  readProjectedCuratedGridChildren: (gridElement: Element) => Element[];
 };
 
 type FakeElement = {
@@ -58,7 +67,7 @@ function readActiveGridChildren(grid: FakeElement): FakeElement[] {
   if (!curatedPanelGridDomStateModule) {
     throw new Error('Curated panel grid dom state module was not initialized for test');
   }
-  return curatedPanelGridDomStateModule.readCuratedGridActiveCards(
+  return curatedPanelGridDomStateModule.readProjectedCuratedGridChildren(
     grid as unknown as Element,
   ) as unknown as FakeElement[];
 }
@@ -66,6 +75,61 @@ function readActiveGridChildren(grid: FakeElement): FakeElement[] {
 function readCardContainerHeightPx(element: FakeElement): number {
   const styleHeight = element.style?.[cardContainerHeightCssVariable] || element.style?.height || '0';
   return Number.parseFloat(String(styleHeight)) || 0;
+}
+
+function createTestRuntime() {
+  const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+  const toFakeElement = (value: FakeElement | Element): FakeElement => value as unknown as FakeElement;
+  const renderCardByElement = new WeakMap<Element, {
+    card: Element;
+    seriesId: string;
+    contentSignature: string;
+    detailsLoading: boolean;
+    transitionState: {
+      absolutePositionSeeded: boolean;
+      centerIntroStaged: boolean;
+    };
+  }>();
+  return {
+    reorderCuratedGridChildren: (
+      gridElement: Element,
+      nextCards: Array<FakeElement | Element>,
+      options?: {
+        onCardRemoved?: ((card: Element) => void) | null;
+        shouldRetainCardInGrid?: ((card: Element) => boolean) | null;
+      },
+    ) =>
+      runtime.reorderCuratedGridChildren(
+        gridElement,
+        nextCards.map((card) => {
+          const fakeCard = toFakeElement(card);
+          const element = fakeCard as unknown as Element;
+          const existing = renderCardByElement.get(element);
+          const nextContentSignature =
+            fakeCard.dataset.cwCardContentSignature || `sig:${fakeCard.dataset.cwSeriesId || 'unknown'}`;
+          if (existing) {
+            existing.seriesId = fakeCard.dataset.cwSeriesId || '';
+            existing.contentSignature = nextContentSignature;
+            existing.detailsLoading = false;
+            return existing;
+          }
+
+          const nextRenderCard = {
+            card: element,
+            seriesId: fakeCard.dataset.cwSeriesId || '',
+            contentSignature: nextContentSignature,
+            detailsLoading: false,
+            transitionState: {
+              absolutePositionSeeded: false,
+              centerIntroStaged: false,
+            },
+          };
+          renderCardByElement.set(element, nextRenderCard);
+          return nextRenderCard;
+        }),
+        options,
+      ),
+  };
 }
 
 function createFakeElement(className = ''): FakeElement {
@@ -157,7 +221,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('keeps dom order stable while removing overflow cards when absolute placement styles are unavailable', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const cardA = createFakeElement('cw-curated-card');
     const cardB = createFakeElement('cw-curated-card');
@@ -180,7 +244,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('reorders existing mounted cards to match the next card order when styles are available', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const cardA = createFakeElement('cw-curated-card');
     const cardB = createFakeElement('cw-curated-card');
@@ -220,7 +284,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('minimizes visible-card moves for near-sorted reorders', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const cards = ['a', 'b', 'c', 'd', 'e'].map((seriesId) => {
       const card = createFakeElement('cw-curated-card');
@@ -265,7 +329,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('clears all cards when next card list is empty', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const cardA = createFakeElement('cw-curated-card');
     const cardB = createFakeElement('cw-curated-card');
@@ -282,7 +346,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('skips animation work when card order and membership are unchanged', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const rectReads = { value: 0 };
     const cardA = createMeasurableCard('cw-curated-card', rectReads);
@@ -303,7 +367,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('reuses cached absolute layout when order and card signatures are unchanged', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const rectReads = { value: 0 };
     const cardA = createMeasurableCard('cw-curated-card', rectReads);
@@ -375,7 +439,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('reuses cached card heights during reorder when width and content are unchanged', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const rectReads = { value: 0 };
     const cards = Array.from({ length: 60 }, (_value, index) => {
@@ -416,7 +480,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('restores grid height from prior card heights when cards are temporarily unmeasurable', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const cardA = createFakeElement('cw-curated-card');
     const cardB = createFakeElement('cw-curated-card');
@@ -477,7 +541,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('keeps compact uniform height even when content is taller than the card box', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const cardA = createFakeElement('cw-curated-card');
     const cardB = createFakeElement('cw-curated-card');
@@ -540,7 +604,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('uses a 65th percentile compact height target for two-column grids', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     grid.style = {};
     grid.getBoundingClientRect = () => ({
@@ -580,7 +644,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('uses parent container width to size cards during absolute placement', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const gridParent = createFakeElement('cw-curated-grid-shell');
     const grid = createFakeElement('cw-curated-grid');
     const card = createFakeElement('cw-curated-card');
@@ -616,7 +680,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('tracks visual order through runtime-owned active state when absolute placement is active', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const cardA = createFakeElement('cw-curated-card');
     const cardB = createFakeElement('cw-curated-card');
@@ -682,7 +746,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   it('retains filtered cards in-grid and parks them after fade-out when requested', () => {
     vi.useFakeTimers();
     try {
-      const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+      const runtime = createTestRuntime();
       const grid = createFakeElement('cw-curated-grid');
       const cardA = createFakeElement('cw-curated-card');
       const cardB = createFakeElement('cw-curated-card');
@@ -742,7 +806,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   it('parks offscreen retained cards immediately instead of animating them in-grid', () => {
     vi.stubGlobal('innerHeight', 800);
     try {
-      const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+      const runtime = createTestRuntime();
       const grid = createFakeElement('cw-curated-grid');
       const cardA = createFakeElement('cw-curated-card');
       const cardB = createFakeElement('cw-curated-card');
@@ -787,7 +851,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('updates absolute positions for medium-sized reorders while keeping active order aligned', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const rectReads = { value: 0 };
     const cards = Array.from({ length: 121 }, () => createMeasurableCard('cw-curated-card', rectReads));
@@ -825,7 +889,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('updates absolute positions for large reorders while keeping active order aligned', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const rectReads = { value: 0 };
     const cards = Array.from({ length: 321 }, () => createMeasurableCard('cw-curated-card', rectReads));
@@ -865,7 +929,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   it('handles large overflow removals while preserving final order', () => {
     vi.useFakeTimers();
     try {
-      const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+      const runtime = createTestRuntime();
       const grid = createFakeElement('cw-curated-grid');
       const rectReads = { value: 0 };
       const cards = Array.from({ length: 60 }, () => createMeasurableCard('cw-curated-card', rectReads));
@@ -908,7 +972,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('keeps element identity stable under repeated reorder churn while tracking the latest logical order', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const cardA = createFakeElement('cw-curated-card');
     const cardB = createFakeElement('cw-curated-card');
@@ -966,7 +1030,7 @@ describe('curated-panel-grid-transitions runtime', () => {
   });
 
   it('reports removed cards through onCardRemoved while ignoring non-card overflow nodes', () => {
-    const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
+    const runtime = createTestRuntime();
     const grid = createFakeElement('cw-curated-grid');
     const removedCards: FakeElement[] = [];
     const cardA = createFakeElement('cw-curated-card');

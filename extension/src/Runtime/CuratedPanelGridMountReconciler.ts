@@ -1,4 +1,5 @@
-import { clearCuratedGridDomState } from './CuratedPanelGridDomState.js';
+import { clearCuratedGridDomState, writeProjectedCuratedGridChildren } from './CuratedPanelGridDomState.js';
+import type { CuratedGridRenderCard } from './CuratedPanelGridRenderCard.js';
 
 type CuratedGridReorderOptions = {
   onCardRemoved?: ((card: Element) => void) | null;
@@ -18,10 +19,14 @@ export type RenderEmptyCuratedGridStateOptions = {
 
 export type RenderVisibleCuratedGridStateOptions = {
   gridEl: Element;
-  nextCards: Element[];
+  nextCards: CuratedGridRenderCard[];
   visibleSeriesIds: Set<string>;
   loadedSeriesIds: Set<string>;
-  reorderCuratedGridChildren: (gridElement: Element, nextCards: Element[], options?: CuratedGridReorderOptions) => void;
+  reorderCuratedGridChildren: (
+    gridElement: Element,
+    nextCards: CuratedGridRenderCard[],
+    options?: CuratedGridReorderOptions,
+  ) => void;
   shouldRetainCardInGrid: (card: Element) => boolean;
   parkCardForReuse: (card: Element) => void;
   parkUnusedControllersForReuse: (visibleSeriesIds: Set<string>, retainedSeriesIds?: Set<string>) => void;
@@ -53,6 +58,7 @@ export class CuratedPanelGridMountReconcilerOwner {
     if (!(loading && total === 0)) {
       gridEl.appendChild(createCuratedGridEmptyElement(documentRef, total));
     }
+    writeProjectedCuratedGridChildren(gridEl, Array.from(gridEl.children) as Element[], []);
     trimParkedCardsForReuse();
   };
 

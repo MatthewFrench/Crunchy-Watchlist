@@ -95,26 +95,21 @@ Policy status:
 
 ### Dataset Usage Inventory (Current)
 
-Current dataset usage spans:
+Current dataset usage is now limited to projection/interop surfaces:
 
-- Runtime host/tab/visibility and action markers:
-  - `extension/src/Runtime/InterfaceShell.ts`
-  - `extension/src/Runtime/InterfaceShellHostLifecycle.ts`
-  - `extension/src/Runtime/CuratedInteractions.ts`
-  - `extension/src/Runtime/CuratedPanelGridTransitions.ts`
-  - `extension/src/Runtime/CuratedPanelGrid.ts`
-  - `extension/src/Runtime/ContentRuntimeBootstrapDomLock.ts`
-- UI component patch markers and lightweight attribute state:
+- Stable owned-card identity/debug markers:
   - `extension/src/Ui/CuratedCardShell.ts`
-  - `extension/src/Ui/CuratedCardView.ts`
-  - `extension/src/Ui/CuratedCardHeaderComponent.ts`
-  - `extension/src/Ui/CuratedCardMediaComponent.ts`
-  - `extension/src/Ui/CuratedCardActionsComponent.ts`
-  - `extension/src/Ui/CardMetadata.ts`
+  - `extension/src/Runtime/CuratedPanelGrid.ts`
+- Native/host interop markers:
+  - `extension/src/Runtime/NativeActionBridge.ts`
+  - `extension/src/Runtime/NativeCardSelectorAdapter.ts`
+- Legacy compatibility cleanup only:
+  - `extension/src/Runtime/ContentRuntimeBootstrapDomLock.ts` (`cwPrevDisplay` stale-shell recovery path)
 
 Policy status:
-- Allowed when used as host/native interop marker or CSS state marker.
-- Must not become canonical business state storage.
+- Allowed only when used as stable projection identity, host/native interop marker, or explicit backward-compat cleanup path.
+- No controller/runtime behavior should derive business state from these markers.
+- CI now enforces this via `scripts/guard-owned-dom-state-markers.mts` (`npm run guard:dom-state-markers`).
 
 ## UI and State Surfaces That Must Stay Deterministic
 

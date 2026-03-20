@@ -28,22 +28,22 @@ test.describe('UI Behavior', () => {
     await injectExtension(page);
 
     const refreshButton = page.getByRole('button', { name: 'Refresh ratings' });
+
     await expect(refreshButton).toHaveClass(/cw-button/);
     await expect(refreshButton).toHaveClass(/cw-button--primary/);
-
-    await expect(page.locator('.cw-host')).toHaveAttribute('data-cw-card-layout', 'portrait');
+    await expect(page.locator('.cw-host')).toHaveClass(/cw-host--portrait/);
     await expect(
       page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__thumb img'),
     ).toHaveAttribute('src', /GHIGH456-portrait\.jpg$/);
 
     await page.locator('#cw-landscape-cards').check();
-    await expect(page.locator('.cw-host')).toHaveAttribute('data-cw-card-layout', 'landscape');
+    await expect(page.locator('.cw-host')).toHaveClass(/cw-host--landscape/);
     await expect(
       page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"] .cw-curated-card__thumb img'),
     ).toHaveAttribute('src', /GHIGH456-landscape\.jpg$/);
 
     await page.locator('#cw-landscape-cards').uncheck();
-    await expect(page.locator('.cw-host')).toHaveAttribute('data-cw-card-layout', 'portrait');
+    await expect(page.locator('.cw-host')).toHaveClass(/cw-host--portrait/);
   });
 
   test('sends favorite and remove actions through watchlist api actions', async ({ page }) => {
@@ -341,8 +341,12 @@ test.describe('UI Behavior', () => {
   test('preloads curated data while Crunchyroll tab is active', async ({ page }) => {
     await injectExtension(page, { activeTab: 'crunchyroll' }, { waitForLoaded: false, expectCuratedVisible: false });
 
+    await expect(page.getByRole('button', { name: 'Crunchyroll' })).toHaveClass(/cw-tab--active/);
+    await expect(page.getByRole('button', { name: 'Curated' })).not.toHaveClass(/cw-tab--active/);
     await expect(page.locator('.cw-controls__stats')).toContainText('Showing 3 of 4');
     await page.getByRole('button', { name: 'Curated' }).click();
+    await expect(page.getByRole('button', { name: 'Crunchyroll' })).not.toHaveClass(/cw-tab--active/);
+    await expect(page.getByRole('button', { name: 'Curated' })).toHaveClass(/cw-tab--active/);
     await expect(page.locator('.cw-curated-card').first()).toBeVisible({ timeout: 500 });
   });
 
@@ -364,6 +368,6 @@ test.describe('UI Behavior', () => {
     await expect(page.locator('#cw-genre-filter')).toHaveValue('action');
     await expect(page.locator('#cw-sort-mode')).toHaveValue('date_updated_desc');
     await expect(page.locator('#cw-landscape-cards')).toBeChecked();
-    await expect(page.locator('.cw-host')).toHaveAttribute('data-cw-card-layout', 'landscape');
+    await expect(page.locator('.cw-host')).toHaveClass(/cw-host--landscape/);
   });
 });

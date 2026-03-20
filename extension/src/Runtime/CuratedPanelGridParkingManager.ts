@@ -1,5 +1,7 @@
 type CuratedBoundaryValue = CwBoundaryValue;
 
+import { createCuratedCardTransitionState, type CuratedCardTransitionState } from './CuratedPanelGridRenderCard.js';
+
 export type CuratedCardLayout = 'portrait' | 'landscape';
 
 export type CuratedCardController = {
@@ -8,6 +10,7 @@ export type CuratedCardController = {
   contentSignature: string;
   cardLayout: CuratedCardLayout;
   parkedAt: number | null;
+  transitionState: CuratedCardTransitionState;
 };
 
 export type CuratedPanelGridParkingLifecycleHandlers = {
@@ -206,6 +209,7 @@ export class CuratedPanelGridParkingManager {
       contentSignature,
       cardLayout,
       parkedAt: null,
+      transitionState: createCuratedCardTransitionState(),
     };
   }
 

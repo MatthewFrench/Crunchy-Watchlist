@@ -177,6 +177,8 @@ describe('curated-interactions runtime', () => {
     if (!favoriteButton || !removeButton) {
       throw new Error('Missing curated action buttons');
     }
+    expect(favoriteButton.getAttribute('data-cw-action')).toBeNull();
+    expect(removeButton.getAttribute('data-cw-action')).toBeNull();
 
     await favoriteButton.dispatch('click');
     await removeButton.dispatch('click');
@@ -189,7 +191,7 @@ describe('curated-interactions runtime', () => {
     expect(renderCuratedPanel).toHaveBeenCalledTimes(2);
   });
 
-  it('derives next favorite state from current aria-pressed attribute', async () => {
+  it('derives next favorite state from controller-owned favorite state', async () => {
     const triggerNativeCardAction = vi.fn(async () => true);
     const runtime = getCuratedInteractionsModule().createCuratedInteractionsRuntime({
       documentRef: {

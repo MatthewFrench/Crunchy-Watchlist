@@ -124,8 +124,8 @@ function createFakeElement(): FakeElement {
     },
     querySelector(selector: string) {
       const matchesSelector = (candidate: FakeElement): boolean => {
-        if (selector === 'button[data-cw-action="favorite"]') {
-          return candidate.tagName === 'button' && candidate.dataset.cwAction === 'favorite';
+        if (selector === 'button.cw-card-action--favorite') {
+          return candidate.tagName === 'button' && candidate.className.split(' ').includes('cw-card-action--favorite');
         }
         return false;
       };
@@ -1765,14 +1765,12 @@ describe('curated-panel runtime', () => {
         const favoriteButton = createFakeElement();
         favoriteButton.tagName = 'button';
         favoriteButton.className = 'cw-card-action cw-card-action--favorite';
-        favoriteButton.dataset.cwAction = 'favorite';
-        favoriteButton.setAttribute('data-cw-action', 'favorite');
         favoriteButton.textContent = '♡';
         card.appendChild(favoriteButton);
         return card;
       },
       patchCuratedCard: (card: Record<string, unknown>, entry: Record<string, unknown>) => {
-        const favoriteButton = (card as FakeElement).querySelector('button[data-cw-action="favorite"]');
+        const favoriteButton = (card as FakeElement).querySelector('button.cw-card-action--favorite');
         if (!favoriteButton) {
           return;
         }
@@ -1809,7 +1807,7 @@ describe('curated-panel runtime', () => {
 
     runtime.renderCuratedPanel();
     const firstCard = gridEl.children[0];
-    const favoriteButton = firstCard?.querySelector('button[data-cw-action="favorite"]');
+    const favoriteButton = firstCard?.querySelector('button.cw-card-action--favorite');
     expect(favoriteButton?.textContent).toBe('♡');
     expect(favoriteButton?.className.includes('is-active')).toBe(false);
 

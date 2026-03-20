@@ -25,9 +25,14 @@ type InterfaceWindow = Window &
     __CW_WATCHLIST_CURATOR_CONTROL__?: RuntimeControl;
   };
 
+type NativeVisibilityRecord = {
+  node: Element;
+  previousDisplay: string;
+};
+
 type RuntimeState = {
   framedRootEl: Element | null;
-  nativeHiddenNodes: Element[];
+  nativeHiddenNodes: NativeVisibilityRecord[];
   hostEl: Element | null;
   tabCrunchyrollEl: Element | null;
   tabCuratedEl: Element | null;
@@ -413,12 +418,11 @@ async function resetCuratedCachesForRefreshInternal(context: InterfaceShellConte
   context.state.curatedPendingRequestCompletedCount = 0;
 }
 
-function createTabButtonInternal(context: InterfaceShellContext, label: string, tabValue: string): HTMLButtonElement {
+function createTabButtonInternal(context: InterfaceShellContext, label: string): HTMLButtonElement {
   const button = context.documentRef.createElement('button');
   button.type = 'button';
   button.className = 'cw-tab';
   button.textContent = label;
-  button.dataset.cwTab = tabValue;
   return button;
 }
 
@@ -429,8 +433,8 @@ function createCuratedInterfaceTabsInternal(
   const tabs = context.documentRef.createElement('div');
   tabs.className = 'cw-tabs';
 
-  const tabCrunchyroll = createTabButtonInternal(context, 'Crunchyroll', 'crunchyroll');
-  const tabCurated = createTabButtonInternal(context, 'Curated', 'curated');
+  const tabCrunchyroll = createTabButtonInternal(context, 'Crunchyroll');
+  const tabCurated = createTabButtonInternal(context, 'Curated');
 
   tabCrunchyroll.addEventListener('click', () => {
     setActiveTabWithErrorGuardInternal(context, hostLifecycleRuntime, 'crunchyroll');

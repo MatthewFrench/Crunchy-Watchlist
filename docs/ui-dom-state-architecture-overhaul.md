@@ -832,21 +832,21 @@ Class selectors:
 
 Data attributes:
 
-- `[data-cw-action]`
 - `[data-cw-card-content-signature]`
-- `[data-cw-card-layout]`
 - `[data-cw-curated-title]`
-- `[data-cw-empty]`
-- `[data-cw-last-watched-state]`
 - `[data-cw-loading-details]`
 - `[data-cw-native-action]`
-- `[data-cw-prev-display]`
-- `[data-cw-rating-state]`
-- `[data-cw-runtime-owner]`
-- `[data-cw-runtime-owner-ts]`
 - `[data-cw-series-id]`
-- `[data-cw-tab]`
-- `[data-cw-transition-clone]`
+
+Notes:
+
+- Current owned-UI state no longer uses dataset markers for action identity, card layout, empty-state flags, last-watched state, rating state, tab state, or transition lifecycle.
+- `[data-cw-prev-display]` and runtime-owner DOM attributes remain legacy cleanup/interop surfaces only and are no longer part of the live controller-owned state contract.
+- Stable projection markers still in use:
+  - `[data-cw-series-id]`
+  - `[data-cw-curated-title]`
+  - `[data-cw-card-content-signature]`
+  - `[data-cw-loading-details]`
 
 Control IDs:
 

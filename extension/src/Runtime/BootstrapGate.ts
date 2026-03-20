@@ -164,12 +164,11 @@ function hasStaleCuratedShell(windowRef: WindowWithRegistry): boolean {
   const discoveredHost = toElement(documentRef.querySelector('.cw-host'));
   const host = ownedHost || discoveredHost;
   const framedRootHasWatchlistFrame = hasClassToken(watchlistRoot, 'cw-watchlist-frame');
-  const hasHiddenNativeNodes = Boolean(watchlistRoot?.querySelector('[data-cw-prev-display]'));
   const hasOwnedRefs = hasShellOwnershipRefs(runtimeControl);
 
   // A stale frame can survive extension reload/reinjection even if host refs are gone.
-  // Treat framed/hidden-native residue as stale when shell refs are unavailable or detached.
-  if (framedRootHasWatchlistFrame || hasHiddenNativeNodes) {
+  // Treat framed residue as stale when shell refs are unavailable or detached.
+  if (framedRootHasWatchlistFrame) {
     if (!host) {
       return true;
     }

@@ -10,14 +10,30 @@ type CuratedPanelGridOrderPlannerOwner = {
       entry: Record<string, unknown>,
       detailsLoading: boolean,
       visibleSeriesIds: Set<string>,
-    ) => Element;
+    ) => {
+      card: Element;
+      seriesId: string;
+      contentSignature: string;
+      detailsLoading: boolean;
+      transitionState: {
+        absolutePositionSeeded: boolean;
+        centerIntroStaged: boolean;
+      };
+    };
     getEntrySeriesId: (entry: Record<string, unknown>) => string;
     markCardControllerActive: (seriesId: string) => void;
-    setCardParkedState: (card: Element, parked: boolean) => void;
+    setCardParkedState: (
+      card: {
+        card: Element;
+      },
+      parked: boolean,
+    ) => void;
     isRenderableEntryMetadataLoading: (entry: Record<string, unknown>) => boolean;
   }) => {
     visibleSeriesIds: Set<string>;
-    nextCards: Element[];
+    nextCards: Array<{
+      card: Element;
+    }>;
   };
 };
 
@@ -53,6 +69,17 @@ describe('curated-panel-grid order planner owner', () => {
     const markCalls: string[] = [];
     const parkedCalls: Array<{ card: Element; parked: boolean }> = [];
 
+    const createRenderCard = (seriesId: string, card: Element, detailsLoading: boolean) => ({
+      card,
+      seriesId,
+      contentSignature: `sig:${seriesId}`,
+      detailsLoading,
+      transitionState: {
+        absolutePositionSeeded: false,
+        centerIntroStaged: false,
+      },
+    });
+
     const plan = planner.buildOrderPlan({
       visible: [
         { seriesId: 'SERIES-A', metadataReady: false },
@@ -67,19 +94,21 @@ describe('curated-panel-grid order planner owner', () => {
           detailsLoading,
           visibleSeriesIdsSize: visibleSeriesIds.size,
         });
-        return seriesId === 'SERIES-A' ? cardA : cardB;
+        return seriesId === 'SERIES-A'
+          ? createRenderCard(seriesId, cardA, detailsLoading)
+          : createRenderCard(seriesId, cardB, detailsLoading);
       },
       getEntrySeriesId: (entry) => String(entry.seriesId || ''),
       markCardControllerActive: (seriesId) => {
         markCalls.push(seriesId);
       },
       setCardParkedState: (card, parked) => {
-        parkedCalls.push({ card, parked });
+        parkedCalls.push({ card: card.card, parked });
       },
       isRenderableEntryMetadataLoading: (entry) => Boolean(entry.metadataReady !== true),
     });
 
-    expect(plan.nextCards).toEqual([cardA, cardB]);
+    expect(plan.nextCards.map((card) => card.card)).toEqual([cardA, cardB]);
     expect(Array.from(plan.visibleSeriesIds)).toEqual(['SERIES-A', 'SERIES-B']);
     expect(detailsLoadingArgs).toEqual([
       { seriesId: 'SERIES-A', detailsLoading: true, visibleSeriesIdsSize: 1 },

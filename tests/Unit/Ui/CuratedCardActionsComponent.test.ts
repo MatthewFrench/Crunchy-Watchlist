@@ -6,7 +6,6 @@ type FakeButton = {
   className: string;
   title: string;
   textContent: string;
-  dataset: Record<string, string>;
   attributes: Record<string, string>;
   setAttribute: (name: string, value: string) => void;
   getAttribute: (name: string) => string | null;
@@ -39,14 +38,11 @@ const cardActionsComponentModuleUrl = pathToFileURL(
 let createCuratedCardActionsComponentFactory: CuratedCardActionsModule['createCuratedCardActionsComponent'] | null =
   null;
 
-function createFakeButton(action: string): FakeButton {
+function createFakeButton(): FakeButton {
   return {
     className: 'cw-curated-card__action',
     title: '',
     textContent: '',
-    dataset: {
-      cwAction: action,
-    },
     attributes: {},
     setAttribute(name: string, value: string) {
       this.attributes[name] = value;
@@ -72,8 +68,8 @@ describe('curated-card-actions component', () => {
     if (typeof createCuratedCardActionsComponentFactory !== 'function') {
       throw new Error('Card actions component factory was not initialized for test');
     }
-    const favoriteButton = createFakeButton('favorite');
-    const removeButton = createFakeButton('remove');
+    const favoriteButton = createFakeButton();
+    const removeButton = createFakeButton();
     const actionsRoot = {
       children: [favoriteButton, removeButton],
     } as CuratedActionsRoot;
@@ -100,8 +96,8 @@ describe('curated-card-actions component', () => {
     if (typeof createCuratedCardActionsComponentFactory !== 'function') {
       throw new Error('Card actions component factory was not initialized for test');
     }
-    const favoriteButton = createFakeButton('favorite');
-    const removeButton = createFakeButton('remove');
+    const favoriteButton = createFakeButton();
+    const removeButton = createFakeButton();
     const actionsRoot = {
       children: [],
     } as CuratedActionsRoot;

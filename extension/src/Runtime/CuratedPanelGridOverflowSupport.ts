@@ -268,7 +268,12 @@ export function resolveCuratedGridOverflowChildren(
   getActiveGridChildren: (gridElement: Element) => Element[],
 ): Element[] {
   const nextCardsSet = new Set(nextCards);
-  return getActiveGridChildren(gridElement).filter((child) => !nextCardsSet.has(child));
+  const mountedChildren = Array.from(gridElement.children).filter(
+    (child): child is Element => Boolean(child && typeof child === 'object'),
+  );
+  const activeChildren = getActiveGridChildren(gridElement);
+  const combinedChildren = Array.from(new Set([...mountedChildren, ...activeChildren]));
+  return combinedChildren.filter((child) => !nextCardsSet.has(child));
 }
 
 export function finalizeCuratedGridOverflow(options: {

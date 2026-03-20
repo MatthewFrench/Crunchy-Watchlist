@@ -1,5 +1,6 @@
 type CuratedGridDomState = {
-  activeCards: Element[];
+  projectedChildren: Element[];
+  projectedSeriesIds: string[];
 };
 
 const domStateByGridElement = new WeakMap<Element, CuratedGridDomState>();
@@ -11,40 +12,48 @@ function resolveCuratedGridDomState(gridElement: Element): CuratedGridDomState {
   }
 
   const nextState: CuratedGridDomState = {
-    activeCards: [],
+    projectedChildren: [],
+    projectedSeriesIds: [],
   };
   domStateByGridElement.set(gridElement, nextState);
   return nextState;
 }
 
-export function readCuratedGridActiveCards(gridElement: Element): Element[] {
-  const liveChildren = Array.from(gridElement.children).filter(
-    (child) => !(child as Element & { className?: string }).className?.includes('cw-curated-card--parked'),
-  );
+export function readProjectedCuratedGridChildren(gridElement: Element): Element[] {
   const existingState = domStateByGridElement.get(gridElement);
-  if (!existingState || existingState.activeCards.length === 0) {
-    return liveChildren;
+  if (!existingState) {
+    return [];
   }
 
-  const activeCards = existingState.activeCards.filter((card) => {
-    const parentNode = (card as Element & { parentNode?: object | null }).parentNode;
+  const projectedChildren = existingState.projectedChildren.filter((child) => {
+    const parentNode = (child as Element & { parentNode?: object | null }).parentNode;
     return (
       parentNode === gridElement &&
-      !(card as Element & { className?: string }).className?.includes('cw-curated-card--parked')
+      !(child as Element & { className?: string }).className?.includes('cw-curated-card--parked')
     );
   });
-  if (activeCards.length !== existingState.activeCards.length) {
-    existingState.activeCards = [...activeCards];
+  if (projectedChildren.length !== existingState.projectedChildren.length) {
+    existingState.projectedChildren = [...projectedChildren];
   }
-  if (activeCards.length === 0) {
-    return liveChildren;
-  }
-  return [...activeCards];
+  return [...projectedChildren];
 }
 
-export function writeCuratedGridActiveCards(gridElement: Element, activeCards: Element[]): void {
+export function readProjectedCuratedGridSeriesIds(gridElement: Element): string[] {
+  const existingState = domStateByGridElement.get(gridElement);
+  if (!existingState) {
+    return [];
+  }
+  return [...existingState.projectedSeriesIds];
+}
+
+export function writeProjectedCuratedGridChildren(
+  gridElement: Element,
+  activeCards: Element[],
+  projectedSeriesIds: string[] = [],
+): void {
   const state = resolveCuratedGridDomState(gridElement);
-  state.activeCards = [...activeCards];
+  state.projectedChildren = [...activeCards];
+  state.projectedSeriesIds = projectedSeriesIds.filter(Boolean);
 }
 
 export function clearCuratedGridDomState(gridElement: Element): void {

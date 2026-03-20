@@ -269,21 +269,7 @@ class FakeElement {
   }
 
   querySelectorAll(selector: string): FakeElement[] {
-    if (selector !== '[data-cw-prev-display]') {
-      return [];
-    }
-
-    const matches: FakeElement[] = [];
-    const visit = (node: FakeElement) => {
-      if (Object.hasOwn(node.dataset, 'cwPrevDisplay')) {
-        matches.push(node);
-      }
-      node.children.forEach((child) => {
-        visit(child);
-      });
-    };
-    visit(this);
-    return matches;
+    return [];
   }
 
   addEventListener(): void {}
@@ -601,11 +587,14 @@ describe('interface-shell runtime', () => {
     runtime.applyTabUi();
 
     expect(primaryHost.style.display).not.toBe('none');
-    expect(primaryHost.dataset.cwPrevDisplay).toBeUndefined();
     expect(secondaryHost.style.display).not.toBe('none');
-    expect(secondaryHost.dataset.cwPrevDisplay).toBeUndefined();
     expect(nativeBody.style.display).toBe('none');
-    expect(nativeBody.dataset.cwPrevDisplay).toBe('');
+    expect(state.nativeHiddenNodes).toEqual([
+      {
+        node: nativeBody,
+        previousDisplay: '',
+      },
+    ]);
   });
 
   it('removes orphan curated hosts when rebuilding the interface shell', () => {

@@ -58,18 +58,12 @@ function setElementAttributeIfChanged(element: Element, attributeName: string, n
   element.setAttribute(attributeName, nextValue);
 }
 
-function asCardActionButton(value: object | null | undefined, expectedAction: string): HTMLButtonElement | null {
+function asCardActionButton(value: object | null | undefined): HTMLButtonElement | null {
   if (!value || typeof value !== 'object') {
     return null;
   }
 
-  const candidate = value as Partial<HTMLButtonElement> & {
-    dataset?: Record<string, string | undefined>;
-  };
-  const action = typeof candidate.dataset?.cwAction === 'string' ? candidate.dataset.cwAction : '';
-  if (action && action !== expectedAction) {
-    return null;
-  }
+  const candidate = value as Partial<HTMLButtonElement>;
   if (typeof candidate.setAttribute !== 'function') {
     return null;
   }
@@ -83,8 +77,8 @@ function getOwnedCardActionRefs(actions: Element): CwCuratedCardActionRefs | nul
     return null;
   }
 
-  const favoriteButton = asCardActionButton(children[0], 'favorite');
-  const removeButton = asCardActionButton(children[1], 'remove');
+  const favoriteButton = asCardActionButton(children[0]);
+  const removeButton = asCardActionButton(children[1]);
   if (!favoriteButton || !removeButton) {
     return null;
   }

@@ -146,11 +146,11 @@
     max-width: 260px;
   }
 
-  .cw-host[data-cw-card-layout="landscape"] .cw-curated-card {
+  .cw-host--landscape .cw-curated-card {
     grid-template-columns: 1fr;
   }
 
-  .cw-host[data-cw-card-layout="landscape"] .cw-curated-card__thumb {
+  .cw-host--landscape .cw-curated-card__thumb {
     max-width: 220px;
   }
 }

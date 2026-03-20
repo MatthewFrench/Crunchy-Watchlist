@@ -5,6 +5,10 @@ import {
   CuratedPanelGridParkingManager,
 } from './CuratedPanelGridParkingManager.js';
 import {
+  createCuratedCardTransitionState,
+  type CuratedGridRenderCard,
+} from './CuratedPanelGridRenderCard.js';
+import {
   type CuratedGridEntry,
   type CuratedGridRenderContext,
   type CuratedPanelGridRenderPhasesRuntime,
@@ -289,7 +293,7 @@ function createOrReuseCuratedCard(
   usedSeriesIds: Set<string>,
   entry: CuratedGridEntry,
   detailsLoading: boolean,
-): Element {
+): CuratedGridRenderCard {
   const seriesId = getEntrySeriesId(entry);
   const signatureRuntime = getCuratedPanelGridSignatureRuntime();
   const normalizedCardLayout = signatureRuntime.normalizeCardLayout(state.settings.cardLayout);
@@ -300,7 +304,13 @@ function createOrReuseCuratedCard(
     incrementCuratedDomLifecycleCounter(state, 'created');
     setCardClassToken(nextCard, 'cw-curated-card--not-watch-ready', Boolean(entry.dimNotWatchReady));
     annotateCuratedCardElement(nextCard, seriesId, contentSignature, detailsLoading);
-    return nextCard;
+    return {
+      seriesId,
+      card: nextCard,
+      contentSignature,
+      detailsLoading,
+      transitionState: createCuratedCardTransitionState(),
+    };
   }
 
   usedSeriesIds.add(seriesId);
@@ -314,11 +324,18 @@ function createOrReuseCuratedCard(
       contentSignature,
       cardLayout: normalizedCardLayout,
       parkedAt: null,
+      transitionState: createCuratedCardTransitionState(),
     };
     parkingManager.setController(controller);
     setCardClassToken(nextCard, 'cw-curated-card--not-watch-ready', Boolean(entry.dimNotWatchReady));
     annotateCuratedCardElement(nextCard, seriesId, contentSignature, detailsLoading);
-    return nextCard;
+    return {
+      seriesId,
+      card: nextCard,
+      contentSignature,
+      detailsLoading,
+      transitionState: controller.transitionState,
+    };
   }
 
   const previousSignature = controller.contentSignature;
@@ -351,7 +368,13 @@ function createOrReuseCuratedCard(
 
   setCardClassToken(controller.card, 'cw-curated-card--not-watch-ready', Boolean(entry.dimNotWatchReady));
   annotateCuratedCardElement(controller.card, seriesId, controller.contentSignature, nextDetailsLoading);
-  return controller.card;
+  return {
+    seriesId,
+    card: controller.card,
+    contentSignature: controller.contentSignature,
+    detailsLoading: nextDetailsLoading,
+    transitionState: controller.transitionState,
+  };
 }
 
 function isCuratedCardElement(value: CuratedBoundaryValue): value is Element {
@@ -509,7 +532,7 @@ function prewarmHiddenCuratedCards(options: {
     entry: CuratedGridEntry,
     detailsLoading: boolean,
     visibleSeriesIds: Set<string>,
-  ) => Element;
+  ) => CuratedGridRenderCard;
   getEntrySeriesId: (entry: CuratedGridEntry) => string;
   isRenderableEntryMetadataLoading: (entry: CuratedGridEntry) => boolean;
   parkCardForReuse: (card: Element) => void;
@@ -541,11 +564,11 @@ function prewarmHiddenCuratedCards(options: {
       metadataLoading && isRenderableEntryMetadataLoading(entry),
       usedSeriesIds,
     );
-    const parentNode = (nextCard as Element & { parentNode?: Element | null }).parentNode;
+    const parentNode = (nextCard.card as Element & { parentNode?: Element | null }).parentNode;
     if (parentNode !== gridElement) {
-      gridElement.appendChild(nextCard);
+      gridElement.appendChild(nextCard.card);
     }
-    parkCardForReuse(nextCard);
+    parkCardForReuse(nextCard.card);
   });
 }
 
@@ -585,7 +608,9 @@ function createCuratedGridRenderContext(options: CuratedGridRenderContextOptions
     getElementDataAttribute,
     isCuratedGridEmptyElement,
     isRenderableEntryMetadataLoading,
-    setCardParkedState,
+    setCardParkedState: (renderCard: CuratedGridRenderCard, parked: boolean) => {
+      setCardParkedState(renderCard.card, parked);
+    },
     parkGridCardsForReuse: (gridElement: Element) => {
       parkingManager.parkGridCardsForReuse(documentRef, gridElement, parkingLifecycleHandlers);
     },

@@ -90,10 +90,11 @@ type CuratedPanelControlsSyncOwner = {
   ) => void;
   updateStatsText: (
     statsEl: Element & { textContent: string | null },
-    watchReadyFilterMode: string,
-    total: number,
-    visibleCount: number,
-    loading: boolean,
+    summary: {
+      totalCount: number;
+      visibleCount: number;
+      loading: boolean;
+    },
   ) => void;
   updateLoadingIndicatorVisibility: (loadingIndicatorEl: CuratedBoundaryValue, loading: boolean) => void;
 };
@@ -340,7 +341,11 @@ export class CuratedPanelRenderOrchestrator {
         createCuratedCard: this.context.createCuratedCard,
         patchCuratedCard: this.context.patchCuratedCard,
       });
-      this.context.controlsSyncOwner.updateStatsText(statsEl, watchReadyFilterMode, total, visible.length, loading);
+      this.context.controlsSyncOwner.updateStatsText(statsEl, {
+        totalCount: total,
+        visibleCount: visible.length,
+        loading,
+      });
       this.context.controlsSyncOwner.updateLoadingIndicatorVisibility(
         state.controlsLoadingIndicatorEl,
         metadataLoading || pendingRequests.length > 0,

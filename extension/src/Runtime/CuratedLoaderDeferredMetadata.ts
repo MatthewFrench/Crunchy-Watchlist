@@ -1,4 +1,4 @@
-import { readCuratedGridActiveCards } from './CuratedPanelGridDomState.js';
+import { readProjectedCuratedGridChildren } from './CuratedPanelGridDomState.js';
 
 type BoundaryValue = LooseRecord[string];
 type BoundaryList = BoundaryValue[];
@@ -128,7 +128,7 @@ function reorderDeferredEntriesByViewportInternal(
     return deferredEntries;
   }
 
-  const cards = readCuratedGridActiveCards(gridElement);
+  const cards = readProjectedCuratedGridChildren(gridElement);
   if (!cards.length) {
     return deferredEntries;
   }

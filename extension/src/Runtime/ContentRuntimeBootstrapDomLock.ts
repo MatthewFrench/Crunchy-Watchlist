@@ -84,20 +84,21 @@ function readRuntimeLockTimestamp(value: BoundaryValue): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
+function readRuntimeControlLockOwner(context: RuntimeBootstrapHelpersContext): string {
+  return typeof context.runtimeControl.activeInstanceId === 'string' ? context.runtimeControl.activeInstanceId : '';
+}
+
+function readRuntimeControlHeartbeatAt(context: RuntimeBootstrapHelpersContext): number {
+  return readRuntimeLockTimestamp(context.runtimeControl.lastHeartbeatAt);
+}
+
 function tryAcquireDomRuntimeLockForContext(context: RuntimeBootstrapHelpersContext): boolean {
   if (!isWatchlistPathWithoutRuntime(context.windowRef.location.pathname)) {
     return true;
   }
 
-  const runtimeLockNode = resolveRuntimeLockNodeForContext(context);
-  if (!runtimeLockNode) {
-    return true;
-  }
-
-  const ownerId = runtimeLockNode.getAttribute(context.domRuntimeLockOwnerAttribute) || '';
-  const ownerTimestamp = readRuntimeLockTimestamp(
-    runtimeLockNode.getAttribute(context.domRuntimeLockTimestampAttribute),
-  );
+  const ownerId = readRuntimeControlLockOwner(context);
+  const ownerTimestamp = readRuntimeControlHeartbeatAt(context);
   const hasFreshForeignOwner =
     ownerId && ownerId !== context.runtimeInstanceId && Date.now() - ownerTimestamp < context.domRuntimeLockStaleMs;
   if (hasFreshForeignOwner) {
@@ -105,23 +106,24 @@ function tryAcquireDomRuntimeLockForContext(context: RuntimeBootstrapHelpersCont
   }
 
   const now = Date.now();
-  runtimeLockNode.setAttribute(context.domRuntimeLockOwnerAttribute, context.runtimeInstanceId);
-  runtimeLockNode.setAttribute(context.domRuntimeLockTimestampAttribute, String(now));
-  return runtimeLockNode.getAttribute(context.domRuntimeLockOwnerAttribute) === context.runtimeInstanceId;
+  context.setRuntimeControl({
+    active: true,
+    activeInstanceId: context.runtimeInstanceId,
+    lastHeartbeatAt: now,
+  });
+  return readRuntimeControlLockOwner(context) === context.runtimeInstanceId;
 }
 
 function releaseDomRuntimeLockForContext(context: RuntimeBootstrapHelpersContext): void {
-  const runtimeLockNode = resolveRuntimeLockNodeForContext(context);
-  if (!runtimeLockNode) {
+  if (readRuntimeControlLockOwner(context) !== context.runtimeInstanceId) {
     return;
   }
 
-  if (runtimeLockNode.getAttribute(context.domRuntimeLockOwnerAttribute) !== context.runtimeInstanceId) {
-    return;
-  }
-
-  runtimeLockNode.removeAttribute(context.domRuntimeLockOwnerAttribute);
-  runtimeLockNode.removeAttribute(context.domRuntimeLockTimestampAttribute);
+  context.setRuntimeControl({
+    active: false,
+    activeInstanceId: null,
+    lastHeartbeatAt: 0,
+  });
 }
 
 function parseRuntimeInstanceStartedAt(instanceId: BoundaryValue): number {
@@ -204,6 +206,8 @@ function clearWatchlistFrameClasses(windowRef: RuntimeWindow): void {
 }
 
 function restoreHiddenNativeNodes(windowRef: RuntimeWindow): void {
+  // Legacy compatibility cleanup only. Current runtime-owned host lifecycle no longer
+  // stores previous display state in DOM dataset markers.
   const hiddenNativeNodes = Array.from(windowRef.document.querySelectorAll('[data-cw-prev-display]'));
   hiddenNativeNodes.forEach((node) => {
     try {

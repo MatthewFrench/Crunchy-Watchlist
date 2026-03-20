@@ -80,6 +80,22 @@ function findByClassName(root: FakeElement, className: string): FakeElement | nu
   return null;
 }
 
+function findByClassToken(root: FakeElement, className: string): FakeElement | null {
+  const classTokens = root.className.split(' ').filter(Boolean);
+  if (classTokens.includes(className)) {
+    return root;
+  }
+
+  for (const child of root.children) {
+    const found = findByClassToken(child, className);
+    if (found) {
+      return found;
+    }
+  }
+
+  return null;
+}
+
 describe('curated-card-view ui module', () => {
   const originalDocument = (globalThis as Record<string, unknown>).document;
 
@@ -232,8 +248,12 @@ describe('curated-card-view ui module', () => {
       documentRef.createElement('div'),
     );
 
-    const genres = findByClassName(body, 'cw-curated-card__genres');
-    expect(genres?.dataset.cwEmpty).toBe('true');
+    const genres = findByClassToken(body, 'cw-curated-card__genres');
+    expect(genres?.dataset.cwEmpty).toBeUndefined();
+    expect(genres?.textContent ?? '').toBe('');
+    expect(genres?.className ?? '').toContain('cw-curated-card__genres--empty');
+    const lastWatched = findByClassName(body, 'cw-curated-card__last-watched');
+    expect(lastWatched?.dataset.cwLastWatchedState).toBeUndefined();
     const detailsSkeleton = findByClassName(body, 'cw-curated-card__details-skeleton');
     expect(detailsSkeleton).not.toBeNull();
     const starSkeletonRows = detailsSkeleton?.children.filter((child) =>
@@ -311,6 +331,7 @@ describe('curated-card-view ui module', () => {
     const genresBefore = findByClassName(card, 'cw-curated-card__genres');
     const histogramBefore = findByClassName(card, 'cw-rating-histogram');
     const ratingMetaBefore = findByClassName(card, 'cw-curated-card__rating-meta');
+    const lastWatchedBefore = findByClassName(card, 'cw-curated-card__last-watched');
 
     runtime.patchCuratedCardBody(card, {
       description: 'Updated description',
@@ -333,14 +354,17 @@ describe('curated-card-view ui module', () => {
     const histogramAfter = findByClassName(card, 'cw-rating-histogram');
     const ratingMetaAfter = findByClassName(card, 'cw-curated-card__rating-meta');
     const descriptionAfter = findByClassName(card, 'cw-curated-card__description');
+    const lastWatchedAfter = findByClassName(card, 'cw-curated-card__last-watched');
 
     expect(statusAfter).toBe(statusBefore);
     expect(genresAfter).toBe(genresBefore);
     expect(histogramAfter).toBe(histogramBefore);
     expect(ratingMetaAfter).toBe(ratingMetaBefore);
+    expect(lastWatchedAfter).toBe(lastWatchedBefore);
     expect(descriptionAfter?.textContent).toBe('Updated description');
     expect(statusAfter?.textContent).toBe('Up Next: S1 E5');
     expect(genresAfter?.textContent).toBe('Genres: Comedy');
+    expect(lastWatchedAfter?.dataset.cwLastWatchedState).toBeUndefined();
     expect(ratingMetaAfter?.textContent).toBe('Ratings: 200');
   });
 });

@@ -292,23 +292,23 @@
 .cw-curated-card--parked {
   display: none;
 }
-.cw-host[data-cw-card-layout="landscape"] :is(.cw-curated-card-container, .cw-curated-grid) {
+.cw-host--landscape :is(.cw-curated-card-container, .cw-curated-grid) {
   gap: 12px;
 }
-.cw-host[data-cw-card-layout="landscape"] .cw-curated-card {
+.cw-host--landscape .cw-curated-card {
   grid-template-columns: 1fr;
   grid-template-areas:
     "header"
     "media"
     "body";
 }
-.cw-host[data-cw-card-layout="landscape"] .cw-curated-card__thumb {
+.cw-host--landscape .cw-curated-card__thumb {
   width: 100%;
   max-width: none;
   aspect-ratio: 16 / 9;
   margin-inline: auto;
 }
-.cw-host[data-cw-card-layout="landscape"] .cw-curated-card__media {
+.cw-host--landscape .cw-curated-card__media {
   width: 100%;
   max-width: none;
   align-items: stretch;
@@ -456,7 +456,7 @@
   align-self: start;
 }
 
-.cw-host[data-cw-card-layout="portrait"] .cw-curated-card__media {
+.cw-host--portrait .cw-curated-card__media {
   align-self: stretch;
   justify-content: center;
 }
@@ -485,10 +485,10 @@
   margin-top: auto;
   min-height: 24px;
 }
-.cw-host[data-cw-card-layout="portrait"] .cw-curated-card__actions-row {
+.cw-host--portrait .cw-curated-card__actions-row {
   justify-content: flex-end;
 }
-.cw-host[data-cw-card-layout="portrait"] .cw-curated-card__actions-row .cw-curated-card__rating-meta {
+.cw-host--portrait .cw-curated-card__actions-row .cw-curated-card__rating-meta {
   margin-right: auto;
 }
 .cw-curated-card__actions {
@@ -552,7 +552,7 @@
   color: #d7dcef;
 }
 
-.cw-curated-card__genres[data-cw-empty="true"] {
+.cw-curated-card__genres--empty {
   display: none;
 }
 
@@ -567,7 +567,7 @@
   transition: opacity 180ms ease;
 }
 
-.cw-host[data-cw-card-layout="portrait"] .cw-curated-card__description {
+.cw-host--portrait .cw-curated-card__description {
   -webkit-line-clamp: 3;
 }
 
@@ -677,11 +677,11 @@
   padding: 4px 8px;
 }
 
-.cw-host[data-cw-card-layout="portrait"] .cw-rating-badge--headline {
+.cw-host--portrait .cw-rating-badge--headline {
   font-size: 15px;
 }
 
-.cw-rating-badge[data-cw-rating-state="missing"] {
+.cw-rating-badge--missing {
   color: #dfe3f2;
 }
 
@@ -752,7 +752,7 @@
   visibility: hidden;
 }
 
-.cw-curated-card[data-cw-loading-details="true"] .cw-curated-card__genres[data-cw-empty="true"] {
+.cw-curated-card[data-cw-loading-details="true"] .cw-curated-card__genres--empty {
   display: block;
   min-height: 13px;
 }

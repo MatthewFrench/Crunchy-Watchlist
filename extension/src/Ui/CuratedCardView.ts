@@ -151,6 +151,28 @@ function setElementTextContent(element: TextContentElement | null | undefined, n
   element.textContent = nextValue;
 }
 
+function toggleClassToken(className: string, token: string, enabled: boolean): string {
+  const tokens = className
+    .split(' ')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const hasToken = tokens.includes(token);
+  if (enabled && !hasToken) {
+    tokens.push(token);
+  }
+  if (!enabled && hasToken) {
+    return tokens.filter((item) => item !== token).join(' ');
+  }
+  return tokens.join(' ');
+}
+
+function setClassToken(element: { className?: string } | null | undefined, token: string, enabled: boolean): void {
+  if (!element) {
+    return;
+  }
+  element.className = toggleClassToken(element.className || '', token, enabled);
+}
+
 function setElementDatasetValue(
   element: DatasetElement | null | undefined,
   datasetKey: string,
@@ -170,22 +192,6 @@ function setElementDatasetValue(
   if (typeof element.setAttribute === 'function') {
     const dashedKey = datasetKey.replace(/[A-Z]/g, (character) => `-${character.toLowerCase()}`);
     element.setAttribute(`data-${dashedKey}`, nextValue);
-  }
-}
-
-function removeElementDatasetValue(element: DatasetElement | null | undefined, datasetKey: string): void {
-  if (!element) {
-    return;
-  }
-
-  if (element.dataset && typeof element.dataset === 'object' && Object.hasOwn(element.dataset, datasetKey)) {
-    delete element.dataset[datasetKey];
-    return;
-  }
-
-  if (typeof element.removeAttribute === 'function') {
-    const dashedKey = datasetKey.replace(/[A-Z]/g, (character) => `-${character.toLowerCase()}`);
-    element.removeAttribute(`data-${dashedKey}`);
   }
 }
 
@@ -277,10 +283,11 @@ function createGenresElementInternal(
   genres.className = 'cw-curated-card__genres';
 
   if (!genreValue) {
-    genres.dataset.cwEmpty = 'true';
+    setClassToken(genres, 'cw-curated-card__genres--empty', true);
     return { genreValue: '', genres };
   }
 
+  setClassToken(genres, 'cw-curated-card__genres--empty', false);
   context.setLabeledValue(genres, 'Genres', genreValue);
 
   return { genreValue, genres };
@@ -407,7 +414,6 @@ function createCuratedCardBodyInternal(
   const lastWatched = context.documentRef.createElement('div');
   lastWatched.className = 'cw-curated-card__last-watched';
   const lastWatchedPresentation = context.getLastWatchedPresentation(entry);
-  lastWatched.dataset.cwLastWatchedState = lastWatchedPresentation.state;
   context.setLabeledValue(lastWatched, 'Last watched', lastWatchedPresentation.text);
 
   const scope = createScopeElementInternal(context, entry);
@@ -458,7 +464,6 @@ function patchLastWatchedElementInternal(
     return;
   }
 
-  setElementDatasetValue(lastWatchedElement, 'cwLastWatchedState', lastWatchedPresentation.state);
   setElementDatasetValue(lastWatchedElement, 'cwLastWatchedSignature', signature);
   context.setLabeledValue(lastWatchedElement, 'Last watched', lastWatchedPresentation.text);
 }
@@ -503,12 +508,12 @@ function patchGenresElementInternal(context: CardViewContext, genresElement: HTM
 
   if (!genreValue) {
     setElementTextContent(genresElement, '');
-    setElementDatasetValue(genresElement, 'cwEmpty', 'true');
+    setClassToken(genresElement, 'cw-curated-card__genres--empty', true);
     setElementDatasetValue(genresElement, 'cwGenresSignature', '');
     return;
   }
 
-  removeElementDatasetValue(genresElement, 'cwEmpty');
+  setClassToken(genresElement, 'cw-curated-card__genres--empty', false);
   context.setLabeledValue(genresElement, 'Genres', genreValue);
   setElementDatasetValue(genresElement, 'cwGenresSignature', genreValue);
 }
@@ -546,7 +551,6 @@ function patchHistogramElementInternal(context: CardViewContext, refs: CardBodyR
       rowRefs.row.style.display = 'none';
     });
     setElementDatasetValue(histogramElement, 'cwHistogramSignature', histogramSignature);
-    setElementDatasetValue(histogramElement, 'cwRatingState', 'missing');
     return;
   }
 
@@ -572,7 +576,6 @@ function patchHistogramElementInternal(context: CardViewContext, refs: CardBodyR
   }
 
   setElementDatasetValue(histogramElement, 'cwHistogramSignature', histogramSignature);
-  setElementDatasetValue(histogramElement, 'cwRatingState', 'ok');
 }
 
 function getCardBodyRefsFromValue(

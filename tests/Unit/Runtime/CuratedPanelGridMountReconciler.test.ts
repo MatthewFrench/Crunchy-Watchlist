@@ -46,8 +46,8 @@ type MountReconcilerModule = {
 };
 
 type CuratedPanelGridDomStateModule = {
-  readCuratedGridActiveCards: (gridElement: Element) => Element[];
-  writeCuratedGridActiveCards: (gridElement: Element, activeCards: Element[]) => void;
+  readProjectedCuratedGridChildren: (gridElement: Element) => Element[];
+  writeProjectedCuratedGridChildren: (gridElement: Element, activeCards: Element[]) => void;
 };
 
 const moduleUrl = pathToFileURL(
@@ -120,7 +120,7 @@ describe('curated-panel-grid mount reconciler owner', () => {
     const grid = createFakeElement('div');
     const card = createFakeElement('article');
     grid.appendChild(card);
-    domStateModule?.writeCuratedGridActiveCards(grid as unknown as Element, [card as unknown as Element]);
+    domStateModule?.writeProjectedCuratedGridChildren(grid as unknown as Element, [card as unknown as Element]);
 
     const parkGridCardsForReuse = vi.fn();
     const parkUnusedControllersForReuse = vi.fn();
@@ -147,7 +147,7 @@ describe('curated-panel-grid mount reconciler owner', () => {
     expect(parkUnusedControllersForReuse).toHaveBeenCalledWith(expect.any(Set));
     expect(grid.children).toHaveLength(1);
     expect(grid.children[0]?.textContent).toBe('empty:2');
-    expect(domStateModule?.readCuratedGridActiveCards(grid as unknown as Element)).toEqual([
+    expect(domStateModule?.readProjectedCuratedGridChildren(grid as unknown as Element)).toEqual([
       grid.children[0] as unknown as Element,
     ]);
     expect(trimParkedCardsForReuse).toHaveBeenCalledTimes(1);

@@ -1,18 +1,24 @@
 type BoundaryValue = CwBoundaryValue;
 type BoundaryRecord = Record<string, BoundaryValue>;
 
+import type { CuratedGridRenderCard } from './CuratedPanelGridRenderCard.js';
+
 export type CuratedPanelGridOrderPlan = {
   visibleSeriesIds: Set<string>;
-  nextCards: Element[];
+  nextCards: CuratedGridRenderCard[];
 };
 
 type CuratedPanelGridOrderPlannerOptions = {
   visible: BoundaryRecord[];
   metadataLoading: boolean;
-  createOrReuseCuratedCard: (entry: BoundaryRecord, detailsLoading: boolean, visibleSeriesIds: Set<string>) => Element;
+  createOrReuseCuratedCard: (
+    entry: BoundaryRecord,
+    detailsLoading: boolean,
+    visibleSeriesIds: Set<string>,
+  ) => CuratedGridRenderCard;
   getEntrySeriesId: (entry: BoundaryRecord) => string;
   markCardControllerActive: (seriesId: string) => void;
-  setCardParkedState: (card: Element, parked: boolean) => void;
+  setCardParkedState: (card: CuratedGridRenderCard, parked: boolean) => void;
   isRenderableEntryMetadataLoading: (entry: BoundaryRecord) => boolean;
 };
 

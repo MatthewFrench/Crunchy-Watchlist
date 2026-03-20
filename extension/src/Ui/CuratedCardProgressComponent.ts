@@ -33,20 +33,25 @@ export function sanitizeEpisodeProgressRatio(value: CwBoundaryValue): number | n
   return normalized;
 }
 
-function setElementAttributeIfChanged(element: Element, attributeName: string, nextValue: string): void {
-  if (typeof element.setAttribute !== 'function') {
-    return;
-  }
-
-  const currentValue = typeof element.getAttribute === 'function' ? element.getAttribute(attributeName) || '' : '';
-  if (currentValue === nextValue) {
-    return;
-  }
-  element.setAttribute(attributeName, nextValue);
-}
+type CuratedCardProgressProjectionState = {
+  role: string;
+  ariaValueMin: string;
+  ariaValueMax: string;
+  ariaValueNow: string;
+  ariaLabel: string;
+  width: string;
+};
 
 class CuratedCardProgressController {
   readonly refs: CuratedCardProgressRefs;
+  private readonly projectionState: CuratedCardProgressProjectionState = {
+    role: '',
+    ariaValueMin: '',
+    ariaValueMax: '',
+    ariaValueNow: '',
+    ariaLabel: '',
+    width: '',
+  };
 
   constructor(
     private readonly documentRef: Document,
@@ -72,15 +77,33 @@ class CuratedCardProgressController {
     const safeRatio = normalizedRatio == null ? 0 : normalizedRatio;
     const percent = Math.round(safeRatio * 100);
 
-    setElementAttributeIfChanged(this.refs.progress, 'role', 'progressbar');
-    setElementAttributeIfChanged(this.refs.progress, 'aria-valuemin', '0');
-    setElementAttributeIfChanged(this.refs.progress, 'aria-valuemax', '100');
-    setElementAttributeIfChanged(this.refs.progress, 'aria-valuenow', String(percent));
-    setElementAttributeIfChanged(this.refs.progress, 'aria-label', `${percent}% of current episode watched`);
+    if (this.projectionState.role !== 'progressbar') {
+      this.refs.progress.setAttribute('role', 'progressbar');
+      this.projectionState.role = 'progressbar';
+    }
+    if (this.projectionState.ariaValueMin !== '0') {
+      this.refs.progress.setAttribute('aria-valuemin', '0');
+      this.projectionState.ariaValueMin = '0';
+    }
+    if (this.projectionState.ariaValueMax !== '100') {
+      this.refs.progress.setAttribute('aria-valuemax', '100');
+      this.projectionState.ariaValueMax = '100';
+    }
+    const nextAriaValueNow = String(percent);
+    if (this.projectionState.ariaValueNow !== nextAriaValueNow) {
+      this.refs.progress.setAttribute('aria-valuenow', nextAriaValueNow);
+      this.projectionState.ariaValueNow = nextAriaValueNow;
+    }
+    const nextAriaLabel = `${percent}% of current episode watched`;
+    if (this.projectionState.ariaLabel !== nextAriaLabel) {
+      this.refs.progress.setAttribute('aria-label', nextAriaLabel);
+      this.projectionState.ariaLabel = nextAriaLabel;
+    }
 
     const width = `${Math.max(1, Math.round(safeRatio * 1000) / 10)}%`;
-    if (this.refs.fill.style.width !== width) {
+    if (this.projectionState.width !== width) {
       this.refs.fill.style.width = width;
+      this.projectionState.width = width;
     }
   }
 }

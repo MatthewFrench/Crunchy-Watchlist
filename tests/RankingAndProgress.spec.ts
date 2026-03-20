@@ -300,6 +300,7 @@ test.describe('Ranking, Filtering, and Progress', () => {
     await page.selectOption('#cw-genre-filter', 'action');
     await expect(page.locator('.cw-curated-card:visible')).toHaveCount(1);
     await expect(page.locator('.cw-curated-card[data-cw-curated-title="High Rated Show"]')).toHaveCount(1);
+    await expect(page.locator('.cw-controls__stats')).toContainText('Showing 1 of 4');
   });
 
   test('filters by favorites using genre dropdown option', async ({ page }) => {

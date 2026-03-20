@@ -168,11 +168,11 @@ describe('card-metadata ui module', () => {
     const rated = runtime.makeRatingBadge(4.38, 1200);
     expect(rated.textContent).toBe('★ 4.4');
     expect(rated.title).toBe(`4.4 (${Number(1200).toLocaleString()} ratings)`);
-    expect(rated.dataset?.cwRatingState).toBe('ok');
+    expect(rated.dataset).toEqual({});
 
     const unrated = runtime.makeRatingBadge(null, null);
     expect(unrated.textContent).toBe('NR');
     expect(unrated.title).toBe('No rating found');
-    expect(unrated.dataset?.cwRatingState).toBe('missing');
+    expect(unrated.dataset).toEqual({});
   });
 });

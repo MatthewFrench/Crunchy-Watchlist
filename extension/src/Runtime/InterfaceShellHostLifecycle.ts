@@ -1,9 +1,13 @@
 type BoundaryValue = CwBoundaryValue;
 type LooseRecord = Record<string, BoundaryValue>;
+type NativeVisibilityRecord = {
+  node: Element;
+  previousDisplay: string;
+};
 
 type RuntimeStateLike = {
   framedRootEl: Element | null;
-  nativeHiddenNodes: Element[];
+  nativeHiddenNodes: NativeVisibilityRecord[];
   hostEl: Element | null;
   tabCrunchyrollEl: Element | null;
   tabCuratedEl: Element | null;
@@ -23,6 +27,7 @@ type InterfaceShellHostLifecycleContextLike = {
   state: RuntimeStateLike;
   windowRef: Window;
   getWatchlistRoot: () => Element | null;
+  getWatchlistHeader?: () => Element | null;
 };
 
 export type InterfaceShellHostLifecycleRuntime = {
@@ -68,15 +73,11 @@ function isCuratedHostElement(value: BoundaryValue): boolean {
   );
 }
 
-function clearPreviousDisplayMarker(node: Element): void {
-  if (!isElementWithDisplayState(node)) {
+function restoreHiddenNodeDisplay(record: NativeVisibilityRecord): void {
+  if (!isElementWithDisplayState(record.node)) {
     return;
   }
-  if (!Object.hasOwn(node.dataset, 'cwPrevDisplay')) {
-    return;
-  }
-  node.style.display = node.dataset.cwPrevDisplay != null ? node.dataset.cwPrevDisplay : '';
-  delete node.dataset.cwPrevDisplay;
+  record.node.style.display = record.previousDisplay;
 }
 
 function isConnectedHostDescendant(
@@ -172,7 +173,6 @@ class InterfaceShellHostLifecycleController implements InterfaceShellHostLifecyc
       return;
     }
 
-    clearPreviousDisplayMarker(hostElement);
     if (hostElement.style.display === 'none') {
       hostElement.style.display = '';
     }
@@ -206,20 +206,17 @@ class InterfaceShellHostLifecycleController implements InterfaceShellHostLifecyc
   }
 
   private restoreNativeVisibility(context: InterfaceShellHostLifecycleContextLike, rootElement: Element): void {
-    const flaggedNodes = Array.from(rootElement.querySelectorAll('[data-cw-prev-display]'));
-    const restoreCandidates = new Set([...context.state.nativeHiddenNodes, ...flaggedNodes]);
+    const restoreCandidates = [...context.state.nativeHiddenNodes];
 
-    restoreCandidates.forEach((node) => {
-      if (!isElementWithDisplayState(node)) {
+    restoreCandidates.forEach((record) => {
+      if (!isElementWithDisplayState(record.node)) {
         return;
       }
-      if (asRecord(node).isConnected === false) {
+      if (asRecord(record.node).isConnected === false) {
         return;
       }
 
-      const previousDisplay = node.dataset.cwPrevDisplay;
-      node.style.display = previousDisplay != null ? previousDisplay : '';
-      delete node.dataset.cwPrevDisplay;
+      restoreHiddenNodeDisplay(record);
     });
 
     context.state.nativeHiddenNodes = [];
@@ -235,12 +232,17 @@ class InterfaceShellHostLifecycleController implements InterfaceShellHostLifecyc
   }
 
   private hideNativeVisibility(context: InterfaceShellHostLifecycleContextLike, rootElement: Element): void {
-    const children = Array.from(rootElement.children).filter((child) => child !== context.state.hostEl);
-    context.state.nativeHiddenNodes = [];
+    const headerElement = typeof context.getWatchlistHeader === 'function' ? context.getWatchlistHeader() : null;
+    const children = Array.from(rootElement.children).filter(
+      (child) => child !== context.state.hostEl && child !== headerElement,
+    );
+    const existingHiddenRecordsByNode = new Map(
+      context.state.nativeHiddenNodes.map((record) => [record.node, record.previousDisplay]),
+    );
+    const nextHiddenNodes: NativeVisibilityRecord[] = [];
 
     children.forEach((node) => {
       if (isCuratedHostElement(node)) {
-        clearPreviousDisplayMarker(node);
         if (isElementWithDisplayState(node) && node.style.display === 'none') {
           node.style.display = '';
         }
@@ -249,12 +251,24 @@ class InterfaceShellHostLifecycleController implements InterfaceShellHostLifecyc
       if (!isElementWithDisplayState(node)) {
         return;
       }
-      if (!Object.hasOwn(node.dataset, 'cwPrevDisplay')) {
-        node.dataset.cwPrevDisplay = node.style.display || '';
+      const existingPreviousDisplay = existingHiddenRecordsByNode.get(node);
+      if (typeof existingPreviousDisplay === 'string') {
+        node.style.display = 'none';
+        nextHiddenNodes.push({
+          node,
+          previousDisplay: existingPreviousDisplay,
+        });
+        return;
       }
+      const previousDisplay = node.style.display || '';
       node.style.display = 'none';
-      context.state.nativeHiddenNodes.push(node);
+      nextHiddenNodes.push({
+        node,
+        previousDisplay,
+      });
     });
+
+    context.state.nativeHiddenNodes = nextHiddenNodes;
   }
 }
 

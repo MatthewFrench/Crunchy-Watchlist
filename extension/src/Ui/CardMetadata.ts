@@ -245,14 +245,13 @@ function makeRatingBadgeInternal(
 
   if (rating != null && Number.isFinite(Number(rating))) {
     const normalized = Number(rating);
-    badge.dataset.cwRatingState = 'ok';
     badge.textContent = `★ ${normalized.toFixed(1)}`;
     badge.title =
       votes != null ? `${normalized.toFixed(1)} (${formatVotesInternal(votes)} ratings)` : `${normalized.toFixed(1)}`;
     return badge;
   }
 
-  badge.dataset.cwRatingState = 'missing';
+  badge.className = 'cw-rating-badge cw-rating-badge--missing';
   badge.textContent = 'NR';
   badge.title = 'No rating found';
   return badge;

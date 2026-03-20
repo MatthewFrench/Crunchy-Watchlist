@@ -88,6 +88,10 @@ type CardShellController = {
   mediaComponent: CuratedCardMediaComponent;
   actionsComponent: CuratedCardActionsComponent;
   metadataComponent: CuratedCardMetadataComponent;
+  navigationState: {
+    cardHref: string;
+    bound: boolean;
+  };
 };
 
 type CardShellContext = {
@@ -209,23 +213,6 @@ function setElementDatasetValue(element: Element, datasetKey: string, nextValue:
   }
 }
 
-function removeElementDatasetValue(element: Element, datasetKey: string): void {
-  const target = element as Element & {
-    dataset?: Record<string, string>;
-    removeAttribute?: (name: string) => void;
-  };
-
-  if (target.dataset && typeof target.dataset === 'object' && Object.hasOwn(target.dataset, datasetKey)) {
-    delete target.dataset[datasetKey];
-    return;
-  }
-
-  if (typeof target.removeAttribute === 'function') {
-    const dashedKey = datasetKey.replace(/[A-Z]/g, (character) => `-${character.toLowerCase()}`);
-    target.removeAttribute(`data-${dashedKey}`);
-  }
-}
-
 function getCardCoverImageInternal(
   context: CardShellContext,
   entry: CuratedCardEntry,
@@ -252,17 +239,22 @@ function resolveCardThumbHref(context: CardShellContext, entry: CuratedCardEntry
   return cardHref || '#';
 }
 
-function attachCuratedCardNavigationInternal(context: CardShellContext, item: HTMLElement, cardHref: string): void {
+function attachCuratedCardNavigationInternal(
+  context: CardShellContext,
+  controller: CardShellController,
+  item: HTMLElement,
+  cardHref: string,
+): void {
+  controller.navigationState.cardHref = cardHref;
   if (!cardHref) {
     return;
   }
 
   item.classList.add('cw-curated-card--clickable');
-  item.dataset.cwCardHref = cardHref;
-  if (item.dataset.cwCardNavigationBound === 'true') {
+  if (controller.navigationState.bound) {
     return;
   }
-  item.dataset.cwCardNavigationBound = 'true';
+  controller.navigationState.bound = true;
   item.addEventListener('click', (event) => {
     if (
       event.defaultPrevented ||
@@ -288,7 +280,7 @@ function attachCuratedCardNavigationInternal(context: CardShellContext, item: HT
       return;
     }
 
-    const nextHref = item.dataset.cwCardHref || cardHref;
+    const nextHref = controller.navigationState.cardHref || cardHref;
     if (!nextHref) {
       return;
     }
@@ -348,9 +340,6 @@ function createCuratedCardInternal(
     card.classList.add('cw-curated-card--not-watch-ready');
   }
 
-  const cardHref = context.resolveApiHref(getEntryString(entry, 'href') || '');
-  attachCuratedCardNavigationInternal(context, card, cardHref);
-
   const actionsRoot = context.createCuratedCardActions(entry);
   const actionsComponent = createCuratedCardActionsComponent({
     actionsRoot,
@@ -407,7 +396,13 @@ function createCuratedCardInternal(
     mediaComponent,
     actionsComponent,
     metadataComponent,
+    navigationState: {
+      cardHref: '',
+      bound: false,
+    },
   };
+  const cardHref = context.resolveApiHref(getEntryString(entry, 'href') || '');
+  attachCuratedCardNavigationInternal(context, controller, card, cardHref);
   cardShellControllersByElement.set(card, controller);
   syncShellRefs(controller);
 
@@ -437,11 +432,7 @@ function patchCuratedCardInternal(
   setElementDatasetValue(card, 'cwCuratedTitle', curatedTitle);
 
   const cardHref = context.resolveApiHref(getEntryString(entry, 'href') || '');
-  if (cardHref) {
-    setElementDatasetValue(card, 'cwCardHref', cardHref);
-  } else {
-    removeElementDatasetValue(card, 'cwCardHref');
-  }
+  controller.navigationState.cardHref = cardHref;
   setClassToken(card as Element & { className?: string }, 'cw-curated-card--clickable', Boolean(cardHref));
   setClassToken(
     card as Element & { className?: string },
@@ -472,7 +463,22 @@ class CuratedCardShellOwner implements CuratedCardShellRuntime {
   };
 
   readonly attachCuratedCardNavigation = (item: HTMLElement, cardHref: string): void => {
-    attachCuratedCardNavigationInternal(this.context, item, cardHref);
+    attachCuratedCardNavigationInternal(
+      this.context,
+      {
+        refs: {} as CuratedCardShellRefs,
+        headerComponent: {} as CuratedCardHeaderComponent,
+        mediaComponent: {} as CuratedCardMediaComponent,
+        actionsComponent: {} as CuratedCardActionsComponent,
+        metadataComponent: {} as CuratedCardMetadataComponent,
+        navigationState: {
+          cardHref: '',
+          bound: false,
+        },
+      },
+      item,
+      cardHref,
+    );
   };
 
   readonly createCuratedCardHeader = (entry: CuratedCardEntry): HTMLElement => {

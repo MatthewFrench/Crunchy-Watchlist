@@ -22,6 +22,15 @@ export type CuratedCardMediaComponentRefs = {
   thumbProgressFill: HTMLElement | null;
 };
 
+type IntersectionObserverLike = {
+  observe: (target: Element) => void;
+  disconnect: () => void;
+};
+
+type CuratedCardMediaProjectionState = {
+  thumbAriaLabel: string;
+};
+
 export type CuratedCardMediaComponent = {
   root: HTMLElement;
   refs: CuratedCardMediaComponentRefs;
@@ -132,29 +141,11 @@ function setClassToken(element: { className?: string }, token: string, enabled: 
   element.className = toggleClassToken(element.className || '', token, enabled);
 }
 
-function setElementAttributeIfChanged(element: Element, attributeName: string, nextValue: string): void {
-  if (typeof element.setAttribute !== 'function') {
-    return;
-  }
-
-  const currentValue = typeof element.getAttribute === 'function' ? element.getAttribute(attributeName) || '' : '';
-  if (currentValue === nextValue) {
-    return;
-  }
-  element.setAttribute(attributeName, nextValue);
-}
-
 function setElementTextContent(element: Element, nextValue: string): void {
   if (element.textContent === nextValue) {
     return;
   }
   element.textContent = nextValue;
-}
-
-function setElementDatasetValue(element: HTMLElement, datasetKey: string, nextValue: string): void {
-  if (element.dataset[datasetKey] !== nextValue) {
-    element.dataset[datasetKey] = nextValue;
-  }
 }
 
 function removeElementFromParentNode(element: Element | null): void {
@@ -167,7 +158,7 @@ function removeElementFromParentNode(element: Element | null): void {
 function createThumbImage(
   documentRef: Document,
   thumbLink: HTMLAnchorElement,
-  coverImageUrl: string,
+  initialImageUrl = '',
 ): HTMLImageElement {
   const loadingIndicator = documentRef.createElement('span');
   loadingIndicator.className = 'cw-curated-card__thumb-loading';
@@ -176,7 +167,9 @@ function createThumbImage(
   const image = documentRef.createElement('img');
   image.loading = 'lazy';
   image.decoding = 'async';
-  image.src = coverImageUrl;
+  if (initialImageUrl) {
+    image.src = initialImageUrl;
+  }
   image.alt = '';
 
   setClassToken(thumbLink, 'cw-curated-card__thumb--loading', true);
@@ -195,7 +188,7 @@ function createThumbImage(
   image.addEventListener('error', markThumbImageFailed);
   thumbLink.appendChild(image);
 
-  if (image.complete) {
+  if (initialImageUrl && image.complete) {
     if (image.naturalWidth > 0 || image.naturalHeight > 0) {
       markThumbImageReady();
     } else {
@@ -224,6 +217,7 @@ function patchCardThumbMediaInternal(
   documentRef: Document,
   dependencies: CuratedCardMediaDependencies,
   refs: CuratedCardMediaComponentRefs,
+  projectionState: CuratedCardMediaProjectionState,
   entry: CuratedCardMediaEntry,
 ): { coverImageUrl: string; hoverPreviewImageUrl: string } {
   const title = getEntryString(entry, 'title');
@@ -231,27 +225,27 @@ function patchCardThumbMediaInternal(
   if (refs.thumbLink.href !== thumbHref) {
     refs.thumbLink.href = thumbHref;
   }
-  setElementAttributeIfChanged(refs.thumbLink, 'aria-label', title);
-  setElementDatasetValue(refs.thumbLink, 'cwSeriesId', getEntryString(entry, 'seriesId'));
+  if (projectionState.thumbAriaLabel !== title) {
+    refs.thumbLink.setAttribute('aria-label', title);
+    projectionState.thumbAriaLabel = title;
+  }
 
   const coverImageUrl = String(dependencies.getCardCoverImage(entry) || '');
   const hoverPreviewImageUrl = String(dependencies.normalizeImageUrlCandidate(entry.hoverPreviewImageUrl) || '');
-  setElementDatasetValue(refs.thumbLink, 'cwCoverImageUrl', coverImageUrl);
-  setElementDatasetValue(refs.thumbLink, 'cwHoverPreviewImageUrl', hoverPreviewImageUrl);
 
   if (coverImageUrl) {
     removeElementFromParentNode(refs.thumbPlaceholder);
     refs.thumbPlaceholder = null;
 
     if (refs.thumbImage) {
-      if (refs.thumbImage.src !== coverImageUrl) {
+      if (refs.thumbImage.src && refs.thumbImage.src !== coverImageUrl) {
         refs.thumbImage.src = coverImageUrl;
         setClassToken(refs.thumbLink, 'cw-curated-card__thumb--loading', true);
         setClassToken(refs.thumbLink, 'cw-curated-card__thumb--failed', false);
         setClassToken(refs.thumbLink, 'cw-curated-card__thumb--loaded', false);
       }
     } else {
-      refs.thumbImage = createThumbImage(documentRef, refs.thumbLink, coverImageUrl);
+      refs.thumbImage = createThumbImage(documentRef, refs.thumbLink);
     }
   } else {
     removeElementFromParentNode(refs.thumbImage);
@@ -325,6 +319,13 @@ class CuratedCardMediaController {
   readonly refs: CuratedCardMediaComponentRefs;
 
   private progressComponent: CuratedCardProgressComponent | null = null;
+  private readonly projectionState: CuratedCardMediaProjectionState = {
+    thumbAriaLabel: '',
+  };
+  private readonly thumbIntersectionObserver: IntersectionObserverLike | null;
+  private pendingThumbImageUrl = '';
+  private thumbImageRequested = false;
+  private thumbVisible = false;
 
   constructor(
     private readonly documentRef: Document,
@@ -347,8 +348,39 @@ class CuratedCardMediaController {
       thumbProgressFill: null,
     };
 
+    const IntersectionObserverCtor = this.documentRef.defaultView?.IntersectionObserver ?? null;
+    this.thumbIntersectionObserver =
+      typeof IntersectionObserverCtor === 'function'
+        ? new IntersectionObserverCtor(
+            (entries) => {
+              if (!entries.some((entry) => entry.isIntersecting)) {
+                return;
+              }
+              this.thumbVisible = true;
+              this.syncThumbImageSource();
+              this.thumbIntersectionObserver?.disconnect();
+            },
+            {
+              root: null,
+              rootMargin: '300px 0px',
+              threshold: 0.01,
+            },
+          )
+        : null;
+
     this.patchEntry(initialEntry);
   }
+
+  private readonly syncThumbImageSource = (): void => {
+    if (!this.refs.thumbImage || !this.pendingThumbImageUrl || this.thumbImageRequested) {
+      return;
+    }
+    if (this.thumbIntersectionObserver && !this.thumbVisible) {
+      return;
+    }
+    this.refs.thumbImage.src = this.pendingThumbImageUrl;
+    this.thumbImageRequested = true;
+  };
 
   patchEntry(entryValue: CuratedCardMediaEntry | BoundaryValue): void {
     const entry = toEntry(entryValue);
@@ -356,6 +388,7 @@ class CuratedCardMediaController {
       this.documentRef,
       this.dependencies,
       this.refs,
+      this.projectionState,
       entry,
     );
     this.progressComponent = patchCardThumbProgressInternal(
@@ -366,6 +399,22 @@ class CuratedCardMediaController {
       this.progressComponent,
       entry,
     );
+
+    if (coverImageUrl) {
+      this.pendingThumbImageUrl = coverImageUrl;
+      if (this.refs.thumbImage && this.thumbIntersectionObserver) {
+        this.thumbImageRequested = Boolean(this.refs.thumbImage.src);
+        this.thumbIntersectionObserver.observe(this.refs.thumbLink);
+      } else {
+        this.thumbVisible = true;
+        this.syncThumbImageSource();
+      }
+    } else {
+      this.pendingThumbImageUrl = '';
+      this.thumbImageRequested = false;
+      this.thumbVisible = false;
+      this.thumbIntersectionObserver?.disconnect();
+    }
 
     this.dependencies.installCuratedCardPreview(
       this.refs.thumbLink,

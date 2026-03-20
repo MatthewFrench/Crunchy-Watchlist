@@ -91,18 +91,6 @@ function setClassToken(target: { className?: string }, token: string, enabled: b
   target.className = toggleClassToken(target.className || '', token, enabled);
 }
 
-function setDatasetValue(target: HTMLElement, datasetKey: string, nextValue: string): void {
-  if (target.dataset[datasetKey] !== nextValue) {
-    target.dataset[datasetKey] = nextValue;
-  }
-}
-
-function removeDatasetValue(target: HTMLElement, datasetKey: string): void {
-  if (Object.hasOwn(target.dataset, datasetKey)) {
-    delete target.dataset[datasetKey];
-  }
-}
-
 class CuratedCardHeaderController {
   readonly refs: CuratedCardHeaderRefs;
 
@@ -151,13 +139,6 @@ class CuratedCardHeaderController {
     const nextBadgeTitle = nextBadge.title || '';
     if (currentBadge.title !== nextBadgeTitle) {
       currentBadge.title = nextBadgeTitle;
-    }
-
-    const nextRatingState = nextBadge.dataset.cwRatingState;
-    if (typeof nextRatingState === 'string') {
-      setDatasetValue(currentBadge, 'cwRatingState', nextRatingState);
-    } else {
-      removeDatasetValue(currentBadge, 'cwRatingState');
     }
   }
 }

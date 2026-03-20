@@ -165,7 +165,6 @@ function createFavoriteCardActionButton(
   const favoriteButton = context.documentRef.createElement('button');
   favoriteButton.type = 'button';
   favoriteButton.className = `cw-card-action cw-card-action--favorite${initialFavorite ? ' is-active' : ''}`;
-  favoriteButton.dataset.cwAction = 'favorite';
   favoriteButton.setAttribute('aria-label', initialFavorite ? 'Unfavorite' : 'Favorite');
   favoriteButton.setAttribute('aria-pressed', initialFavorite ? 'true' : 'false');
   favoriteButton.title = initialFavorite ? 'Unfavorite' : 'Favorite';
@@ -177,7 +176,6 @@ function createRemoveCardActionButton(context: CuratedInteractionsContext): HTML
   const removeButton = context.documentRef.createElement('button');
   removeButton.type = 'button';
   removeButton.className = 'cw-card-action cw-card-action--remove';
-  removeButton.dataset.cwAction = 'remove';
   removeButton.setAttribute('aria-label', 'Remove from watchlist');
   removeButton.title = 'Remove from watchlist';
   removeButton.textContent = '🗑';
@@ -207,8 +205,10 @@ function bindFavoriteCardAction(
   favoriteButton: HTMLButtonElement,
   removeButton: HTMLButtonElement,
   seriesId: string,
+  initialFavorite: boolean,
   failedActionMessage: string,
 ): void {
+  let currentFavorite = initialFavorite;
   favoriteButton.addEventListener('click', (event) => {
     void (async () => {
       stopCardActionEvent(event);
@@ -217,13 +217,14 @@ function bindFavoriteCardAction(
       }
 
       await withActionButtonsDisabled(favoriteButton, removeButton, async () => {
-        const nextFavorite = favoriteButton.getAttribute('aria-pressed') !== 'true';
+        const nextFavorite = !currentFavorite;
         const applied = await context.triggerNativeCardAction(seriesId, 'favorite', nextFavorite);
         if (!applied) {
           context.alertRef(failedActionMessage);
           return;
         }
 
+        currentFavorite = nextFavorite;
         context.toggleCuratedFavorite(seriesId);
         context.renderCuratedPanel();
       });
@@ -287,7 +288,7 @@ function createCuratedCardActionsInternal(context: CuratedInteractionsContext, e
   }
 
   const failedActionMessage = 'Crunchyroll watchlist update failed. Please refresh and try again.';
-  bindFavoriteCardAction(context, favoriteButton, removeButton, seriesId, failedActionMessage);
+  bindFavoriteCardAction(context, favoriteButton, removeButton, seriesId, initialFavorite, failedActionMessage);
   bindRemoveCardAction(context, favoriteButton, removeButton, seriesId, title, failedActionMessage);
 
   actions.appendChild(favoriteButton);

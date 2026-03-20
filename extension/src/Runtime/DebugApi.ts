@@ -1,4 +1,4 @@
-import { readCuratedGridActiveCards } from './CuratedPanelGridDomState.js';
+import { readProjectedCuratedGridSeriesIds } from './CuratedPanelGridDomState.js';
 import { getRuntimePerfDiagnostics, type RuntimePerfDiagnostics } from './RuntimePerfDiagnostics.js';
 
 type BoundaryValue = CwBoundaryValue;
@@ -305,22 +305,7 @@ function getCuratedDomLifecycleStatsInternal(context: DebugApiContext): CuratedD
     counters.created + counters.patched + counters.parked + counters.unparked + counters.disposed;
   const identityChurnRate =
     counters.created + counters.patched > 0 ? counters.created / (counters.created + counters.patched) : 0;
-  const activeSeriesIds = context.state.gridEl
-    ? readCuratedGridActiveCards(context.state.gridEl)
-        .map((card) => {
-          const cardElement = card as Element & {
-            dataset?: Record<string, string>;
-            getAttribute?: (name: string) => string | null;
-          };
-          return getString(
-            (typeof cardElement.dataset?.cwSeriesId === 'string' ? cardElement.dataset.cwSeriesId : '') ||
-              (typeof cardElement.getAttribute === 'function'
-                ? (cardElement.getAttribute('data-cw-series-id') ?? '')
-                : ''),
-          );
-        })
-        .filter(Boolean)
-    : [];
+  const activeSeriesIds = context.state.gridEl ? readProjectedCuratedGridSeriesIds(context.state.gridEl) : [];
 
   return {
     counters,

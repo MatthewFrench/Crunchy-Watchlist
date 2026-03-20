@@ -45,6 +45,17 @@ type FakeElement = {
 
 type FakeDocument = {
   createElement: (tagName: string) => FakeElement;
+  defaultView:
+    | {
+        IntersectionObserver?: new (
+          callback: (entries: Array<{ isIntersecting: boolean }>) => void,
+          options?: unknown,
+        ) => {
+          observe: (target: unknown) => void;
+          disconnect: () => void;
+        };
+      }
+    | undefined;
 };
 
 type CardShellRuntime = {
@@ -63,7 +74,11 @@ const cardShellModuleUrl = pathToFileURL(
 ).href;
 let createCardShell: CardShellModule['createCardShell'] | null = null;
 
-function createFakeDocument(): FakeDocument {
+function createFakeDocument(
+  options: {
+    defaultView?: FakeDocument['defaultView'];
+  } = {},
+): FakeDocument {
   const createElement = (tagName: string): FakeElement => {
     const classNames = new Set<string>();
     const element: FakeElement = {
@@ -142,6 +157,7 @@ function createFakeDocument(): FakeDocument {
 
   return {
     createElement,
+    defaultView: options.defaultView,
   };
 }
 
@@ -153,9 +169,12 @@ function createCardShellRuntime(options: Partial<Record<string, unknown>> = {}) 
   const {
     createCuratedCardBody: createCuratedCardBodyOption,
     getCuratedCardBodyRefs: getCuratedCardBodyRefsOption,
+    documentRefOptions,
     ...restOptions
   } = options;
-  const documentRef = createFakeDocument();
+  const documentRef = createFakeDocument(documentRefOptions as {
+    defaultView?: FakeDocument['defaultView'];
+  });
   const locationAssign = vi.fn();
   const getSelection = vi.fn(() => ({ type: 'None' }));
   const cardBodyRefsByElement = new WeakMap<
@@ -417,7 +436,6 @@ describe('curated-card-shell ui module', () => {
         const actions = documentRef.createElement('div');
         const favoriteButton = documentRef.createElement('button');
         favoriteButton.className = 'cw-card-action cw-card-action--favorite is-active';
-        favoriteButton.dataset.cwAction = 'favorite';
         favoriteButton.textContent = '♥';
         favoriteButton.setAttribute('aria-label', 'Unfavorite');
         favoriteButton.setAttribute('aria-pressed', 'true');
@@ -425,7 +443,6 @@ describe('curated-card-shell ui module', () => {
 
         const removeButton = documentRef.createElement('button');
         removeButton.className = 'cw-card-action cw-card-action--remove';
-        removeButton.dataset.cwAction = 'remove';
         removeButton.textContent = '🗑';
         removeButton.setAttribute('aria-label', 'Remove from watchlist');
 
@@ -481,6 +498,50 @@ describe('curated-card-shell ui module', () => {
     image?.dispatch('load');
     expect(thumbLink?.className).toContain('cw-curated-card__thumb--loaded');
     expect(thumbLink?.className).not.toContain('cw-curated-card__thumb--loading');
+  });
+
+  it('defers thumbnail src assignment until the thumb enters the viewport when IntersectionObserver is available', () => {
+    let observerCallback: ((entries: Array<{ isIntersecting: boolean }>) => void) | null = null;
+    const { runtime } = createCardShellRuntime({
+      documentRefOptions: {
+        defaultView: {
+          IntersectionObserver: class {
+            constructor(
+              callback: (entries: Array<{ isIntersecting: boolean }>) => void,
+              _options?: unknown,
+            ) {
+              observerCallback = callback;
+            }
+
+            observe(_target: unknown): void {}
+
+            disconnect(): void {}
+          },
+        },
+      },
+    });
+
+    const card = runtime.createCuratedCard({
+      seriesId: 'series-lazy',
+      title: 'Series with lazy thumb',
+      href: '/series/series-lazy',
+      portraitImageUrl: 'portrait-lazy.jpg',
+    });
+
+    const media = card.children[1];
+    const thumbLink = media?.children[0];
+    const image = thumbLink?.children[1];
+
+    expect(image?.src).toBe('');
+    expect(thumbLink?.className).toContain('cw-curated-card__thumb--loading');
+
+    const triggerObserver =
+      observerCallback as ((entries: Array<{ isIntersecting: boolean }>) => void) | null;
+    if (triggerObserver) {
+      triggerObserver([{ isIntersecting: true }]);
+    }
+
+    expect(image?.src).toBe('portrait-lazy.jpg');
   });
 
   it('navigates only for safe card click events', () => {

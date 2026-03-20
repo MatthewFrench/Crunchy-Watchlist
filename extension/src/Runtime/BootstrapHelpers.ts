@@ -418,20 +418,17 @@ function withMutedObserverInternal(context: BootstrapHelpersContext, work: () =>
 }
 
 function applyCardLayoutUiInternal(context: BootstrapHelpersContext): void {
-  if (!context.state.hostEl || typeof context.state.hostEl !== 'object') {
+  const hostElement = context.state.hostEl;
+  if (!hostElement || typeof hostElement !== 'object') {
     return;
   }
-  const hostElement = context.state.hostEl as Element & { dataset?: DOMStringMap };
-  if (!hostElement.dataset || typeof hostElement.dataset !== 'object') {
+  if (!('classList' in hostElement) || !hostElement.classList) {
     return;
   }
 
   const layout = context.state.settings.cardLayout === 'landscape' ? 'landscape' : 'portrait';
-  const dataset = hostElement.dataset;
-  if (dataset.cwCardLayout === layout) {
-    return;
-  }
-  dataset.cwCardLayout = layout;
+  hostElement.classList.toggle('cw-host--landscape', layout === 'landscape');
+  hostElement.classList.toggle('cw-host--portrait', layout === 'portrait');
 }
 
 async function persistSettingsInternal(context: BootstrapHelpersContext): BoundaryPromise {

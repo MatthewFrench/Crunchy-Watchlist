@@ -52,6 +52,11 @@ type RuntimeStateOptions = {
   watchHistoryCacheVersion?: BoundaryValue;
 };
 
+type NativeVisibilityRecord = {
+  node: Element;
+  previousDisplay: string;
+};
+
 type RuntimeState = {
   mounted: boolean;
   observer: MutationObserver | null;
@@ -106,7 +111,7 @@ type RuntimeState = {
   gridEl: Element | null;
   curatedGridRenderSignature: string;
   framedRootEl: Element | null;
-  nativeHiddenNodes: Element[];
+  nativeHiddenNodes: NativeVisibilityRecord[];
 };
 
 function createEmptyWatchHistoryCache(watchHistoryCacheVersion: BoundaryValue): WatchHistoryCache {
