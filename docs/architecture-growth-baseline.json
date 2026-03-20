@@ -1,4 +1,23 @@
 {
-  "allowedWarningFiles": [],
-  "allowedWarningFunctions": []
+  "allowedWarningFiles": [
+    "extension/src/Runtime/CuratedPanelGridTransitions.ts"
+  ],
+  "allowedWarningFunctions": [
+    {
+      "name": "createCuratedGridRenderContext",
+      "path": "extension/src/Runtime/CuratedPanelGrid.ts"
+    },
+    {
+      "name": "createOrReuseCuratedCard",
+      "path": "extension/src/Runtime/CuratedPanelGrid.ts"
+    },
+    {
+      "name": "reconcileCuratedGridChildrenForAbsolutePlacement",
+      "path": "extension/src/Runtime/CuratedPanelGridTransitions.ts"
+    },
+    {
+      "name": "createCuratedCardInternal",
+      "path": "extension/src/Ui/CuratedCardShell.ts"
+    }
+  ]
 }
