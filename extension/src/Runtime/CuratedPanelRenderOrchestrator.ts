@@ -290,7 +290,6 @@ export class CuratedPanelRenderOrchestrator {
     this.context.applyCardLayoutUi();
 
     const {
-      mode: watchReadyFilterMode,
       total,
       visible,
       retainedHidden = [],

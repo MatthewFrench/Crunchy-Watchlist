@@ -15,11 +15,9 @@ const naturalHeightByCardElement = new WeakMap<
 >();
 
 function buildCardMeasurementSignature(card: CuratedGridRenderCard, cardWidthPx: number): string {
-  return [
-    Math.max(1, Math.round(cardWidthPx)),
-    card.contentSignature,
-    card.detailsLoading ? 'true' : 'false',
-  ].join('|');
+  return [Math.max(1, Math.round(cardWidthPx)), card.contentSignature, card.detailsLoading ? 'true' : 'false'].join(
+    '|',
+  );
 }
 
 export function prepareCuratedGridHeightMeasurements(

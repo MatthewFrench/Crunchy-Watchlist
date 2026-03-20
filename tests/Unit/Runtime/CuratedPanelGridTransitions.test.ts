@@ -80,16 +80,19 @@ function readCardContainerHeightPx(element: FakeElement): number {
 function createTestRuntime() {
   const runtime = getCuratedPanelGridTransitionsModule().createCuratedPanelGridTransitionsRuntime();
   const toFakeElement = (value: FakeElement | Element): FakeElement => value as unknown as FakeElement;
-  const renderCardByElement = new WeakMap<Element, {
-    card: Element;
-    seriesId: string;
-    contentSignature: string;
-    detailsLoading: boolean;
-    transitionState: {
-      absolutePositionSeeded: boolean;
-      centerIntroStaged: boolean;
-    };
-  }>();
+  const renderCardByElement = new WeakMap<
+    Element,
+    {
+      card: Element;
+      seriesId: string;
+      contentSignature: string;
+      detailsLoading: boolean;
+      transitionState: {
+        absolutePositionSeeded: boolean;
+        centerIntroStaged: boolean;
+      };
+    }
+  >();
   return {
     reorderCuratedGridChildren: (
       gridElement: Element,

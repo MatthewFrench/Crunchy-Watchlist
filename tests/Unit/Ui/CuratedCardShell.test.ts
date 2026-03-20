@@ -74,11 +74,7 @@ const cardShellModuleUrl = pathToFileURL(
 ).href;
 let createCardShell: CardShellModule['createCardShell'] | null = null;
 
-function createFakeDocument(
-  options: {
-    defaultView?: FakeDocument['defaultView'];
-  } = {},
-): FakeDocument {
+function createFakeDocument(options: { defaultView?: FakeDocument['defaultView'] } = {}): FakeDocument {
   const createElement = (tagName: string): FakeElement => {
     const classNames = new Set<string>();
     const element: FakeElement = {
@@ -172,9 +168,11 @@ function createCardShellRuntime(options: Partial<Record<string, unknown>> = {}) 
     documentRefOptions,
     ...restOptions
   } = options;
-  const documentRef = createFakeDocument(documentRefOptions as {
-    defaultView?: FakeDocument['defaultView'];
-  });
+  const documentRef = createFakeDocument(
+    documentRefOptions as {
+      defaultView?: FakeDocument['defaultView'];
+    },
+  );
   const locationAssign = vi.fn();
   const getSelection = vi.fn(() => ({ type: 'None' }));
   const cardBodyRefsByElement = new WeakMap<
@@ -506,10 +504,7 @@ describe('curated-card-shell ui module', () => {
       documentRefOptions: {
         defaultView: {
           IntersectionObserver: class {
-            constructor(
-              callback: (entries: Array<{ isIntersecting: boolean }>) => void,
-              _options?: unknown,
-            ) {
+            constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void, _options?: unknown) {
               observerCallback = callback;
             }
 
@@ -535,8 +530,7 @@ describe('curated-card-shell ui module', () => {
     expect(image?.src).toBe('');
     expect(thumbLink?.className).toContain('cw-curated-card__thumb--loading');
 
-    const triggerObserver =
-      observerCallback as ((entries: Array<{ isIntersecting: boolean }>) => void) | null;
+    const triggerObserver = observerCallback as ((entries: Array<{ isIntersecting: boolean }>) => void) | null;
     if (triggerObserver) {
       triggerObserver([{ isIntersecting: true }]);
     }

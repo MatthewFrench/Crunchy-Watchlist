@@ -268,7 +268,7 @@ class FakeElement {
     return this.attributes[name] ?? null;
   }
 
-  querySelectorAll(selector: string): FakeElement[] {
+  querySelectorAll(_selector: string): FakeElement[] {
     return [];
   }
 

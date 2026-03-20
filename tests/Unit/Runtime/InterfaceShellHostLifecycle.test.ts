@@ -97,7 +97,7 @@ class FakeElement {
     return this.children.some((child) => child.contains(candidate));
   }
 
-  querySelectorAll(selector: string): FakeElement[] {
+  querySelectorAll(_selector: string): FakeElement[] {
     return [];
   }
 }

@@ -20,7 +20,17 @@ type Deferred<T> = {
 const curatedLoaderModuleUrl = pathToFileURL(
   path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedLoader.ts'),
 ).href;
+const curatedPanelGridDomStateModuleUrl = pathToFileURL(
+  path.join(process.cwd(), 'extension', 'src', 'Runtime', 'CuratedPanelGridDomState.ts'),
+).href;
 let curatedLoaderModule: CuratedLoaderModule | null = null;
+let curatedPanelGridDomStateModule: {
+  writeProjectedCuratedGridChildren: (
+    gridElement: Element,
+    activeCards: Element[],
+    projectedSeriesIds?: string[],
+  ) => void;
+} | null = null;
 
 function createDeferred<T>(): Deferred<T> {
   let resolveRef: ((value: T | PromiseLike<T>) => void) | null = null;
@@ -165,11 +175,19 @@ describe('curated-loader runtime', () => {
     const curatedLoaderRuntimeModule = (await import(curatedLoaderModuleUrl)) as {
       createRuntimeCuratedLoaderRuntime: () => object;
     };
+    curatedPanelGridDomStateModule = (await import(curatedPanelGridDomStateModuleUrl)) as {
+      writeProjectedCuratedGridChildren: (
+        gridElement: Element,
+        activeCards: Element[],
+        projectedSeriesIds?: string[],
+      ) => void;
+    };
     curatedLoaderModule = curatedLoaderRuntimeModule.createRuntimeCuratedLoaderRuntime() as CuratedLoaderModule;
   });
 
   afterEach(() => {
     curatedLoaderModule = null;
+    curatedPanelGridDomStateModule = null;
   });
 
   it('loads curated entries from API and updates cache + preload state', async () => {
@@ -494,13 +512,23 @@ describe('curated-loader runtime', () => {
         {
           dataset: { cwSeriesId: 'series-4' },
           getBoundingClientRect: () => ({ top: 80, bottom: 340 }),
+          parentNode: null,
         },
         {
           dataset: { cwSeriesId: 'series-3' },
           getBoundingClientRect: () => ({ top: 360, bottom: 620 }),
+          parentNode: null,
         },
       ],
     } as unknown as Element;
+    for (const child of (harness.state.gridEl as { children: Array<{ parentNode: Element | null }> }).children) {
+      child.parentNode = harness.state.gridEl as Element;
+    }
+    curatedPanelGridDomStateModule?.writeProjectedCuratedGridChildren(
+      harness.state.gridEl as Element,
+      (harness.state.gridEl as { children: Element[] }).children,
+      ['series-4', 'series-3'],
+    );
 
     await harness.runtime.loadCuratedEntries(false);
     await flushMicrotasks();

@@ -1,7 +1,5 @@
 {
-  "allowedWarningFiles": [
-    "extension/src/Runtime/CuratedPanelGridTransitions.ts"
-  ],
+  "allowedWarningFiles": ["extension/src/Runtime/CuratedPanelGridTransitions.ts"],
   "allowedWarningFunctions": [
     {
       "name": "createCuratedGridRenderContext",

@@ -205,7 +205,7 @@ class InterfaceShellHostLifecycleController implements InterfaceShellHostLifecyc
     this.hideNativeVisibility(context, rootElement);
   }
 
-  private restoreNativeVisibility(context: InterfaceShellHostLifecycleContextLike, rootElement: Element): void {
+  private restoreNativeVisibility(context: InterfaceShellHostLifecycleContextLike, _rootElement: Element): void {
     const restoreCandidates = [...context.state.nativeHiddenNodes];
 
     restoreCandidates.forEach((record) => {

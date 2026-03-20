@@ -4,10 +4,7 @@ import {
   type CuratedPanelGridParkingLifecycleHandlers,
   CuratedPanelGridParkingManager,
 } from './CuratedPanelGridParkingManager.js';
-import {
-  createCuratedCardTransitionState,
-  type CuratedGridRenderCard,
-} from './CuratedPanelGridRenderCard.js';
+import { type CuratedGridRenderCard, createCuratedCardTransitionState } from './CuratedPanelGridRenderCard.js';
 import {
   type CuratedGridEntry,
   type CuratedGridRenderContext,

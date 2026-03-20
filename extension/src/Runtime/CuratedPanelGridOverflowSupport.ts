@@ -268,8 +268,8 @@ export function resolveCuratedGridOverflowChildren(
   getActiveGridChildren: (gridElement: Element) => Element[],
 ): Element[] {
   const nextCardsSet = new Set(nextCards);
-  const mountedChildren = Array.from(gridElement.children).filter(
-    (child): child is Element => Boolean(child && typeof child === 'object'),
+  const mountedChildren = Array.from(gridElement.children).filter((child): child is Element =>
+    Boolean(child && typeof child === 'object'),
   );
   const activeChildren = getActiveGridChildren(gridElement);
   const combinedChildren = Array.from(new Set([...mountedChildren, ...activeChildren]));

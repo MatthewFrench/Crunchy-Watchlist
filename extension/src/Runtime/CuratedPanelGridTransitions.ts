@@ -3,12 +3,8 @@ import {
   resolveCompactUniformCardHeightPx,
   roundCardHeightPx,
 } from './CuratedPanelGridAbsoluteHeight.js';
-import type { CuratedGridRenderCard } from './CuratedPanelGridRenderCard.js';
 import { toggleClassNameToken } from './CuratedPanelGridDom.js';
-import {
-  clearCuratedGridDomState,
-  writeProjectedCuratedGridChildren,
-} from './CuratedPanelGridDomState.js';
+import { clearCuratedGridDomState, writeProjectedCuratedGridChildren } from './CuratedPanelGridDomState.js';
 import {
   prepareCuratedGridHeightMeasurements,
   resolveCuratedGridCardHeights,
@@ -24,6 +20,7 @@ import {
   resolveCuratedGridOverflowChildren,
   resolveCuratedGridRemovableOverflow,
 } from './CuratedPanelGridOverflowSupport.js';
+import type { CuratedGridRenderCard } from './CuratedPanelGridRenderCard.js';
 import {
   applyRetainedCardHiddenState,
   cancelRetainedCardHideIfNeeded,

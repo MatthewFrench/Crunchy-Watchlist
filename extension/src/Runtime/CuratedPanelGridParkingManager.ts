@@ -1,6 +1,6 @@
 type CuratedBoundaryValue = CwBoundaryValue;
 
-import { createCuratedCardTransitionState, type CuratedCardTransitionState } from './CuratedPanelGridRenderCard.js';
+import { type CuratedCardTransitionState, createCuratedCardTransitionState } from './CuratedPanelGridRenderCard.js';
 
 export type CuratedCardLayout = 'portrait' | 'landscape';
 

@@ -155,11 +155,7 @@ function removeElementFromParentNode(element: Element | null): void {
   element.parentNode.removeChild(element);
 }
 
-function createThumbImage(
-  documentRef: Document,
-  thumbLink: HTMLAnchorElement,
-  initialImageUrl = '',
-): HTMLImageElement {
+function createThumbImage(documentRef: Document, thumbLink: HTMLAnchorElement, initialImageUrl = ''): HTMLImageElement {
   const loadingIndicator = documentRef.createElement('span');
   loadingIndicator.className = 'cw-curated-card__thumb-loading';
   thumbLink.appendChild(loadingIndicator);
