@@ -32,7 +32,7 @@
     "biome:check": "biome check --error-on-warnings .",
     "biome:fix": "biome check --write .",
     "precommit:biome": "npm run biome:fix && npm run biome:check",
-    "prepush:checks": "npm run typecheck && npm run lint && npm run test:unit",
+    "prepush:checks": "npm run typecheck && npm run lint && NODE_OPTIONS=--experimental-require-module npm run test:unit",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "build:webext": "npm run build:runtime:webext && tsx scripts/build-webextensions.mts --source .tmp/extension-runtime-webext",
