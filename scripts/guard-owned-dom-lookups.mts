@@ -14,9 +14,9 @@ const repoRoot = path.resolve(scriptDir, '..');
 const scanRoots = [path.join(repoRoot, 'extension', 'src', 'Runtime'), path.join(repoRoot, 'extension', 'src', 'Ui')];
 
 const allowedQueryLookupBudgets = new Map<string, number>([
-  ['extension/src/Runtime/BootstrapGate.ts', 3],
+  ['extension/src/Runtime/BootstrapGate.ts', 2],
   ['extension/src/Runtime/ContentRuntimeBootstrapDomLock.ts', 3],
-  ['extension/src/Runtime/InterfaceShellHostLifecycle.ts', 1],
+  ['extension/src/Runtime/InterfaceShellHostLifecycle.ts', 0],
 ]);
 
 const queryLookupPattern = /\bquerySelector(?:All)?\s*\(/;
